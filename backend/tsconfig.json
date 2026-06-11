@@ -26,5 +26,8 @@
     "strict": true,
     "jsx": "react-jsx",
     "skipLibCheck": true
-  }
+  },
+  "include": [
+    "src/**/*"
+  ]
 }
