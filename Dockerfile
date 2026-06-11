@@ -20,8 +20,8 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Copiar arquivos de mídia e dados localizados na raiz do projeto
-COPY "Logo Audaz Fundo Transparente.png" /app/
-COPY "Taxas locais Armadores 2026.xlsx" /app/
+COPY ["Logo Audaz Fundo Transparente.png", "/app/"]
+COPY ["Taxas locais Armadores 2026.xlsx", "/app/"]
 
 # Copiar os arquivos do backend
 COPY backend/ /app/backend/
