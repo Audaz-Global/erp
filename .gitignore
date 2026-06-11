@@ -1,0 +1,22 @@
+# Pastas de trabalho temporárias e testes locais
+ACO/
+ADZ-QIA26060021/
+NWCNC26LA061-648/
+Teste de Cota*/
+VW-MQB 37/
+stitch_audaz_ai_freight_automator/
+
+# Banco de dados local SQLite e arquivos gerados do Prisma
+backend/*.db
+backend/*.db-journal
+backend/dev.db
+
+# Configurações do ambiente local
+backend/.env
+
+# Dependências locais
+backend/node_modules/
+
+# Sistema
+.DS_Store
+Thumbs.db

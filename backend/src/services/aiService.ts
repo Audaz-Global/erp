@@ -1,0 +1,380 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as XLSX from 'xlsx';
+
+// Initialize the Gemini API client
+const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyBdMJjSU8g3t5fr3PGYSSaEYtQ-lrkLHL8';
+const genAI = new GoogleGenerativeAI(apiKey);
+
+
+function getExcelPath() {
+  const paths = [
+    path.join(__dirname, '..', '..', 'Taxas locais Armadores 2026.xlsx'),
+    path.join(process.cwd(), '..', 'Taxas locais Armadores 2026.xlsx'),
+    path.join(process.cwd(), 'Taxas locais Armadores 2026.xlsx'),
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+export function readLocalFeesTable(): string {
+  try {
+    const excelPath = getExcelPath();
+    if (!excelPath) return 'Planilha de Taxas Locais de Armadores não encontrada.';
+
+    const workbook = XLSX.readFile(excelPath);
+    let text = 'TABELA DE TAXAS LOCAIS DE DESTINO POR ARMADOR (2026):\n\n';
+
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
+      
+      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
+      text += `Armador: ${sheetName.trim()}\n`;
+      
+      for (let i = 2; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+        
+        const taxName = String(row[0] || '').trim();
+        if (!taxName) continue;
+        
+        const nameUpper = taxName.toUpperCase();
+        if (
+          nameUpper.includes('ADICIONAL') || 
+          nameUpper.includes('ADICIONAIS') || 
+          nameUpper.includes('ADICONAIS') ||
+          nameUpper.includes('ADICIONA')
+        ) {
+          break;
+        }
+        
+        const val20 = row[1];
+        const val40 = row[3];
+        const unit = String(row[2] || '').trim();
+        
+        text += `- ${taxName}: 20' = R$ ${val20 || 0}, 40' = R$ ${val40 || 0} (${unit})\n`;
+      }
+      text += '\n';
+    }
+    return text;
+  } catch (error) {
+    console.error('Erro ao ler a tabela de taxas locais do Excel:', error);
+    return 'Não foi possível ler as taxas locais do Excel.';
+  }
+}
+
+function calculateCbmFromDimensions(dimensionsStr: string | string[], packagesCount: number = 1): number {
+  if (!dimensionsStr) return 0;
+  
+  const dims = Array.isArray(dimensionsStr) ? dimensionsStr : [dimensionsStr];
+  let totalCbm = 0;
+  
+  for (const dim of dims) {
+    if (!dim) continue;
+    const cleaned = dim.toLowerCase().replace(/\s+/g, '');
+    const match = cleaned.match(/(\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
+    if (match) {
+      const l = parseFloat(match[1] || '0');
+      const w = parseFloat(match[2] || '0');
+      const h = parseFloat(match[3] || '0');
+      
+      let unitFactor = 100; // cm por padrão
+      if (cleaned.includes('mm')) {
+        unitFactor = 1000;
+      } else if (cleaned.includes('cm')) {
+        unitFactor = 100;
+      } else if (cleaned.includes('m') && !cleaned.includes('cm') && !cleaned.includes('mm')) {
+        unitFactor = 1;
+      }
+      
+      const itemVol = (l / unitFactor) * (w / unitFactor) * (h / unitFactor);
+      
+      const qtyMatch = cleaned.match(/^(\d+)[x*-]/);
+      let qty = 1;
+      if (qtyMatch) {
+        const separatorsCount = (cleaned.match(/[x*-]/g) || []).length;
+        if (separatorsCount >= 3) {
+          qty = parseInt(qtyMatch[1] || '1', 10);
+        } else if (dims.length === 1 && packagesCount > 0) {
+          qty = packagesCount;
+        }
+      } else if (dims.length === 1 && packagesCount > 0) {
+        qty = packagesCount;
+      }
+      
+      totalCbm += itemVol * qty;
+    }
+  }
+  
+  return parseFloat(totalCbm.toFixed(3));
+}
+
+// Retry com backoff exponencial para lidar com 429 temporários da API Gemini
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  const delays = [5000, 10000, 20000];
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const is429 = error?.message?.includes('429') || error?.message?.includes('Too Many Requests');
+      const isBilling = error?.message?.includes('prepayment') || error?.message?.includes('depleted');
+      
+      // Se for 429 temporário (rate limit), tenta novamente
+      if (is429 && !isBilling && attempt < maxAttempts - 1) {
+        const wait = delays[attempt] || 20000;
+        console.warn(`[Gemini] 429 recebido. Tentativa ${attempt + 1}/${maxAttempts}. Aguardando ${wait/1000}s...`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      // Se for billing (créditos esgotados) ou última tentativa, lança imediatamente
+      throw error;
+    }
+  }
+  throw new Error('Máximo de tentativas atingido');
+}
+
+export const extractClientData = async (text: string, contextRules: string = '') => {
+
+  try {
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'object',
+          properties: {
+            reference: { type: 'string' },
+            client: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                cnpj: { type: 'string' },
+                confidence: { type: 'number' }
+              },
+              required: ['name']
+            },
+            route: {
+              type: 'object',
+              properties: {
+                incoterm: { type: 'string' },
+                origin_city: { type: 'string' },
+                origin_country: { type: 'string' },
+                origin_airport: { type: 'string' },
+                destination_city: { type: 'string' },
+                destination_country: { type: 'string' },
+                destination_airport: { type: 'string' },
+                confidence: { type: 'number' }
+              },
+              required: [
+                'incoterm',
+                'origin_city',
+                'origin_country',
+                'origin_airport',
+                'destination_city',
+                'destination_country',
+                'destination_airport'
+              ]
+            },
+            cargo: {
+              type: 'object',
+              properties: {
+                type: { 
+                  type: 'string', 
+                  description: 'Modal/tipo de carga. Retorne OBRIGATORIAMENTE um destes valores: "AIR_GENERAL" (se o embarque for Aéreo/Air), "LCL" (se marítimo consolidado), "FCL_20" (se marítimo container de 20 pés), "FCL_40" (se marítimo container de 40 pés). Nunca retorne o nome do produto ou mercadoria neste campo.' 
+                },
+                gross_weight_kg: { type: 'number' },
+                packages_count: { type: 'number' },
+                dimensions: {
+                  type: 'array',
+                  items: { type: 'string' }
+                },
+                commercial_value_usd: { type: 'number' },
+                is_imo: { type: 'boolean' },
+                confidence: { type: 'number' }
+              },
+              required: ['type', 'gross_weight_kg', 'packages_count', 'dimensions']
+            }
+          },
+          required: ['client', 'route', 'cargo']
+        } as any
+      }
+    });
+
+    const prompt = `Você é um especialista em comércio exterior brasileiro.
+    Analise a SOLICITAÇÃO DO CLIENTE e extraia os dados principais.
+    NÃO se preocupe com custos ou valores de frete, pois isso será cotado depois com os agentes.
+
+    CONTEXTO DE REGRAS DE NEGÓCIO:
+    ${contextRules}
+
+    DOCUMENTO(S) / SOLICITAÇÃO:
+    ${text}
+
+    Instruções Importantes para Rota, Incoterm e Aeroportos:
+    - **Incoterm — PRIORIDADE CRÍTICA**: O incoterm correto é SEMPRE o que aparece no **corpo do e-mail de solicitação** enviado pelo cliente (ex: "EXW – AOD: GRU", "FOB Shangai", "FCA Darmstadt"). IGNORE e NÃO USE o incoterm que aparece dentro de PDFs de invoice ou packing list (como "Delivery conditions Incoterms® 2020: FCA: Free carrier..."), pois esses refletem a condição de venda entre fornecedor e importador, e NÃO a condição de frete solicitada. Se o cliente escreveu EXW no e-mail e as invoices dizem FCA, o incoterm correto para a cotação é EXW.
+    - **Incoterm — Regra geral**: Analise se há um endereço de coleta detalhado (fábrica/fornecedor) no exterior. Em caso afirmativo (especialmente se o modal for Aéreo), defina o Incoterm como **EXW** ou **FCA** — nunca use "FOB" genérico de planilha de valor comercial.
+    - **Aeroportos**: No modal Aéreo, inferir o aeroporto internacional de partida ideal mais próximo da cidade de origem do fornecedor no formato "IATA - Nome do Aeroporto" (ex: "PRG - Prague Ruzyne International" para República Tcheca/Pribyslav, "SZX - Shenzhen Bao'an International" para Shenzhen) e o aeroporto internacional de chegada ideal mais próximo do destino final (ex: "GRU - Aeroporto Internacional Guarulhos" para Jacareí ou São Paulo).
+    - **País**: Extraia separadamente o nome do país de origem e o país de destino por extenso. Se a origem for Pribyslav, o país é República Tcheca (Czech Republic). Nunca aplique fallbacks genéricos de país (como China) se houver endereço de origem indicando outro país.
+
+    Instruções Importantes para Carga/Equipamento Especial:
+    - Analise se a solicitação do cliente ou os documentos mencionam siglas ou equipamentos especiais de contêineres, como Open Top (OT), High Cube (HC), Flat Rack, etc.
+    - Se encontrar tais siglas ou especificações (e.g. "40' OT HC", "Open Top", "High Cube", "OP e HC"), aplique as regras explicadas no CONTEXTO (como "Sigla E-mail (4 x 40' OT HC)" etc.).
+    - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
+    - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se o modal for Aéreo/Air), "LCL" (se marítimo consolidado/LCL), "FCL_20" (se marítimo container de 20') ou "FCL_40" (se marítimo container de 40'). NUNCA preencha este campo com o nome da mercadoria (como "parts" ou "wooden box").
+
+    Instruções Importantes para Peso Bruto (gross_weight_kg):
+    - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso total da carga no formato "NNNkg", "NNN kg", "NNN KG" ou similar (ex: "487kg", "190 kg"), utilize ESSE valor como gross_weight_kg. Esse valor declarado pelo cliente é o mais confiável.
+    - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente — confie no total declarado no corpo do e-mail ou no total explícito da tabela ("Total: 487 kg").
+    - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 2 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 200 pcs etc.).
+    
+    Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.text().trim());
+    if (parsed.cargo) {
+      const packagesCount = parseInt(parsed.cargo.packages_count, 10) || 1;
+      const dims = parsed.cargo.dimensions || [];
+      const computedCbm = calculateCbmFromDimensions(dims, packagesCount);
+      parsed.cargo.total_cbm = computedCbm || null;
+    }
+    return parsed;
+  } catch (error: any) {
+    console.error('[extractClientData] ERRO REAL:', error?.message || error);
+    if (error?.response) console.error('[extractClientData] API response:', JSON.stringify(error.response));
+    throw new Error('Falha ao processar dados do cliente com IA: ' + (error?.message || String(error)));
+  }
+};
+
+export const generateAgentDraft = async (data: any, contextRules: string = '') => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const prompt = `Você é um agente de pricing escrevendo um e-mail para solicitar cotação de frete internacional a um coloader/agente.
+    Use os dados abaixo e o e-mail original (se disponível) para redigir o corpo do e-mail.
+
+    REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES:
+    ${contextRules}
+    
+    DADOS EXTRAÍDOS DA CARGA:
+    - Rota: ${data.route?.origin || 'TBD'} para ${data.route?.destination || 'TBD'}
+    - Incoterm: ${data.route?.incoterm || 'TBD'}
+    - Modal: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
+    - Modal/Tipo: ${data.cargo?.type || 'TBD'}
+    - Peso Bruto: ${data.cargo?.gross_weight_kg || 'TBD'} kg
+    - Volumes: ${data.cargo?.packages_count || 'TBD'}
+    - Dimensões/CBM: ${data.cargo?.dimensions || 'Não informado'}
+    - Valor da Carga: ${data.cargo?.commercial_value_usd ? '$' + data.cargo.commercial_value_usd : 'Não informado'}
+    - IMO: ${data.cargo?.is_imo ? 'SIM' : 'NÃO'}
+    ${data.reference ? `- Referência: ${data.reference}` : ''}
+
+    ${data.originalEmailText ? `CONTEÚDO DO E-MAIL ORIGINAL DO CLIENTE:\n${data.originalEmailText}` : ''}
+    
+    Instruções adicionais importantes:
+    1. **Atenção estrita ao Modal:** Identifique se o Modal é **Aéreo (AIR)** ou **Marítimo (SEA)**. Se o modal for **Aéreo (AIR)**, formate uma solicitação de cotação de frete aéreo internacional por kg (peso taxável e bruto). **NUNCA** mencione contêineres, armadores, taxas de devolução/demasia de contêineres ou qualquer termo marítimo no e-mail, mesmo que apareçam em regras genéricas. Se o modal for **Marítimo (SEA)**, formule a solicitação para frete marítimo (FCL ou LCL).
+    2. Analise o CONTEÚDO DO E-MAIL ORIGINAL DO CLIENTE (se disponível) juntamente com as REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES (que contêm explicações de siglas de e-mails, tipos de container, etc.).
+    3. Caso haja siglas no e-mail original explicadas nas regras (por exemplo, siglas indicando container Open Top (OT) e/ou High Cube (HC), como "4 x 40' OT HC" ou "OP e HC"), e o modal for Marítimo, certifique-se de aplicar essa regra e solicitar os tipos corretos de equipamentos (containers) no e-mail (por exemplo, especificando container Open Top High Cube ou OP e HC) no lugar de um contêiner Dry comum.
+    4. Analise as Dimensões/CBM nos DADOS EXTRAÍDOS DA CARGA. Se o modal for Marítimo e contiver qualquer menção a tipos especiais de containers (como "OT", "HC", "Open Top", "High Cube", "OP", etc.), incorpore essa exigência no e-mail de cotação.
+    5. **Rota com UN/LOCODE**: Ao citar a rota do embarque (Origem e Destino) no e-mail, identifique e coloque o respectivo código de porto ou aeroporto (UN/LOCODE) correspondente ao lado do nome da cidade (por exemplo: "Shanghai (CNSHA)" e "Santos (BRSSZ)"), caso o local de origem ou destino seja conhecido.
+    6. **Prazo de Resposta com Antecedência (12h)**: Se o cliente ou o e-mail original estipular uma data, hora ou prazo limite (deadline) para a entrega da proposta de cotação, calcule um limite de tempo para o retorno do agente que seja exatamente **12 horas antes** desse prazo original e mencione de forma clara no e-mail (por exemplo: se o cliente pediu retorno até dia 28 às 18h, peça ao agente até o dia 28 às 06h).
+    7. **Omitir Taxas de Destino Silenciosamente**: Se houver regras sobre taxas de destino (como não pedi-las para agentes da origem), simplesmente **não as peça** no e-mail (solicite apenas o frete e taxas locais de origem, ex: THC, documentação, etc.). **NUNCA escreva frases negativas no e-mail dizendo que não precisa de taxas de destino** (ex: NÃO escreva "não precisamos das taxas de destino" ou "não enviar taxas de destino"). Apenas ignore as taxas de destino silenciosamente no e-mail.
+    8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
+    
+    Retorne APENAS o corpo do e-mail.`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error) { throw new Error('Falha ao gerar rascunho com IA'); }
+};
+
+export const extractAgentCosts = async (
+  text: string, 
+  contextRules: string = '', 
+  localFeesTable: string = '', 
+  quotationContext: string = ''
+) => {
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'object',
+          properties: {
+            costs: {
+              type: 'object',
+              properties: {
+                freight_value: { type: 'number', description: 'Valor do frete internacional bruto calculado' },
+                freight_currency: { type: 'string', description: 'Moeda original do frete (ex: USD, EUR, BRL)' },
+                freight_usd: { type: 'number', description: 'Valor do frete convertido em USD' },
+                iof_usd: { type: 'number', description: 'Valor de IOF em USD se aplicável (normalmente 3.5% do frete)' },
+                storage_brl: { type: 'number', description: 'Valor estimado de armazenagem em BRL se houver' },
+                services_brl: { type: 'number', description: 'Valor total de taxas locais e taxas de destino em BRL' },
+                taxes_brl: { type: 'number', description: 'Valor total de impostos locais em BRL' },
+                total_brl: { type: 'number', description: 'Valor total em BRL se houver' },
+                carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
+                transit_time: { type: 'string', description: 'Tempo de trânsito literal informado pelo agente (ex: "3 days", "9-12 days", "35 dias"). Se não informado, retorne "n/a".' },
+                confidence: { type: 'number', description: 'Grau de confiança na extração' }
+              },
+              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time']
+            }
+          },
+          required: ['costs']
+        } as any
+      }
+    });
+
+    const prompt = `Você é um especialista em comércio exterior brasileiro.
+    Analise o RETORNO DO AGENTE e extraia os custos informados.
+
+    REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES:
+    ${contextRules}
+
+    ${quotationContext ? `CONTEXTO DA COTAÇÃO ORIGINAL:\n${quotationContext}` : ''}
+    
+    ${localFeesTable ? `${localFeesTable}` : ''}
+
+    Instruções Gerais de Extração:
+    1. **Tempo de Trânsito (Transit Time):** Identifique o tempo de trânsito (T/T ou Transit Time) mencionado no RETORNO DO AGENTE (ex: "3 days", "9-12 days", "35 dias"). Salve esse texto literal no campo "transit_time". Se não encontrar nenhuma menção ao tempo de trânsito, retorne "n/a".
+
+    Instruções Importantes para Modal Aéreo:
+    1. Para a Cia Aérea (carrier), identifique o nome completo da companhia aérea. Se encontrar códigos/siglas IATA de duas letras (como KL, LH, AA, UA, AF, TP, EK, QR), converta para o nome por extenso correspondente (ex: KL -> KLM, LH -> Lufthansa, AA -> American Airlines, AF -> Air France, TP -> TAP Air Portugal, EK -> Emirates, QR -> Qatar Airways).
+    2. Identifique os aeroportos citados por siglas de 3 letras (como PRG, GRU, SZX, MXP) e converta-os para o respectivo nome de cidade/aeroporto por extenso.
+    3. Extraia o frete internacional em sua moeda original (ex: EUR 5.30/kg). Se a tarifa for cotada por kg, multiplique-a pelo "Chargeable weight" (Peso Taxável) do contexto se fornecido, ou pelo peso bruto da carga se não houver chargeable weight.
+    4. Mantenha os campos de frete originais "freight_value" e "freight_currency". Calcule também a equivalência do frete em USD no campo "freight_usd" para fins de compatibilidade com a tela (se em EUR, converta para USD multiplicando por 1.08; se em USD, mantenha o mesmo valor).
+
+    Instruções Importantes para Taxas Locais de Armador (Destino BRL):
+    1. Se os dados de CONTEXTO DA COTAÇÃO ORIGINAL indicarem que o embarque é uma IMPORTAÇÃO marítima de contêiner cheio (FCL_20, FCL_40, etc.):
+       - Identifique qual é o ARMADOR (Carrier) mencionado no RETORNO DO AGENTE ou nos documentos (por exemplo: Maersk / MSK, Hapag-Lloyd / HPG, ONE, MSC, CMA, COSCO, PIL, HMM).
+       - Se encontrar o armador, consulte a tabela correspondente a ele em "TABELA DE TAXAS LOCAIS DE DESTINO POR ARMADOR (2026)" fornecida acima.
+       - A partir da tabela do armador, extraia todas as taxas de destino padrão (ex: BL Fee, THC, Emissão, Devolução de container, etc.) aplicáveis para o tipo de container do embarque (20' ou 40'). NÃO inclua taxas marcadas como "ADICIONAIS" ou "ADICIONAL" (que devem ser desconsideradas conforme a regra "TAXAS LOCAIS ARMADORES 2026").
+       - Calcule a soma total dessas taxas locais padrão em BRL:
+         - Para taxas do tipo "(per container)" ou "(per contianer)" ou similar: multiplique o valor unitário da taxa pela quantidade de contêineres indicada no CONTEXTO DA COTAÇÃO ORIGINAL (deduza a quantidade a partir da descrição ou de referências, ex: "4 x Container de 40'" significa 4 contêineres).
+         - Para taxas do tipo "(per shipment)" ou "(per documento)" ou similar: aplique o valor da taxa uma única vez no embarque.
+       - Some todas as taxas obtenidas e insira o valor final calculated (em reais BRL) no campo "services_brl" do JSON de resposta, a menos que o retorno do agente já contenha expressamente outras taxas locais de destino in BRL informadas no texto (se houver taxas locais de destino especificadas no texto do agente, prefira as informadas pelo agente).
+    
+    RETORNO DO AGENTE:
+    ${text}
+
+    Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.
+    - Se encontrar o frete oculto em expressões como "Total USD 1.04 com IOF", deduza o frete puro de 1.00.`;
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.text().trim());
+    if (parsed.costs) {
+      const ttStr = parsed.costs.transit_time;
+      let ttDays = null;
+      if (ttStr && ttStr !== 'n/a') {
+        const matches = ttStr.match(/\d+/g);
+        if (matches && matches.length > 0) {
+          const numbers = matches.map((n: string) => parseInt(n, 10));
+          ttDays = Math.max(...numbers);
+        }
+      }
+      parsed.costs.transit_time_days = ttDays;
+    }
+    return parsed;
+  } catch (error) { throw new Error('Falha ao processar custos com IA'); }
+};

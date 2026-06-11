@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        String   @default("OPERATOR") // ADMIN, OPERATOR
+  active      Boolean  @default(true)
+  preferences String?  // JSON string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quotations Quotation[]
+}
+
+model Client {
+  id            String   @id @default(uuid())
+  name          String
+  cnpj          String?  @unique
+  contactName   String?
+  contactEmail  String?
+  smartcomexId  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  quotations Quotation[]
+}
+
+model Quotation {
+  id          String   @id @default(uuid())
+  reference   String?  @unique
+  status      String   @default("SOLICITADO") // SOLICITADO, AGUARDANDO_AGENTE, RETORNO_RECEBIDO, APPROVED, SENT, EXPIRED
+  validUntil  DateTime?
+  
+  // Agente / Coloader
+  agentEmail  String?
+  draftEmail  String?  // Rascunho do email para o agente
+  
+  // Type Info
+  direction   String   // IMPORT, EXPORT
+  modal       String   // SEA, AIR
+  loadType    String   // LCL, FCL_20, FCL_40, FCL_40HC, AIR_GENERAL, AIR_CONSOLIDATED
+
+  // Relations
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  supplierName    String?
+  supplierCountry String?
+  supplierCity    String?
+
+  // Route
+  incoterm           String?
+  originPort         String?
+  originCity         String?
+  originCountry      String?
+  destinationPort    String?
+  destinationCity    String?
+  destinationCountry String?
+  transitTimeDays    Int?
+
+  // Cargo
+  cargoDescription   String?
+  ncmCodes           String? // Stored as comma separated string
+  contractNumber     String?
+  commercialValue    Float?
+  commercialCurrency String?  @default("USD")
+  totalGrossWeightKg Float?
+  totalNetWeightKg   Float?
+  totalCbm           Float?
+  totalPackages      Int?
+  isImo              Boolean  @default(false)
+  isPerishable       Boolean  @default(false)
+  requiresAnvisa     Boolean  @default(false)
+  requiresArmy       Boolean  @default(false)
+  requiresMapa       Boolean  @default(false)
+  
+  packages           String?  // Stored as JSON string
+
+  // Costs
+  freightValue       Float?
+  freightCurrency    String?
+  iofUsd             Float?
+  carrier            String?
+  destinationStorage Float?
+  destinationStorageCurrency String?
+  destinationServicesTotal Float?
+  destinationServices String? // JSON string
+  destinationTaxes   Float?
+  destinationTaxesCurrency String?
+  
+  totalBrl           Float?
+  totalUsd           Float?
+
+  notes              String?  // JSON string array
+
+  sourceEmails       String?  // JSON string array
+  sourceDocuments    String?  // JSON string array
+  aiConfidence       Float?
+  smartcomexSynced   Boolean  @default(false)
+  customsClearanceIncluded Boolean @default(false)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model KnowledgeEntry {
+  id          String   @id @default(uuid())
+  category    String   // rule, template, tariff, procedure, faq, scenario
+  title       String
+  content     String
+  appliesTo   String?  // JSON string
+  priority    Int      @default(0)
+  active      Boolean  @default(true)
+  createdById String
+  tags        String?  // Comma separated string
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

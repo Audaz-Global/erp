@@ -1,0 +1,34 @@
+{
+  "reference": "W08 (20/02) - JOUDER",
+  "client": {
+    "name": "GESTAMP",
+    "cnpj": "02.147.467/0005-18",
+    "confidence": 0.95
+  },
+  "route": {
+    "incoterm": "FOB",
+    "origin": "Shanghai",
+    "destination": "SSZ",
+    "confidence": 0.95
+  },
+  "cargo": {
+    "type": "LCL",
+    "gross_weight_kg": 383,
+    "packages_count": 2,
+    "dimensions": [
+      "100x68x59 cm",
+      "60x42x53 cm"
+    ],
+    "commercial_value_usd": 28971.09,
+    "is_imo": false,
+    "confidence": 0.95
+  },
+  "costs": {
+    "freight_usd": null,
+    "storage_brl": null,
+    "services_brl": null,
+    "taxes_brl": null,
+    "total_brl": null,
+    "confidence": 0.95
+  }
+}
