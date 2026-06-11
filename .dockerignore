@@ -1,0 +1,32 @@
+# Ignorar pastas de dependências locais
+**/node_modules
+**/dist
+
+# Ignorar arquivos de bancos de dados locais
+**/*.db
+**/*.db-journal
+
+# Ignorar variáveis de ambiente locais
+**/.env
+
+# Ignorar logs
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignorar repositórios de versionamento e IDEs
+.git
+.github
+.vscode
+.idea
+.gemini
+.gitignore
+
+# Ignorar pastas de cotações de teste locais / mockups
+ACO/
+ADZ-QIA26060021/
+NWCNC26LA061-648/
+Teste de Cotação/
+VW-MQB 37/
+stitch_audaz_ai_freight_automator/
