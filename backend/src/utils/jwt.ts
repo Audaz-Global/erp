@@ -1,6 +1,9 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'temp-fallback-secret-key-change-in-env';
+if (JWT_SECRET === 'temp-fallback-secret-key-change-in-env') {
+  console.warn("WARNING: JWT_SECRET environment variable is not defined!");
+}
 
 export interface JwtPayload {
   userId: string;
