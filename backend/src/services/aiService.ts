@@ -3,9 +3,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as XLSX from 'xlsx';
 
-// Initialize the Gemini API client
-const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyBdMJjSU8g3t5fr3PGYSSaEYtQ-lrkLHL8';
-const genAI = new GoogleGenerativeAI(apiKey);
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.warn("WARNING: GEMINI_API_KEY environment variable is not defined.");
+}
+const genAI = new GoogleGenerativeAI(apiKey || '');
 
 
 function getExcelPath() {
