@@ -22,6 +22,7 @@ backend/node_modules/
 backend/dist/
 backend/inspect_*.txt
 backend/test-multimodal-offline.js
+backend/test-cubado-precisao.js
 
 # Sistema
 .DS_Store

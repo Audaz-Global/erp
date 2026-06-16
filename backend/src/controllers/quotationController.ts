@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
+import { calculateAirCubado, hasOversizedCargo } from '../utils/cargoUtils';
 
 function calculateCbmFromDimensions(dimensionsStr: string, packagesCount: number = 1): number {
   if (!dimensionsStr) return 0;
@@ -324,7 +325,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     // Peso taxável
     const bruto = quotation.totalGrossWeightKg || 0;
     const cbm = quotation.totalCbm || 0;
-    const cubado = isAir ? parseFloat((cbm * 166.67).toFixed(2)) : parseFloat((cbm * 1000).toFixed(2));
+    const cubado = isAir ? calculateAirCubado(quotation.packages || '', quotation.totalPackages || 1) : parseFloat((cbm * 1000).toFixed(2));
     const taxavel = Math.max(bruto, cubado) || 1; // evitar divisão por zero
 
     // Frete
@@ -386,6 +387,15 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     const subtotalDestinoBrl = detailedFeesDestino.reduce((s, f) => s + f.brl, 0);
     const totalGeralBrl = fTotalBrl + subtotalOrigemBrl + subtotalDestinoBrl;
+
+    const hasOversized = isAir && hasOversizedCargo(quotation.packages || '');
+    const oversizedAlertHtml = hasOversized
+      ? `
+    <div class="alert-box" style="border-left-color: #ef4444; background: rgba(239, 68, 68, 0.1); color: #fca5a5; margin-bottom: 20px;">
+      <strong>⚠️ Atenção - Carga Sobredimensionada:</strong> Esta carga possui caixas que ultrapassam os limites padrão de aviação comercial (comprimento > 300 cm, largura > 200 cm ou altura > 160 cm). Será necessária a confirmação prévia de preço e espaço com a companhia aérea para viabilizar o embarque.
+    </div>
+      `
+      : '';
 
     // Renderizar página HTML
     res.send(`
@@ -546,6 +556,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     <div class="alert-box">
       <strong>⚠️ Aviso de Variação Cambial:</strong> Os valores abaixo foram convertidos para BRL com base na taxa de câmbio de hoje (USD: R$ ${usdRate.toFixed(4)} | EUR: R$ ${eurRate.toFixed(4)}). A cotação final em BRL varia conforme o câmbio oficial na data do embarque.
     </div>
+    \${oversizedAlertHtml}
 
     <div class="meta-grid">
       <div class="meta-item">

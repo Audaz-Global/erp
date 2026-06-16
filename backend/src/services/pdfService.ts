@@ -3,6 +3,7 @@ import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
 import * as XLSX from 'xlsx';
+import { calculateAirCubado, hasOversizedCargo } from '../utils/cargoUtils';
 
 const defaultTemplate = `
 <!DOCTYPE html>
@@ -715,6 +716,12 @@ const defaultAirTemplate = `
     </div>
   </div>
 
+  {{#if hasOversizedAlert}}
+    <div style="border: 1.5px solid #ef4444; background-color: #fef2f2; color: #991b1b; padding: 8px 12px; margin: 10px 0; border-radius: 4px; font-size: 10px; font-weight: bold;">
+      ⚠️ ATENÇÃO - CARGA SOBREDIMENSIONADA: Esta carga possui caixas que ultrapassam os limites padrão de aviação comercial (comprimento > 300 cm, largura > 200 cm ou altura > 160 cm). É necessária a consulta prévia à companhia aérea para verificação de espaço e confirmação de custos.
+    </div>
+  {{/if}}
+
   <div class="section-banner">{{loadTypeLabel}}</div>
   
   <div class="section-banner-sm">Frete</div>
@@ -946,8 +953,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const rawBruto = parseFloat(quotationData.totalGrossWeightKg) || 0;
     totalGrossWeightKg = rawBruto;
     
-    const cbm = parseFloat(quotationData.totalCbm) || 0;
-    pesoCubadoRich = cbm > 0 ? parseFloat((cbm * 166.67).toFixed(2)) : 0;
+    pesoCubadoRich = calculateAirCubado(quotationData.packages || '', quotationData.totalPackages || 1);
     
     chargableWeight = Math.max(totalGrossWeightKg, pesoCubadoRich);
 
@@ -1430,6 +1436,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       ...quotationData,
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
       logoBase64,
+      hasOversizedAlert: hasOversizedCargo(quotationData.packages || ''),
       modalLabel,
       originCityRich,
       originCountryRich,
