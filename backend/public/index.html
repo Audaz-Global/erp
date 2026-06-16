@@ -948,7 +948,7 @@
 </div>
 
 <script>
-const API = 'http://127.0.0.1:3001/api';
+const API = window.location.origin + '/api';
 
 window.onerror = function(msg, url, lineNo, columnNo, error) {
   fetch(API + '/log-error', {
