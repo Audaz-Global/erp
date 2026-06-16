@@ -228,10 +228,11 @@ export const extractClientData = async (text: string, contextRules: string = '')
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
     - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se o modal for Aéreo/Air), "LCL" (se marítimo consolidado/LCL), "FCL_20" (se marítimo container de 20') ou "FCL_40" (se marítimo container de 40'). NUNCA preencha este campo com o nome da mercadoria (como "parts" ou "wooden box").
 
-    Instruções Importantes para Peso Bruto (gross_weight_kg):
+    - **Instruções Importantes para Peso Bruto (gross_weight_kg):**
     - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso total da carga no formato "NNNkg", "NNN kg", "NNN KG" ou similar (ex: "487kg", "190 kg"), utilize ESSE valor como gross_weight_kg. Esse valor declarado pelo cliente é o mais confiável.
     - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente — confie no total declarado no corpo do e-mail ou no total explícito da tabela ("Total: 487 kg").
     - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 2 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 200 pcs etc.).
+    - **Múltiplos Shippers / Consolidação (CRÍTICO)**: Se a solicitação ou os anexos contiverem dados de múltiplos fornecedores (shippers), invoices ou packing lists distintos (ex: Shipper Yongsheng e Shipper Todenko no mesmo e-mail), você DEVE consolidar todas as cargas: some os pesos brutos (gross_weight_kg) de todos os shippers, some a quantidade total de caixas/volumes (packages_count) de todos eles, e junte todas as dimensões/medidas dos pacotes de todos os fornecedores em um único array consolidado de dimensions.
     
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
 
