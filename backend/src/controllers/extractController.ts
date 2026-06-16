@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { parseEml, parsePdf, parseExcel } from '../services/parserService';
+import { parseEml, parseEmlWithMedia, parsePdf, parseExcel } from '../services/parserService';
 import { extractClientData, extractAgentCosts, generateAgentDraft, readLocalFeesTable } from '../services/aiService';
 import { prisma } from '../prisma';
 
@@ -8,6 +8,7 @@ export const extractData = async (req: Request, res: Response) => {
     const rawText = req.body.text || '';
     const mode = req.body.mode || 'CLIENT'; // 'CLIENT' ou 'AGENT'
     let extractedFileText = '';
+    const mediaParts: any[] = [];
 
     const files = req.files as Express.Multer.File[];
 
@@ -17,10 +18,21 @@ export const extractData = async (req: Request, res: Response) => {
           const ext = file.originalname.toLowerCase();
 
           if (file.mimetype === 'message/rfc822' || ext.endsWith('.eml')) {
-            extractedFileText += await parseEml(file.buffer);
+            const emlResult = await parseEmlWithMedia(file.buffer);
+            extractedFileText += emlResult.text;
+            if (emlResult.mediaParts && emlResult.mediaParts.length > 0) {
+              mediaParts.push(...emlResult.mediaParts);
+            }
           } else if (file.mimetype === 'application/pdf' || ext.endsWith('.pdf')) {
             const pdfText = await parsePdf(file.buffer);
             extractedFileText += `\n[PDF: ${file.originalname}]\n${pdfText}\n`;
+            mediaParts.push({
+              inlineData: {
+                data: file.buffer.toString('base64'),
+                mimeType: 'application/pdf'
+              },
+              filename: file.originalname
+            });
           } else if (
             ext.endsWith('.xlsx') || ext.endsWith('.xls') || ext.endsWith('.csv') ||
             file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
@@ -28,6 +40,15 @@ export const extractData = async (req: Request, res: Response) => {
           ) {
             const excelText = await parseExcel(file.buffer);
             extractedFileText += `\n[Excel: ${file.originalname}]\n${excelText}\n`;
+          } else if (file.mimetype.startsWith('image/')) {
+            mediaParts.push({
+              inlineData: {
+                data: file.buffer.toString('base64'),
+                mimeType: file.mimetype
+              },
+              filename: file.originalname
+            });
+            extractedFileText += `\n[Imagem: ${file.originalname}]\n`;
           } else {
             extractedFileText += `\n[Arquivo ignorado: ${file.originalname}]\n`;
           }
@@ -54,7 +75,7 @@ export const extractData = async (req: Request, res: Response) => {
 
     let aiResult;
     if (mode === 'CLIENT') {
-      aiResult = await extractClientData(combinedText, contextRules);
+      aiResult = await extractClientData(combinedText, contextRules, mediaParts);
     } else {
       // Buscar cotação original para passar como contexto de cálculo
       const quotationId = req.body.quotationId || '';

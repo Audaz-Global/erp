@@ -1,6 +1,7 @@
 # Pastas de trabalho temporárias e testes locais
 ACO/
 ADZ-QIA26060021/
+ADZ-QIA26060048/
 NWCNC26LA061-648/
 Teste de Cota*/
 VW-MQB 37/
@@ -16,6 +17,11 @@ backend/.env
 
 # Dependências locais
 backend/node_modules/
+
+# Builds e arquivos temporários
+backend/dist/
+backend/inspect_*.txt
+backend/test-multimodal-offline.js
 
 # Sistema
 .DS_Store

@@ -139,7 +139,7 @@ async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   throw new Error('Máximo de tentativas atingido');
 }
 
-export const extractClientData = async (text: string, contextRules: string = '') => {
+export const extractClientData = async (text: string, contextRules: string = '', mediaParts: any[] = []) => {
 
   try {
     const model = genAI.getGenerativeModel({
@@ -207,7 +207,7 @@ export const extractClientData = async (text: string, contextRules: string = '')
     });
 
     const prompt = `Você é um especialista em comércio exterior brasileiro.
-    Analise a SOLICITAÇÃO DO CLIENTE e extraia os dados principais.
+    Analise a SOLICITAÇÃO DO CLIENTE e os documentos anexos para extrair os dados principais.
     NÃO se preocupe com custos ou valores de frete, pois isso será cotado depois com os agentes.
 
     CONTEXTO DE REGRAS DE NEGÓCIO:
@@ -228,15 +228,23 @@ export const extractClientData = async (text: string, contextRules: string = '')
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
     - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se o modal for Aéreo/Air), "LCL" (se marítimo consolidado/LCL), "FCL_20" (se marítimo container de 20') ou "FCL_40" (se marítimo container de 40'). NUNCA preencha este campo com o nome da mercadoria (como "parts" ou "wooden box").
 
-    - **Instruções Importantes para Peso Bruto (gross_weight_kg):**
-    - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso total da carga no formato "NNNkg", "NNN kg", "NNN KG" ou similar (ex: "487kg", "190 kg"), utilize ESSE valor como gross_weight_kg. Esse valor declarado pelo cliente é o mais confiável.
-    - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente — confie no total declarado no corpo do e-mail ou no total explícito da tabela ("Total: 487 kg").
-    - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 2 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 200 pcs etc.).
-    - **Múltiplos Shippers / Consolidação (CRÍTICO)**: Se a solicitação ou os anexos contiverem dados de múltiplos fornecedores (shippers), invoices ou packing lists distintos (ex: Shipper Yongsheng e Shipper Todenko no mesmo e-mail), você DEVE consolidar todas as cargas: some os pesos brutos (gross_weight_kg) de todos os shippers, some a quantidade total de caixas/volumes (packages_count) de todos eles, e junte todas as dimensões/medidas dos pacotes de todos os fornecedores em um único array consolidado de dimensions.
-    
+    - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count) e Valor Comercial (commercial_value_usd):**
+    - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso TOTAL consolidado de todas as cargas do embarque, utilize esse valor.
+    - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente se houver um total explícito nela ou se houver um arquivo de packing list de imagem anexo legível.
+    - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 3 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 20000 pcs etc.).
+    - **Múltiplos Shippers / Consolidação (CRÍTICO)**: Se a solicitação ou os anexos contiverem dados de múltiplos fornecedores (shippers), invoices ou packing lists distintos (ex: Shipper Yongsheng e Shipper Todenko no mesmo embarque/e-mail), você DEVE consolidar todas as cargas:
+      1. Some os pesos brutos (gross_weight_kg) de todos os fornecedores (ex: 41.05 kg da Yongsheng + 113.40 kg da Todenko = 154.45 kg).
+      2. Some a quantidade total de caixas/volumes (packages_count) de todos eles (ex: 3 caixas da Yongsheng + 9 caixas da Todenko = 12 volumes).
+      3. Some o valor comercial total de todas as invoices em USD (ex: USD 3036.00 + USD 10098.00 = USD 13134.00).
+      4. Junte todas as dimensões/medidas das caixas de todos os fornecedores em uma lista consolidada única de dimensions.
+
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
 
-    const result = await model.generateContent(prompt);
+    const contentPayload = mediaParts.length > 0
+      ? [prompt, ...mediaParts.map(p => ({ inlineData: p.inlineData }))]
+      : [prompt];
+
+    const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.cargo) {
       const packagesCount = parseInt(parsed.cargo.packages_count, 10) || 1;
