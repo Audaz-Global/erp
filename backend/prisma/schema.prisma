@@ -104,7 +104,8 @@ model Quotation {
   
   totalBrl           Float?
   totalUsd           Float?
-
+  frequency          String?
+  
   notes              String?  // JSON string array
 
   sourceEmails       String?  // JSON string array

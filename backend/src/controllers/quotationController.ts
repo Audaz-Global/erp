@@ -253,7 +253,7 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
 export const updatePhase = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency } = req.body;
 
     const updateData: any = { status };
     if (agentEmail) updateData.agentEmail = agentEmail;
@@ -263,6 +263,9 @@ export const updatePhase = async (req: Request, res: Response) => {
     if (transitTimeDays !== undefined) {
       updateData.transitTimeDays = transitTimeDays;
     }
+    if (frequency !== undefined) {
+      updateData.frequency = frequency;
+    }
 
     if (costs) {
       updateData.freightValue = costs.freight_usd;
@@ -271,6 +274,9 @@ export const updatePhase = async (req: Request, res: Response) => {
       updateData.destinationServicesTotal = costs.services_brl;
       updateData.destinationTaxes = costs.taxes_brl;
       updateData.totalBrl = costs.total_brl;
+      if (costs.frequency !== undefined) {
+        updateData.frequency = costs.frequency;
+      }
     }
 
     const updated = await prisma.quotation.update({

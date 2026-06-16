@@ -287,7 +287,7 @@ const defaultTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 Brasil</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">Semanal</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
       </div>
     </div>
   </div>
@@ -711,7 +711,7 @@ const defaultAirTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{destinationCountryRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">Semanal</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
       </div>
     </div>
   </div>
@@ -1115,6 +1115,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     totalGrossWeightKg: totalGrossWeightKg.toFixed(2),
     transitTimeLabel,
     pesoCubadoRich: pesoCubadoRich.toFixed(2),
+    frequencyRich: quotationData.frequency || 'Semanal',
     incoterm,
     ttColetaLabel,
     originCityRich,

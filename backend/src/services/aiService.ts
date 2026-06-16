@@ -302,9 +302,10 @@ export const extractAgentCosts = async (
                 total_brl: { type: 'number', description: 'Valor total em BRL se houver' },
                 carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
                 transit_time: { type: 'string', description: 'Tempo de trânsito literal informado pelo agente (ex: "3 days", "9-12 days", "35 dias"). Se não informado, retorne "n/a".' },
+                frequency: { type: 'string', description: 'Frequência de saídas ou voos informada pelo agente. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc., converta para "2x por semana (D26)" ou similar. Se não informado, retorne "Semanal".' },
                 confidence: { type: 'number', description: 'Grau de confiança na extração' }
               },
-              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time']
+              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time', 'frequency']
             }
           },
           required: ['costs']
@@ -324,6 +325,7 @@ export const extractAgentCosts = async (
 
     Instruções Gerais de Extração:
     1. **Tempo de Trânsito (Transit Time):** Identifique o tempo de trânsito (T/T ou Transit Time) mencionado no RETORNO DO AGENTE (ex: "3 days", "9-12 days", "35 dias"). Salve esse texto literal no campo "transit_time". Se não encontrar nenhuma menção ao tempo de trânsito, retorne "n/a".
+    2. **Frequência (frequency):** Identifique a frequência de saída de voos ou navios no RETORNO DO AGENTE. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc. (sinalizando saídas às terças e sábados no padrão IATA, ou segundas e sextas no informal), formate o resultado final como "2x por semana (D26)" ou similar que represente de forma clara a frequência. Se o agente apenas indicar "diário", "semanal", etc., extraia esse texto. Se não for informada nenhuma frequência, retorne "Semanal".
 
     Instruções Importantes para Modal Aéreo:
     1. Para a Cia Aérea (carrier), identifique o nome completo da companhia aérea. Se encontrar códigos/siglas IATA de duas letras (como KL, LH, AA, UA, AF, TP, EK, QR), converta para o nome por extenso correspondente (ex: KL -> KLM, LH -> Lufthansa, AA -> American Airlines, AF -> Air France, TP -> TAP Air Portugal, EK -> Emirates, QR -> Qatar Airways).
@@ -362,5 +364,8 @@ export const extractAgentCosts = async (
       parsed.costs.transit_time_days = ttDays;
     }
     return parsed;
-  } catch (error) { throw new Error('Falha ao processar custos com IA'); }
+  } catch (error: any) {
+    console.error('[extractAgentCosts] ERRO REAL:', error);
+    throw new Error('Falha ao processar custos com IA: ' + (error?.message || String(error)));
+  }
 };
