@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as XLSX from 'xlsx';
+import { parsePackages } from '../utils/cargoUtils';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -77,38 +78,10 @@ function calculateCbmFromDimensions(dimensionsStr: string | string[], packagesCo
   
   for (const dim of dims) {
     if (!dim) continue;
-    const cleaned = dim.toLowerCase().replace(/\s+/g, '');
-    const match = cleaned.match(/(\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
-    if (match) {
-      const l = parseFloat(match[1] || '0');
-      const w = parseFloat(match[2] || '0');
-      const h = parseFloat(match[3] || '0');
-      
-      let unitFactor = 100; // cm por padrão
-      if (cleaned.includes('mm')) {
-        unitFactor = 1000;
-      } else if (cleaned.includes('cm')) {
-        unitFactor = 100;
-      } else if (cleaned.includes('m') && !cleaned.includes('cm') && !cleaned.includes('mm')) {
-        unitFactor = 1;
-      }
-      
-      const itemVol = (l / unitFactor) * (w / unitFactor) * (h / unitFactor);
-      
-      const qtyMatch = cleaned.match(/^(\d+)[x*-]/);
-      let qty = 1;
-      if (qtyMatch) {
-        const separatorsCount = (cleaned.match(/[x*-]/g) || []).length;
-        if (separatorsCount >= 3) {
-          qty = parseInt(qtyMatch[1] || '1', 10);
-        } else if (dims.length === 1 && packagesCount > 0) {
-          qty = packagesCount;
-        }
-      } else if (dims.length === 1 && packagesCount > 0) {
-        qty = packagesCount;
-      }
-      
-      totalCbm += itemVol * qty;
+    const parsedPkgs = parsePackages(dim, dims.length === 1 ? packagesCount : 1);
+    for (const pkg of parsedPkgs) {
+      const vol = (pkg.length / 100) * (pkg.width / 100) * (pkg.height / 100) * pkg.qty;
+      totalCbm += vol;
     }
   }
   
@@ -192,7 +165,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 packages_count: { type: 'number' },
                 dimensions: {
                   type: 'array',
-                  items: { type: 'string' }
+                  items: { type: 'string' },
+                  description: 'Lista de dimensões de cada lote de caixas/volumes. Cada item do array DEVE obrigatoriamente iniciar com a quantidade correspondente de caixas daquela dimensão no formato "QTDx CxLxA cm" (ex: "1x 50*50*28 cm", "2x 50*50*13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm").'
                 },
                 commercial_value_usd: { type: 'number' },
                 is_imo: { type: 'boolean' },
@@ -228,15 +202,16 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
     - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se o modal for Aéreo/Air), "LCL" (se marítimo consolidado/LCL), "FCL_20" (se marítimo container de 20') ou "FCL_40" (se marítimo container de 40'). NUNCA preencha este campo com o nome da mercadoria (como "parts" ou "wooden box").
 
-    - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count) e Valor Comercial (commercial_value_usd):**
+    - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count), Valor Comercial (commercial_value_usd) e Dimensões (dimensions):**
     - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso TOTAL consolidado de todas as cargas do embarque, utilize esse valor.
     - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente se houver um total explícito nela ou se houver um arquivo de packing list de imagem anexo legível.
     - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 3 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 20000 pcs etc.).
+    - **Dimensões com Quantidade (CRÍTICO)**: Cada item no array "dimensions" DEVE obrigatoriamente iniciar com a quantidade de volumes correspondente àquela dimensão usando o formato "[Quantidade]x [Comprimento]x[Largura]x[Altura] cm" (ex: "1x 50x50x28 cm", "2x 50x50x13 cm", "3x 37.5x31x37 cm" e "9x 63x41.5x38 cm"). Se a quantidade não for colocada na frente de cada dimensão, a cubagem acumulada falhará.
     - **Múltiplos Shippers / Consolidação (CRÍTICO)**: Se a solicitação ou os anexos contiverem dados de múltiplos fornecedores (shippers), invoices ou packing lists distintos (ex: Shipper Yongsheng e Shipper Todenko no mesmo embarque/e-mail), você DEVE consolidar todas as cargas:
       1. Some os pesos brutos (gross_weight_kg) de todos os fornecedores (ex: 41.05 kg da Yongsheng + 113.40 kg da Todenko = 154.45 kg).
       2. Some a quantidade total de caixas/volumes (packages_count) de todos eles (ex: 3 caixas da Yongsheng + 9 caixas da Todenko = 12 volumes).
       3. Some o valor comercial total de todas as invoices em USD (ex: USD 3036.00 + USD 10098.00 = USD 13134.00).
-      4. Junte todas as dimensões/medidas das caixas de todos os fornecedores em uma lista consolidada única de dimensions.
+      4. Junte todas as dimensões/medidas das caixas de todos os fornecedores (cada uma com seu respectivo multiplicador de quantidade na frente!) em uma lista consolidada única de dimensions.
 
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
 

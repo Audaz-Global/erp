@@ -31,18 +31,36 @@ export function parsePackages(packagesStr: string, defaultPackagesCount: number 
 
     const cleaned = item.toLowerCase().replace(/\s+/g, '');
     
+    // Descobrir a quantidade de volumes antes de processar as dimensões
+    const qtyMatch = cleaned.match(/^(\d+)[x*-]/);
+    let qty = 1;
+    let dimensionsPart = cleaned;
+    
+    if (qtyMatch) {
+      const separatorsCount = (cleaned.match(/[x*-]/g) || []).length;
+      if (separatorsCount >= 3) {
+        qty = parseInt(qtyMatch[1] || '1', 10);
+        // Remove o prefixo de quantidade (ex: "1x", "2-", "3*") para não interferir nas dimensões
+        dimensionsPart = cleaned.slice(qtyMatch[0].length);
+      } else if (items.length === 1 && defaultPackagesCount > 0) {
+        qty = defaultPackagesCount;
+      }
+    } else if (items.length === 1 && defaultPackagesCount > 0) {
+      qty = defaultPackagesCount;
+    }
+
     // Identifica unidade antes de limpá-la do texto
     let toCmFactor = 1;
-    if (cleaned.includes('mm')) {
+    if (dimensionsPart.includes('mm')) {
       toCmFactor = 0.1;
-    } else if (cleaned.includes('cm')) {
+    } else if (dimensionsPart.includes('cm')) {
       toCmFactor = 1;
-    } else if (cleaned.includes('m') && !cleaned.includes('cm') && !cleaned.includes('mm')) {
+    } else if (dimensionsPart.includes('m') && !dimensionsPart.includes('cm') && !dimensionsPart.includes('mm')) {
       toCmFactor = 100;
     }
 
     // Remove as siglas de unidade ("mm", "cm", "m") para evitar que fiquem coladas nos números e quebrem o regex
-    const cleanDimensions = cleaned.replace(/mm|cm|m/g, '');
+    const cleanDimensions = dimensionsPart.replace(/mm|cm|m/g, '');
 
     // Procura por 3 números decimais separados por x ou * ou -
     const match = cleanDimensions.match(/(\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
@@ -54,20 +72,6 @@ export function parsePackages(packagesStr: string, defaultPackagesCount: number 
       l = l * toCmFactor;
       w = w * toCmFactor;
       h = h * toCmFactor;
-
-      // Descobrir a quantidade de volumes
-      const qtyMatch = cleaned.match(/^(\d+)[x*-]/);
-      let qty = 1;
-      if (qtyMatch) {
-        const separatorsCount = (cleaned.match(/[x*-]/g) || []).length;
-        if (separatorsCount >= 3) {
-          qty = parseInt(qtyMatch[1] || '1', 10);
-        } else if (items.length === 1 && defaultPackagesCount > 0) {
-          qty = defaultPackagesCount;
-        }
-      } else if (items.length === 1 && defaultPackagesCount > 0) {
-        qty = defaultPackagesCount;
-      }
 
       result.push({ length: l, width: w, height: h, qty });
     }
