@@ -956,6 +956,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     pesoCubadoRich = calculateAirCubado(quotationData.packages || '', quotationData.totalPackages || 1);
     
     chargableWeight = Math.max(totalGrossWeightKg, pesoCubadoRich);
+    if (quotationData.weightBreak) {
+      const minWeight = parseFloat(quotationData.weightBreak.replace(/[^0-9]/g, ''));
+      if (!isNaN(minWeight) && chargableWeight < minWeight) {
+        chargableWeight = minWeight;
+      }
+    }
 
     // Mapeamento dinâmico de Origem (Aeroporto/Porto e País)
     if (quotationData.originPort) {

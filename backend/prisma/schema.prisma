@@ -105,6 +105,7 @@ model Quotation {
   totalBrl           Float?
   totalUsd           Float?
   frequency          String?
+  weightBreak        String?
   
   notes              String?  // JSON string array
 

@@ -303,9 +303,10 @@ export const extractAgentCosts = async (
                 carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
                 transit_time: { type: 'string', description: 'Tempo de trânsito literal informado pelo agente (ex: "3 days", "9-12 days", "35 dias"). Se não informado, retorne "n/a".' },
                 frequency: { type: 'string', description: 'Frequência de saídas ou voos informada pelo agente. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc., converta para "2x por semana (D26)" ou similar. Se não informado, retorne "Semanal".' },
+                weight_break: { type: 'string', description: 'Faixa tarifária de peso aplicada no frete aéreo pelo agente se houver no texto. Exemplos de retorno: "normal", "+45", "+100", "+300", "+500", "+1000". Se o e-mail do agente contiver termos como "+100kg", "above 100kg", "+100", extraia "+100". Se não aplicável ou não mencionado, retorne "normal".' },
                 confidence: { type: 'number', description: 'Grau de confiança na extração' }
               },
-              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time', 'frequency']
+              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time', 'frequency', 'weight_break']
             }
           },
           required: ['costs']
@@ -330,8 +331,9 @@ export const extractAgentCosts = async (
     Instruções Importantes para Modal Aéreo:
     1. Para a Cia Aérea (carrier), identifique o nome completo da companhia aérea. Se encontrar códigos/siglas IATA de duas letras (como KL, LH, AA, UA, AF, TP, EK, QR), converta para o nome por extenso correspondente (ex: KL -> KLM, LH -> Lufthansa, AA -> American Airlines, AF -> Air France, TP -> TAP Air Portugal, EK -> Emirates, QR -> Qatar Airways).
     2. Identifique os aeroportos citados por siglas de 3 letras (como PRG, GRU, SZX, MXP) e converta-os para o respectivo nome de cidade/aeroporto por extenso.
-    3. Extraia o frete internacional em sua moeda original (ex: EUR 5.30/kg). Se a tarifa for cotada por kg, multiplique-a pelo "Chargeable weight" (Peso Taxável) do contexto se fornecido, ou pelo peso bruto da carga se não houver chargeable weight.
-    4. Mantenha os campos de frete originais "freight_value" e "freight_currency". Calcule também a equivalência do frete em USD no campo "freight_usd" para fins de compatibilidade com a tela (se em EUR, converta para USD multiplicando por 1.08; se em USD, mantenha o mesmo valor).
+    3. Identifique a faixa tarifária de peso aplicada (weight break) no texto (ex: se mencionar "+100kg", "above 100", "+100", salve "+100" no campo "weight_break"; se disser "+300kg", salve "+300", etc.). Se não houver menção, use "normal".
+    4. Extraia o frete internacional em sua moeda original (ex: EUR 5.30/kg). Se a tarifa for cotada por kg, multiplique-a pelo peso de cobrança correspondente. Lembre-se da regra da faixa tarifária mínima: se a tarifa for para a faixa "+100kg", e o peso taxável calculado (maior entre bruto e cubado) for inferior a 100kg, multiplique a tarifa por 100 (peso de cobrança de 100kg). Se a faixa for "+300kg" e o peso calculado for inferior a 300kg, multiplique por 300, e assim por diante.
+    5. Mantenha os campos de frete originais "freight_value" e "freight_currency". Calcule também a equivalência do frete em USD no campo "freight_usd" para fins de compatibilidade com a tela (se em EUR, converta para USD multiplicando por 1.08; se em USD, mantenha o mesmo valor).
 
     Instruções Importantes para Taxas Locais de Armador (Destino BRL):
     1. Se os dados de CONTEXTO DA COTAÇÃO ORIGINAL indicarem que o embarque é uma IMPORTAÇÃO marítima de contêiner cheio (FCL_20, FCL_40, etc.):

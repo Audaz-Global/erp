@@ -643,6 +643,17 @@
               <label>Frete Unitário (USD/kg ou CBM)</label>
               <input type="number" id="r-freight-unit" step="0.01" placeholder="0.00">
             </div>
+            <div class="form-group">
+              <label>Faixa Tarifária (Weight Break)</label>
+              <select id="r-weight-break">
+                <option value="normal">Padrão (Maior peso)</option>
+                <option value="+45">+45 kg</option>
+                <option value="+100">+100 kg</option>
+                <option value="+300">+300 kg</option>
+                <option value="+500">+500 kg</option>
+                <option value="+1000">+1000 kg</option>
+              </select>
+            </div>
             <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
               <input type="checkbox" id="r-customs-clearance-included" style="width:20px; height:20px; cursor:pointer;">
               <label for="r-customs-clearance-included" style="margin-bottom:0; cursor:pointer; font-weight:600; font-size:13px; color:var(--text);">Incluir Desembaraço Aduaneiro na Cotação</label>
@@ -888,6 +899,17 @@
           <label style="font-size:11px;">Frete Unitário (USD/kg ou CBM)</label>
           <input type="number" id="rev-freight-unit" step="0.01" placeholder="0.00">
         </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Faixa Tarifária (Weight Break)</label>
+          <select id="rev-weight-break">
+            <option value="normal">Padrão (Maior peso)</option>
+            <option value="+45">+45 kg</option>
+            <option value="+100">+100 kg</option>
+            <option value="+300">+300 kg</option>
+            <option value="+500">+500 kg</option>
+            <option value="+1000">+1000 kg</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -1022,7 +1044,7 @@ function calculateAirCubadoLocal(packagesStr, defaultPackagesCount = 1) {
   return parseFloat(totalWeight.toFixed(2));
 }
 
-function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType, totalCbm = 0) {
+function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType, totalCbm = 0, weightBreak = 'normal') {
   const isAir = String(loadType || '').toUpperCase().includes('AIR');
   const isLcl = String(loadType || '').toUpperCase().includes('LCL');
   const bruto = parseFloat(totalGrossWeight) || 0;
@@ -1030,6 +1052,12 @@ function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType,
   if (isAir) {
     const cubado = calculateAirCubadoLocal(packagesStr || '', totalPackages || 1);
     taxavel = Math.max(bruto, cubado);
+    if (weightBreak && weightBreak !== 'normal') {
+      const minWeight = parseFloat(weightBreak.replace(/[^0-9]/g, ''));
+      if (!isNaN(minWeight) && taxavel < minWeight) {
+        taxavel = minWeight;
+      }
+    }
   } else if (isLcl) {
     taxavel = parseFloat(totalCbm) || 0;
     if (taxavel <= 0) {
@@ -1269,14 +1297,17 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-transit-time').value = d.costs.transit_time_days || '';
       document.getElementById('conf-transit-time').innerHTML = renderConf(d.costs.transit_time_days, d.costs.confidence);
 
-      // Frequência e Frete Unitário
+      // Frequência, Faixa Tarifária e Frete Unitário
       const qId = document.getElementById('pending-quotations').value;
       const q = allQuotations.find(x => x.id === qId);
       let taxavel = 1;
       let loadType = 'AIR_GENERAL';
+      let wBreak = 'normal';
       if (q) {
         loadType = q.loadType || 'AIR_GENERAL';
-        taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm);
+        wBreak = d.costs.weight_break || q.weightBreak || 'normal';
+        document.getElementById('r-weight-break').value = wBreak;
+        taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm, wBreak);
       }
       const freightVal = parseFloat(d.costs.freight_usd) || 0;
       const isAir = loadType.toUpperCase().includes('AIR');
@@ -1339,8 +1370,8 @@ function checkValidation() {
   }
 }
 
-document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit').forEach(f => f.addEventListener('input', checkValidation));
-document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit').forEach(f => f.addEventListener('change', checkValidation));
+document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('input', checkValidation));
+document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('change', checkValidation));
 
 // Auto-calculate IOF and Freight Unit/Total reatively
 document.getElementById('r-freight').addEventListener('input', function() {
@@ -1354,9 +1385,10 @@ document.getElementById('r-freight').addEventListener('input', function() {
   const q = allQuotations.find(x => x.id === qId);
   let taxavel = 1;
   let loadType = 'AIR_GENERAL';
+  const wBreak = document.getElementById('r-weight-break').value;
   if (q) {
     loadType = q.loadType || 'AIR_GENERAL';
-    taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm);
+    taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm, wBreak);
   }
   const isAir = loadType.toUpperCase().includes('AIR');
   const isLcl = loadType.toUpperCase().includes('LCL');
@@ -1374,9 +1406,36 @@ document.getElementById('r-freight-unit').addEventListener('input', function() {
   const q = allQuotations.find(x => x.id === qId);
   let taxavel = 1;
   let loadType = 'AIR_GENERAL';
+  const wBreak = document.getElementById('r-weight-break').value;
   if (q) {
     loadType = q.loadType || 'AIR_GENERAL';
-    taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm);
+    taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm, wBreak);
+  }
+  const isAir = loadType.toUpperCase().includes('AIR');
+  const isLcl = loadType.toUpperCase().includes('LCL');
+  
+  let totalFreight = 0;
+  if (isAir || isLcl) {
+    totalFreight = unit * taxavel;
+  } else {
+    totalFreight = unit;
+  }
+  document.getElementById('r-freight').value = totalFreight.toFixed(2);
+  
+  const iofField = document.getElementById('r-iof');
+  iofField.value = (totalFreight * 0.035).toFixed(2);
+  checkValidation();
+});
+
+document.getElementById('r-weight-break').addEventListener('change', function() {
+  const unit = parseFloat(document.getElementById('r-freight-unit').value) || 0;
+  const qId = document.getElementById('pending-quotations').value;
+  const q = allQuotations.find(x => x.id === qId);
+  let taxavel = 1;
+  let loadType = 'AIR_GENERAL';
+  if (q) {
+    loadType = q.loadType || 'AIR_GENERAL';
+    taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm, this.value);
   }
   const isAir = loadType.toUpperCase().includes('AIR');
   const isLcl = loadType.toUpperCase().includes('LCL');
@@ -1498,6 +1557,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-taxes').value = q.destinationTaxes || '';
       document.getElementById('rev-transit-time').value = q.transitTimeDays || '';
       document.getElementById('rev-frequency').value = q.frequency || 'Semanal';
+      document.getElementById('rev-weight-break').value = q.weightBreak || 'normal';
     } else {
       document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
       document.getElementById('rev-iof').value = document.getElementById('r-iof').value || q.iofUsd || '';
@@ -1506,6 +1566,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-taxes').value = document.getElementById('r-taxes').value || q.destinationTaxes || '';
       document.getElementById('rev-transit-time').value = document.getElementById('r-transit-time').value || q.transitTimeDays || '';
       document.getElementById('rev-frequency').value = document.getElementById('r-frequency').value || q.frequency || 'Semanal';
+      document.getElementById('rev-weight-break').value = document.getElementById('r-weight-break').value || q.weightBreak || 'normal';
     }
 
     // Calcular o unitário inicial
@@ -1514,8 +1575,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     const totalPackages = parseInt(document.getElementById('rev-packages').value) || 1;
     const packagesStr = document.getElementById('rev-dimensions').value || '';
     const freightVal = parseFloat(document.getElementById('rev-freight').value) || 0;
+    const wBreakModal = document.getElementById('rev-weight-break').value;
     
-    const taxavel = getLocalTaxavel(packagesStr, totalPackages, bruto, loadType, q.totalCbm);
+    const taxavel = getLocalTaxavel(packagesStr, totalPackages, bruto, loadType, q.totalCbm, wBreakModal);
     const isAir = loadType.toUpperCase().includes('AIR');
     const isLcl = loadType.toUpperCase().includes('LCL');
     const unitVal = isAir || isLcl ? (freightVal / taxavel) : freightVal;
@@ -1529,7 +1591,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
       const w = parseFloat(document.getElementById('rev-weight').value) || 0;
       const p = parseInt(document.getElementById('rev-packages').value) || 1;
       const d = document.getElementById('rev-dimensions').value || '';
-      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm);
+      const wb = document.getElementById('rev-weight-break').value;
+      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm, wb);
       
       const air = lType.toUpperCase().includes('AIR');
       const lcl = lType.toUpperCase().includes('LCL');
@@ -1548,7 +1611,29 @@ async function validateAndGeneratePDF(qIdParam = null) {
       const w = parseFloat(document.getElementById('rev-weight').value) || 0;
       const p = parseInt(document.getElementById('rev-packages').value) || 1;
       const d = document.getElementById('rev-dimensions').value || '';
-      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm);
+      const wb = document.getElementById('rev-weight-break').value;
+      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm, wb);
+      
+      const air = lType.toUpperCase().includes('AIR');
+      const lcl = lType.toUpperCase().includes('LCL');
+      
+      let tot = 0;
+      if (air || lcl) {
+        tot = unit * tx;
+      } else {
+        tot = unit;
+      }
+      document.getElementById('rev-freight').value = tot.toFixed(2);
+      document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
+    };
+
+    const handleModalWeightBreakChange = function() {
+      const unit = parseFloat(document.getElementById('rev-freight-unit').value) || 0;
+      const lType = document.getElementById('rev-load-type').value;
+      const w = parseFloat(document.getElementById('rev-weight').value) || 0;
+      const p = parseInt(document.getElementById('rev-packages').value) || 1;
+      const d = document.getElementById('rev-dimensions').value || '';
+      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm, this.value);
       
       const air = lType.toUpperCase().includes('AIR');
       const lcl = lType.toUpperCase().includes('LCL');
@@ -1569,6 +1654,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     
     document.getElementById('rev-freight-unit').removeEventListener('input', recalculateModalUnit);
     document.getElementById('rev-freight-unit').addEventListener('input', recalculateModalUnit);
+
+    document.getElementById('rev-weight-break').removeEventListener('change', handleModalWeightBreakChange);
+    document.getElementById('rev-weight-break').addEventListener('change', handleModalWeightBreakChange);
 
     // Desembaraço: sempre desmarcado por padrão, valor pré-fixado R$ 900,00
     document.getElementById('rev-customs-clearance').checked = false;
@@ -1599,12 +1687,14 @@ async function confirmAndGeneratePDF() {
     const customsClearance = document.getElementById('rev-customs-clearance').checked;
     const customsValue = parseFloat(document.getElementById('rev-customs-value').value) || 900;
     const frequencyValue = document.getElementById('rev-frequency').value || 'Semanal';
+    const weightBreakValue = document.getElementById('rev-weight-break').value || 'normal';
 
     const body = {
       status: 'APPROVED',
       customsClearanceIncluded: customsClearance,
       transitTimeDays: parseInt(document.getElementById('rev-transit-time').value) || null,
       frequency: frequencyValue,
+      weightBreak: weightBreakValue,
       // Atualizar também os dados da cotação com os valores revisados
       originCity: document.getElementById('rev-origin-city').value,
       originCountry: document.getElementById('rev-origin-country').value,
@@ -1623,6 +1713,7 @@ async function confirmAndGeneratePDF() {
         services_brl: parseFloat(document.getElementById('rev-services').value) || 0,
         taxes_brl: parseFloat(document.getElementById('rev-taxes').value) || 0,
         frequency: frequencyValue,
+        weight_break: weightBreakValue,
         total_brl: parseFloat(document.getElementById('r-total').value) || (
           parseFloat(document.getElementById('rev-storage').value) || 0) +
           (parseFloat(document.getElementById('rev-services').value) || 0) +
@@ -1651,7 +1742,8 @@ async function confirmAndGeneratePDF() {
         commercialValue: parseFloat(document.getElementById('rev-commercial-value').value) || null,
         isImo: document.getElementById('rev-imo').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
-        frequency: frequencyValue
+        frequency: frequencyValue,
+        weightBreak: weightBreakValue
       })
     });
 

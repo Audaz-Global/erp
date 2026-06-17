@@ -253,7 +253,7 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
 export const updatePhase = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak } = req.body;
 
     const updateData: any = { status };
     if (agentEmail) updateData.agentEmail = agentEmail;
@@ -266,6 +266,9 @@ export const updatePhase = async (req: Request, res: Response) => {
     if (frequency !== undefined) {
       updateData.frequency = frequency;
     }
+    if (weightBreak !== undefined) {
+      updateData.weightBreak = weightBreak;
+    }
 
     if (costs) {
       updateData.freightValue = costs.freight_usd;
@@ -276,6 +279,9 @@ export const updatePhase = async (req: Request, res: Response) => {
       updateData.totalBrl = costs.total_brl;
       if (costs.frequency !== undefined) {
         updateData.frequency = costs.frequency;
+      }
+      if (costs.weight_break !== undefined) {
+        updateData.weightBreak = costs.weight_break;
       }
     }
 
@@ -332,7 +338,13 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const bruto = quotation.totalGrossWeightKg || 0;
     const cbm = quotation.totalCbm || 0;
     const cubado = isAir ? calculateAirCubado(quotation.packages || '', quotation.totalPackages || 1) : parseFloat((cbm * 1000).toFixed(2));
-    const taxavel = Math.max(bruto, cubado) || 1; // evitar divisão por zero
+    let taxavel = Math.max(bruto, cubado) || 1; // evitar divisão por zero
+    if (isAir && quotation.weightBreak) {
+      const minWeight = parseFloat(quotation.weightBreak.replace(/[^0-9]/g, ''));
+      if (!isNaN(minWeight) && taxavel < minWeight) {
+        taxavel = minWeight;
+      }
+    }
 
     // Frete
     const fVal = quotation.freightValue || 0;
