@@ -276,19 +276,22 @@ const defaultTemplate = `
     
     <div style="display:flex; width: 100%; margin-top: 15px;">
       <div style="flex:2;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Origem:</span><span class="value">{{originCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value"></span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value"></span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Origem:</span><span class="value">{{originPortRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationPortRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value">{{originCityRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value">{{destinationCityRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Armador:</span><span class="value">{{carrierRich}}</span></div>
       </div>
       <div style="flex:1;">
         <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{originCountryRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 Brasil</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{destinationCountryRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
       </div>
+    </div>
+    <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
+      <div style="width: 100%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
     </div>
   </div>
 
@@ -700,10 +703,10 @@ const defaultAirTemplate = `
     
     <div style="display:flex; width: 100%; margin-top: 15px;">
       <div style="flex:2;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Origem:</span><span class="value">{{originCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value"></span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value"></span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Origem:</span><span class="value">{{originPortRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationPortRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value">{{originCityRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value">{{destinationCityRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Cia Aérea:</span><span class="value">{{carrierRich}}</span></div>
       </div>
       <div style="flex:1;">
@@ -713,6 +716,9 @@ const defaultAirTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
       </div>
+    </div>
+    <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
+      <div style="width: 100%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
     </div>
   </div>
 
@@ -890,6 +896,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   
   let originCityRich = '';
   let destinationCityRich = '';
+  let originPortRich = '';
+  let destinationPortRich = '';
+  let connectionsRich = '';
   let originCountryRich = '';
   let destinationCountryRich = '';
   let carrierRich = '';
@@ -914,8 +923,11 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     totalGrossWeightKg = 487.00;
     pesoCubadoRich = 278.51;
     chargableWeight = 487.00;
-    originCityRich = 'SZX - SZX - Shenzhen';
-    destinationCityRich = 'GRU - GRU - Aeroporto Internacional Guarulhos';
+    originPortRich = 'SZX - SZX - Shenzhen';
+    originCityRich = 'Shenzhen';
+    destinationPortRich = 'GRU - GRU - Aeroporto Internacional Guarulhos';
+    destinationCityRich = 'São Paulo';
+    connectionsRich = 'Sem conexões (Direto)';
     originCountryRich = 'CHINA';
     destinationCountryRich = 'BRAZIL';
     carrierRich = 'American Airlines Cargo';
@@ -965,29 +977,32 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
     // Mapeamento dinâmico de Origem (Aeroporto/Porto e País)
     if (quotationData.originPort) {
-      originCityRich = String(quotationData.originPort).trim();
+      originPortRich = String(quotationData.originPort).trim();
     } else {
-      originCityRich = String(quotationData.originCity || '').trim();
-      if (originCityRich.toUpperCase().includes('SHANGHAI')) {
-        originCityRich = 'CNSHA - Shanghai, Shanghai, China';
-      } else if (originCityRich.toUpperCase().includes('SHENZHEN') || originCityRich.toUpperCase().includes('SZX')) {
-        originCityRich = 'SZX - SZX - Shenzhen';
+      originPortRich = String(quotationData.originCity || '').trim();
+      if (originPortRich.toUpperCase().includes('SHANGHAI')) {
+        originPortRich = 'CNSHA - Shanghai, Shanghai, China';
+      } else if (originPortRich.toUpperCase().includes('SHENZHEN') || originPortRich.toUpperCase().includes('SZX')) {
+        originPortRich = 'SZX - SZX - Shenzhen';
       }
     }
+    originCityRich = String(quotationData.originCity || '—').trim();
     originCountryRich = String(quotationData.originCountry || 'CHINA').trim().toUpperCase();
 
     // Mapeamento dinâmico de Destino (Aeroporto/Porto e País)
     if (quotationData.destinationPort) {
-      destinationCityRich = String(quotationData.destinationPort).trim();
+      destinationPortRich = String(quotationData.destinationPort).trim();
     } else {
-      destinationCityRich = String(quotationData.destinationCity || '').trim();
-      if (destinationCityRich.toUpperCase().includes('SANTOS')) {
-        destinationCityRich = 'BRSSZ - Santos, Sao Paulo, Brazil';
-      } else if (destinationCityRich.toUpperCase().includes('GUARULHOS') || destinationCityRich.toUpperCase().includes('GRU')) {
-        destinationCityRich = 'GRU - GRU - Aeroporto Internacional Guarulhos';
+      destinationPortRich = String(quotationData.destinationCity || '').trim();
+      if (destinationPortRich.toUpperCase().includes('SANTOS')) {
+        destinationPortRich = 'BRSSZ - Santos, Sao Paulo, Brazil';
+      } else if (destinationPortRich.toUpperCase().includes('GUARULHOS') || destinationPortRich.toUpperCase().includes('GRU')) {
+        destinationPortRich = 'GRU - GRU - Aeroporto Internacional Guarulhos';
       }
     }
+    destinationCityRich = String(quotationData.destinationCity || '—').trim();
     destinationCountryRich = String(quotationData.destinationCountry || 'BRAZIL').trim().toUpperCase();
+    connectionsRich = String(quotationData.connections || '—').trim();
 
     carrierRich = quotationData.carrier || '—';
     transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
@@ -1126,6 +1141,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     ttColetaLabel,
     originCityRich,
     destinationCityRich,
+    originPortRich,
+    destinationPortRich,
+    connectionsRich,
     carrierRich,
     originCountryRich,
     destinationCountryRich,
@@ -1374,17 +1392,30 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     // 5. Mapear variáveis ricas adicionais para o template
     const modalLabel = String(quotationData.modal).toUpperCase() === 'AIR' ? 'Aéreo' : 'Marítimo';
     
-    let originCityRich = String(quotationData.originCity || '').trim();
-    let originCountryRich = String(quotationData.originCountry || 'CHINA').trim();
-    if (originCityRich.toUpperCase().includes('SHANGHAI')) {
-      originCityRich = 'CNSHA - Shanghai, Shanghai, China';
-      originCountryRich = 'CHINA';
+    let originPortRich = '';
+    if (quotationData.originPort) {
+      originPortRich = String(quotationData.originPort).trim();
+    } else {
+      originPortRich = String(quotationData.originCity || '').trim();
+      if (originPortRich.toUpperCase().includes('SHANGHAI')) {
+        originPortRich = 'CNSHA - Shanghai, Shanghai, China';
+      }
     }
+    let originCityRich = String(quotationData.originCity || '—').trim();
+    let originCountryRich = String(quotationData.originCountry || 'CHINA').trim().toUpperCase();
     
-    let destinationCityRich = String(quotationData.destinationCity || '').trim();
-    if (destinationCityRich.toUpperCase().includes('SANTOS')) {
-      destinationCityRich = 'BRSSZ - Santos, Sao Paulo, Brazil';
+    let destinationPortRich = '';
+    if (quotationData.destinationPort) {
+      destinationPortRich = String(quotationData.destinationPort).trim();
+    } else {
+      destinationPortRich = String(quotationData.destinationCity || '').trim();
+      if (destinationPortRich.toUpperCase().includes('SANTOS')) {
+        destinationPortRich = 'BRSSZ - Santos, Sao Paulo, Brazil';
+      }
     }
+    let destinationCityRich = String(quotationData.destinationCity || '—').trim();
+    let destinationCountryRich = String(quotationData.destinationCountry || 'BRAZIL').trim().toUpperCase();
+    const connectionsRich = String(quotationData.connections || '—').trim();
 
     let referenceRich = quotationData.reference || '';
     if (referenceRich.includes('NWCNC26LA061-648') || referenceRich.includes('PINWCNC26LA061')) {
@@ -1448,6 +1479,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       originCityRich,
       originCountryRich,
       destinationCityRich,
+      destinationCountryRich,
+      originPortRich,
+      destinationPortRich,
+      connectionsRich,
       referenceRich,
       carrierRich,
       loadTypeLabel,

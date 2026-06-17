@@ -35,9 +35,9 @@ async function runE2E() {
     console.log('\n--- Asserções da Extração por IA ---');
     
     const extractedIncoterm = clientData.route?.incoterm;
-    console.log(`Incoterm extraído: ${extractedIncoterm} (Esperado: EXW)`);
-    if (extractedIncoterm !== 'EXW') {
-      throw new Error(`Erro de Asserção: Incoterm extraído foi ${extractedIncoterm}, mas deveria ser EXW`);
+    console.log(`Incoterm extraído: ${extractedIncoterm} (Esperado: FCA)`);
+    if (extractedIncoterm !== 'FCA') {
+      throw new Error(`Erro de Asserção: Incoterm extraído foi ${extractedIncoterm}, mas deveria ser FCA`);
     }
 
     const extractedOriginCountry = clientData.route?.origin_country;
@@ -73,7 +73,7 @@ async function runE2E() {
       direction: 'IMPORT',
       modal: isAirModal ? 'AIR' : 'SEA',
       loadType: isAirModal ? 'AIR_GENERAL' : (clientData.cargo?.type || 'FCL_40'),
-      incoterm: clientData.route?.incoterm || 'EXW',
+      incoterm: clientData.route?.incoterm || 'FCA',
       originCity: clientData.route?.origin_city || 'Pribyslav',
       originCountry: clientData.route?.origin_country || 'Czech Republic',
       originPort: clientData.route?.origin_airport || 'PRG - Prague Ruzyne International',
@@ -161,9 +161,9 @@ async function runE2E() {
     console.log('O aviso de variação cambial está na página web?', hasCambioAlert ? 'SIM (Correto!)' : 'NÃO (Erro!)');
     if (!hasCambioAlert) throw new Error('Erro de Asserção: Aviso de Variação Cambial ausente no HTML');
 
-    const hasEXW = viewRes.data.includes('EXW');
-    console.log('O Incoterm EXW está na rota da página web?', hasEXW ? 'SIM (Correto!)' : 'NÃO (Erro!)');
-    if (!hasEXW) throw new Error('Erro de Asserção: Incoterm EXW ausente no HTML');
+    const hasFCA = viewRes.data.includes('FCA');
+    console.log('O Incoterm FCA está na rota da página web?', hasFCA ? 'SIM (Correto!)' : 'NÃO (Erro!)');
+    if (!hasFCA) throw new Error('Erro de Asserção: Incoterm FCA ausente no HTML');
 
     const hasPRG = viewRes.data.includes('PRG');
     console.log('O Aeroporto PRG de origem está no HTML?', hasPRG ? 'SIM (Correto!)' : 'NÃO (Erro!)');

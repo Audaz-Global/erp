@@ -576,7 +576,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     </div>
     \${oversizedAlertHtml}
 
-    <div class="meta-grid">
+    <div class="meta-grid" style="grid-template-columns: repeat(3, 1fr);">
       <div class="meta-item">
         <span class="meta-label">Referência</span>
         <span class="meta-value">${quotation.reference || '—'}</span>
@@ -589,14 +589,46 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <span class="meta-label">Modal / Incoterm</span>
         <span class="meta-value">${quotation.modal} / ${quotation.incoterm || '—'}</span>
       </div>
-      <div class="meta-item" style="grid-column: span 2;">
-        <span class="meta-label">Rota (Origem ➔ Destino)</span>
-        <span class="meta-value" style="font-size: 14px;">
-          🛫 ${quotation.originPort || quotation.originCity || '—'} ${quotation.originCountry ? `(${quotation.originCountry})` : ''}
-          <span style="color:var(--gold)">➔</span>
-          🛬 ${quotation.destinationPort || quotation.destinationCity || '—'} ${quotation.destinationCountry ? `(${quotation.destinationCountry})` : ''}
-        </span>
+      
+      <div class="meta-item">
+        <span class="meta-label">Origem</span>
+        <span class="meta-value">${quotation.originPort || '—'}</span>
       </div>
+      <div class="meta-item">
+        <span class="meta-label">País</span>
+        <span class="meta-value">📍 ${quotation.originCountry || '—'}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Local Inicial</span>
+        <span class="meta-value">${quotation.originCity || '—'}</span>
+      </div>
+
+      <div class="meta-item">
+        <span class="meta-label">Destino</span>
+        <span class="meta-value">${quotation.destinationPort || '—'}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">País</span>
+        <span class="meta-value">📍 ${quotation.destinationCountry || '—'}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Destino Final</span>
+        <span class="meta-value">${quotation.destinationCity || '—'}</span>
+      </div>
+
+      <div class="meta-item">
+        <span class="meta-label">Cia Aérea / Armador</span>
+        <span class="meta-value">${quotation.carrier || '—'}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Frequência</span>
+        <span class="meta-value">${quotation.frequency || 'Semanal'}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Conexões</span>
+        <span class="meta-value" style="color: var(--gold);">${quotation.connections || 'Sem conexões'}</span>
+      </div>
+
       <div class="meta-item">
         <span class="meta-label">Peso Bruto / Cubado</span>
         <span class="meta-value">${bruto.toFixed(2)} kg / ${cubado.toFixed(2)} kg</span>
@@ -604,6 +636,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       <div class="meta-item">
         <span class="meta-label">Peso Taxável</span>
         <span class="meta-value">${taxavel.toFixed(2)} kg</span>
+      </div>
+      <div class="meta-item">
       </div>
     </div>
 

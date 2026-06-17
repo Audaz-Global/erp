@@ -136,12 +136,13 @@ export const extractClientData = async (text: string, contextRules: string = '',
               type: 'object',
               properties: {
                 incoterm: { type: 'string' },
-                origin_city: { type: 'string' },
-                origin_country: { type: 'string' },
-                origin_airport: { type: 'string' },
-                destination_city: { type: 'string' },
-                destination_country: { type: 'string' },
-                destination_airport: { type: 'string' },
+                origin_city: { type: 'string', description: 'Local Inicial de coleta da carga (Cidade/Estado/País)' },
+                origin_country: { type: 'string', description: 'País do porto ou aeroporto de origem' },
+                origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem (formato IATA para aeroporto, ex: WNZ - Wenzhou)' },
+                destination_city: { type: 'string', description: 'Destino Final de entrega da carga (Cidade/Estado/País)' },
+                destination_country: { type: 'string', description: 'País do porto ou aeroporto de destino' },
+                destination_airport: { type: 'string', description: 'Porto ou Aeroporto de Destino (formato IATA para aeroporto, ex: GRU - Guarulhos)' },
+                connections: { type: 'string', description: 'Conexões do voo (ex: via MIA) ou escalas de porto (ex: transbordo em Algeciras). Retorne string vazia se for direto.' },
                 confidence: { type: 'number' }
               },
               required: [
@@ -151,7 +152,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 'origin_airport',
                 'destination_city',
                 'destination_country',
-                'destination_airport'
+                'destination_airport',
+                'connections'
               ]
             },
             cargo: {
@@ -190,11 +192,15 @@ export const extractClientData = async (text: string, contextRules: string = '',
     DOCUMENTO(S) / SOLICITAÇÃO:
     ${text}
 
-    Instruções Importantes para Rota, Incoterm e Aeroportos:
+    Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
     - **Incoterm — PRIORIDADE CRÍTICA**: O incoterm correto é SEMPRE o que aparece no **corpo do e-mail de solicitação** enviado pelo cliente (ex: "EXW – AOD: GRU", "FOB Shangai", "FCA Darmstadt"). IGNORE e NÃO USE o incoterm que aparece dentro de PDFs de invoice ou packing list (como "Delivery conditions Incoterms® 2020: FCA: Free carrier..."), pois esses refletem a condição de venda entre fornecedor e importador, e NÃO a condição de frete solicitada. Se o cliente escreveu EXW no e-mail e as invoices dizem FCA, o incoterm correto para a cotação é EXW.
     - **Incoterm — Regra geral**: Analise se há um endereço de coleta detalhado (fábrica/fornecedor) no exterior. Em caso afirmativo (especialmente se o modal for Aéreo), defina o Incoterm como **EXW** ou **FCA** — nunca use "FOB" genérico de planilha de valor comercial.
-    - **Aeroportos**: No modal Aéreo, inferir o aeroporto internacional de partida ideal mais próximo da cidade de origem do fornecedor no formato "IATA - Nome do Aeroporto" (ex: "PRG - Prague Ruzyne International" para República Tcheca/Pribyslav, "SZX - Shenzhen Bao'an International" para Shenzhen) e o aeroporto internacional de chegada ideal mais próximo do destino final (ex: "GRU - Aeroporto Internacional Guarulhos" para Jacareí ou São Paulo).
-    - **País**: Extraia separadamente o nome do país de origem e o país de destino por extenso. Se a origem for Pribyslav, o país é República Tcheca (Czech Republic). Nunca aplique fallbacks genéricos de país (como China) se houver endereço de origem indicando outro país.
+    - **Origem (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de origem do frete principal. Se modal for Aéreo, infira o aeroporto internacional no formato "IATA - Nome do Aeroporto" (ex: "SZX - Shenzhen Bao'an International", "PRG - Prague Ruzyne International"). Se modal for Marítimo, identifique o porto de embarque internacional. Salve em "origin_airport".
+    - **Destino (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de destino. Se modal for Aéreo, infira no formato "IATA - Nome do Aeroporto" (ex: "GRU - Aeroporto Internacional Guarulhos"). Se modal for Marítimo, identifique o porto de descarga (ex: "Santos"). Salve em "destination_airport".
+    - **Local Inicial (Cidade/Estado/País)**: Identifique a cidade, estado e país onde a carga está localizada e será coletada inicialmente no fornecedor (ex: "Pribyslav, República Tcheca" ou "Shenzhen, China"). Salve em "origin_city".
+    - **Destino Final (Cidade/Estado/País)**: Identifique a cidade, estado e país final de entrega da mercadoria para o importador (ex: "Jacareí, SP, Brasil"). Salve em "destination_city".
+    - **País**: Extraia o nome do país de origem e de destino correspondente à origem e destino principais no exterior/Brasil por extenso (ex: "CHINA" e "BRASIL"). Salve em "origin_country" e "destination_country".
+    - **Conexões do Voo ou do Porto**: Identifique se há menção a escalas, aeroportos de conexão intermediários (ex: via MIA, via FRA) ou portos de escala/transbordo (ex: transbordo em Algeciras). Salve essa informação em "connections". Caso o embarque seja direto e sem conexões, retorne string vazia "".
 
     Instruções Importantes para Carga/Equipamento Especial:
     - Analise se a solicitação do cliente ou os documentos mencionam siglas ou equipamentos especiais de contêineres, como Open Top (OT), High Cube (HC), Flat Rack, etc.
@@ -245,15 +251,19 @@ export const generateAgentDraft = async (data: any, contextRules: string = '') =
     ${contextRules}
     
     DADOS EXTRAÍDOS DA CARGA:
-    - Rota: ${data.route?.origin || 'TBD'} para ${data.route?.destination || 'TBD'}
-    - Incoterm: ${data.route?.incoterm || 'TBD'}
+    - Origem (Porto/Aeroporto): ${data.originPort || 'TBD'}
+    - Destino (Porto/Aeroporto): ${data.destinationPort || 'TBD'}
+    - Local Inicial (Coleta): ${data.originCity || 'TBD'}
+    - Destino Final (Entrega): ${data.destinationCity || 'TBD'}
+    - Conexões (Voo/Porto): ${data.connections || 'Sem conexões (direto)'}
+    - Incoterm: ${data.incoterm || 'TBD'}
     - Modal: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
-    - Modal/Tipo: ${data.cargo?.type || 'TBD'}
-    - Peso Bruto: ${data.cargo?.gross_weight_kg || 'TBD'} kg
-    - Volumes: ${data.cargo?.packages_count || 'TBD'}
-    - Dimensões/CBM: ${data.cargo?.dimensions || 'Não informado'}
-    - Valor da Carga: ${data.cargo?.commercial_value_usd ? '$' + data.cargo.commercial_value_usd : 'Não informado'}
-    - IMO: ${data.cargo?.is_imo ? 'SIM' : 'NÃO'}
+    - Modal/Tipo: ${data.loadType || 'TBD'}
+    - Peso Bruto: ${data.totalGrossWeightKg || 'TBD'} kg
+    - Volumes: ${data.totalPackages || 'TBD'}
+    - Dimensões/CBM: ${data.packages || 'Não informado'}
+    - Valor da Carga: ${data.commercialValue ? '$' + data.commercialValue : 'Não informado'}
+    - IMO: ${data.isImo ? 'SIM' : 'NÃO'}
     ${data.reference ? `- Referência: ${data.reference}` : ''}
 
     ${data.originalEmailText ? `CONTEÚDO DO E-MAIL ORIGINAL DO CLIENTE:\n${data.originalEmailText}` : ''}
@@ -267,6 +277,7 @@ export const generateAgentDraft = async (data: any, contextRules: string = '') =
     6. **Prazo de Resposta com Antecedência (12h)**: Se o cliente ou o e-mail original estipular uma data, hora ou prazo limite (deadline) para a entrega da proposta de cotação, calcule um limite de tempo para o retorno do agente que seja exatamente **12 horas antes** desse prazo original e mencione de forma clara no e-mail (por exemplo: se o cliente pediu retorno até dia 28 às 18h, peça ao agente até o dia 28 às 06h).
     7. **Omitir Taxas de Destino Silenciosamente**: Se houver regras sobre taxas de destino (como não pedi-las para agentes da origem), simplesmente **não as peça** no e-mail (solicite apenas o frete e taxas locais de origem, ex: THC, documentação, etc.). **NUNCA escreva frases negativas no e-mail dizendo que não precisa de taxas de destino** (ex: NÃO escreva "não precisamos das taxas de destino" ou "não enviar taxas de destino"). Apenas ignore as taxas de destino silenciosamente no e-mail.
     8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
+    9. **Conexões**: Se houver conexões do voo ou do porto especificadas nos DADOS EXTRAÍDOS DA CARGA (diferente de "Sem conexões"), mencione-as de forma clara no e-mail (ex: "via MIA" ou "com transbordo em Algeciras") para que o coloader/agente faça a cotação exatamente na rota solicitada.
     
     Retorne APENAS o corpo do e-mail.`;
 

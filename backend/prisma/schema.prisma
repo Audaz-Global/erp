@@ -71,6 +71,7 @@ model Quotation {
   destinationCity    String?
   destinationCountry String?
   transitTimeDays    Int?
+  connections        String?
 
   // Cargo
   cargoDescription   String?
