@@ -936,8 +936,17 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
     
-    const prefix = 'ADZ-QIA';
-    referenceNumber = quotationData.reference ? `${prefix}${quotationData.reference}-AA` : 'ADZ-QIA26050101-AA';
+    let ref = quotationData.reference || '';
+    if (ref) {
+      if (ref.startsWith('ADZ-QIA') || ref.startsWith('ADZ-QIS')) {
+        referenceNumber = ref.endsWith('-AA') ? ref : `${ref}-AA`;
+      } else {
+        const prefix = 'ADZ-QIA';
+        referenceNumber = `${prefix}${ref}-AA`;
+      }
+    } else {
+      referenceNumber = 'ADZ-QIA26050101-AA';
+    }
     loadTypeLabel = String(quotationData.loadType || 'AIR_GENERAL');
     
     const d = quotationData.createdAt ? new Date(quotationData.createdAt) : new Date();
@@ -1020,8 +1029,17 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
     
-    const prefix = 'ADZ-QIA';
-    referenceNumber = quotationData.reference ? `${prefix}${quotationData.reference}-AA` : 'ADZ-QIA-TBD';
+    let ref = quotationData.reference || '';
+    if (ref) {
+      if (ref.startsWith('ADZ-QIA') || ref.startsWith('ADZ-QIS')) {
+        referenceNumber = ref.endsWith('-AA') ? ref : `${ref}-AA`;
+      } else {
+        const prefix = 'ADZ-QIA';
+        referenceNumber = `${prefix}${ref}-AA`;
+      }
+    } else {
+      referenceNumber = 'ADZ-QIA-TBD';
+    }
     loadTypeLabel = String(quotationData.loadType || 'AIR_GENERAL');
     
     const d = quotationData.createdAt ? new Date(quotationData.createdAt) : new Date();

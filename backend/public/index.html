@@ -801,6 +801,16 @@
           <input type="text" id="rev-reference" placeholder="Ref. da cotação">
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Nome do Contato</label>
+          <input type="text" id="rev-client-contact" placeholder="Nome do Contato">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Telefone do Contato</label>
+          <input type="text" id="rev-client-phone" placeholder="Telefone do Contato">
+        </div>
+      </div>
     </div>
 
     <!-- ROTA -->
@@ -1615,6 +1625,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
     // Pré-preencher modal com dados da cotação
     document.getElementById('rev-client-name').value = (q.client?.name) || '';
     document.getElementById('rev-client-cnpj').value = (q.client?.cnpj) || '';
+    document.getElementById('rev-client-contact').value = (q.client?.contactName) || '';
+    document.getElementById('rev-client-phone').value = (q.client?.contactPhone) || '';
     document.getElementById('rev-reference').value = q.reference || '';
     document.getElementById('rev-incoterm').value = q.incoterm || 'FOB';
     document.getElementById('rev-load-type').value = q.loadType || 'AIR_GENERAL';
@@ -1828,7 +1840,11 @@ async function confirmAndGeneratePDF() {
         isImo: document.getElementById('rev-imo').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
         frequency: frequencyValue,
-        weightBreak: weightBreakValue
+        weightBreak: weightBreakValue,
+        clientName: document.getElementById('rev-client-name').value,
+        clientCnpj: document.getElementById('rev-client-cnpj').value,
+        clientContactName: document.getElementById('rev-client-contact').value || null,
+        clientContactPhone: document.getElementById('rev-client-phone').value || null
       })
     });
 
