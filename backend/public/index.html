@@ -1514,18 +1514,71 @@ async function generateDraftEmail() {
 }
 
 async function saveAsAwaitingAgent() {
-  if (!currentQuotationId) return alert('Gere o rascunho primeiro.');
+  const btn = document.getElementById('btnSendAgent');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
+
   try {
     const agentEmail = document.getElementById('r-agent-email').value;
-    const draftText = document.getElementById('r-draft-text').value;
-    await fetch(API + `/quotations/${currentQuotationId}/phase`, {
-      method: 'PUT', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ status: 'AGUARDANDO_AGENTE', agentEmail })
-    });
+    
+    const body = {
+      reference: document.getElementById('r-reference').value,
+      direction: 'IMPORT',
+      modal: document.getElementById('r-type').value === 'AIR_GENERAL' ? 'AIR' : 'SEA',
+      loadType: document.getElementById('r-type').value,
+      incoterm: document.getElementById('r-incoterm').value,
+      originCity: document.getElementById('r-origin').value,
+      originCountry: document.getElementById('r-origin-country').value,
+      originPort: document.getElementById('r-origin-port').value,
+      destinationCity: document.getElementById('r-destination').value,
+      destinationCountry: document.getElementById('r-destination-country').value,
+      destinationPort: document.getElementById('r-destination-port').value,
+      connections: document.getElementById('r-connections').value || null,
+      totalGrossWeightKg: parseFloat(document.getElementById('r-weight').value) || 0,
+      totalPackages: parseInt(document.getElementById('r-packages').value) || 0,
+      isImo: document.getElementById('r-imo').value === 'true',
+      commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
+      packages: document.getElementById('r-dimensions').value || null,
+      status: 'AGUARDANDO_AGENTE',
+      agentEmail: agentEmail,
+      clientName: document.getElementById('r-client-name').value,
+      clientCnpj: document.getElementById('r-client-cnpj').value,
+      sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null
+    };
+
+    if (!currentQuotationId) {
+      // Se ainda não foi criada, criamos diretamente com status AGUARDANDO_AGENTE
+      const resCreate = await fetch(API + '/quotations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!resCreate.ok) throw new Error('Falha ao criar cotação no banco');
+      const qData = await resCreate.json();
+      currentQuotationId = qData.id;
+    } else {
+      // Se já foi criada (ex: gerou rascunho antes), atualizamos a cotação e a fase
+      await fetch(API + `/quotations/${currentQuotationId}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          ...body,
+          status: undefined, // deixa a fase cuidar do status
+          agentEmail: undefined
+        })
+      });
+      await fetch(API + `/quotations/${currentQuotationId}/phase`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ status: 'AGUARDANDO_AGENTE', agentEmail })
+      });
+    }
+
     toast('✅ Enviado para Aguardando Agente!');
     loadQuotations();
     switchTab('quotation');
-  } catch(e) { alert(e.message); }
+  } catch(e) { 
+    alert('Erro: ' + e.message); 
+  } finally {
+    btn.disabled = false; btn.innerHTML = originalHtml;
+  }
 }
 
 async function validateAndGeneratePDF(qIdParam = null) {

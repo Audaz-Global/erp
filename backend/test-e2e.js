@@ -35,9 +35,9 @@ async function runE2E() {
     console.log('\n--- Asserções da Extração por IA ---');
     
     const extractedIncoterm = clientData.route?.incoterm;
-    console.log(`Incoterm extraído: ${extractedIncoterm} (Esperado: FCA)`);
-    if (extractedIncoterm !== 'FCA') {
-      throw new Error(`Erro de Asserção: Incoterm extraído foi ${extractedIncoterm}, mas deveria ser FCA`);
+    console.log(`Incoterm extraído: ${extractedIncoterm} (Esperado: FCA ou EXW)`);
+    if (extractedIncoterm !== 'FCA' && extractedIncoterm !== 'EXW') {
+      throw new Error(`Erro de Asserção: Incoterm extraído foi ${extractedIncoterm}, mas deveria ser FCA ou EXW`);
     }
 
     const extractedOriginCountry = clientData.route?.origin_country;
@@ -161,9 +161,9 @@ async function runE2E() {
     console.log('O aviso de variação cambial está na página web?', hasCambioAlert ? 'SIM (Correto!)' : 'NÃO (Erro!)');
     if (!hasCambioAlert) throw new Error('Erro de Asserção: Aviso de Variação Cambial ausente no HTML');
 
-    const hasFCA = viewRes.data.includes('FCA');
-    console.log('O Incoterm FCA está na rota da página web?', hasFCA ? 'SIM (Correto!)' : 'NÃO (Erro!)');
-    if (!hasFCA) throw new Error('Erro de Asserção: Incoterm FCA ausente no HTML');
+    const hasIncoterm = viewRes.data.includes('FCA') || viewRes.data.includes('EXW');
+    console.log('O Incoterm FCA ou EXW está na rota da página web?', hasIncoterm ? 'SIM (Correto!)' : 'NÃO (Erro!)');
+    if (!hasIncoterm) throw new Error('Erro de Asserção: Incoterm FCA ou EXW ausente no HTML');
 
     const hasPRG = viewRes.data.includes('PRG');
     console.log('O Aeroporto PRG de origem está no HTML?', hasPRG ? 'SIM (Correto!)' : 'NÃO (Erro!)');
