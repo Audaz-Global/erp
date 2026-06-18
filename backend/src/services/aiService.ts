@@ -128,6 +128,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
               properties: {
                 name: { type: 'string' },
                 cnpj: { type: 'string' },
+                contact_name: { type: 'string', description: 'Nome do contato do cliente' },
+                contact_phone: { type: 'string', description: 'Telefone do contato do cliente' },
                 confidence: { type: 'number' }
               },
               required: ['name']

@@ -79,7 +79,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     }
 
     // Extract non-quotation fields
-    const { clientName, clientCnpj, iofUsd, ...quotationData } = req.body;
+    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ...quotationData } = req.body;
 
     // Generate ADZ-QIS Reference if not provided
     let reference = quotationData.reference;
@@ -101,12 +101,28 @@ export const createQuotation = async (req: Request, res: Response) => {
         client = await prisma.client.findFirst({ where: { cnpj: clientCnpj } });
       }
       if (!client) {
+        // Tentar encontrar pelo nome se não encontrou pelo CNPJ
+        client = await prisma.client.findFirst({ where: { name: clientName } });
+      }
+      if (!client) {
         client = await prisma.client.create({
           data: {
             name: clientName,
-            cnpj: clientCnpj || null
+            cnpj: clientCnpj || null,
+            contactName: clientContactName || null,
+            contactEmail: clientContactEmail || null,
+            contactPhone: clientContactPhone || null
           }
         });
+      } else if (clientContactName || clientContactPhone || clientContactEmail) {
+        // Atualizar dados de contato do cliente existente se estavam vazios
+        const updateClientData: any = {};
+        if (clientContactName && !client.contactName) updateClientData.contactName = clientContactName;
+        if (clientContactPhone && !client.contactPhone) updateClientData.contactPhone = clientContactPhone;
+        if (clientContactEmail && !client.contactEmail) updateClientData.contactEmail = clientContactEmail;
+        if (Object.keys(updateClientData).length > 0) {
+          client = await prisma.client.update({ where: { id: client.id }, data: updateClientData });
+        }
       }
       clientId = client.id;
     }
@@ -169,16 +185,63 @@ export const getQuotationById = async (req: Request, res: Response) => {
 export const updateQuotation = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const updateData = { ...req.body };
+    
+    // Desestruturar campos que não pertencem ao model Quotation
+    const { 
+      clientName, 
+      clientCnpj, 
+      clientContactName, 
+      clientContactEmail, 
+      clientContactPhone,
+      sourceEmails,
+      ...quotationData 
+    } = req.body;
+
+    const updateData: any = { ...quotationData };
     if (updateData.packages && !updateData.totalCbm) {
       updateData.totalCbm = calculateCbmFromDimensions(updateData.packages, updateData.totalPackages || 1);
     }
+
+    // Se as informações de cliente foram passadas, atualizamos/associamos
+    if (clientName) {
+      let client = null;
+      if (clientCnpj) {
+        client = await prisma.client.findFirst({ where: { cnpj: clientCnpj } });
+      }
+      if (!client) {
+        client = await prisma.client.findFirst({ where: { name: clientName } });
+      }
+      if (!client) {
+        client = await prisma.client.create({
+          data: {
+            name: clientName,
+            cnpj: clientCnpj || null,
+            contactName: clientContactName || null,
+            contactEmail: clientContactEmail || null,
+            contactPhone: clientContactPhone || null
+          }
+        });
+      } else {
+        // Atualizar campos de contato se foram fornecidos e estavam vazios ou diferentes
+        const updateClientData: any = {};
+        if (clientContactName && clientContactName !== client.contactName) updateClientData.contactName = clientContactName;
+        if (clientContactPhone && clientContactPhone !== client.contactPhone) updateClientData.contactPhone = clientContactPhone;
+        if (clientContactEmail && clientContactEmail !== client.contactEmail) updateClientData.contactEmail = clientContactEmail;
+        if (Object.keys(updateClientData).length > 0) {
+          client = await prisma.client.update({ where: { id: client.id }, data: updateClientData });
+        }
+      }
+      updateData.clientId = client.id;
+    }
+
     const quotation = await prisma.quotation.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: { client: true }
     });
     res.json(quotation);
   } catch (error) {
+    console.error('Erro no updateQuotation:', error);
     res.status(500).json({ error: 'Erro ao atualizar cotação' });
   }
 };

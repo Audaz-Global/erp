@@ -1014,7 +1014,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     }
     destinationCityRich = String(quotationData.destinationCity || '—').trim();
     destinationCountryRich = String(quotationData.destinationCountry || 'BRAZIL').trim().toUpperCase();
-    connectionsRich = String(quotationData.connections || '—').trim();
+    connectionsRich = quotationData.connections ? String(quotationData.connections).trim() : 'Direto (sem conexões)';
 
     carrierRich = quotationData.carrier || '—';
     transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
@@ -1427,7 +1427,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     }
     let destinationCityRich = String(quotationData.destinationCity || '—').trim();
     let destinationCountryRich = String(quotationData.destinationCountry || 'BRAZIL').trim().toUpperCase();
-    const connectionsRich = String(quotationData.connections || '—').trim();
+    const connectionsRich = quotationData.connections ? String(quotationData.connections).trim() : 'Direto (sem conexões)';
 
     let referenceRich = quotationData.reference || '';
     if (referenceRich.includes('NWCNC26LA061-648') || referenceRich.includes('PINWCNC26LA061')) {

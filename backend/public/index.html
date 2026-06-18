@@ -470,6 +470,16 @@
               <label>Referência de Cotação (opcional)</label>
               <input type="text" id="r-reference" placeholder="Ex: W08 (20/02)">
             </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label>Nome do Contato <span id="conf-client-contact"></span></label>
+                <input type="text" id="r-client-contact" placeholder="Ex: Maria Silva">
+              </div>
+              <div class="form-group">
+                <label>Telefone do Contato <span id="conf-client-phone"></span></label>
+                <input type="text" id="r-client-phone" placeholder="Ex: +55 12 3307-1704">
+              </div>
+            </div>
           </div>
 
           <div class="review-section">
@@ -1225,6 +1235,11 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-client-name').innerHTML = renderConf(d.client.name, d.client.confidence);
       document.getElementById('r-client-cnpj').value = d.client.cnpj || '';
       document.getElementById('conf-client-cnpj').innerHTML = renderConf(d.client.cnpj, d.client.confidence);
+      
+      document.getElementById('r-client-contact').value = d.client.contact_name || d.client.contactName || '';
+      document.getElementById('conf-client-contact').innerHTML = renderConf(d.client.contact_name || d.client.contactName, d.client.confidence);
+      document.getElementById('r-client-phone').value = d.client.contact_phone || d.client.contactPhone || '';
+      document.getElementById('conf-client-phone').innerHTML = renderConf(d.client.contact_phone || d.client.contactPhone, d.client.confidence);
     }
     if(d.route) {
       document.getElementById('r-incoterm').value = d.route.incoterm || '';
@@ -1492,6 +1507,8 @@ async function generateDraftEmail() {
       status: 'SOLICITADO',
       clientName: document.getElementById('r-client-name').value,
       clientCnpj: document.getElementById('r-client-cnpj').value,
+      clientContactName: document.getElementById('r-client-contact').value || null,
+      clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null
     };
 
@@ -1543,6 +1560,8 @@ async function saveAsAwaitingAgent() {
       agentEmail: agentEmail,
       clientName: document.getElementById('r-client-name').value,
       clientCnpj: document.getElementById('r-client-cnpj').value,
+      clientContactName: document.getElementById('r-client-contact').value || null,
+      clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null
     };
 
