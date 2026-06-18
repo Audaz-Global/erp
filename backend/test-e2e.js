@@ -41,8 +41,8 @@ async function runE2E() {
     }
 
     const extractedOriginCountry = clientData.route?.origin_country;
-    console.log(`País de Origem extraído: ${extractedOriginCountry} (Esperado: Czech Republic)`);
-    if (!extractedOriginCountry || !extractedOriginCountry.toLowerCase().includes('czech')) {
+    console.log(`País de Origem extraído: ${extractedOriginCountry} (Esperado: Czech Republic ou República Tcheca)`);
+    if (!extractedOriginCountry || (!extractedOriginCountry.toLowerCase().includes('czech') && !extractedOriginCountry.toLowerCase().includes('tcheca'))) {
       throw new Error(`Erro de Asserção: País de Origem extraído foi ${extractedOriginCountry}, mas deveria ser Czech Republic (República Tcheca)`);
     }
 

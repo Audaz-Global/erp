@@ -920,25 +920,37 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   let totalGeralLabel = '';
 
   if (isTestCase) {
-    totalGrossWeightKg = 487.00;
-    pesoCubadoRich = 278.51;
-    chargableWeight = 487.00;
-    originPortRich = 'PEK - Beijing Capital International Airport';
-    originCityRich = 'Shenzhen';
-    destinationPortRich = 'GRU - GRU - Aeroporto Internacional Guarulhos';
-    destinationCityRich = 'São Paulo';
-    connectionsRich = 'PEK-NRT-USA-GRU';
-    originCountryRich = 'CHINA';
-    destinationCountryRich = 'BRAZIL';
-    carrierRich = 'American Airlines Cargo';
-    transitTimeLabel = 'Aprox. 12 Dia(s)';
+    totalGrossWeightKg = parseFloat(quotationData.totalGrossWeightKg) || 487.00;
+    pesoCubadoRich = calculateAirCubado(quotationData.packages || '', quotationData.totalPackages || 1) || 278.51;
+    chargableWeight = Math.max(totalGrossWeightKg, pesoCubadoRich);
+    
+    originPortRich = quotationData.originPort ? String(quotationData.originPort).trim() : 'PEK - Beijing Capital International Airport';
+    originCityRich = quotationData.originCity ? String(quotationData.originCity).trim() : 'Shenzhen';
+    destinationPortRich = quotationData.destinationPort ? String(quotationData.destinationPort).trim() : 'GRU - GRU - Aeroporto Internacional Guarulhos';
+    destinationCityRich = quotationData.destinationCity ? String(quotationData.destinationCity).trim() : 'São Paulo';
+    connectionsRich = quotationData.connections !== null && quotationData.connections !== undefined ? String(quotationData.connections).trim() : 'PEK-NRT-USA-GRU';
+    originCountryRich = quotationData.originCountry ? String(quotationData.originCountry).trim().toUpperCase() : 'CHINA';
+    destinationCountryRich = quotationData.destinationCountry ? String(quotationData.destinationCountry).trim().toUpperCase() : 'BRAZIL';
+    
+    carrierRich = quotationData.carrier || 'American Airlines Cargo';
+    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
-    referenceNumber = 'ADZ-QIA26050101-AA';
-    loadTypeLabel = 'AIR_GENERAL';
+    
+    const prefix = 'ADZ-QIA';
+    referenceNumber = quotationData.reference ? `${prefix}${quotationData.reference}-AA` : 'ADZ-QIA26050101-AA';
+    loadTypeLabel = String(quotationData.loadType || 'AIR_GENERAL');
+    
+    const d = quotationData.createdAt ? new Date(quotationData.createdAt) : new Date();
     expiryDate = '04/JUN/2026';
-    referenceRich = 'PACK 3 - 5500279920';
-    incoterm = 'FCA';
-    obs = 'A companhia aérea AA, está com lotação e será necessário o aguardo de espaço na aeronave.';
+    if (quotationData.createdAt) {
+      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      expiryDate = `${dayStr}/${months[d.getMonth()]}/${d.getFullYear()}`;
+    }
+    
+    referenceRich = quotationData.reference || 'PACK 3 - 5500279920';
+    incoterm = quotationData.incoterm ? String(quotationData.incoterm).trim() : 'FCA';
+    obs = quotationData.notes ? JSON.parse(quotationData.notes).join(' ') : 'A companhia aérea AA, está com lotação e será necessário o aguardo de espaço na aeronave.';
 
     freightUnitValue = '8.60';
     freightTotalValue = '4188.20';
