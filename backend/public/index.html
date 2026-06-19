@@ -684,6 +684,10 @@
               <label>Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
               <textarea id="r-agent-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
+            <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
+              <label>Taxas Locais de Destino (Itemizadas) <span id="conf-agent-destination-services"></span></label>
+              <textarea id="r-agent-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+            </div>
             <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
               <input type="checkbox" id="r-customs-clearance-included" style="width:20px; height:20px; cursor:pointer;">
               <label for="r-customs-clearance-included" style="margin-bottom:0; cursor:pointer; font-weight:600; font-size:13px; color:var(--text);">Incluir Desembaraço Aduaneiro na Cotação</label>
@@ -884,6 +888,10 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
           <textarea id="rev-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+        </div>
+        <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
+          <label style="font-size:11px;">Taxas Locais de Destino (Itemizadas)</label>
+          <textarea id="rev-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
         </div>
       </div>
     </div>
@@ -1371,6 +1379,13 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-agent-origin-services').value = '';
       }
 
+      if (d.costs.destination_fees && Array.isArray(d.costs.destination_fees)) {
+        const lines = d.costs.destination_fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
+        document.getElementById('r-agent-destination-services').value = lines.join('\n');
+      } else {
+        document.getElementById('r-agent-destination-services').value = '';
+      }
+
       // Frequência, Faixa Tarifária e Frete Unitário
       const qId = document.getElementById('pending-quotations').value;
       const q = allQuotations.find(x => x.id === qId);
@@ -1707,6 +1722,22 @@ async function validateAndGeneratePDF(qIdParam = null) {
         }
       }
       document.getElementById('rev-origin-services').value = originFeesText;
+
+      let destFeesText = '';
+      if (q.destinationServices) {
+        try {
+          const fees = JSON.parse(q.destinationServices);
+          if (Array.isArray(fees) && fees.length > 0) {
+            destFeesText = fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+          }
+        } catch(e) {
+          console.error(e);
+        }
+      }
+      if (!destFeesText) {
+        destFeesText = "CCT fee: 10.00 USD\nDelivery Fee: 55.00 USD\nDesconsolidação / Deconsolidation: 55.00 USD";
+      }
+      document.getElementById('rev-destination-services').value = destFeesText;
     } else {
       document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
       document.getElementById('rev-iof').value = document.getElementById('r-iof').value || q.iofUsd || '';
@@ -1722,6 +1753,17 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-carrier').value = document.getElementById('r-agent-carrier').value || q.carrier || '';
       
       document.getElementById('rev-origin-services').value = document.getElementById('r-agent-origin-services').value || '';
+
+      let defaultDestText = "CCT fee: 10.00 USD\nDelivery Fee: 55.00 USD\nDesconsolidação / Deconsolidation: 55.00 USD";
+      document.getElementById('rev-destination-services').value = document.getElementById('r-agent-destination-services').value.trim() || (q.destinationServices ? (function(){
+        try {
+          const fees = JSON.parse(q.destinationServices);
+          if (Array.isArray(fees) && fees.length > 0) {
+            return fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+          }
+        } catch(e){}
+        return defaultDestText;
+      })() : defaultDestText);
     }
 
     // Calcular o unitário inicial
@@ -1876,6 +1918,52 @@ async function confirmAndGeneratePDF() {
     }
     const originServicesStr = originServicesList.length > 0 ? JSON.stringify(originServicesList) : null;
 
+    const destinationServicesRaw = document.getElementById('rev-destination-services').value || '';
+    const destinationServicesList = [];
+    let destinationServicesTotal = 0;
+    let destinationServicesTotalBrl = 0;
+    
+    if (destinationServicesRaw.trim()) {
+      const lines = destinationServicesRaw.split('\n');
+      lines.forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const name = parts[0].trim();
+          const valAndCurr = parts[1].trim().split(/\s+/);
+          const value = parseFloat(valAndCurr[0]) || 0;
+          const currency = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+          if (name) {
+            destinationServicesList.push({ name, value, currency });
+            
+            // Calcular valor equivalente em USD para fins de destinationServicesTotal
+            if (currency === 'USD') {
+              destinationServicesTotal += value;
+            } else if (currency === 'EUR') {
+              destinationServicesTotal += value * 1.08;
+            } else if (currency === 'BRL') {
+              destinationServicesTotal += value / 5.05;
+            } else {
+              destinationServicesTotal += value;
+            }
+
+            // Calcular valor equivalente em BRL para o total em reais
+            if (currency === 'BRL') {
+              destinationServicesTotalBrl += value;
+            } else if (currency === 'USD') {
+              destinationServicesTotalBrl += value * 5.05;
+            } else if (currency === 'EUR') {
+              destinationServicesTotalBrl += value * 5.50;
+            } else {
+              destinationServicesTotalBrl += value * 5.05;
+            }
+          }
+        }
+      });
+    }
+    const destinationServicesStr = destinationServicesList.length > 0 ? JSON.stringify(destinationServicesList) : null;
+
+    const targetServicesBrl = destinationServicesList.length > 0 ? destinationServicesTotalBrl : (parseFloat(document.getElementById('rev-services').value) || 0);
+
     const body = {
       status: 'APPROVED',
       customsClearanceIncluded: customsClearance,
@@ -1898,13 +1986,13 @@ async function confirmAndGeneratePDF() {
         freight_usd: parseFloat(document.getElementById('rev-freight').value) || 0,
         iof_usd: parseFloat(document.getElementById('rev-iof').value) || 0,
         storage_brl: parseFloat(document.getElementById('rev-storage').value) || 0,
-        services_brl: parseFloat(document.getElementById('rev-services').value) || 0,
+        services_brl: targetServicesBrl,
         taxes_brl: parseFloat(document.getElementById('rev-taxes').value) || 0,
         frequency: frequencyValue,
         weight_break: weightBreakValue,
         total_brl: parseFloat(document.getElementById('r-total').value) || (
           parseFloat(document.getElementById('rev-storage').value) || 0) +
-          (parseFloat(document.getElementById('rev-services').value) || 0) +
+          targetServicesBrl +
           (parseFloat(document.getElementById('rev-taxes').value) || 0) +
           (customsClearance ? customsValue : 0),
         customs_clearance_brl: customsClearance ? customsValue : 0
@@ -1939,7 +2027,9 @@ async function confirmAndGeneratePDF() {
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
         carrier: document.getElementById('rev-carrier').value || null,
         originServices: originServicesStr,
-        originServicesTotal: originServicesTotal || null
+        originServicesTotal: originServicesTotal || null,
+        destinationServices: destinationServicesStr,
+        destinationServicesTotal: destinationServicesTotal || null
       })
     });
 

@@ -330,6 +330,19 @@ export const extractAgentCosts = async (
                   },
                   description: 'Lista de taxas locais na origem (EXW local charges) especificadas no e-mail do agente'
                 },
+                destination_fees: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string', description: 'Nome da taxa de destino (ex: Delivery Fee, CCT Fee, Desconsolidação, Frete Rodoviário Nacional)' },
+                      value: { type: 'number', description: 'Valor total calculado da taxa' },
+                      currency: { type: 'string', description: 'Moeda da taxa (ex: USD, EUR, BRL)' }
+                    },
+                    required: ['name', 'value']
+                  },
+                  description: 'Lista de taxas locais no destino (taxas locais de destino / frete rodoviário) especificadas no e-mail'
+                },
                 transit_time: { type: 'string', description: 'Tempo de trânsito literal informado pelo agente (ex: "3 days", "9-12 days", "35 dias"). Se não informado, retorne "n/a".' },
                 frequency: { type: 'string', description: 'Frequência de saídas ou voos informada pelo agente. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc., converta para "2x por semana (D26)" ou similar. Se não informado, retorne "Semanal".' },
                 weight_break: { type: 'string', description: 'Faixa tarifária de peso aplicada no frete aéreo pelo agente se houver no texto. Exemplos de retorno: "normal", "+45", "+100", "+300", "+500", "+1000". Se o e-mail do agente contiver termos como "+100kg", "above 100kg", "+100", extraia "+100". Se não aplicável ou não mencionado, retorne "normal".' },
@@ -364,6 +377,11 @@ export const extractAgentCosts = async (
          - Para taxas cotadas por peso ("per kg", "/kg"), multiplique o valor unitário pelo peso da carga (bruto ou taxável correspondente) e respeite o valor mínimo informado (ex: "Min US20.00/shpt" significa que o valor total daquela taxa deve ser no mínimo USD 20.00).
          - Para taxas cotadas por conjunto de documentos ("for each set of docs"), use o valor informado.
        - Retorne a lista de taxas em "origin_fees" com o respectivo "name" (por extenso, ex: "AWB Fee & CGC", "Terminal Charges", "Customs Clearance", "Handling Fee", "Pick Up"), "value" (número) e "currency" (moeda, ex: "USD", "BRL").
+    6. **Taxas Locais de Destino e Rodoviário (destination_fees):** Identifique todas as taxas locais no destino (Destination charges) informadas no e-mail do agente ou cliente.
+       - Se houver menção ou solicitação de orçamento de frete rodoviário nacional (ex: transporte terrestre doméstico / rodoviário / entrega local de GRU para Itatiba, Jacareí, São Paulo, etc.), inclua essa taxa sob o nome "Frete Rodoviário Nacional [Trecho]" (ex: "Frete Rodoviário Nacional (GRU x Itatiba)"). Se o valor não estiver especificado no texto do e-mail do agente, retorne o valor como 0.00.
+       - Calcule o valor total de cada taxa local de destino encontrada da mesma forma que na origem (valores fixos ou baseados em peso/Hawb).
+       - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").
+
 
     Instruções Importantes para Modal Aéreo:
     1. Para a Cia Aérea (carrier), identifique o nome completo da companhia aérea. Se encontrar códigos/siglas IATA de duas letras (como KL, LH, AA, UA, AF, TP, EK, QR), converta para o nome por extenso correspondente (ex: KL -> KLM, LH -> Lufthansa, AA -> American Airlines, AF -> Air France, TP -> TAP Air Portugal, EK -> Emirates, QR -> Qatar Airways).

@@ -291,7 +291,10 @@ const defaultTemplate = `
       </div>
     </div>
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
-      <div style="width: 100%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      {{#if roadFreightRich}}
+      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;">🚚 Incluso ({{roadFreightRich}})</span></div>
+      {{/if}}
     </div>
   </div>
 
@@ -718,7 +721,10 @@ const defaultAirTemplate = `
       </div>
     </div>
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
-      <div style="width: 100%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      {{#if roadFreightRich}}
+      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;">🚚 Incluso ({{roadFreightRich}})</span></div>
+      {{/if}}
     </div>
   </div>
 
@@ -1162,18 +1168,72 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const collectFeeTotal = Math.max(baseProporcional * 0.03, 50.00);
     const iofTotal = baseProporcional * 0.035;
 
-    detailedFeesDestino = [
-      { name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' },
-      { name: 'Collect Fee', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.00 %', min: '50.00', currency: fCurr, total: `${fCurr} ${collectFeeTotal.toFixed(2)}` },
-      { name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
-      { name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' }
-    ];
-
-    if (quotationData.customsClearanceIncluded) {
-      detailedFeesDestino.push({ name: 'Desembaraço', qty: 1, unit: 'Por documento', valueUnit: '900.00', min: '0,00', currency: 'BRL', total: `BRL 900.00` });
+    if (quotationData.destinationServices) {
+      try {
+        const parsedDestServices = JSON.parse(quotationData.destinationServices);
+        if (Array.isArray(parsedDestServices) && parsedDestServices.length > 0) {
+          detailedFeesDestino = parsedDestServices.map(f => {
+            const val = parseFloat(f.value) || 0;
+            const curr = f.currency || 'USD';
+            return {
+              name: f.name,
+              qty: 1,
+              unit: 'Fixo',
+              valueUnit: val.toFixed(2),
+              min: '0,00',
+              currency: curr,
+              total: `${curr} ${val.toFixed(2)}`
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao fazer parse de destinationServices no PDF:', err);
+      }
     }
 
-    detailedFeesDestino.push({ name: 'IOF - FRETE + TX ORIGEM', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.50 %', min: '0,00', currency: fCurr, total: `${fCurr} ${iofTotal.toFixed(2)}` });
+    if (detailedFeesDestino.length === 0) {
+      detailedFeesDestino = [
+        { name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' },
+        { name: 'Collect Fee', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.00 %', min: '50.00', currency: fCurr, total: `${fCurr} ${collectFeeTotal.toFixed(2)}` },
+        { name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
+        { name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' }
+      ];
+    } else {
+      // Adicionar as taxas de destino calculadas e obrigatórias no final da lista se dinâmico
+      detailedFeesDestino.push({ 
+        name: 'Collect Fee', 
+        qty: '-', 
+        unit: '% de Taxas Selecionadas', 
+        valueUnit: '3.00 %', 
+        min: '50.00', 
+        currency: fCurr, 
+        total: `${fCurr} ${collectFeeTotal.toFixed(2)}` 
+      });
+    }
+
+    if (quotationData.customsClearanceIncluded) {
+      detailedFeesDestino.push({ 
+        name: 'Desembaraço', 
+        qty: 1, 
+        unit: 'Por documento', 
+        valueUnit: '900.00', 
+        min: '0,00', 
+        currency: 'BRL', 
+        total: `BRL 900.00` 
+      });
+    }
+
+    if (detailedFeesDestino.some(f => f.name === 'Collect Fee')) {
+      detailedFeesDestino.push({ 
+        name: 'IOF - FRETE + TX ORIGEM', 
+        qty: '-', 
+        unit: '% de Taxas Selecionadas', 
+        valueUnit: '3.50 %', 
+        min: '0,00', 
+        currency: fCurr, 
+        total: `${fCurr} ${iofTotal.toFixed(2)}` 
+      });
+    }
 
     // Consolidar subtotais e totais por moeda
     let sumOrigemBrl = 0;
@@ -1225,6 +1285,19 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const currentDateTime = new Date().toLocaleString('pt-BR');
 
+  let roadFreightRich = '';
+  const destCity = quotationData.destinationCity ? String(quotationData.destinationCity).trim() : '';
+  const destPort = quotationData.destinationPort ? String(quotationData.destinationPort).trim() : '';
+  if (destCity && destPort) {
+    const cleanPort = destPort.toLowerCase();
+    const cleanCity = (destCity.toLowerCase().split(',')[0] || '').trim();
+    if (!cleanPort.includes(cleanCity)) {
+      const portCodeMatch = destPort.match(/^[A-Z]{3,4}/);
+      const portLabel = portCodeMatch ? portCodeMatch[0] : destPort;
+      roadFreightRich = `${portLabel} x ${destCity}`;
+    }
+  }
+
   const templateData = {
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
     client: quotationData.client || { name: '—' },
@@ -1243,6 +1316,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     destinationPortRich,
     connectionsRich,
     carrierRich,
+    roadFreightRich,
     originCountryRich,
     destinationCountryRich,
     loadTypeLabel,
