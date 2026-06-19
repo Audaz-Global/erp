@@ -315,6 +315,8 @@ export const extractAgentCosts = async (
                 taxes_brl: { type: 'number', description: 'Valor total de impostos locais em BRL' },
                 total_brl: { type: 'number', description: 'Valor total em BRL se houver' },
                 carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
+                origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem informado pelo agente (sigla IATA ou nome, ex: PEK ou Beijing)' },
+                connections: { type: 'string', description: 'Conexões ou escalas informadas pelo agente. Ex: PEK-NRT-USA-GRU. Retorne string vazia se for direto.' },
                 transit_time: { type: 'string', description: 'Tempo de trânsito literal informado pelo agente (ex: "3 days", "9-12 days", "35 dias"). Se não informado, retorne "n/a".' },
                 frequency: { type: 'string', description: 'Frequência de saídas ou voos informada pelo agente. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc., converta para "2x por semana (D26)" ou similar. Se não informado, retorne "Semanal".' },
                 weight_break: { type: 'string', description: 'Faixa tarifária de peso aplicada no frete aéreo pelo agente se houver no texto. Exemplos de retorno: "normal", "+45", "+100", "+300", "+500", "+1000". Se o e-mail do agente contiver termos como "+100kg", "above 100kg", "+100", extraia "+100". Se não aplicável ou não mencionado, retorne "normal".' },
@@ -341,6 +343,8 @@ export const extractAgentCosts = async (
     Instruções Gerais de Extração:
     1. **Tempo de Trânsito (Transit Time):** Identifique o tempo de trânsito (T/T ou Transit Time) mencionado no RETORNO DO AGENTE (ex: "3 days", "9-12 days", "35 dias"). Salve esse texto literal no campo "transit_time". Se não encontrar nenhuma menção ao tempo de trânsito, retorne "n/a".
     2. **Frequência (frequency):** Identifique a frequência de saída de voos ou navios no RETORNO DO AGENTE. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc. (sinalizando saídas às terças e sábados no padrão IATA, ou segundas e sextas no informal), formate o resultado final como "2x por semana (D26)" ou similar que represente de forma clara a frequência. Se o agente apenas indicar "diário", "semanal", etc., extraia esse texto. Se não for informada nenhuma frequência, retorne "Semanal".
+    3. **Origem (origin_airport):** Identifique o Porto ou Aeroporto de Origem que o agente cotou no RETORNO DO AGENTE (ex: PEK, WNZ, SZX, MXP). Salve o código IATA ou o nome do aeroporto correspondente.
+    4. **Conexões (connections):** Identifique as conexões ou escalas informadas pelo agente (ex: "PEK-NRT-USA-GRU" ou "via MIA" ou "via NRT"). Salve a string no campo "connections". Retorne string vazia se for direto ou não houver menção a conexões.
 
     Instruções Importantes para Modal Aéreo:
     1. Para a Cia Aérea (carrier), identifique o nome completo da companhia aérea. Se encontrar códigos/siglas IATA de duas letras (como KL, LH, AA, UA, AF, TP, EK, QR), converta para o nome por extenso correspondente (ex: KL -> KLM, LH -> Lufthansa, AA -> American Airlines, AF -> Air France, TP -> TAP Air Portugal, EK -> Emirates, QR -> Qatar Airways).

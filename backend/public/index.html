@@ -668,6 +668,18 @@
                 <option value="+1000">+1000 kg</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>Origem (do Agente) <span id="conf-agent-origin"></span></label>
+              <input type="text" id="r-agent-origin-port" placeholder="Ex: PEK - Beijing">
+            </div>
+            <div class="form-group">
+              <label>Conexões (do Agente) <span id="conf-agent-connections"></span></label>
+              <input type="text" id="r-agent-connections" placeholder="Ex: PEK-NRT-USA-GRU">
+            </div>
+            <div class="form-group">
+              <label>Cia Aérea / Armador (do Agente) <span id="conf-agent-carrier"></span></label>
+              <input type="text" id="r-agent-carrier" placeholder="Ex: American Airlines">
+            </div>
             <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
               <input type="checkbox" id="r-customs-clearance-included" style="width:20px; height:20px; cursor:pointer;">
               <label for="r-customs-clearance-included" style="margin-bottom:0; cursor:pointer; font-weight:600; font-size:13px; color:var(--text);">Incluir Desembaraço Aduaneiro na Cotação</label>
@@ -860,6 +872,10 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Conexões do Voo ou do Porto</label>
           <input type="text" id="rev-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
+        </div>
+        <div class="form-group" style="margin:0;grid-column:1/-1;">
+          <label style="font-size:11px;">Cia Aérea / Armador</label>
+          <input type="text" id="rev-carrier" placeholder="Ex: American Airlines, KLM, COSCO">
         </div>
       </div>
     </div>
@@ -1331,6 +1347,15 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-transit-time').value = d.costs.transit_time_days || '';
       document.getElementById('conf-transit-time').innerHTML = renderConf(d.costs.transit_time_days, d.costs.confidence);
 
+      document.getElementById('r-agent-origin-port').value = d.costs.origin_airport || '';
+      document.getElementById('conf-agent-origin').innerHTML = renderConf(d.costs.origin_airport, d.costs.confidence);
+
+      document.getElementById('r-agent-connections').value = d.costs.connections || '';
+      document.getElementById('conf-agent-connections').innerHTML = renderConf(d.costs.connections, d.costs.confidence);
+
+      document.getElementById('r-agent-carrier').value = d.costs.carrier || '';
+      document.getElementById('conf-agent-carrier').innerHTML = renderConf(d.costs.carrier, d.costs.confidence);
+
       // Frequência, Faixa Tarifária e Frete Unitário
       const qId = document.getElementById('pending-quotations').value;
       const q = allQuotations.find(x => x.id === qId);
@@ -1642,6 +1667,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-imo').value = q.isImo ? 'true' : 'false';
     document.getElementById('rev-dimensions').value = q.packages || '';
     document.getElementById('rev-connections').value = q.connections || '';
+    document.getElementById('rev-carrier').value = q.carrier || '';
 
     // Custos: quando vem do histórico usa apenas o banco; do fluxo normal prioriza campos da tela
     if (fromHistory) {
@@ -1662,6 +1688,10 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-transit-time').value = document.getElementById('r-transit-time').value || q.transitTimeDays || '';
       document.getElementById('rev-frequency').value = document.getElementById('r-frequency').value || q.frequency || 'Semanal';
       document.getElementById('rev-weight-break').value = document.getElementById('r-weight-break').value || q.weightBreak || 'normal';
+      
+      document.getElementById('rev-origin-port').value = document.getElementById('r-agent-origin-port').value || q.originPort || '';
+      document.getElementById('rev-connections').value = document.getElementById('r-agent-connections').value || q.connections || '';
+      document.getElementById('rev-carrier').value = document.getElementById('r-agent-carrier').value || q.carrier || '';
     }
 
     // Calcular o unitário inicial
@@ -1844,7 +1874,8 @@ async function confirmAndGeneratePDF() {
         clientName: document.getElementById('rev-client-name').value,
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,
-        clientContactPhone: document.getElementById('rev-client-phone').value || null
+        clientContactPhone: document.getElementById('rev-client-phone').value || null,
+        carrier: document.getElementById('rev-carrier').value || null
       })
     });
 
