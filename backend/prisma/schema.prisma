@@ -103,6 +103,8 @@ model Quotation {
   destinationServices String? // JSON string
   destinationTaxes   Float?
   destinationTaxesCurrency String?
+  originServices           String?  // JSON string
+  originServicesTotal      Float?
   
   totalBrl           Float?
   totalUsd           Float?

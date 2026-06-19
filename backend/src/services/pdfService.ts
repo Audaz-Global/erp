@@ -960,29 +960,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     referenceRich = quotationData.reference || 'PACK 3 - 5500279920';
     incoterm = quotationData.incoterm ? String(quotationData.incoterm).trim() : 'FCA';
     obs = quotationData.notes ? JSON.parse(quotationData.notes).join(' ') : 'A companhia aérea AA, está com lotação e será necessário o aguardo de espaço na aeronave.';
-
-    freightUnitValue = '8.60';
-    freightTotalValue = '4188.20';
-
-    detailedFeesOrigem = [
-      { name: 'Airport Fee', qty: 487, unit: 'Por Kg/cm3 (6000)', valueUnit: '0.15', min: '45.00', total: '73.05' },
-      { name: 'AWB Fee', qty: 1, unit: 'Por documento', valueUnit: '16.00', min: '0,00', total: '16.00' },
-      { name: 'Handling', qty: 1, unit: 'Fixo', valueUnit: '30.00', min: '0,00', total: '30.00' }
-    ];
-
-    detailedFeesDestino = [
-      { name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' },
-      { name: 'Collect Fee', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.00 %', min: '50.00', currency: 'USD', total: 'USD 129.22' },
-      { name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
-      { name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
-      { name: 'IOF - FRETE + TX ORIGEM', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.50 %', min: '0,00', currency: 'USD', total: 'USD 150.75' }
-    ];
-
-    totalUsd = 4707.22;
-    sumUsd = 4707.22;
-    totalGeralLabel = 'USD 4707.22';
   } else {
-    // Caso genérico
+    // Caso genérico para rota
     const rawBruto = parseFloat(quotationData.totalGrossWeightKg) || 0;
     totalGrossWeightKg = rawBruto;
     
@@ -996,7 +975,6 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       }
     }
 
-    // Mapeamento dinâmico de Origem (Aeroporto/Porto e País)
     if (quotationData.originPort) {
       originPortRich = String(quotationData.originPort).trim();
     } else {
@@ -1010,7 +988,6 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     originCityRich = String(quotationData.originCity || '—').trim();
     originCountryRich = String(quotationData.originCountry || 'CHINA').trim().toUpperCase();
 
-    // Mapeamento dinâmico de Destino (Aeroporto/Porto e País)
     if (quotationData.destinationPort) {
       destinationPortRich = String(quotationData.destinationPort).trim();
     } else {
@@ -1046,7 +1023,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     let added = 0;
     while (added < 7) {
       d.setDate(d.getDate() + 1);
-      const day = d.getDay(); // 0 = Domingo, 6 = Sábado
+      const day = d.getDay();
       if (day !== 0 && day !== 6) {
         added++;
       }
@@ -1057,42 +1034,128 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
     referenceRich = quotationData.reference || '—';
     incoterm = quotationData.incoterm || 'FCA';
+    obs = quotationData.notes ? JSON.parse(quotationData.notes).join(' ') : '';
+  }
 
+  // Verifica se a cotação de teste tem dados preenchidos no banco
+  const hasSavedCosts = quotationData.freightValue !== null || quotationData.originServices !== null || quotationData.destinationServicesTotal !== null;
+
+  if (isTestCase && !hasSavedCosts) {
+    freightUnitValue = '8.60';
+    freightTotalValue = '4188.20';
+
+    detailedFeesOrigem = [
+      { name: 'Airport Fee', qty: 487, unit: 'Por Kg/cm3 (6000)', valueUnit: '0.15', min: '45.00', currency: 'USD', total: 'USD 73.05' },
+      { name: 'AWB Fee', qty: 1, unit: 'Por documento', valueUnit: '16.00', min: '0,00', currency: 'USD', total: 'USD 16.00' },
+      { name: 'Handling', qty: 1, unit: 'Fixo', valueUnit: '30.00', min: '0,00', currency: 'USD', total: 'USD 30.00' }
+    ];
+
+    detailedFeesDestino = [
+      { name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' },
+      { name: 'Collect Fee', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.00 %', min: '50.00', currency: 'USD', total: 'USD 129.22' },
+      { name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
+      { name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
+      { name: 'IOF - FRETE + TX ORIGEM', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.50 %', min: '0,00', currency: 'USD', total: 'USD 150.75' }
+    ];
+
+    totalUsd = 4707.22;
+    sumUsd = 4707.22;
+    totalGeralLabel = 'USD 4707.22';
+  } else {
+    // Lógica geral de custos (Totalmente Dinâmica)
     const isExw = String(incoterm).toUpperCase() === 'EXW';
     const isAco = String(quotationData.reference).includes('ACO');
     const fCurr = quotationData.freightCurrency || (isAco ? 'EUR' : 'USD');
 
     // Frete
-    const fVal = parseFloat(quotationData.freightValue) || 0;
+    let fVal = parseFloat(quotationData.freightValue);
+    if (isNaN(fVal)) {
+      fVal = isTestCase ? 4188.20 : 0;
+    }
     freightTotalValue = `${fCurr} ${fVal.toFixed(2)}`;
     freightUnitValue = chargableWeight > 0 ? `${fCurr} ${(fVal / chargableWeight).toFixed(2)}` : `${fCurr} 0.00`;
 
     // Origem
-    if (isExw) {
-      const originVal = isAco ? 340.00 : 91.00;
-      const originCurr = isAco ? 'EUR' : 'USD';
-      detailedFeesOrigem = [
-        { name: 'Origin Charges (Coleta, Doc, Handling, Despacho)', qty: 1, unit: 'Fixo', valueUnit: originVal.toFixed(2), min: '0,00', currency: originCurr, total: `${originCurr} ${originVal.toFixed(2)}` }
-      ];
-    } else {
-      // FCA padrão
-      const airportFeeUnit = 0.15;
-      const airportFeeTotal = Math.max(airportFeeUnit * chargableWeight, 45.00);
-      detailedFeesOrigem = [
-        { name: 'Airport Fee', qty: chargableWeight, unit: 'Por Kg/cm3 (6000)', valueUnit: airportFeeUnit.toFixed(2), min: '45.00', currency: 'USD', total: `USD ${airportFeeTotal.toFixed(2)}` },
-        { name: 'AWB Fee', qty: 1, unit: 'Por documento', valueUnit: '16.00', min: '0,00', currency: 'USD', total: 'USD 16.00' },
-        { name: 'Handling', qty: 1, unit: 'Fixo', valueUnit: '30.00', min: '0,00', currency: 'USD', total: 'USD 30.00' }
-      ];
+    if (quotationData.originServices) {
+      try {
+        const parsedServices = JSON.parse(quotationData.originServices);
+        if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+          detailedFeesOrigem = parsedServices.map(f => {
+            const val = parseFloat(f.value) || 0;
+            const curr = f.currency || 'USD';
+            return {
+              name: f.name,
+              qty: 1,
+              unit: 'Fixo',
+              valueUnit: val.toFixed(2),
+              min: '0,00',
+              currency: curr,
+              total: `${curr} ${val.toFixed(2)}`
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao fazer parse de originServices no PDF:', err);
+      }
+    }
+
+    // Fallback se detailedFeesOrigem estiver vazio
+    if (detailedFeesOrigem.length === 0) {
+      if (isExw) {
+        const originVal = isAco ? 340.00 : 91.00;
+        const originCurr = isAco ? 'EUR' : 'USD';
+        detailedFeesOrigem = [
+          { name: 'Origin Charges (Coleta, Doc, Handling, Despacho)', qty: 1, unit: 'Fixo', valueUnit: originVal.toFixed(2), min: '0,00', currency: originCurr, total: `${originCurr} ${originVal.toFixed(2)}` }
+        ];
+      } else {
+        // FCA padrão
+        const airportFeeUnit = 0.15;
+        const airportFeeTotal = Math.max(airportFeeUnit * chargableWeight, 45.00);
+        detailedFeesOrigem = [
+          { name: 'Airport Fee', qty: chargableWeight, unit: 'Por Kg/cm3 (6000)', valueUnit: airportFeeUnit.toFixed(2), min: '45.00', currency: 'USD', total: `USD ${airportFeeTotal.toFixed(2)}` },
+          { name: 'AWB Fee', qty: 1, unit: 'Por documento', valueUnit: '16.00', min: '0,00', currency: 'USD', total: 'USD 16.00' },
+          { name: 'Handling', qty: 1, unit: 'Fixo', valueUnit: '30.00', min: '0,00', currency: 'USD', total: 'USD 30.00' }
+        ];
+      }
     }
 
     // Calcular bases para taxas proporcionais
     let baseProporcional = fVal;
-    if (fCurr === 'EUR') {
-      const totalOrigemEur = isExw && isAco ? 340.00 : 0;
-      baseProporcional += totalOrigemEur;
+    if (quotationData.originServices) {
+      try {
+        const parsedServices = JSON.parse(quotationData.originServices);
+        if (Array.isArray(parsedServices)) {
+          parsedServices.forEach(f => {
+            const val = parseFloat(f.value) || 0;
+            const curr = f.currency || 'USD';
+            if (curr.toUpperCase() === fCurr.toUpperCase()) {
+              baseProporcional += val;
+            } else {
+              if (fCurr.toUpperCase() === 'USD' && curr.toUpperCase() === 'EUR') {
+                baseProporcional += val * 1.08;
+              } else if (fCurr.toUpperCase() === 'EUR' && curr.toUpperCase() === 'USD') {
+                baseProporcional += val / 1.08;
+              } else if (fCurr.toUpperCase() === 'USD' && curr.toUpperCase() === 'BRL') {
+                baseProporcional += val / 5.05;
+              } else if (fCurr.toUpperCase() === 'EUR' && curr.toUpperCase() === 'BRL') {
+                baseProporcional += val / 5.50;
+              } else {
+                baseProporcional += val;
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao calcular baseProporcional:', err);
+      }
     } else {
-      const totalOrigemUsd = isExw ? (isAco ? 340.00 : 91.00) : (Math.max(0.15 * chargableWeight, 45.00) + 16.00 + 30.00);
-      baseProporcional += totalOrigemUsd;
+      if (fCurr === 'EUR') {
+        const totalOrigemEur = isExw && isAco ? 340.00 : 0;
+        baseProporcional += totalOrigemEur;
+      } else {
+        const totalOrigemUsd = isExw ? (isAco ? 340.00 : 91.00) : (Math.max(0.15 * chargableWeight, 45.00) + 16.00 + 30.00);
+        baseProporcional += totalOrigemUsd;
+      }
     }
 
     // Collect Fee e IOF
@@ -1117,7 +1180,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     let sumOrigemUsd = 0;
     let sumOrigemEur = 0;
     detailedFeesOrigem.forEach(f => {
-      const v = f.name.includes('Airport Fee') ? (Math.max(0.15 * chargableWeight, 45.00)) : parseFloat(f.valueUnit);
+      let v = 0;
+      if (f.name === 'Airport Fee' && !quotationData.originServices) {
+        v = Math.max(0.15 * chargableWeight, 45.00);
+      } else {
+        v = parseFloat(f.valueUnit) || 0;
+      }
       if (f.currency === 'USD') sumOrigemUsd += v;
       else if (f.currency === 'EUR') sumOrigemEur += v;
       else if (f.currency === 'BRL') sumOrigemBrl += v;

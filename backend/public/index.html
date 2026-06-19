@@ -680,6 +680,10 @@
               <label>Cia Aérea / Armador (do Agente) <span id="conf-agent-carrier"></span></label>
               <input type="text" id="r-agent-carrier" placeholder="Ex: American Airlines">
             </div>
+            <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
+              <label>Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
+              <textarea id="r-agent-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+            </div>
             <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
               <input type="checkbox" id="r-customs-clearance-included" style="width:20px; height:20px; cursor:pointer;">
               <label for="r-customs-clearance-included" style="margin-bottom:0; cursor:pointer; font-weight:600; font-size:13px; color:var(--text);">Incluir Desembaraço Aduaneiro na Cotação</label>
@@ -876,6 +880,10 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Cia Aérea / Armador</label>
           <input type="text" id="rev-carrier" placeholder="Ex: American Airlines, KLM, COSCO">
+        </div>
+        <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
+          <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
+          <textarea id="rev-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
         </div>
       </div>
     </div>
@@ -1356,6 +1364,13 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-agent-carrier').value = d.costs.carrier || '';
       document.getElementById('conf-agent-carrier').innerHTML = renderConf(d.costs.carrier, d.costs.confidence);
 
+      if (d.costs.origin_fees && Array.isArray(d.costs.origin_fees)) {
+        const lines = d.costs.origin_fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
+        document.getElementById('r-agent-origin-services').value = lines.join('\n');
+      } else {
+        document.getElementById('r-agent-origin-services').value = '';
+      }
+
       // Frequência, Faixa Tarifária e Frete Unitário
       const qId = document.getElementById('pending-quotations').value;
       const q = allQuotations.find(x => x.id === qId);
@@ -1679,6 +1694,19 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-transit-time').value = q.transitTimeDays || '';
       document.getElementById('rev-frequency').value = q.frequency || 'Semanal';
       document.getElementById('rev-weight-break').value = q.weightBreak || 'normal';
+      
+      let originFeesText = '';
+      if (q.originServices) {
+        try {
+          const fees = JSON.parse(q.originServices);
+          if (Array.isArray(fees)) {
+            originFeesText = fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+          }
+        } catch(e) {
+          console.error(e);
+        }
+      }
+      document.getElementById('rev-origin-services').value = originFeesText;
     } else {
       document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
       document.getElementById('rev-iof').value = document.getElementById('r-iof').value || q.iofUsd || '';
@@ -1692,6 +1720,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-origin-port').value = document.getElementById('r-agent-origin-port').value || q.originPort || '';
       document.getElementById('rev-connections').value = document.getElementById('r-agent-connections').value || q.connections || '';
       document.getElementById('rev-carrier').value = document.getElementById('r-agent-carrier').value || q.carrier || '';
+      
+      document.getElementById('rev-origin-services').value = document.getElementById('r-agent-origin-services').value || '';
     }
 
     // Calcular o unitário inicial
@@ -1814,6 +1844,38 @@ async function confirmAndGeneratePDF() {
     const frequencyValue = document.getElementById('rev-frequency').value || 'Semanal';
     const weightBreakValue = document.getElementById('rev-weight-break').value || 'normal';
 
+    const originServicesRaw = document.getElementById('rev-origin-services').value || '';
+    const originServicesList = [];
+    let originServicesTotal = 0;
+    
+    if (originServicesRaw.trim()) {
+      const lines = originServicesRaw.split('\n');
+      lines.forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const name = parts[0].trim();
+          const valAndCurr = parts[1].trim().split(/\s+/);
+          const value = parseFloat(valAndCurr[0]) || 0;
+          const currency = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+          if (name) {
+            originServicesList.push({ name, value, currency });
+            
+            // Calcular valor equivalente em USD para fins de originServicesTotal
+            if (currency === 'USD') {
+              originServicesTotal += value;
+            } else if (currency === 'EUR') {
+              originServicesTotal += value * 1.08;
+            } else if (currency === 'BRL') {
+              originServicesTotal += value / 5.05;
+            } else {
+              originServicesTotal += value;
+            }
+          }
+        }
+      });
+    }
+    const originServicesStr = originServicesList.length > 0 ? JSON.stringify(originServicesList) : null;
+
     const body = {
       status: 'APPROVED',
       customsClearanceIncluded: customsClearance,
@@ -1875,7 +1937,9 @@ async function confirmAndGeneratePDF() {
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
-        carrier: document.getElementById('rev-carrier').value || null
+        carrier: document.getElementById('rev-carrier').value || null,
+        originServices: originServicesStr,
+        originServicesTotal: originServicesTotal || null
       })
     });
 

@@ -129,6 +129,26 @@ async function runE2E() {
 
     // 5. Validar e gerar o PDF e a visualização web
     console.log('\n[5/5] Aprovando cotação e gerando PDF com Desembaraço INCLUSO...');
+    
+    // Serializar taxas locais de origem obtidas do agente e calcular total em USD
+    const originFees = agentCosts.costs.origin_fees || [];
+    const originServicesStr = originFees.length > 0 ? JSON.stringify(originFees) : null;
+    let originServicesTotal = 0;
+    originFees.forEach(f => {
+      const val = parseFloat(f.value) || 0;
+      const curr = f.currency ? f.currency.toUpperCase() : 'USD';
+      if (curr === 'USD') originServicesTotal += val;
+      else if (curr === 'EUR') originServicesTotal += val * 1.08;
+      else if (curr === 'BRL') originServicesTotal += val / 5.05;
+      else originServicesTotal += val;
+    });
+
+    // Enviar dados básicos/taxas de origem na cotação
+    await axios.put(`${API}/quotations/${quotationId}`, {
+      originServices: originServicesStr,
+      originServicesTotal: originServicesTotal || null
+    });
+
     const approvePayload = {
       status: 'APPROVED',
       customsClearanceIncluded: true,
