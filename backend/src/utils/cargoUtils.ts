@@ -31,20 +31,25 @@ export function parsePackages(packagesStr: string, defaultPackagesCount: number 
 
     const cleaned = item.toLowerCase().replace(/\s+/g, '');
     
-    // Descobrir a quantidade de volumes antes de processar as dimensões
-    const qtyMatch = cleaned.match(/^(\d+)[x*-]/);
+    // Localiza as dimensões primeiro para analisar o texto que as antecede
+    const dimMatch = cleaned.match(/(\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
     let qty = 1;
     let dimensionsPart = cleaned;
-    
-    if (qtyMatch) {
-      const separatorsCount = (cleaned.match(/[x*-]/g) || []).length;
-      if (separatorsCount >= 3) {
-        qty = parseInt(qtyMatch[1] || '1', 10);
-        // Remove o prefixo de quantidade (ex: "1x", "2-", "3*") para não interferir nas dimensões
-        dimensionsPart = cleaned.slice(qtyMatch[0].length);
+
+    if (dimMatch) {
+      const dimIndex = cleaned.indexOf(dimMatch[0]);
+      const beforeDim = cleaned.substring(0, dimIndex);
+      
+      // Se houver um número antes das dimensões (ex: "3pkplt800(" ou "3x"), assume como a quantidade
+      const qtyMatch = beforeDim.match(/^(\d+)/);
+      if (qtyMatch) {
+        qty = parseInt(qtyMatch[1], 10);
       } else if (items.length === 1 && defaultPackagesCount > 0) {
         qty = defaultPackagesCount;
       }
+      
+      // Reconstrói a parte de dimensões sem a quantidade inicial
+      dimensionsPart = dimMatch[0] + cleaned.substring(dimIndex + dimMatch[0].length);
     } else if (items.length === 1 && defaultPackagesCount > 0) {
       qty = defaultPackagesCount;
     }

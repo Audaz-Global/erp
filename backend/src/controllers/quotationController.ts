@@ -37,15 +37,12 @@ function calculateCbmFromDimensions(dimensionsStr: string, packagesCount: number
       
       const itemVol = (l / unitFactor) * (w / unitFactor) * (h / unitFactor);
       
-      const qtyMatch = cleaned.match(/^(\d+)[x*-]/);
+      const dimIndex = cleaned.indexOf(match[0]);
+      const beforeDim = cleaned.substring(0, dimIndex);
+      const qtyMatch = beforeDim.match(/^(\d+)/);
       let qty = 1;
       if (qtyMatch) {
-        const separatorsCount = (cleaned.match(/[x*-]/g) || []).length;
-        if (separatorsCount >= 3) {
-          qty = parseInt(qtyMatch[1] || '1', 10);
-        } else if (dims.length === 1 && packagesCount > 0) {
-          qty = packagesCount;
-        }
+        qty = parseInt(qtyMatch[1], 10);
       } else if (dims.length === 1 && packagesCount > 0) {
         qty = packagesCount;
       }
