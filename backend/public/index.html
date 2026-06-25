@@ -920,6 +920,34 @@
           <label style="font-size:11px;">Dimensões</label>
           <input type="text" id="rev-dimensions" placeholder="Ex: 120x80x130 cm, 114x134x68 cm">
         </div>
+        <!-- Painel de Cubagem e Pesos Calculados -->
+        <div style="grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:16px; background:rgba(245,166,35,0.04); border:1px solid rgba(245,166,35,0.15); border-radius:14px; padding:18px; margin-top:6px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.2);">
+          <div id="rev-calc-cbm-container" style="display:flex; flex-direction:column; gap:4px; transition: opacity 0.2s ease;">
+            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Volume Calculado (M³)</span>
+            <div style="display:flex; align-items:baseline; gap:4px;">
+              <span id="rev-calc-cbm" style="font-size:20px; font-weight:800; color:var(--gold); font-family:monospace;">0.000</span>
+              <span style="font-size:12px; font-weight:600; color:var(--text-muted);">M³</span>
+            </div>
+          </div>
+          
+          <div id="rev-calc-cubed-container" style="display:flex; flex-direction:column; gap:4px; transition: opacity 0.2s ease;">
+            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Peso Cubado Aéreo (kg)</span>
+            <div style="display:flex; align-items:baseline; gap:4px;">
+              <span id="rev-calc-cubed-weight" style="font-size:20px; font-weight:800; color:var(--gold); font-family:monospace;">0.00</span>
+              <span style="font-size:12px; font-weight:600; color:var(--text-muted);">kg</span>
+            </div>
+          </div>
+          
+          <div id="rev-calc-taxable-container" style="display:flex; flex-direction:column; gap:4px; border-left:1px solid rgba(255,255,255,0.1); padding-left:16px;">
+            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
+              ⚖️ Peso/Medida Taxável Final
+            </span>
+            <div style="display:flex; align-items:baseline; gap:4px;">
+              <span id="rev-calc-taxable-weight" style="font-size:20px; font-weight:800; color:#4cd964; font-family:monospace;">0.00</span>
+              <span id="rev-calc-taxable-unit" style="font-size:12px; font-weight:600; color:#4cd964;">kg</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1141,6 +1169,82 @@ function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType,
     taxavel = 1;
   }
   return taxavel <= 0 ? 1 : taxavel;
+}
+
+function calculateCbmLocal(dimensionsStr, packagesCount = 1) {
+  if (!dimensionsStr) return 0;
+  const cleanNumber = String(dimensionsStr).trim().replace(',', '.');
+  const numericOnly = parseFloat(cleanNumber);
+  if (!isNaN(numericOnly) && !cleanNumber.includes('x') && !cleanNumber.includes('*')) {
+    return numericOnly;
+  }
+  const parsedPkgs = parsePackagesLocal(dimensionsStr, packagesCount);
+  let totalCbm = 0;
+  for (const pkg of parsedPkgs) {
+    const vol = (pkg.length / 100) * (pkg.width / 100) * (pkg.height / 100) * pkg.qty;
+    totalCbm += vol;
+  }
+  return parseFloat(totalCbm.toFixed(3));
+}
+
+function updateModalCalculatedWeights() {
+  const loadType = document.getElementById('rev-load-type').value;
+  const isAir = String(loadType || '').toUpperCase().includes('AIR');
+  const isLcl = String(loadType || '').toUpperCase().includes('LCL');
+  const bruto = parseFloat(document.getElementById('rev-weight').value) || 0;
+  const totalPackages = parseInt(document.getElementById('rev-packages').value) || 1;
+  const packagesStr = document.getElementById('rev-dimensions').value || '';
+  const wBreakModal = document.getElementById('rev-weight-break').value;
+
+  // 1. Calcular CBM
+  const cbm = calculateCbmLocal(packagesStr, totalPackages);
+  // 2. Calcular Peso Cubado Aéreo
+  const airCubado = calculateAirCubadoLocal(packagesStr, totalPackages);
+  // 3. Obter Peso Taxável
+  const taxavel = getLocalTaxavel(packagesStr, totalPackages, bruto, loadType, cbm, wBreakModal);
+
+  // Formatar
+  const cbmFormatted = cbm.toFixed(3).replace('.', ',');
+  const airCubadoFormatted = airCubado.toFixed(2).replace('.', ',');
+  
+  let taxableFormatted = '';
+  let taxableUnit = 'kg';
+  if (isAir) {
+    taxableFormatted = taxavel.toFixed(2).replace('.', ',');
+    taxableUnit = 'kg';
+  } else if (isLcl) {
+    taxableFormatted = taxavel.toFixed(3).replace('.', ',');
+    taxableUnit = 'M³';
+  } else {
+    taxableFormatted = '1,00';
+    taxableUnit = 'FCL';
+  }
+
+  // Atualizar elementos na tela
+  const cbmEl = document.getElementById('rev-calc-cbm');
+  const cubedEl = document.getElementById('rev-calc-cubed-weight');
+  const taxEl = document.getElementById('rev-calc-taxable-weight');
+  const taxUnitEl = document.getElementById('rev-calc-taxable-unit');
+
+  if (cbmEl) cbmEl.textContent = cbmFormatted;
+  if (cubedEl) cubedEl.textContent = airCubadoFormatted;
+  if (taxEl) taxEl.textContent = taxableFormatted;
+  if (taxUnitEl) taxUnitEl.textContent = taxableUnit;
+
+  // Destaques baseados no modal
+  const cbmContainer = document.getElementById('rev-calc-cbm-container');
+  const cubedContainer = document.getElementById('rev-calc-cubed-container');
+  
+  if (isAir) {
+    if (cbmContainer) cbmContainer.style.opacity = '0.4';
+    if (cubedContainer) cubedContainer.style.opacity = '1';
+  } else if (isLcl) {
+    if (cbmContainer) cbmContainer.style.opacity = '1';
+    if (cubedContainer) cubedContainer.style.opacity = '0.4';
+  } else {
+    if (cbmContainer) cbmContainer.style.opacity = '0.4';
+    if (cubedContainer) cubedContainer.style.opacity = '0.4';
+  }
 }
 
 window.onerror = function(msg, url, lineNo, columnNo, error) {
@@ -1798,7 +1902,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
       const p = parseInt(document.getElementById('rev-packages').value) || 1;
       const d = document.getElementById('rev-dimensions').value || '';
       const wb = document.getElementById('rev-weight-break').value;
-      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm, wb);
+      const currentCbm = calculateCbmLocal(d, p);
+      const tx = getLocalTaxavel(d, p, w, lType, currentCbm, wb);
       
       const air = lType.toUpperCase().includes('AIR');
       const lcl = lType.toUpperCase().includes('LCL');
@@ -1818,7 +1923,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
       const p = parseInt(document.getElementById('rev-packages').value) || 1;
       const d = document.getElementById('rev-dimensions').value || '';
       const wb = document.getElementById('rev-weight-break').value;
-      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm, wb);
+      const currentCbm = calculateCbmLocal(d, p);
+      const tx = getLocalTaxavel(d, p, w, lType, currentCbm, wb);
       
       const air = lType.toUpperCase().includes('AIR');
       const lcl = lType.toUpperCase().includes('LCL');
@@ -1839,7 +1945,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
       const w = parseFloat(document.getElementById('rev-weight').value) || 0;
       const p = parseInt(document.getElementById('rev-packages').value) || 1;
       const d = document.getElementById('rev-dimensions').value || '';
-      const tx = getLocalTaxavel(d, p, w, lType, q.totalCbm, this.value);
+      const currentCbm = calculateCbmLocal(d, p);
+      const tx = getLocalTaxavel(d, p, w, lType, currentCbm, this.value);
       
       const air = lType.toUpperCase().includes('AIR');
       const lcl = lType.toUpperCase().includes('LCL');
@@ -1852,6 +1959,12 @@ async function validateAndGeneratePDF(qIdParam = null) {
       }
       document.getElementById('rev-freight').value = tot.toFixed(2);
       document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
+      updateModalCalculatedWeights();
+    };
+
+    const onCargoFieldsChange = function() {
+      updateModalCalculatedWeights();
+      recalculateModalFreight();
     };
 
     // Remove event listeners anteriores se existirem e adiciona
@@ -1863,6 +1976,22 @@ async function validateAndGeneratePDF(qIdParam = null) {
 
     document.getElementById('rev-weight-break').removeEventListener('change', handleModalWeightBreakChange);
     document.getElementById('rev-weight-break').addEventListener('change', handleModalWeightBreakChange);
+
+    // Registrar novos listeners para campos de carga que afetam cubagem/pesos
+    document.getElementById('rev-weight').removeEventListener('input', onCargoFieldsChange);
+    document.getElementById('rev-weight').addEventListener('input', onCargoFieldsChange);
+
+    document.getElementById('rev-packages').removeEventListener('input', onCargoFieldsChange);
+    document.getElementById('rev-packages').addEventListener('input', onCargoFieldsChange);
+
+    document.getElementById('rev-dimensions').removeEventListener('input', onCargoFieldsChange);
+    document.getElementById('rev-dimensions').addEventListener('input', onCargoFieldsChange);
+
+    document.getElementById('rev-load-type').removeEventListener('change', onCargoFieldsChange);
+    document.getElementById('rev-load-type').addEventListener('change', onCargoFieldsChange);
+
+    // Calcular e atualizar os pesos e volumes calculados inicialmente
+    updateModalCalculatedWeights();
 
     // Desembaraço: sempre desmarcado por padrão, valor pré-fixado R$ 900,00
     document.getElementById('rev-customs-clearance').checked = false;
