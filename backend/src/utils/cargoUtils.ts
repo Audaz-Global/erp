@@ -113,3 +113,25 @@ export function hasOversizedCargo(packagesStr: string): boolean {
   }
   return false;
 }
+
+/**
+ * Calcula o CBM acumulado (m³) das dimensões fornecidas
+ */
+export function calculateCbmFromDimensions(dimensionsStr: string, packagesCount: number = 1): number {
+  if (!dimensionsStr) return 0;
+  
+  const cleanNumber = dimensionsStr.trim().replace(',', '.');
+  const numericOnly = parseFloat(cleanNumber);
+  if (!isNaN(numericOnly) && !cleanNumber.includes('x') && !cleanNumber.includes('*')) {
+    return numericOnly;
+  }
+
+  const parsedPkgs = parsePackages(dimensionsStr, packagesCount);
+  let totalCbm = 0;
+  for (const pkg of parsedPkgs) {
+    const vol = (pkg.length / 100) * (pkg.width / 100) * (pkg.height / 100) * pkg.qty;
+    totalCbm += vol;
+  }
+  
+  return parseFloat(totalCbm.toFixed(3));
+}

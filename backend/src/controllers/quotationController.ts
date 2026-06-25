@@ -2,57 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
-import { calculateAirCubado, hasOversizedCargo } from '../utils/cargoUtils';
-
-function calculateCbmFromDimensions(dimensionsStr: string, packagesCount: number = 1): number {
-  if (!dimensionsStr) return 0;
-  
-  // se o próprio texto for apenas um número decimal, ex: "1.248" ou "1,248" ou "1.248 CBM"
-  const cleanNumber = dimensionsStr.trim().replace(',', '.');
-  const numericOnly = parseFloat(cleanNumber);
-  if (!isNaN(numericOnly) && !cleanNumber.includes('x') && !cleanNumber.includes('*')) {
-    return numericOnly;
-  }
-
-  const dims = dimensionsStr.split(/[,;\n]/);
-  let totalCbm = 0;
-  
-  for (const dim of dims) {
-    if (!dim) continue;
-    const cleaned = dim.toLowerCase().replace(/\s+/g, '');
-    const match = cleaned.match(/(\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
-    if (match) {
-      const l = parseFloat(match[1] || '0');
-      const w = parseFloat(match[2] || '0');
-      const h = parseFloat(match[3] || '0');
-      
-      let unitFactor = 100; // cm por padrão
-      if (cleaned.includes('mm')) {
-        unitFactor = 1000;
-      } else if (cleaned.includes('cm')) {
-        unitFactor = 100;
-      } else if (cleaned.includes('m') && !cleaned.includes('cm') && !cleaned.includes('mm')) {
-        unitFactor = 1;
-      }
-      
-      const itemVol = (l / unitFactor) * (w / unitFactor) * (h / unitFactor);
-      
-      const dimIndex = cleaned.indexOf(match[0]);
-      const beforeDim = cleaned.substring(0, dimIndex);
-      const qtyMatch = beforeDim.match(/^(\d+)/);
-      let qty = 1;
-      if (qtyMatch) {
-        qty = parseInt(qtyMatch[1] || '1', 10);
-      } else if (dims.length === 1 && packagesCount > 0) {
-        qty = packagesCount;
-      }
-      
-      totalCbm += itemVol * qty;
-    }
-  }
-  
-  return parseFloat(totalCbm.toFixed(3));
-}
+import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
 
 // 1. Create a new Quotation
 export const createQuotation = async (req: Request, res: Response) => {

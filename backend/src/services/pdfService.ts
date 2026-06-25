@@ -3,7 +3,7 @@ import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
 import * as XLSX from 'xlsx';
-import { calculateAirCubado, hasOversizedCargo } from '../utils/cargoUtils';
+import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
 
 const defaultTemplate = `
 <!DOCTYPE html>
@@ -1624,7 +1624,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     // Free time e Transit Time
     const freeTimeLabel = isFcl && isImport ? '14 Dia(s)' : '—';
     const transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 35 Dia(s)';
-    const totalCbm = parseFloat(quotationData.totalCbm) || 0;
+    let totalCbm = parseFloat(quotationData.totalCbm) || 0;
+    if (quotationData.packages) {
+      totalCbm = calculateCbmFromDimensions(quotationData.packages, quotationData.totalPackages || 1);
+    }
     const totalCbmRich = totalCbm > 0 ? totalCbm.toFixed(2).replace('.', ',') : '0,00';
 
     const logoPath = path.join(__dirname, '../../../Logo Audaz Fundo Transparente.png');
