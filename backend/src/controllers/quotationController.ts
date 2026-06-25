@@ -42,7 +42,7 @@ function calculateCbmFromDimensions(dimensionsStr: string, packagesCount: number
       const qtyMatch = beforeDim.match(/^(\d+)/);
       let qty = 1;
       if (qtyMatch) {
-        qty = parseInt(qtyMatch[1], 10);
+        qty = parseInt(qtyMatch[1] || '1', 10);
       } else if (dims.length === 1 && packagesCount > 0) {
         qty = packagesCount;
       }

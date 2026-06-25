@@ -43,7 +43,7 @@ export function parsePackages(packagesStr: string, defaultPackagesCount: number 
       // Se houver um número antes das dimensões (ex: "3pkplt800(" ou "3x"), assume como a quantidade
       const qtyMatch = beforeDim.match(/^(\d+)/);
       if (qtyMatch) {
-        qty = parseInt(qtyMatch[1], 10);
+        qty = parseInt(qtyMatch[1] || '1', 10);
       } else if (items.length === 1 && defaultPackagesCount > 0) {
         qty = defaultPackagesCount;
       }
