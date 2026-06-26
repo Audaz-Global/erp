@@ -1091,8 +1091,32 @@ function parsePackagesLocal(packagesStr, defaultPackagesCount = 1) {
   for (let item of items) {
     item = item.trim();
     if (!item) continue;
-    const cleaned = item.toLowerCase().replace(/\s+/g, '');
     
+    // Remove espaços e parênteses para simplificar o parsing de formatos como 3x(120x80x60)
+    const cleaned = item.toLowerCase().replace(/\s+/g, '').replace(/[()]/g, '');
+    
+    // 1. Tenta identificar o padrão de 4 números (ex: 3x120x80x60)
+    const match4 = cleaned.match(/^(\d+)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
+    if (match4) {
+      const qty = parseInt(match4[1] || '1', 10);
+      let l = parseFloat(match4[2] || '0');
+      let w = parseFloat(match4[3] || '0');
+      let h = parseFloat(match4[4] || '0');
+      
+      let toCmFactor = 1;
+      if (cleaned.includes('mm')) toCmFactor = 0.1;
+      else if (cleaned.includes('cm')) toCmFactor = 1;
+      else if (cleaned.includes('m') && !cleaned.includes('cm') && !cleaned.includes('mm')) toCmFactor = 100;
+      
+      l = l * toCmFactor;
+      w = w * toCmFactor;
+      h = h * toCmFactor;
+      
+      result.push({ length: l, width: w, height: h, qty });
+      continue;
+    }
+    
+    // 2. Se não for 4 números, segue o fluxo normal de 3 números
     const cleanDimensions = cleaned.replace(/mm|cm|m/g, '');
     const match = cleanDimensions.match(/(\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)[x*](\d+(?:\.\d+)?)/);
     let qty = 1;
