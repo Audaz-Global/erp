@@ -316,12 +316,12 @@ const defaultTemplate = `
     <tbody>
       <tr>
         <td>International Freight</td>
-        <td class="t-center">{{#if containerQty}}{{containerQty}}{{else}}1{{/if}}</td>
-        <td>{{#if hasDetailedFees}}Por CNTR {{containerTypeRich}}{{else}}Por t/m3{{/if}}</td>
-        <td class="t-right">USD {{#if hasDetailedFees}}{{freightUnitValue}}{{else}}{{freightValue}}{{/if}}</td>
-        <td class="t-right">{{#if hasDetailedFees}}{{freightUnitValue}}{{else}}{{freightValue}}{{/if}}</td>
+        <td class="t-center">{{freightQtyRich}}</td>
+        <td>{{freightCalculationType}}</td>
+        <td class="t-right">USD {{freightUnitValueRich}}</td>
+        <td class="t-right">{{freightUnitValueRich}}</td>
         <td class="t-right">0,00</td>
-        <td class="t-right">{{freightValue}}</td>
+        <td class="t-right">{{freightTotalRich}}</td>
       </tr>
     </tbody>
   </table>
@@ -1618,9 +1618,6 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       }
     }
 
-    // Calcular valores unitários de frete
-    const freightUnitValue = (fV / containerQty).toFixed(2);
-
     // Free time e Transit Time
     const freeTimeLabel = isFcl && isImport ? '14 Dia(s)' : '—';
     const transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 35 Dia(s)';
@@ -1631,6 +1628,47 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       totalCbm = calculateCbmFromDimensions(quotationData.packages, quotationData.totalPackages || 1);
     }
     const totalCbmRich = totalCbm > 0 ? totalCbm.toFixed(2).replace('.', ',') : '0,00';
+
+    // Cálculo inteligente de Quantidade, Unitário e Tipo de Cálculo para o Frete Internacional no PDF
+    let freightQtyRich = '1';
+    let freightCalculationType = 'Por t/m3';
+    let freightUnitValueRich = '0,00';
+    const freightTotalRich = fV.toFixed(2).replace('.', ',');
+
+    const isLcl = String(quotationData.loadType || '').toUpperCase().includes('LCL');
+
+    if (isAir) {
+      const bruto = parseFloat(quotationData.totalGrossWeightKg) || 0;
+      const totalPackages = parseInt(quotationData.totalPackages || 1);
+      const packagesStr = quotationData.packages || '';
+      const wBreak = quotationData.weightBreak || 'normal';
+      
+      let cubado = calculateAirCubado(packagesStr, totalPackages);
+      let taxavel = Math.max(bruto, cubado);
+      
+      if (wBreak && wBreak !== 'normal') {
+        const minWeight = parseFloat(wBreak.replace(/[^0-9]/g, ''));
+        if (!isNaN(minWeight) && taxavel < minWeight) {
+          taxavel = minWeight;
+        }
+      }
+      if (taxavel <= 0) taxavel = 1;
+      
+      freightQtyRich = taxavel.toFixed(2).replace('.', ',') + ' kg';
+      freightCalculationType = 'Por kg';
+      freightUnitValueRich = (fV / taxavel).toFixed(2).replace('.', ',');
+    } else if (isLcl) {
+      let taxavel = totalCbm;
+      if (taxavel <= 0) taxavel = 1;
+      
+      freightQtyRich = taxavel.toFixed(3).replace('.', ',') + ' M³';
+      freightCalculationType = 'Por t/m3';
+      freightUnitValueRich = (fV / taxavel).toFixed(2).replace('.', ',');
+    } else {
+      freightQtyRich = String(containerQty);
+      freightCalculationType = `Por CNTR ${containerType}`;
+      freightUnitValueRich = (fV / containerQty).toFixed(2).replace('.', ',');
+    }
 
     const logoPath = path.join(__dirname, '../../../Logo Audaz Fundo Transparente.png');
     let logoBase64 = '';
@@ -1667,7 +1705,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       containerTypeRich,
       hasDetailedFees,
       detailedFees,
-      freightUnitValue,
+      freightQtyRich,
+      freightCalculationType,
+      freightUnitValueRich,
+      freightTotalRich,
       freeTimeLabel,
       transitTimeLabel,
       totalCbmRich,
