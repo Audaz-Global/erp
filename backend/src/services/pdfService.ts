@@ -1624,6 +1624,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     // Free time e Transit Time
     const freeTimeLabel = isFcl && isImport ? '14 Dia(s)' : '—';
     const transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 35 Dia(s)';
+    const frequencyRich = quotationData.frequency ? String(quotationData.frequency).trim() : 'Semanal';
+    
     let totalCbm = parseFloat(quotationData.totalCbm) || 0;
     if (quotationData.packages) {
       totalCbm = calculateCbmFromDimensions(quotationData.packages, quotationData.totalPackages || 1);
@@ -1670,6 +1672,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       transitTimeLabel,
       totalCbmRich,
       referenceNumber,
+      frequencyRich,
       currentDateTime
     };
 
