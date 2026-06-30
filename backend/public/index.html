@@ -846,7 +846,7 @@
     <!-- ROTA -->
     <div style="margin-bottom:24px;">
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">🗺️ Rota Comercial</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;">
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Incoterm</label>
           <select id="rev-incoterm">
@@ -855,7 +855,14 @@
           </select>
         </div>
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">Modal / Tipo de Carga</label>
+          <label style="font-size:11px;">Modal</label>
+          <select id="rev-modal">
+            <option value="AIR">✈️ Aéreo (AIR)</option>
+            <option value="SEA">🚢 Marítimo (SEA)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Tipo de Carga</label>
           <select id="rev-load-type">
             <option value="AIR_GENERAL">✈️ Aéreo Geral (AIR)</option>
             <option value="LCL">🚢 LCL (Marítimo Consolidado)</option>
@@ -863,15 +870,22 @@
             <option value="FCL_40">📦 FCL 40' (Container)</option>
           </select>
         </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Direção</label>
+          <select id="rev-direction">
+            <option value="IMPORT">Importação (IMPORT)</option>
+            <option value="EXPORT">Exportação (EXPORT)</option>
+          </select>
+        </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Origem (Porto ou Aeroporto)</label>
           <input type="text" id="rev-origin-port" placeholder="Ex: SZX - Shenzhen">
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Local Inicial (Cidade/Estado/País)</label>
           <input type="text" id="rev-origin-city" placeholder="Ex: Shanghai">
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Origem (País)</label>
           <input type="text" id="rev-origin-country" placeholder="Ex: China">
         </div>
@@ -879,11 +893,11 @@
           <label style="font-size:11px;">Destino (Porto ou Aeroporto)</label>
           <input type="text" id="rev-dest-port" placeholder="Ex: GRU - Guarulhos">
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Destino Final (Cidade/Estado/País)</label>
           <input type="text" id="rev-dest-city" placeholder="Ex: Jacareí">
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Destino (País)</label>
           <input type="text" id="rev-dest-country" placeholder="Ex: Brazil">
         </div>
@@ -909,10 +923,14 @@
     <!-- CARGA -->
     <div style="margin-bottom:24px;">
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📦 Detalhes da Carga</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Peso Bruto (kg)</label>
           <input type="number" id="rev-weight" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Peso Líquido (kg)</label>
+          <input type="number" id="rev-net-weight" step="0.01" placeholder="0.00">
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Volumes</label>
@@ -926,9 +944,17 @@
           <label style="font-size:11px;">Carga IMO?</label>
           <select id="rev-imo"><option value="false">Não</option><option value="true">Sim</option></select>
         </div>
-        <div class="form-group" style="margin:0;grid-column:1/-1;">
+        <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Dimensões</label>
           <input type="text" id="rev-dimensions" placeholder="Ex: 120x80x130 cm, 114x134x68 cm">
+        </div>
+        <div class="form-group" style="margin:0;grid-column:span 2;">
+          <label style="font-size:11px;">Descrição da Carga</label>
+          <input type="text" id="rev-cargo-description" placeholder="Ex: Peças sobressalentes de perfuratriz">
+        </div>
+        <div class="form-group" style="margin:0;grid-column:span 1;">
+          <label style="font-size:11px;">NCMs</label>
+          <input type="text" id="rev-ncm-codes" placeholder="Ex: 8471.30.12, 8504.40.90">
         </div>
         <!-- Painel de Cubagem e Pesos Calculados -->
         <div style="grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:16px; background:rgba(245,166,35,0.04); border:1px solid rgba(245,166,35,0.15); border-radius:14px; padding:18px; margin-top:6px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.2);">
@@ -1097,6 +1123,7 @@
 
 <script>
 const API = window.location.origin + '/api';
+let isOnlyEditMode = false;
 
 // Funções utilitárias locais de cubagem
 function parsePackagesLocal(packagesStr, defaultPackagesCount = 1) {
@@ -1849,7 +1876,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-client-phone').value = (q.client?.contactPhone) || '';
     document.getElementById('rev-reference').value = q.reference || '';
     document.getElementById('rev-incoterm').value = q.incoterm || 'FOB';
+    document.getElementById('rev-modal').value = q.modal || 'AIR';
     document.getElementById('rev-load-type').value = q.loadType || 'AIR_GENERAL';
+    document.getElementById('rev-direction').value = q.direction || 'IMPORT';
     document.getElementById('rev-origin-city').value = q.originCity || '';
     document.getElementById('rev-origin-country').value = q.originCountry || '';
     document.getElementById('rev-origin-port').value = q.originPort || '';
@@ -1857,12 +1886,29 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-dest-country').value = q.destinationCountry || '';
     document.getElementById('rev-dest-port').value = q.destinationPort || '';
     document.getElementById('rev-weight').value = q.totalGrossWeightKg || '';
+    document.getElementById('rev-net-weight').value = q.totalNetWeightKg || '';
     document.getElementById('rev-packages').value = q.totalPackages || '';
     document.getElementById('rev-commercial-value').value = q.commercialValue || '';
     document.getElementById('rev-imo').value = q.isImo ? 'true' : 'false';
     document.getElementById('rev-dimensions').value = q.packages || '';
+    document.getElementById('rev-cargo-description').value = q.cargoDescription || '';
+    document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
     document.getElementById('rev-connections').value = q.connections || '';
     document.getElementById('rev-carrier').value = q.carrier || '';
+
+    // Atualizar título, descrição e botão de acordo com o modo
+    const titleEl = document.querySelector('#pdfReviewOverlay h2');
+    const descEl = document.querySelector('#pdfReviewOverlay p');
+    const confirmBtn = document.querySelector('#pdfReviewOverlay .btn-primary');
+    if (isOnlyEditMode) {
+      titleEl.textContent = 'Editar Cotação';
+      descEl.textContent = 'Modifique todos os dados básicos da cotação e clique em Salvar.';
+      confirmBtn.innerHTML = '<span>💾</span> Salvar Alterações';
+    } else {
+      titleEl.textContent = 'Revisão Final da Cotação';
+      descEl.textContent = 'Revise todos os dados antes de gerar o PDF. Todos os campos são editáveis.';
+      confirmBtn.innerHTML = '<span>✅</span> Confirmar e Gerar PDF';
+    }
 
     // Custos: quando vem do histórico usa apenas o banco; do fluxo normal prioriza campos da tela
     if (fromHistory) {
@@ -2210,7 +2256,8 @@ async function confirmAndGeneratePDF() {
         reference: document.getElementById('rev-reference').value,
         incoterm: document.getElementById('rev-incoterm').value,
         loadType: document.getElementById('rev-load-type').value,
-        modal: document.getElementById('rev-load-type').value === 'AIR_GENERAL' ? 'AIR' : 'SEA',
+        modal: document.getElementById('rev-modal').value,
+        direction: document.getElementById('rev-direction').value,
         originCity: document.getElementById('rev-origin-city').value,
         originCountry: document.getElementById('rev-origin-country').value,
         originPort: document.getElementById('rev-origin-port').value,
@@ -2219,10 +2266,13 @@ async function confirmAndGeneratePDF() {
         destinationPort: document.getElementById('rev-dest-port').value,
         connections: document.getElementById('rev-connections').value || null,
         totalGrossWeightKg: parseFloat(document.getElementById('rev-weight').value) || null,
+        totalNetWeightKg: parseFloat(document.getElementById('rev-net-weight').value) || null,
         totalPackages: parseInt(document.getElementById('rev-packages').value) || null,
         commercialValue: parseFloat(document.getElementById('rev-commercial-value').value) || null,
         isImo: document.getElementById('rev-imo').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
+        cargoDescription: document.getElementById('rev-cargo-description').value || null,
+        ncmCodes: document.getElementById('rev-ncm-codes').value || null,
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
         clientName: document.getElementById('rev-client-name').value,
@@ -2244,6 +2294,15 @@ async function confirmAndGeneratePDF() {
     });
     if (!resUpdate.ok) throw new Error('Falha ao atualizar cotação.');
 
+    if (isOnlyEditMode) {
+      toast('✅ Cotação salva com sucesso!');
+      closePdfReviewModal();
+      loadQuotations();
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = '<span>💾</span> Salvar Alterações';
+      return;
+    }
+
     // Abrir PDF
     window.open(API + '/quotations/' + qId + '/pdf', '_blank');
     toast('✅ PDF gerado com sucesso!');
@@ -2251,11 +2310,15 @@ async function confirmAndGeneratePDF() {
     loadQuotations();
     switchTab('quotation');
   } catch(e) {
-    alert('Erro ao gerar PDF: ' + e.message);
+    alert('Erro ao salvar ou gerar PDF: ' + e.message);
   }
 
   confirmBtn.disabled = false;
-  confirmBtn.innerHTML = '<span style="margin-right:6px;">✅</span> Confirmar e Gerar PDF';
+  if (isOnlyEditMode) {
+    confirmBtn.innerHTML = '<span>💾</span> Salvar Alterações';
+  } else {
+    confirmBtn.innerHTML = '<span style="margin-right:6px;">✅</span> Confirmar e Gerar PDF';
+  }
 }
 
 function loadPendingQuotationsDropdown() {
@@ -2456,6 +2519,7 @@ function renderTable() {
       <td>${dateStr}</td>
       <td>
         <div class="action-btns" onclick="event.stopPropagation()">
+          <button class="action-btn" onclick="openEditQuotationModal('${q.id}')" title="Editar Cotação">✏️</button>
           <button class="action-btn" onclick="downloadPdf('${q.id}')" title="Baixar PDF">📄</button>
           <button class="action-btn" onclick="copyPublicLink('${q.id}')" title="Copiar Link da Versão Web">🔗</button>
           <button class="action-btn danger" onclick="deleteQuotation('${q.id}')" title="Excluir">🗑️</button>
@@ -2532,7 +2596,13 @@ function toggleDetail(idx, rowEl) {
   rowEl.after(detailTr);
 }
 
+function openEditQuotationModal(id) {
+  isOnlyEditMode = true;
+  validateAndGeneratePDF(id);
+}
+
 function downloadPdf(id) {
+  isOnlyEditMode = false;
   validateAndGeneratePDF(id);
 }
 
