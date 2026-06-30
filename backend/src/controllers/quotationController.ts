@@ -369,7 +369,27 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     // Detalhar taxas de origem
     let detailedFeesOrigem: any[] = [];
-    if (isAir) {
+    if (quotation.originServices) {
+      try {
+        const parsedServices = JSON.parse(quotation.originServices);
+        if (Array.isArray(parsedServices) && parsedServices.length > 0) {
+          detailedFeesOrigem = parsedServices.map(f => {
+            const val = parseFloat(f.value) || 0;
+            const curr = f.currency || 'USD';
+            return {
+              name: f.name,
+              val: val,
+              currency: curr,
+              brl: getBrlValue(val, curr)
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao ler originServices na visualização pública:', err);
+      }
+    }
+
+    if (detailedFeesOrigem.length === 0 && isAir) {
       if (isExw) {
         // EXW tem Origin Charges consolidada
         const originVal = String(quotation.reference).includes('ACO') ? 340.00 : 91.00;
