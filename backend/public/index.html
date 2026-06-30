@@ -621,9 +621,19 @@
         <div class="review-col" style="grid-column: 1 / -1;">
           <div class="review-section">
             <div class="review-section-title">Custos Retornados pelo Agente</div>
-            <div class="form-group">
-              <label>Frete Internacional Principal (USD) <span id="conf-freight"></span></label>
-              <input type="number" id="r-freight" step="0.01" placeholder="0.00">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label>Frete Internacional Principal <span id="conf-freight"></span></label>
+                <input type="number" id="r-freight" step="0.01" placeholder="0.00">
+              </div>
+              <div class="form-group">
+                <label>Moeda</label>
+                <select id="r-freight-currency">
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="BRL">BRL (R$)</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label>IOF - Frete + Tx Origem (USD) <span id="conf-iof"></span></label>
@@ -956,8 +966,20 @@
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">💰 Custos e Frete</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">Frete Internacional (USD)</label>
-          <input type="number" id="rev-freight" step="0.01" placeholder="0.00">
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size:11px;">Frete Internacional</label>
+              <input type="number" id="rev-freight" step="0.01" placeholder="0.00" style="width: 100%;">
+            </div>
+            <div>
+              <label style="font-size:11px;">Moeda</label>
+              <select id="rev-freight-currency" style="width: 100%; height: 38px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 0 4px; font-weight: 500;">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="BRL">BRL</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">IOF - Frete + Tx Origem (USD)</label>
@@ -1475,8 +1497,14 @@ function fillReviewForm(d, mode) {
   } else if (mode === 'AGENT') {
     if(d.costs) {
       const freightInput = document.getElementById('r-freight');
-      freightInput.value = d.costs.freight_usd || '';
-      document.getElementById('conf-freight').innerHTML = renderConf(d.costs.freight_usd, d.costs.confidence);
+      const origValue = d.costs.freight_value !== undefined ? d.costs.freight_value : d.costs.freight_usd;
+      const origCurrency = d.costs.freight_currency || 'USD';
+      
+      freightInput.value = origValue || '';
+      if (document.getElementById('r-freight-currency')) {
+        document.getElementById('r-freight-currency').value = origCurrency;
+      }
+      document.getElementById('conf-freight').innerHTML = renderConf(origValue, d.costs.confidence);
       
       freightInput.dispatchEvent(new Event('input'));
       
@@ -1839,6 +1867,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     // Custos: quando vem do histórico usa apenas o banco; do fluxo normal prioriza campos da tela
     if (fromHistory) {
       document.getElementById('rev-freight').value = q.freightValue || '';
+      if (document.getElementById('rev-freight-currency')) {
+        document.getElementById('rev-freight-currency').value = q.freightCurrency || 'USD';
+      }
       document.getElementById('rev-iof').value = q.iofUsd || '';
       document.getElementById('rev-storage').value = q.destinationStorage || '';
       document.getElementById('rev-services').value = q.destinationServicesTotal || '';
@@ -1877,6 +1908,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-destination-services').value = destFeesText;
     } else {
       document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
+      if (document.getElementById('rev-freight-currency')) {
+        document.getElementById('rev-freight-currency').value = (document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : '') || q.freightCurrency || 'USD';
+      }
       document.getElementById('rev-iof').value = document.getElementById('r-iof').value || q.iofUsd || '';
       document.getElementById('rev-storage').value = document.getElementById('r-storage').value || q.destinationStorage || '';
       document.getElementById('rev-services').value = document.getElementById('r-services').value || q.destinationServicesTotal || '';
@@ -2145,7 +2179,15 @@ async function confirmAndGeneratePDF() {
       totalGrossWeightKg: parseFloat(document.getElementById('rev-weight').value) || null,
       totalPackages: parseInt(document.getElementById('rev-packages').value) || null,
       costs: {
-        freight_usd: parseFloat(document.getElementById('rev-freight').value) || 0,
+        freight_usd: (function() {
+          const val = parseFloat(document.getElementById('rev-freight').value) || 0;
+          const curr = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
+          if (curr === 'EUR') return val * 1.08;
+          if (curr === 'BRL') return val / 5.05;
+          return val;
+        })(),
+        freight_value: parseFloat(document.getElementById('rev-freight').value) || 0,
+        freight_currency: document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD',
         iof_usd: parseFloat(document.getElementById('rev-iof').value) || 0,
         storage_brl: parseFloat(document.getElementById('rev-storage').value) || 0,
         services_brl: targetServicesBrl,
@@ -2381,6 +2423,8 @@ function renderTable() {
     const dateStr = q.createdAt ? new Date(q.createdAt).toLocaleDateString('pt-BR') : '—';
     const freightNum = Number(q.freightValue) || 0;
     const freight = q.freightValue != null ? freightNum.toFixed(2) : '—';
+    const displayCurrency = q.freightCurrency || 'USD';
+    const currencySymbol = displayCurrency === 'EUR' ? '€' : (displayCurrency === 'BRL' ? 'R$' : '$');
     const globalIdx = start + idx;
 
     const refText = q.reference || '—';
@@ -2407,7 +2451,7 @@ function renderTable() {
         <div class="route-cell">${origin} <span class="arrow">→</span> ${dest}</div>
       </td>
       <td><span class="modal-badge" title="${modalLabel} - ${q.loadType || ''}">${modalIcon} ${modalTypeLabel}</span></td>
-      <td style="font-weight:600;">$${freight}</td>
+      <td style="font-weight:600;">${currencySymbol}${freight}</td>
       <td><span class="status-badge ${st.cls}">${st.icon} ${st.label}</span></td>
       <td>${dateStr}</td>
       <td>
@@ -2475,8 +2519,8 @@ function toggleDetail(idx, rowEl) {
       </div>
       <div class="detail-group">
         <h4>Custos & Valores</h4>
-        <div class="dl"><span class="dt">Frete (USD)</span><span class="dd" style="color:var(--gold); font-weight:700;">$${q.freightValue != null ? Number(q.freightValue).toFixed(2) : '—'}</span></div>
-        <div class="dl"><span class="dt">IOF (USD)</span><span class="dd">$${q.iofUsd != null ? Number(q.iofUsd).toFixed(2) : '—'}</span></div>
+        <div class="dl"><span class="dt">Frete (${q.freightCurrency || 'USD'})</span><span class="dd" style="color:var(--gold); font-weight:700;">${q.freightCurrency === 'EUR' ? '€' : (q.freightCurrency === 'BRL' ? 'R$' : '$')}${q.freightValue != null ? Number(q.freightValue).toFixed(2) : '—'}</span></div>
+        <div class="dl"><span class="dt">IOF (${q.freightCurrency || 'USD'})</span><span class="dd">${q.freightCurrency === 'EUR' ? '€' : (q.freightCurrency === 'BRL' ? 'R$' : '$')}${q.iofUsd != null ? Number(q.iofUsd).toFixed(2) : '—'}</span></div>
         <div class="dl"><span class="dt">Armazenagem (BRL)</span><span class="dd">R$${q.destinationStorage != null ? Number(q.destinationStorage).toFixed(2) : '—'}</span></div>
         <div class="dl"><span class="dt">Serviços (BRL)</span><span class="dd">R$${q.destinationServicesTotal != null ? Number(q.destinationServicesTotal).toFixed(2) : '—'}</span></div>
         <div class="dl"><span class="dt">Total (BRL)</span><span class="dd" style="color:var(--success); font-weight:700;">R$${q.totalBrl != null ? Number(q.totalBrl).toFixed(2) : '—'}</span></div>

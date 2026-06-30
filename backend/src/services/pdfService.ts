@@ -318,10 +318,10 @@ const defaultTemplate = `
         <td>International Freight</td>
         <td class="t-center">{{freightQtyRich}}</td>
         <td>{{freightCalculationType}}</td>
-        <td class="t-right">USD {{freightUnitValueRich}}</td>
-        <td class="t-right">{{freightUnitValueRich}}</td>
+        <td class="t-right">{{freightCurrency}} {{freightUnitValueRich}}</td>
+        <td class="t-right">{{freightCurrency}} {{freightUnitValueRich}}</td>
         <td class="t-right">0,00</td>
-        <td class="t-right">{{freightTotalRich}}</td>
+        <td class="t-right">{{freightCurrency}} {{freightTotalRich}}</td>
       </tr>
     </tbody>
   </table>
@@ -357,10 +357,10 @@ const defaultTemplate = `
           <td>IOF - FRETE + TX ORIGEM</td>
           <td class="t-center">-</td>
           <td>% de Taxas Selecionadas</td>
-          <td class="t-right">USD 3,50</td>
+          <td class="t-right">{{freightCurrency}} 3,50%</td>
           <td class="t-right">0,00</td>
           <td class="t-right">0,00</td>
-          <td class="t-right">{{iofUsd}}</td>
+          <td class="t-right">{{freightCurrency}} {{iofUsd}}</td>
         </tr>
         <tr>
           <td>Estimativa de Armazenagem</td>
@@ -397,18 +397,15 @@ const defaultTemplate = `
     <table class="totals-table">
       <tr>
         <th style="width:100px;"></th>
-        <th class="t-right">BRL</th>
-        <th class="t-right">USD</th>
+        <th class="t-right">Totais Consolidados por Moeda</th>
       </tr>
       <tr>
-        <td class="t-right" style="padding-right: 20px;">Subtotal</td>
-        <td class="t-right">{{totalBrl}}</td>
-        <td class="t-right">{{totalUsd}}</td>
+        <td class="t-right" style="padding-right: 20px;">Resumo</td>
+        <td class="t-right">{{totalGeralLabel}}</td>
       </tr>
-      <tr class="total-geral">
+      <tr class="total-row total-geral">
         <td class="t-right" style="padding-right: 20px;">Total Geral</td>
-        <td class="t-right">{{totalBrl}}</td>
-        <td class="t-right">{{totalUsd}}</td>
+        <td class="t-right" style="font-size:12px; font-weight:800; color:#1B2B6B;">{{totalGeralLabel}}</td>
       </tr>
     </table>
   </div>
@@ -1551,15 +1548,69 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       }
     }
 
-    // 4. Formatação de Totais e Subtotais
-    if (hasDetailedFees) {
-      quotationData.destinationServicesTotal = calculatedBrlTotal.toFixed(2);
-      quotationData.totalBrl = calculatedBrlTotal.toFixed(2);
-      quotationData.totalUsd = (fV + calculatedUsdTotal).toFixed(2);
-    } else {
-      quotationData.totalUsd = (fV + iV).toFixed(2);
-      quotationData.totalBrl = (parseFloat(quotationData.destinationServicesTotal) + parseFloat(quotationData.destinationStorage) + parseFloat(quotationData.destinationTaxes)).toFixed(2);
+    // 4. Formatação de Totais e Subtotais Dinâmica por Moeda
+    const fCurr = quotationData.freightCurrency || 'USD';
+    let sumOrigemBrl = 0;
+    let sumOrigemUsd = 0;
+    let sumOrigemEur = 0;
+
+    // Frete e IOF
+    if (fCurr === 'USD') sumOrigemUsd += fV + iV;
+    else if (fCurr === 'EUR') sumOrigemEur += fV + iV;
+    else if (fCurr === 'BRL') sumOrigemBrl += fV + iV;
+
+    // Serviços na Origem
+    if (quotationData.originServices) {
+      try {
+        const parsed = JSON.parse(quotationData.originServices);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(f => {
+            const val = parseFloat(f.value) || 0;
+            const curr = (f.currency || 'USD').toUpperCase();
+            if (curr === 'USD') sumOrigemUsd += val;
+            else if (curr === 'EUR') sumOrigemEur += val;
+            else if (curr === 'BRL') sumOrigemBrl += val;
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao somar originServices no PDF marítimo:', err);
+      }
+    } else if (quotationData.originServicesTotal) {
+      sumOrigemUsd += parseFloat(quotationData.originServicesTotal) || 0;
     }
+
+    // Serviços no Destino
+    let sumDestinoBrl = 0;
+    let sumDestinoUsd = 0;
+    let sumDestinoEur = 0;
+
+    if (hasDetailedFees) {
+      detailedFees.forEach(f => {
+        const val = parseFloat(f.valueUnit) * (f.qty || 1);
+        const curr = (f.currency || 'BRL').toUpperCase();
+        if (curr === 'BRL') sumDestinoBrl += val;
+        else if (curr === 'USD') sumDestinoUsd += val;
+        else if (curr === 'EUR') sumDestinoEur += val;
+      });
+    } else {
+      sumDestinoBrl += (parseFloat(quotationData.destinationServicesTotal) || 0) +
+                       (parseFloat(quotationData.destinationStorage) || 0) +
+                       (parseFloat(quotationData.destinationTaxes) || 0);
+    }
+
+    const totalUsd = sumOrigemUsd + sumDestinoUsd;
+    const totalEur = sumOrigemEur + sumDestinoEur;
+    const totalBrl = sumOrigemBrl + sumDestinoBrl;
+
+    const totalsList: string[] = [];
+    if (totalUsd > 0) totalsList.push(`USD ${totalUsd.toFixed(2)}`);
+    if (totalBrl > 0) totalsList.push(`BRL ${totalBrl.toFixed(2)}`);
+    if (totalEur > 0) totalsList.push(`EUR ${totalEur.toFixed(2)}`);
+    const totalGeralLabel = totalsList.join('  |  ');
+
+    // Manter valores individuais para compatibilidade
+    quotationData.totalBrl = totalBrl.toFixed(2);
+    quotationData.totalUsd = totalUsd.toFixed(2);
 
     // 5. Mapear variáveis ricas adicionais para o template
     const modalLabel = String(quotationData.modal).toUpperCase() === 'AIR' ? 'Aéreo' : 'Marítimo';
@@ -1687,6 +1738,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     const templateData = {
       ...quotationData,
+      freightCurrency: fCurr,
+      totalGeralLabel,
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
       logoBase64,
       hasOversizedAlert: hasOversizedCargo(quotationData.packages || ''),

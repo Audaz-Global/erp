@@ -281,7 +281,13 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
 
     if (costs) {
-      updateData.freightValue = costs.freight_usd;
+      if (costs.freight_currency && costs.freight_value !== undefined) {
+        updateData.freightValue = costs.freight_value;
+        updateData.freightCurrency = costs.freight_currency;
+      } else {
+        updateData.freightValue = costs.freight_usd;
+        updateData.freightCurrency = 'USD';
+      }
       updateData.iofUsd = costs.iof_usd;
       updateData.destinationStorage = costs.storage_brl;
       updateData.destinationServicesTotal = costs.services_brl;
