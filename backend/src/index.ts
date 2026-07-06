@@ -22,6 +22,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 import authRoutes from './routes/auth';
 import extractRoutes from './routes/extract';
 import quotationRoutes from './routes/quotation';
+import agentRoutes from './routes/agent';
 
 import knowledgeRoutes from './routes/knowledge';
 import smartcomexRoutes from './routes/smartcomex';
@@ -29,6 +30,7 @@ import smartcomexRoutes from './routes/smartcomex';
 app.use('/api/auth', authRoutes);
 app.use('/api/extract', extractRoutes);
 app.use('/api/quotations', quotationRoutes);
+app.use('/api/agents', agentRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);

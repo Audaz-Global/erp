@@ -422,6 +422,7 @@
     <button class="tab" id="tab-draft" onclick="switchTab('draft')">✉️ 2. Solicitar Agente</button>
     <button class="tab" id="tab-return" onclick="switchTab('return')">📥 3. Retorno do Agente</button>
     <button class="tab" id="tab-quotation" onclick="switchTab('quotation')">📋 4. Histórico</button>
+    <button class="tab" id="tab-agents" onclick="switchTab('agents')">👥 5. Agentes</button>
   </div>
 
   <!-- ════════════ PAINEL 1: NOVA SOLICITAÇÃO ════════════ -->
@@ -806,6 +807,43 @@
         <div class="page-btns" id="pageBtns"></div>
       </div>
     </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAINEL 5: AGENTES ════════════ -->
+  <div class="panel" id="panel-agents">
+    <div class="card" style="padding: 20px 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+          <h2><span class="emoji">👥</span> Gestão de Agentes</h2>
+          <p class="desc" style="margin-bottom:0;">Gerencie sua base de parceiros (Agent List). A IA usará essa lista para recomendar agentes durante a cotação.</p>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <input type="file" id="agentCsvInput" accept=".csv" style="display:none;" onchange="importAgentCsv(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('agentCsvInput').click()" style="padding: 10px 16px; font-size: 13px;">📥 Importar CSV</button>
+          <button class="btn btn-primary" onclick="openAgentModal()" style="padding: 10px 16px; font-size: 13px;">➕ Novo Agente</button>
+        </div>
+      </div>
+      
+      <div style="overflow-x: auto;">
+        <table class="q-table" id="agentsTable">
+          <thead>
+            <tr>
+              <th>Agente</th>
+              <th>E-mail</th>
+              <th>Modais</th>
+              <th>Origens (Atuação)</th>
+              <th>Destinos</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="agentsTbody">
+            <!-- Preenchido via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -1158,6 +1196,52 @@
 
     <div class="settings-content" id="settingsContent">
       <!-- Conteúdo dinâmico renderizado pelo JS -->
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ════════════ MODAL DE AGENTE ════════════ -->
+<div id="agentModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9100; overflow-y:auto; padding:20px;">
+  <div style="max-width:500px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+    <button onclick="closeAgentModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    <h2 style="font-size:18px; margin-bottom: 20px;" id="agentModalTitle">Novo Agente</h2>
+    
+    <input type="hidden" id="agent-id">
+    
+    <div class="form-group">
+      <label>Nome do Agente *</label>
+      <input type="text" id="agent-name" placeholder="Ex: Yongsheng Logistics">
+    </div>
+    
+    <div class="form-group">
+      <label>E-mail Principal *</label>
+      <input type="email" id="agent-email" placeholder="Ex: booking@yongsheng.com">
+    </div>
+    
+    <div class="form-group">
+      <label>Modais Atendidos (Opcional)</label>
+      <input type="text" id="agent-modals" placeholder="Ex: AIR, LCL, FCL">
+    </div>
+    
+    <div class="form-group">
+      <label>Origens de Atuação (Opcional)</label>
+      <input type="text" id="agent-origins" placeholder="Ex: China, HK, APAC">
+    </div>
+    
+    <div class="form-group">
+      <label>Destinos (Opcional)</label>
+      <input type="text" id="agent-destinations" placeholder="Ex: Brasil, Latam">
+    </div>
+    
+    <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="agent-active" checked style="width:16px;height:16px;">
+      <label for="agent-active" style="margin:0; font-size:13px; font-weight:600;">Agente Ativo</label>
+    </div>
+    
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+      <button onclick="closeAgentModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveAgent()" class="btn btn-primary" id="btnSaveAgent">Salvar Agente</button>
     </div>
   </div>
 </div>
@@ -1581,6 +1665,11 @@ function fillReviewForm(d, mode) {
       }
       document.getElementById('r-dimensions').value = dims;
       document.getElementById('conf-dimensions').innerHTML = renderConf(dims, d.cargo.confidence);
+      
+      // Chamar IA de recomendação de agentes
+      if(d.route.origin_country || d.cargo.type) {
+        recommendAgents(d.route.origin_country || d.route.origin, d.cargo.type);
+      }
     }
   } else if (mode === 'AGENT') {
     if(d.costs) {
@@ -1661,6 +1750,56 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-freight-unit').value = unitVal.toFixed(2);
     }
     checkValidation();
+  }
+}
+
+async function recommendAgents(originStr, modalStr) {
+  const container = document.getElementById('agentRecommendations');
+  if (!container) return;
+  container.innerHTML = '<span style="font-size:12px; color:var(--text-muted);">🤖 IA buscando agentes...</span>';
+  
+  try {
+    const res = await fetch(API + '/agents');
+    const agents = await res.json();
+    
+    // Filtragem simples para recomendação
+    // Se o agente tiver a origem na string de origins e o modal na string de modals
+    const origin = (originStr || '').toLowerCase();
+    const modal = (modalStr || '').toLowerCase();
+    
+    let matches = agents.filter(a => {
+      if (!a.active) return false;
+      let okOrigin = true;
+      let okModal = true;
+      if (a.origins && origin) {
+        okOrigin = a.origins.toLowerCase().includes(origin) || origin.includes(a.origins.toLowerCase());
+      }
+      if (a.modals && modal) {
+        let m = modal;
+        if (modal.includes('air')) m = 'air';
+        if (modal.includes('fcl')) m = 'fcl';
+        if (modal.includes('lcl')) m = 'lcl';
+        okModal = a.modals.toLowerCase().includes(m);
+      }
+      // Se ele não cadastrou origens ou modais, a gente pode considerar ou não. Vamos dar peso maior pra quem tem match.
+      return okOrigin && okModal;
+    });
+    
+    // Se achar vazios, filtra por match exato. Se não tiver nada exato, mostra tudo.
+    if (matches.length === 0) matches = agents.filter(a => a.active).slice(0, 5); // Traz aleatório se não achar
+    
+    if (matches.length > 0) {
+      container.innerHTML = matches.slice(0, 5).map(a => 
+        `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-color: var(--gold); color: var(--gold);" 
+          onclick="document.getElementById('r-agent-email').value = '${a.email}'; checkValidation();">
+          ✨ ${a.name}
+        </button>`
+      ).join('');
+    } else {
+      container.innerHTML = '<span style="font-size:12px; color:var(--text-muted);">Nenhum agente recomendado.</span>';
+    }
+  } catch (e) {
+    container.innerHTML = '';
   }
 }
 
@@ -3225,6 +3364,148 @@ async function deleteKnowledge(id) {
   await fetch(API + '/knowledge/' + id, { method: 'DELETE' });
   toast('🗑️ Regra excluída!'); loadKnowledgeTable();
 }
+
+// ════════════ GESTÃO DE AGENTES ════════════
+function openAgentModal(id = null) {
+  document.getElementById('agentModal').style.display = 'block';
+  if (!id) {
+    document.getElementById('agentModalTitle').innerText = 'Novo Agente';
+    document.getElementById('agent-id').value = '';
+    document.getElementById('agent-name').value = '';
+    document.getElementById('agent-email').value = '';
+    document.getElementById('agent-modals').value = '';
+    document.getElementById('agent-origins').value = '';
+    document.getElementById('agent-destinations').value = '';
+    document.getElementById('agent-active').checked = true;
+  }
+}
+
+function closeAgentModal() {
+  document.getElementById('agentModal').style.display = 'none';
+}
+
+async function loadAgents() {
+  try {
+    const res = await fetch(API + '/agents');
+    const agents = await res.json();
+    const tbody = document.getElementById('agentsTbody');
+    if (!tbody) return;
+    
+    if (agents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 20px;">Nenhum agente cadastrado. Importe sua planilha ou crie manualmente.</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = agents.map(a => `
+      <tr>
+        <td style="font-weight:600;">${a.name}</td>
+        <td>${a.email}</td>
+        <td style="color:var(--text-muted);">${a.modals || '-'}</td>
+        <td style="color:var(--text-muted);">${a.origins || '-'}</td>
+        <td style="color:var(--text-muted);">${a.destinations || '-'}</td>
+        <td><span class="status-badge ${a.active ? 'approved' : 'expired'}">${a.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td>
+          <div class="action-btns">
+            <button class="action-btn" onclick='editAgent(${JSON.stringify(a).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+            <button class="action-btn danger" onclick="deleteAgent('${a.id}')" title="Excluir">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Erro ao carregar agentes', e);
+  }
+}
+
+function editAgent(agent) {
+  openAgentModal(agent.id);
+  document.getElementById('agentModalTitle').innerText = 'Editar Agente';
+  document.getElementById('agent-id').value = agent.id;
+  document.getElementById('agent-name').value = agent.name;
+  document.getElementById('agent-email').value = agent.email;
+  document.getElementById('agent-modals').value = agent.modals || '';
+  document.getElementById('agent-origins').value = agent.origins || '';
+  document.getElementById('agent-destinations').value = agent.destinations || '';
+  document.getElementById('agent-active').checked = agent.active;
+}
+
+async function saveAgent() {
+  const id = document.getElementById('agent-id').value;
+  const btn = document.getElementById('btnSaveAgent');
+  btn.disabled = true;
+  btn.innerText = 'Salvando...';
+  
+  const payload = {
+    name: document.getElementById('agent-name').value,
+    email: document.getElementById('agent-email').value,
+    modals: document.getElementById('agent-modals').value,
+    origins: document.getElementById('agent-origins').value,
+    destinations: document.getElementById('agent-destinations').value,
+    active: document.getElementById('agent-active').checked
+  };
+  
+  try {
+    const url = id ? API + '/agents/' + id : API + '/agents';
+    const method = id ? 'PUT' : 'POST';
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    toast('✅ Agente salvo com sucesso!');
+    closeAgentModal();
+    loadAgents();
+  } catch(e) {
+    toast('❌ Erro ao salvar agente.');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Salvar Agente';
+  }
+}
+
+async function deleteAgent(id) {
+  if (!confirm('Tem certeza que deseja excluir este agente permanentemente?')) return;
+  try {
+    await fetch(API + '/agents/' + id, { method: 'DELETE' });
+    toast('🗑️ Agente excluído.');
+    loadAgents();
+  } catch (e) {
+    toast('❌ Erro ao excluir.');
+  }
+}
+
+async function importAgentCsv(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  toast('⏳ Importando planilha, aguarde...');
+  try {
+    const res = await fetch(API + '/agents/import', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    toast('✅ ' + data.message);
+    loadAgents();
+  } catch (e) {
+    toast('❌ Erro na importação.');
+  }
+  event.target.value = ''; // clear input
+}
+
+// Inicializar aba de agentes ao trocar
+const originalSwitchTab = switchTab;
+switchTab = function(name) {
+  originalSwitchTab(name);
+  if (name === 'agents') {
+    loadAgents();
+  }
+};
 
 // Fechar settings com ESC
 document.addEventListener('keydown', e => {

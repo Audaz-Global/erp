@@ -144,3 +144,16 @@ model KnowledgeEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model Agent {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  modals       String?  // Ex: "Aéreo, Marítimo FCL"
+  origins      String?  // Ex: "China, Estados Unidos, APAC"
+  destinations String?  // Ex: "Brasil"
+  active       Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
