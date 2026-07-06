@@ -174,6 +174,10 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 },
                 commercial_value_usd: { type: 'number' },
                 is_imo: { type: 'boolean' },
+                requires_insurance: { 
+                  type: 'boolean', 
+                  description: 'Se o cliente solicitou ou mencionou seguro no e-mail (ex: "com seguro", "frete com seguro"). Se disser "sem seguro" ou não houver menção, retorne false.' 
+                },
                 confidence: { type: 'number' }
               },
               required: ['type', 'gross_weight_kg', 'packages_count', 'dimensions']
@@ -216,6 +220,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 3 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 20000 pcs etc.).
     - **Dimensões com Quantidade (CRÍTICO)**: Cada item no array "dimensions" DEVE obrigatoriamente iniciar com a quantidade de volumes correspondente àquela dimensão usando o formato "[Quantidade]x [Comprimento]x[Widht]x[Altura] cm" (ex: "1x 50x50x28 cm", "2x 50x50x13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm"). Se a quantidade não for colocada na frente de cada dimensão, a cubagem acumulada falhará.
     - **Somente Extrair Itens com Dimensões Explícitas (CRÍTICO)**: Ao extrair o array de "dimensions", inclua APENAS as caixas/paletes que tenham medidas/dimensões explicitamente detalhadas no texto do e-mail ou documentos. Se um item (como Europacks, NPS400, etc.) for apenas mencionado por nome sem nenhuma dimensão explícita, NÃO tente deduzir nem criar dimensões artificiais para ele, pois supõe-se que ele já esteja consolidado e empilhado dentro dos paletes principais que possuem medidas informadas.
+    - **Seguro (requires_insurance)**: Identifique se o e-mail original do cliente pede "com seguro", "frete com seguro", ou similar. Se sim, defina "requires_insurance" como true. Se pedir "sem seguro" ou não mencionar nada sobre seguro, defina como false.
     - **Múltiplos Shippers / Consolidação (CRÍTICO)**: Se a solicitação ou os anexos contiverem dados de múltiplos fornecedores (shippers), invoices ou packing lists distintos (ex: Shipper Yongsheng e Shipper Todenko no mesmo embarque/e-mail), você DEVE consolidar todas as cargas:
       1. Some os pesos brutos (gross_weight_kg) de todos os fornecedores (ex: 41.05 kg da Yongsheng + 113.40 kg da Todenko = 154.45 kg).
       2. Some a quantidade total de caixas/volumes (packages_count) de todos eles (ex: 3 caixas da Yongsheng + 9 caixas da Todenko = 12 volumes).

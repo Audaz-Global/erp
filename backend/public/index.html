@@ -564,6 +564,10 @@
                 <label>Dimensões / CBM <span id="conf-dimensions"></span></label>
                 <input type="text" id="r-dimensions" placeholder="Ex: 120x80x100 cm">
               </div>
+              <div class="form-group">
+                <label>Seguro Incluso? <span id="conf-insurance"></span></label>
+                <select id="r-insurance"><option value="false">Não</option><option value="true">Sim</option></select>
+              </div>
             </div>
           </div>
         </div>
@@ -944,7 +948,11 @@
           <label style="font-size:11px;">Carga IMO?</label>
           <select id="rev-imo"><option value="false">Não</option><option value="true">Sim</option></select>
         </div>
-        <div class="form-group" style="margin:0;grid-column:span 2;">
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Seguro Incluso?</label>
+          <select id="rev-insurance"><option value="false">Não</option><option value="true">Sim</option></select>
+        </div>
+        <div class="form-group" style="margin:0;grid-column:span 1;">
           <label style="font-size:11px;">Dimensões</label>
           <input type="text" id="rev-dimensions" placeholder="Ex: 120x80x130 cm, 114x134x68 cm">
         </div>
@@ -1509,6 +1517,9 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-imo').value = d.cargo.is_imo ? "true" : "false";
       document.getElementById('conf-imo').innerHTML = renderConf(d.cargo.is_imo, d.cargo.confidence);
 
+      document.getElementById('r-insurance').value = d.cargo.requires_insurance ? "true" : "false";
+      document.getElementById('conf-insurance').innerHTML = renderConf(d.cargo.requires_insurance, d.cargo.confidence);
+
       document.getElementById('r-commercial-value').value = d.cargo.commercial_value_usd || '';
       document.getElementById('conf-commercial-value').innerHTML = renderConf(d.cargo.commercial_value_usd, d.cargo.confidence);
 
@@ -1759,6 +1770,7 @@ async function generateDraftEmail() {
       totalGrossWeightKg: parseFloat(document.getElementById('r-weight').value) || 0,
       totalPackages: parseInt(document.getElementById('r-packages').value) || 0,
       isImo: document.getElementById('r-imo').value === 'true',
+      requiresInsurance: document.getElementById('r-insurance').value === 'true',
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'SOLICITADO',
@@ -1811,6 +1823,7 @@ async function saveAsAwaitingAgent() {
       totalGrossWeightKg: parseFloat(document.getElementById('r-weight').value) || 0,
       totalPackages: parseInt(document.getElementById('r-packages').value) || 0,
       isImo: document.getElementById('r-imo').value === 'true',
+      requiresInsurance: document.getElementById('r-insurance').value === 'true',
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'AGUARDANDO_AGENTE',
@@ -1855,6 +1868,121 @@ async function saveAsAwaitingAgent() {
   } finally {
     btn.disabled = false; btn.innerHTML = originalHtml;
   }
+function recalculateModalDestinationServicesTotal() {
+  const destinationServicesRaw = document.getElementById('rev-destination-services').value || '';
+  let destinationServicesTotalBrl = 0;
+  
+  if (destinationServicesRaw.trim()) {
+    const lines = destinationServicesRaw.split('\n');
+    lines.forEach(line => {
+      const parts = line.split(':');
+      if (parts.length >= 2) {
+        const valAndCurr = parts[1].trim().split(/\s+/);
+        const value = parseFloat(valAndCurr[0]) || 0;
+        const currency = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+        
+        const usdRate = 5.05;
+        const eurRate = 5.50;
+
+        if (currency === 'BRL') {
+          destinationServicesTotalBrl += value;
+        } else if (currency === 'USD') {
+          destinationServicesTotalBrl += value * usdRate;
+        } else if (currency === 'EUR') {
+          destinationServicesTotalBrl += value * eurRate;
+        } else {
+          destinationServicesTotalBrl += value * usdRate;
+        }
+      }
+    });
+  }
+  
+  document.getElementById('rev-services').value = destinationServicesTotalBrl.toFixed(2);
+  
+  // Recalcular total geral
+  const storage = parseFloat(document.getElementById('rev-storage').value) || 0;
+  const taxes = parseFloat(document.getElementById('rev-taxes').value) || 0;
+  const customsClearance = document.getElementById('rev-customs-clearance').checked;
+  const customsValue = parseFloat(document.getElementById('rev-customs-value').value) || 900;
+  
+  // Frete
+  const freight = parseFloat(document.getElementById('rev-freight').value) || 0;
+  const freightCurrency = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
+  let freightBrl = freight * 5.05;
+  if (freightCurrency === 'EUR') freightBrl = freight * 5.50;
+  else if (freightCurrency === 'BRL') freightBrl = freight;
+  
+  // Origem
+  let originBrl = 0;
+  const originServicesRaw = document.getElementById('rev-origin-services').value || '';
+  if (originServicesRaw.trim()) {
+    originServicesRaw.split('\n').forEach(line => {
+      const parts = line.split(':');
+      if (parts.length >= 2) {
+        const valAndCurr = parts[1].trim().split(/\s+/);
+        const val = parseFloat(valAndCurr[0]) || 0;
+        const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+        if (curr === 'BRL') originBrl += val;
+        else if (curr === 'USD') originBrl += val * 5.05;
+        else if (curr === 'EUR') originBrl += val * 5.50;
+      }
+    });
+  }
+
+  const finalTotal = freightBrl + originBrl + destinationServicesTotalBrl + storage + taxes + (customsClearance ? customsValue : 0);
+  document.getElementById('r-total').value = finalTotal.toFixed(2);
+}
+
+function calculateAndInjectInsurance() {
+  const requiresIns = document.getElementById('rev-insurance').value === 'true';
+  const destFeesTextarea = document.getElementById('rev-destination-services');
+  let currentText = destFeesTextarea.value || '';
+
+  // Limpar linha de seguro existente
+  const lines = currentText.split('\n').filter(line => {
+    const l = line.trim().toLowerCase();
+    return !l.startsWith('seguro') && !l.includes('seguro internacional');
+  });
+
+  if (requiresIns) {
+    const valMercadoria = parseFloat(document.getElementById('rev-commercial-value').value) || 0;
+    const valFrete = parseFloat(document.getElementById('rev-freight').value) || 0;
+    const freightCurrency = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
+    
+    const usdRate = 5.05;
+    const eurRate = 5.50;
+    
+    // Converter Frete para USD
+    let valFreteUsd = valFrete;
+    if (freightCurrency === 'EUR') valFreteUsd = valFrete * (eurRate / usdRate);
+    else if (freightCurrency === 'BRL') valFreteUsd = valFrete / usdRate;
+
+    // Calcular Origem em USD
+    let originServicesTotalUsd = 0;
+    const originServicesRaw = document.getElementById('rev-origin-services').value || '';
+    if (originServicesRaw.trim()) {
+      originServicesRaw.split('\n').forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const valAndCurr = parts[1].trim().split(/\s+/);
+          const val = parseFloat(valAndCurr[0]) || 0;
+          const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+          if (curr === 'USD') originServicesTotalUsd += val;
+          else if (curr === 'EUR') originServicesTotalUsd += val * 1.08;
+          else if (curr === 'BRL') originServicesTotalUsd += val / usdRate;
+        }
+      });
+    }
+
+    // Calcular Base e Taxa
+    const baseSeguroUsd = valMercadoria + valFreteUsd + originServicesTotalUsd;
+    const seguroValUsd = Math.max(baseSeguroUsd * 0.002, 40.00);
+
+    lines.push(`Seguro Internacional: ${seguroValUsd.toFixed(2)} USD`);
+  }
+
+  destFeesTextarea.value = lines.join('\n');
+  recalculateModalDestinationServicesTotal();
 }
 
 async function validateAndGeneratePDF(qIdParam = null) {
@@ -1890,6 +2018,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-packages').value = q.totalPackages || '';
     document.getElementById('rev-commercial-value').value = q.commercialValue || '';
     document.getElementById('rev-imo').value = q.isImo ? 'true' : 'false';
+    document.getElementById('rev-insurance').value = q.requiresInsurance ? 'true' : 'false';
     document.getElementById('rev-dimensions').value = q.packages || '';
     document.getElementById('rev-cargo-description').value = q.cargoDescription || '';
     document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
@@ -2097,6 +2226,34 @@ async function validateAndGeneratePDF(qIdParam = null) {
     // Calcular e atualizar os pesos e volumes calculados inicialmente
     updateModalCalculatedWeights();
 
+    // Eventos reativos para recálculo do seguro e das taxas de destino
+    const onInsuranceTriggerFieldsChange = function() {
+      calculateAndInjectInsurance();
+    };
+
+    document.getElementById('rev-insurance').removeEventListener('change', onInsuranceTriggerFieldsChange);
+    document.getElementById('rev-insurance').addEventListener('change', onInsuranceTriggerFieldsChange);
+
+    document.getElementById('rev-commercial-value').removeEventListener('input', onInsuranceTriggerFieldsChange);
+    document.getElementById('rev-commercial-value').addEventListener('input', onInsuranceTriggerFieldsChange);
+
+    document.getElementById('rev-freight').removeEventListener('input', onInsuranceTriggerFieldsChange);
+    document.getElementById('rev-freight').addEventListener('input', onInsuranceTriggerFieldsChange);
+
+    if (document.getElementById('rev-freight-currency')) {
+      document.getElementById('rev-freight-currency').removeEventListener('change', onInsuranceTriggerFieldsChange);
+      document.getElementById('rev-freight-currency').addEventListener('change', onInsuranceTriggerFieldsChange);
+    }
+
+    document.getElementById('rev-origin-services').removeEventListener('input', onInsuranceTriggerFieldsChange);
+    document.getElementById('rev-origin-services').addEventListener('input', onInsuranceTriggerFieldsChange);
+
+    document.getElementById('rev-destination-services').removeEventListener('input', recalculateModalDestinationServicesTotal);
+    document.getElementById('rev-destination-services').addEventListener('input', recalculateModalDestinationServicesTotal);
+
+    // Calcular o seguro e injetar inicialmente
+    calculateAndInjectInsurance();
+
     // Desembaraço: sempre desmarcado por padrão, valor pré-fixado R$ 900,00
     document.getElementById('rev-customs-clearance').checked = false;
     document.getElementById('rev-customs-value').value = '900.00';
@@ -2270,6 +2427,7 @@ async function confirmAndGeneratePDF() {
         totalPackages: parseInt(document.getElementById('rev-packages').value) || null,
         commercialValue: parseFloat(document.getElementById('rev-commercial-value').value) || null,
         isImo: document.getElementById('rev-imo').value === 'true',
+        requiresInsurance: document.getElementById('rev-insurance').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
         ncmCodes: document.getElementById('rev-ncm-codes').value || null,
