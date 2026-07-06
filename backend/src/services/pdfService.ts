@@ -40,6 +40,7 @@ const defaultTemplate = `
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <title>Cotação {{reference}}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap');
     * { box-sizing: border-box; }
@@ -494,6 +495,7 @@ const defaultAirTemplate = `
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <title>Cotação {{reference}}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap');
     * { box-sizing: border-box; }
