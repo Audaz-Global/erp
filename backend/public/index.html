@@ -1360,7 +1360,15 @@ const fileDrop = document.getElementById('fileDrop');
 const fileInput = document.getElementById('fileInput');
 fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
 fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
-fileDrop.addEventListener('drop', e => { e.preventDefault(); fileDrop.classList.remove('dragover'); addFiles(e.dataTransfer.files, false); });
+fileDrop.addEventListener('drop', e => { 
+  e.preventDefault(); 
+  fileDrop.classList.remove('dragover'); 
+  if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
+    alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, o Windows/Navegador pode estar bloqueando. Arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
+  } else {
+    addFiles(e.dataTransfer.files, false); 
+  }
+});
 fileInput.addEventListener('change', () => addFiles(fileInput.files, false));
 
 const fileDropAgent = document.getElementById('fileDropAgent');
@@ -1368,7 +1376,15 @@ const fileInputAgent = document.getElementById('fileInputAgent');
 if(fileDropAgent) {
   fileDropAgent.addEventListener('dragover', e => { e.preventDefault(); fileDropAgent.classList.add('dragover'); });
   fileDropAgent.addEventListener('dragleave', () => fileDropAgent.classList.remove('dragover'));
-  fileDropAgent.addEventListener('drop', e => { e.preventDefault(); fileDropAgent.classList.remove('dragover'); addFiles(e.dataTransfer.files, true); });
+  fileDropAgent.addEventListener('drop', e => { 
+    e.preventDefault(); 
+    fileDropAgent.classList.remove('dragover'); 
+    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
+      alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, o Windows/Navegador pode estar bloqueando. Arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
+    } else {
+      addFiles(e.dataTransfer.files, true); 
+    }
+  });
   fileInputAgent.addEventListener('change', () => addFiles(fileInputAgent.files, true));
 }
 
