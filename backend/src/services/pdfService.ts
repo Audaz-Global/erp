@@ -6,25 +6,33 @@ import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
 
 function formatSubtotals(fees: any[]): string {
+  if (!fees || !Array.isArray(fees)) return '';
   const totalsByCurrency: Record<string, number> = {};
   for (const fee of fees) {
     if (!fee || !fee.total) continue;
     const parts = String(fee.total).trim().split(' ');
     if (parts.length >= 2) {
-      const currency = parts[0].toUpperCase();
-      const value = parseFloat(parts[parts.length - 1].replace(',', '.')) || 0;
-      if (!totalsByCurrency[currency]) totalsByCurrency[currency] = 0;
-      totalsByCurrency[currency] += value;
+      const p0 = parts[0];
+      const pLast = parts[parts.length - 1];
+      if (p0 && pLast) {
+        const currency = p0.toUpperCase();
+        const value = parseFloat(pLast.replace(',', '.')) || 0;
+        if (typeof totalsByCurrency[currency] !== 'number') totalsByCurrency[currency] = 0;
+        totalsByCurrency[currency] = (totalsByCurrency[currency] as number) + value;
+      }
     } else {
       const currency = (fee.currency || 'USD').toUpperCase();
       const value = parseFloat(String(fee.total).replace(/[^0-9,-.]/g, '').replace(',', '.')) || 0;
-      if (!totalsByCurrency[currency]) totalsByCurrency[currency] = 0;
-      totalsByCurrency[currency] += value;
+      if (typeof totalsByCurrency[currency] !== 'number') totalsByCurrency[currency] = 0;
+      totalsByCurrency[currency] = (totalsByCurrency[currency] as number) + value;
     }
   }
   const keys = Object.keys(totalsByCurrency);
   if (keys.length === 0) return '';
-  return keys.map(curr => `${curr} ${totalsByCurrency[curr].toFixed(2)}`).join('<br>');
+  return keys.map(curr => {
+    const val = totalsByCurrency[curr] || 0;
+    return `${curr} ${val.toFixed(2)}`;
+  }).join('<br>');
 }
 
 const defaultTemplate = `
