@@ -132,7 +132,7 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
           // Salvar como FCL_20 (ex: "Nome da Taxa (20')") se for do SSZ
           await prisma.fixedFee.create({
             data: {
-              name: String(name).substring(0, 255).trim(),
+              name: `${sheetName.toUpperCase()} - ${String(name).substring(0, 200).trim()} (20')`,
               type: type,
               value: val,
               currency: String(currency).substring(0, 10).toUpperCase().trim(),
@@ -146,7 +146,7 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
           if (keys.includes('__EMPTY_1') && typeof row['__EMPTY_1'] === 'number') {
              await prisma.fixedFee.create({
                 data: {
-                  name: String(name).substring(0, 240).trim() + " (40')",
+                  name: `${sheetName.toUpperCase()} - ${String(name).substring(0, 200).trim()} (40')`,
                   type: type,
                   value: row['__EMPTY_1'],
                   currency: String(currency).substring(0, 10).toUpperCase().trim(),
