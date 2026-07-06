@@ -698,14 +698,14 @@
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label style="margin:0;">Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
-                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Inserir Taxas Fixas de Origem</button>
+                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Inserir Taxas dos Armadores (Origem)</button>
               </div>
               <textarea id="r-agent-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label style="margin:0;">Taxas Locais de Destino (Itemizadas) <span id="conf-agent-destination-services"></span></label>
-                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Inserir Taxas Fixas de Destino</button>
+                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Inserir Taxas dos Armadores (Destino)</button>
               </div>
               <textarea id="r-agent-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
@@ -1187,7 +1187,7 @@
           <span class="nav-icon">💱</span> Taxas Padrão
         </li>
         <li onclick="switchSettingsTab('fixedFees')">
-          <span class="nav-icon">💰</span> Taxas Fixas
+          <span class="nav-icon">💰</span> Taxas dos Armadores
         </li>
         <li onclick="switchSettingsTab('template')">
           <span class="nav-icon">📄</span> Template PDF
@@ -3169,8 +3169,8 @@ function switchSettingsTab(tab) {
 
     case 'fixedFees':
       content.innerHTML = `
-        <div class="sc-title">💰 Taxas Fixas de Origem/Destino</div>
-        <p class="sc-desc">Gerencie taxas fixas (BL Fee, Capatazia, etc) para adicioná-las rapidamente nas cotações.</p>
+        <div class="sc-title">💰 Taxas dos Armadores</div>
+        <p class="sc-desc">Gerencie taxas fixas dos armadores para adicioná-las rapidamente nas cotações.</p>
         
         <div class="settings-section" style="margin-bottom: 24px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
