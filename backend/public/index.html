@@ -757,8 +757,8 @@
         <div class="sc-data"><h3 id="sc-volume">$0</h3><p>Volume Total (USD)</p></div>
       </div>
       <div class="summary-card" style="border-color: var(--success); box-shadow: 0 4px 15px rgba(52, 211, 153, 0.1);">
-        <div class="sc-icon green" style="background: var(--success); color: var(--navy);">💲</div>
-        <div class="sc-data"><h3 id="sc-profit" style="color: var(--success);">$0</h3><p>Lucro (USD / BRL)</p></div>
+        <div class="sc-icon" style="background: rgba(52, 211, 153, 0.2); color: var(--success); font-weight: bold; font-size: 18px; font-family: monospace;">R$</div>
+        <div class="sc-data"><div id="sc-profit" style="color: var(--success); line-height: 1.2;"></div><p style="margin-top:4px;">Lucro (Estimado)</p></div>
       </div>
     </div>
 
@@ -2803,9 +2803,7 @@ function updateSummaryCards() {
   
   const profitEl = document.getElementById('sc-profit');
   if (profitEl) {
-    profitEl.textContent = '$' + profitUsd.toFixed(2) + ' | R$ ' + profitBrl.toFixed(2);
-    // Para caber melhor visualmente, vamos reduzir o font-size caso seja longo
-    profitEl.style.fontSize = '18px';
+    profitEl.innerHTML = `<span style="font-size:13px; color:var(--text-muted); font-weight:normal;">US$ ${profitUsd.toFixed(2)}</span><br><span style="font-size:22px; font-weight:bold;">R$ ${profitBrl.toFixed(2)}</span>`;
   }
   
   loadPendingQuotationsDropdown();
