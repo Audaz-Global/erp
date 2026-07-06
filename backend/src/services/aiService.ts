@@ -321,6 +321,8 @@ export const extractAgentCosts = async (
                 services_brl: { type: 'number', description: 'Valor total de taxas locais e taxas de destino em BRL' },
                 taxes_brl: { type: 'number', description: 'Valor total de impostos locais em BRL' },
                 total_brl: { type: 'number', description: 'Valor total em BRL se houver' },
+                invoice_value: { type: 'number', description: 'Valor da mercadoria ou Invoice (em USD) citado no e-mail, se houver' },
+                insurance_requested: { type: 'boolean', description: 'Verdadeiro (true) se o e-mail solicitar cotação ou inclusão de Seguro Internacional (insurance)' },
                 carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem informado pelo agente (sigla IATA ou nome, ex: PEK ou Beijing)' },
                 connections: { type: 'string', description: 'Conexões ou escalas informadas pelo agente. Ex: PEK-NRT-USA-GRU. Retorne string vazia se for direto.' },
@@ -385,9 +387,10 @@ export const extractAgentCosts = async (
          - Para taxas cotadas por conjunto de documentos ("for each set of docs"), use o valor informado.
        - Retorne a lista de taxas em "origin_fees" com o respectivo "name" (por extenso, ex: "AWB Fee & CGC", "Terminal Charges", "Customs Clearance", "Handling Fee", "Pick Up"), "value" (número) e "currency" (moeda, ex: "USD", "BRL").
     6. **Taxas Locais de Destino e Rodoviário (destination_fees):** Identifique todas as taxas locais no destino (Destination charges) informadas no e-mail do agente ou cliente.
-       - Se houver menção ou solicitação de orçamento de frete rodoviário nacional (ex: transporte terrestre doméstico / rodoviário / entrega local de GRU para Itatiba, Jacareí, São Paulo, etc.), inclua essa taxa sob o nome "Frete Rodoviário Nacional [Trecho]" (ex: "Frete Rodoviário Nacional (GRU x Itatiba)"). Se o valor não estiver especificado no texto do e-mail do agente, retorne o valor como 0.00.
+       - Se houver menção ou solicitação de orçamento de frete rodoviário nacional (ex: transporte terrestre doméstico / rodoviário / entrega local de GRU para Itatiba, Jacareí, São Paulo, etc.), inclua essa taxa sob o nome "Frete Rodoviário Nacional [Trecho]" (ex: "Frete Rodoviário Nacional (GRU x Itatiba)"). IMPORTANTE: Se o documento ou e-mail de orçamento do frete rodoviário apresentar o valor "Sem impostos" e também um "Total previsto com impostos" (ex: com ICMS/ISS), você DEVE extrair obrigatoriamente o "Total previsto com impostos" (valor final) para esta taxa.
        - Calcule o valor total de cada taxa local de destino encontrada da mesma forma que na origem (valores fixos ou baseados em peso/Hawb).
        - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").
+    7. **Seguro (Insurance):** Verifique se no texto do e-mail há pedido de "Seguro" (ex: "orçamento de frete aéreo com seguro", "incluir seguro"). Em caso positivo, marque "insurance_requested" como true e extraia o valor da mercadoria (Invoice) informado no texto (ex: "Valor da Invoice USD 186.855,66") e salve em "invoice_value". Se o valor não estiver explícito, salve 0.
 
 
     Instruções Importantes para Modal Aéreo:

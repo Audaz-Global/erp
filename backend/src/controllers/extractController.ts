@@ -106,6 +106,35 @@ export const extractData = async (req: Request, res: Response) => {
       const localFeesTable = readLocalFeesTable();
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
+      
+      // Regra de Negócio: Calcular Seguro Automático
+      if (aiResult && aiResult.costs && aiResult.costs.insurance_requested) {
+        const invoiceValue = aiResult.costs.invoice_value || 0;
+        const freight = aiResult.costs.freight_value || 0;
+        
+        // Sum origin fees
+        let originFeesTotal = 0;
+        if (Array.isArray(aiResult.costs.origin_fees)) {
+          originFeesTotal = aiResult.costs.origin_fees.reduce((sum: number, f: any) => sum + (parseFloat(f.value) || 0), 0);
+        }
+        
+        const base = invoiceValue + freight + originFeesTotal;
+        const insuranceValue = Math.max(base * 0.002, 40.00);
+        
+        if (!Array.isArray(aiResult.costs.destination_fees)) {
+          aiResult.costs.destination_fees = [];
+        }
+        
+        // Evitar duplicidade se a IA já tiver adicionado o seguro
+        const hasInsurance = aiResult.costs.destination_fees.some((f: any) => String(f.name).toLowerCase().includes('seguro'));
+        if (!hasInsurance) {
+          aiResult.costs.destination_fees.push({
+            name: 'Seguro Internacional',
+            value: parseFloat(insuranceValue.toFixed(2)),
+            currency: 'USD'
+          });
+        }
+      }
     }
 
     res.json({ message: 'Extração concluída', data: aiResult, rawText: combinedText });
