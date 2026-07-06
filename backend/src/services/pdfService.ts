@@ -5,6 +5,28 @@ import path from 'path';
 import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
 
+function formatSubtotals(fees: any[]): string {
+  const totalsByCurrency: Record<string, number> = {};
+  for (const fee of fees) {
+    if (!fee || !fee.total) continue;
+    const parts = String(fee.total).trim().split(' ');
+    if (parts.length >= 2) {
+      const currency = parts[0].toUpperCase();
+      const value = parseFloat(parts[parts.length - 1].replace(',', '.')) || 0;
+      if (!totalsByCurrency[currency]) totalsByCurrency[currency] = 0;
+      totalsByCurrency[currency] += value;
+    } else {
+      const currency = (fee.currency || 'USD').toUpperCase();
+      const value = parseFloat(String(fee.total).replace(/[^0-9,-.]/g, '').replace(',', '.')) || 0;
+      if (!totalsByCurrency[currency]) totalsByCurrency[currency] = 0;
+      totalsByCurrency[currency] += value;
+    }
+  }
+  const keys = Object.keys(totalsByCurrency);
+  if (keys.length === 0) return '';
+  return keys.map(curr => `${curr} ${totalsByCurrency[curr].toFixed(2)}`).join('<br>');
+}
+
 const defaultTemplate = `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -323,6 +345,12 @@ const defaultTemplate = `
         <td class="t-right">0,00</td>
         <td class="t-right">{{freightCurrency}} {{freightTotalRich}}</td>
       </tr>
+      {{#if subtotalFrete}}
+      <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
+        <td colspan="6" class="t-right">Subtotal Frete:</td>
+        <td class="t-right">{{{subtotalFrete}}}</td>
+      </tr>
+      {{/if}}
     </tbody>
   </table>
 
@@ -389,6 +417,12 @@ const defaultTemplate = `
           <td class="t-right">0,00</td>
           <td class="t-right">{{destinationTaxes}}</td>
         </tr>
+      {{/if}}
+      {{#if subtotalDestino}}
+      <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
+        <td colspan="6" class="t-right">Subtotal Destino:</td>
+        <td class="t-right">{{{subtotalDestino}}}</td>
+      </tr>
       {{/if}}
     </tbody>
   </table>
@@ -756,6 +790,12 @@ const defaultAirTemplate = `
         <td class="t-right">0,00</td>
         <td class="t-right">{{freightTotalValue}}</td>
       </tr>
+      {{#if subtotalFrete}}
+      <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
+        <td colspan="6" class="t-right">Subtotal Frete:</td>
+        <td class="t-right">{{{subtotalFrete}}}</td>
+      </tr>
+      {{/if}}
     </tbody>
   </table>
 
@@ -784,6 +824,12 @@ const defaultAirTemplate = `
           <td class="t-right">{{this.total}}</td>
         </tr>
       {{/each}}
+      {{#if subtotalOrigem}}
+      <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
+        <td colspan="6" class="t-right">Subtotal Origem:</td>
+        <td class="t-right">{{{subtotalOrigem}}}</td>
+      </tr>
+      {{/if}}
     </tbody>
   </table>
 
@@ -812,6 +858,12 @@ const defaultAirTemplate = `
           <td class="t-right">{{this.total}}</td>
         </tr>
       {{/each}}
+      {{#if subtotalDestino}}
+      <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
+        <td colspan="6" class="t-right">Subtotal Destino:</td>
+        <td class="t-right">{{{subtotalDestino}}}</td>
+      </tr>
+      {{/if}}
     </tbody>
   </table>
 
@@ -1338,6 +1390,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     freightTotalValue,
     detailedFeesOrigem,
     detailedFeesDestino,
+    subtotalFrete: formatSubtotals([{ total: freightTotalValue }]),
+    subtotalOrigem: formatSubtotals(detailedFeesOrigem),
+    subtotalDestino: formatSubtotals(detailedFeesDestino),
     totalGeralLabel,
     totalUsd: sumUsd.toFixed(2),
     logoBase64,
@@ -1774,6 +1829,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       containerTypeRich,
       hasDetailedFees,
       detailedFees,
+      subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }]),
+      subtotalDestino: formatSubtotals(detailedFees),
       freightQtyRich,
       freightCalculationType,
       freightUnitValueRich,
