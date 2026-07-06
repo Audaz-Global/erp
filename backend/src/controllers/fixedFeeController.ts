@@ -84,6 +84,7 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
 
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
+      if (!sheet) continue;
       const data = xlsx.utils.sheet_to_json<any>(sheet, { defval: '' });
 
       for (const row of data) {

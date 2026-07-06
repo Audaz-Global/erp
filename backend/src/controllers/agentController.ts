@@ -74,7 +74,7 @@ export const importAgents = async (req: Request, res: Response) => {
     Papa.parse(csvData, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      complete: async (results: any) => {
         let imported = 0;
         let errors = 0;
         

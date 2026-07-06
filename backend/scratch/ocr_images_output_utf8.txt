@@ -1,0 +1,145 @@
+﻿--- Analisando inline_image_1.png ---
+A imagem apresenta uma **cota├º├úo de frete a├®reo internacional**, e n├úo um logotipo ou assinatura de empresa. Ela detalha informa├º├Áes sobre uma rota de envio espec├¡fica, tarifas associadas e condi├º├Áes de validade.
+
+Aqui est├í uma descri├º├úo detalhada do que h├í na imagem:
+
+1.  **Formato:** ├ë uma tabela com uma ├║nica linha de dados preenchida e uma linha de cabe├ºalhos. H├í tamb├®m notas abaixo da tabela e uma indica├º├úo de validade no canto superior direito.
+
+2.  **Cabe├ºalhos da Tabela (Fundo azul claro):**
+    *   **Origin (Origem):** O ponto de partida do frete.
+    *   **DEST (Destino):** O ponto de chegada do frete.
+    *   **CARRIER (Transportadora):** A companhia a├®rea respons├ível pelo transporte.
+    *   **NORMAL:** Um valor num├®rico, que representa a tarifa base do frete.
+    *   **FSC:** Um valor num├®rico, que provavelmente significa "Fuel Surcharge" (Sobretaxa de Combust├¡vel), uma tarifa adicional comum no frete.
+    *   **ROUTING (Roteamento):** Um ponto intermedi├írio ou rota espec├¡fica.
+    *   **FREQUENCY (Frequ├¬ncia):** A regularidade do servi├ºo.
+    *   **T/T (Transit Time - Tempo de Tr├ónsito):** O tempo estimado para a entrega.
+    *   **REMARKS (Observa├º├Áes):** Espa├ºo para notas adicionais, que est├í vazio nesta cota├º├úo.
+
+3.  **Dados da Cota├º├úo (Linha ├║nica preenchida):**
+    *   **Origin:** `ICN` (c├│digo IATA para o Aeroporto Internacional de Incheon, Seul, Coreia do Sul).
+    *   **DEST:** `GRU` (c├│digo IATA para o Aeroporto Internacional de Guarulhos, S├úo Paulo, Brasil).
+    *   **CARRIER:** `LH` (c├│digo IATA para Lufthansa Cargo).
+    *   **NORMAL:** `12.09` (valor monet├írio).
+    *   **FSC:** `1.45` (valor monet├írio).
+    *   **ROUTING:** `FRA` (c├│digo IATA para o Aeroporto de Frankfurt, Alemanha), indicando que a carga passar├í por Frankfurt no caminho de Seul para S├úo Paulo, o que ├® esperado para a Lufthansa.
+    *   **FREQUENCY:** `DAILY` (Diariamente).
+    *   **T/T:** `3~5` (3 a 5 dias de tempo de tr├ónsito).
+    *   **REMARKS:** (Vazio).
+
+4.  **Valores Monet├írios e Tarifas:**
+    *   **Tarifa "NORMAL":** 12.09
+    *   **Tarifa "FSC" (Sobretaxa de Combust├¡vel):** 1.45
+    *   **Moeda:** As tarifas s├úo expressas em **USD (D├│lares Americanos)**.
+    *   **Unidade de Custo:** Os valores s├úo calculados **por peso tax├ível (per CHARGEABLE WEIGHT)**. Isso significa que o custo total do frete ser├í o valor por unidade (12.09 + 1.45 = 13.54 USD) multiplicado pelo peso tax├ível da carga.
+
+5.  **Condi├º├Áes Adicionais / Notas:**
+    *   Abaixo da tabela, est├í expl├¡cito: "CURRENCY: USD per CHARGEABLE WEIGHT" (MOEDA: USD por PESO TAX├üVEL).
+    *   Outra nota crucial: "Rate valid for GENERAL_STACKABLE CARGO ONLY" (Tarifa v├ílida APENAS para CARGA GERAL EMPILH├üVEL). Isso significa que as tarifas apresentadas s├úo espec├¡ficas para esse tipo de carga e podem n├úo se aplicar a cargas especiais, perigosas, de grandes dimens├Áes, etc.
+
+6.  **Validade da Cota├º├úo:**
+    *   No canto superior direito, em uma faixa amarela, l├¬-se: "VALID UNTIL 06.10" (V├üLIDO AT├ë 06.10). Isso indica que estas tarifas s├úo v├ílidas at├® o dia 10 de junho (ou 6 de outubro, dependendo da formata├º├úo de data utilizada, mas 06.10 ├® comumente interpretado como M├¬s/Dia em contextos internacionais).
+
+**Em resumo:** A imagem ├® uma tabela de cota├º├úo de frete a├®reo para o transporte de carga geral empilh├ível de Seul (ICN) para S├úo Paulo (GRU), operado pela Lufthansa (LH) com roteamento via Frankfurt (FRA). A tarifa base ├® de 12.09 USD por peso tax├ível, com uma sobretaxa de combust├¡vel de 1.45 USD por peso tax├ível, totalizando 13.54 USD por peso tax├ível. O servi├ºo ├® di├írio e tem um tempo de tr├ónsito de 3 a 5 dias, sendo v├ílido at├® 06.10.
+
+
+--- Analisando inline_image_2.png ---
+A imagem exibe uma tabela detalhada de **cota├º├Áes de frete e tarifas locais**, especificamente intitulada "2. Local charges.". N├úo se trata de uma imagem de assinatura ou logotipo de empresa, mas sim de uma lista de custos associados a servi├ºos de log├¡stica ou transporte de carga.
+
+A tabela ├® estruturada em tr├¬s colunas principais:
+
+1.  **Descri├º├úo do Custo/Tarifa:** Lista os tipos de encargos.
+2.  **Valor (-100K):** Apresenta o valor monet├írio ou a base de c├ílculo para o encargo, especificamente para cargas com peso inferior a 100 unidades (provavelmente quilogramas ou libras, uma faixa de peso comum no frete a├®reo). Todos os valores monet├írios s├úo expressos em **D├│lares Americanos (USD)**.
+3.  **Observa├º├úo (REMARK):** Fornece informa├º├Áes adicionais ou contexto para os encargos.
+
+Aqui est├í a descri├º├úo detalhada de cada item:
+
+*   **Handling charge (PER HAWB)**:
+    *   **Descri├º├úo:** Taxa de manuseio. "HAWB" significa *House Air Waybill* (Conhecimento de Embarque A├®reo da Casa), que ├® um documento emitido por um consolidador de carga. Esta taxa ├® cobrada por cada HAWB.
+    *   **Valor Monet├írio:** **$30.00 USD**.
+    *   **Observa├º├úo:** Nenhuma observa├º├úo espec├¡fica para este item.
+
+*   **Airport charge (PER HAWB)**:
+    *   **Descri├º├úo:** Taxa aeroportu├íria. ├ë um custo associado aos servi├ºos ou instala├º├Áes do aeroporto, tamb├®m cobrado por cada HAWB.
+    *   **Valor Monet├írio:** **$30.00 USD**.
+    *   **Observa├º├úo:** Nenhuma observa├º├úo espec├¡fica para este item.
+
+*   **EXPORT CLEARANCE FEE (PER SHPR, IF NEEDED)**:
+    *   **Descri├º├úo:** Taxa de desembara├ºo de exporta├º├úo. Esta taxa ├® cobrada para os procedimentos alfandeg├írios de exporta├º├úo. "SHPR" significa *Shipper* (Remetente) e a taxa ├® aplicada por remetente, se necess├írio.
+    *   **Valor Monet├írio:** **0.15% do valor da fatura**, com um **m├¡nimo de $30.00 USD** e um **m├íximo de $200.00 USD**. Isso significa que se 0.15% do valor da fatura for menor que $30, cobra-se $30. Se for maior que $200, cobra-se $200. Caso contr├írio, aplica-se o percentual.
+    *   **Observa├º├úo:** "CONSOL P/U". "P/U" geralmente significa *Pickup* (coleta). "CONSOL P/U" pode indicar que este custo est├í relacionado ao desembara├ºo de exporta├º├úo para cargas consolidadas que requerem coleta.
+
+*   **P/U FEE**:
+    *   **Descri├º├úo:** Taxa de coleta (*Pickup Fee*). ├ë o custo pelo servi├ºo de coleta da carga.
+    *   **Valor Monet├írio:** **$55.00 USD**.
+    *   **Observa├º├úo:** "CONSOL P/U". Esta observa├º├úo, que tamb├®m se aplica ├á taxa de desembara├ºo de exporta├º├úo, aqui refor├ºa que a taxa de coleta ├® para cargas consolidadas.
+
+Em resumo, a imagem apresenta um extrato de uma tabela de tarifas locais para servi├ºos de frete, provavelmente a├®reo e internacional, especificando custos de manuseio, aeroporto, desembara├ºo de exporta├º├úo e coleta para cargas leves (abaixo de 100K), todos em D├│lares Americanos.
+
+
+--- Analisando inline_image_3.png ---
+Esta imagem ├® um banner ou cabe├ºalho que serve como uma representa├º├úo de marca ou logotipo de uma empresa. N├úo cont├®m quaisquer cota├º├Áes de frete, tarifas de origem/destino, ou valores monet├írios.
+
+Detalhadamente, a imagem apresenta:
+
+1.  **Fundo:** Um fundo predominantemente azul escuro (tom de azul real ou marinho), com algumas linhas onduladas e et├®reas em um tom de azul mais claro que se estendem pelas laterais, criando uma sensa├º├úo de movimento, fluidez ou conectividade.
+2.  **Logotipo da Empresa:**
+    *   No lado esquerdo, em branco, est├í o nome da empresa: **"MARKSMAN"**.
+    *   A letra inicial "M" de "MARKSMAN" ├® estilizada. Ela ├® formada por uma estrutura robusta em "M" dentro da qual h├í duas setas verticais brancas apontando para cima. Este design sugere movimento, eleva├º├úo, progresso ou entrega, o que ├® consistente com uma empresa de log├¡stica.
+    *   O restante do nome "ARKSMAN" ├® escrito em uma fonte sans-serif clara e robusta, tamb├®m em branco.
+3.  **Slogan/Tagline:**
+    *   ├Ç direita do logotipo "MARKSMAN", em uma fonte sans-serif mais fina e elegante (mas ainda em branco), est├í a frase: **"Bespoke Logistics Solutions!"**.
+    *   "Bespoke" significa feito sob medida ou personalizado, indicando que a empresa oferece solu├º├Áes de log├¡stica adaptadas ├ás necessidades espec├¡ficas de cada cliente.
+    *   "Logistics Solutions" confirma claramente o setor de atua├º├úo da empresa.
+    *   O ponto de exclama├º├úo adiciona um toque de entusiasmo ou confian├ºa.
+
+Em resumo, a imagem ├® uma pe├ºa de branding profissional e limpa para uma empresa chamada "MARKSMAN" que se especializa em "solu├º├Áes de log├¡stica personalizadas". **N├úo h├í nela quaisquer informa├º├Áes financeiras, detalhes de cota├º├Áes, tarifas ou taxas.** ├ë puramente uma imagem de identidade visual.
+
+
+--- Analisando inline_image_4.jpeg ---
+Esta imagem ├® uma **assinatura de e-mail profissional** ou um **cart├úo de visita digital**.
+
+**N├úo cont├®m cota├º├Áes de frete, tarifas de origem/destino, ou quaisquer valores monet├írios (como frete internacional, taxas locais, etc.)**. Em vez disso, ela serve para identificar a pessoa, a empresa, e fornecer informa├º├Áes de contato e credenciais da empresa.
+
+Aqui est├í uma descri├º├úo detalhada do que h├í na imagem:
+
+**1. Estrutura e Design Geral:**
+*   A assinatura tem um design moderno com faixas diagonais nas cores branco, azul escuro e amarelo/dourado, que parecem ser as cores da marca.
+*   O layout ├® dividido em se├º├Áes claras, organizando as informa├º├Áes de forma eficiente.
+
+**2. Informa├º├Áes da Pessoa (Lado Esquerdo):**
+*   **Foto de Perfil:** Uma imagem redonda/oval de uma mulher jovem, Gabriela Santos, sorrindo. Ela tem cabelo escuro e veste uma camiseta listrada. Um pequeno ├¡cone de seta dourada apontando para cima est├í sutilmente posicionado abaixo da foto, possivelmente simbolizando crescimento ou progresso.
+*   **Nome e Cargo:**
+    *   "GABRIELA SANTOS" em letras douradas mai├║sculas.
+    *   "Inside Sales" (Vendas Internas) em texto menor abaixo do nome.
+
+**3. Detalhes de Contato (Centro-Esquerdo):**
+*   **E-mail:** `cs3@audazglobal.com` (com um ├¡cone de envelope).
+*   **Telefone (com ramal):** `+55 12 3307-1704 - Ramal 111` (com um ├¡cone de telefone). O `+55` indica que ├® um n├║mero do Brasil, e o `12` ├® o c├│digo de ├írea.
+*   **WhatsApp:** `+55 12 3500-8495` (com um ├¡cone do WhatsApp).
+
+**4. Informa├º├Áes da Empresa (Centro):**
+*   **Logotipo da Empresa:** "AUDAZ GLOBAL" em letras mai├║sculas azul escuro. A letra "A" de "AUDAZ" ├® estilizada com uma seta dourada passando por ela e se estendendo para a direita, refor├ºando a ideia de movimento e log├¡stica.
+*   **Descri├º├úo do Servi├ºo:** "LOG├ìSTICA INTERNACIONAL" em texto menor abaixo do logotipo. Isso deixa claro o setor de atua├º├úo da empresa.
+*   **Slogan:** "Let's move your cargo globally" (Vamos mover sua carga globalmente) em it├ílico, refor├ºando o foco em transporte e log├¡stica internacional.
+
+**5. Afilia├º├Áes e Certifica├º├Áes (Centro-Direito):**
+*   Uma s├®rie de logotipos de associa├º├Áes e redes de log├¡stica, indicando a credibilidade e o alcance global da empresa:
+    *   **IATA (International Air Transport Association):** Essencial para opera├º├Áes de frete a├®reo.
+    *   **AEO (Authorized Economic Operator):** Implica conformidade aduaneira e seguran├ºa na cadeia de suprimentos.
+    *   Outro logotipo menos claro na primeira linha (parece um "C" estilizado).
+    *   **MYNETWORK:** Provavelmente uma rede de parceiros log├¡sticos.
+    *   **Freight Forwarder Network:** Rede de despachantes de carga.
+    *   **GLA (Global Logistics Alliance):** Alian├ºa global de log├¡stica.
+    *   **WCAworld (World Cargo Alliance):** Uma das maiores e mais influentes redes globais de freight forwarders independentes.
+    *   **WorldRing (The Business Network):** Outra rede de neg├│cios.
+    *   A presen├ºa desses logotipos demonstra que a Audaz Global ├® uma empresa bem conectada e reconhecida no setor de log├¡stica internacional.
+
+**6. QR Code e Localiza├º├úo (Lado Direito):**
+*   **Instru├º├úo:** "Save my contact" (Salvar meu contato) acima do QR code.
+*   **QR Code:** Um c├│digo QR funcional, que provavelmente cont├®m as informa├º├Áes de contato de Gabriela Santos (formato vCard) para facilitar a adi├º├úo ao cat├ílogo de endere├ºos.
+*   **Bandeira do Brasil:** Na parte inferior direita, um pequeno banner com as cores da bandeira do Brasil (verde e amarelo) e a palavra "BRAZIL", indicando a origem ou principal ├írea de atua├º├úo da empresa.
+
+Em resumo, a imagem ├® uma ferramenta de branding e comunica├º├úo para a Gabriela Santos, da Audaz Global, uma empresa de log├¡stica internacional baseada no Brasil, que destaca sua rede global e profissionalismo atrav├®s de suas afilia├º├Áes.
+
+
