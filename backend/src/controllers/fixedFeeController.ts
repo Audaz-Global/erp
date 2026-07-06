@@ -88,39 +88,75 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
       const data = xlsx.utils.sheet_to_json<any>(sheet, { defval: '' });
 
       for (const row of data) {
-        let name = row['Nome'] || row['Taxa'] || row['Fee'] || row['Name'] || row['Descrição'] || row['Charge'];
-        let valueStr = row['Valor'] || row['Value'] || row['Amount'] || row['Preço'];
-        let currency = row['Moeda'] || row['Currency'] || row['Curr'] || 'USD';
-        let modal = row['Modal'] || row['Modais'] || 'ALL';
-        let type = row['Tipo'] || row['Type'] || row['Origem/Destino'] || 'ORIGIN';
+        const keys = Object.keys(row);
+        if (keys.length < 2) continue;
+
+        // Achar a coluna de Nome (pode ser "TAXAS DE DESTINO", "Nome", "Fee", ou a primeira coluna)
+        let nameField = keys.find(k => k.toLowerCase().includes('taxa') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('fee') || k.toLowerCase().includes('charge'));
+        if (!nameField) nameField = keys[0];
+
+        // Achar a coluna de Valor (pode ser "SSZ", "Valor", ou a segunda coluna)
+        let valueField = keys.find(k => k.toLowerCase().includes('valor') || k.toLowerCase().includes('value') || k.toLowerCase().includes('amount'));
+        if (!valueField) valueField = keys[1]; // Ex: 'SSZ' na planilha dos armadores
+
+        let name = row[nameField];
+        let valueStr = row[valueField];
         
-        if (sheetName.toLowerCase().includes('destino') || sheetName.toLowerCase().includes('dest')) {
-          type = 'DESTINATION';
-        } else if (sheetName.toLowerCase().includes('origem') || sheetName.toLowerCase().includes('origin')) {
-          type = 'ORIGIN';
+        if (!name || typeof name !== 'string' || name.trim() === '') continue;
+        if (valueStr === undefined || valueStr === '') continue;
+
+        let currency = 'BRL'; // Padrão
+        if (keys.some(k => k.toLowerCase().includes('moeda'))) {
+            currency = row[keys.find(k => k.toLowerCase().includes('moeda'))!] || 'BRL';
+        } else if (typeof valueStr === 'string' && valueStr.includes('USD')) {
+            currency = 'USD';
+        }
+        
+        let modal = 'ALL';
+        // Se a planilha for de armador (ex: COSCO, HMM, etc), assumir SEA_FCL
+        if (['COSCO','ONE','PIL','HMM','CMA','MSC','MAERSK','ZIM','HAPAG','EVERGREEN'].some(m => sheetName.toUpperCase().includes(m))) {
+            modal = 'SEA_FCL';
         }
 
-        if (name && valueStr !== undefined && valueStr !== '') {
-          let val = 0;
-          if (typeof valueStr === 'number') val = valueStr;
-          else if (typeof valueStr === 'string') {
-             // Handle values like "$ 50.00" or "R$ 1.200,00"
-             const cleanStr = valueStr.replace(/[^\d,-]/g, '');
-             val = parseFloat(cleanStr.replace(',', '.'));
-          }
+        let type = 'DESTINATION'; 
+        if (sheetName.toLowerCase().includes('origem') || sheetName.toLowerCase().includes('origin')) type = 'ORIGIN';
+        // Se a coluna 0 tiver "DESTINO", forçar destino
+        if (nameField.toLowerCase().includes('destino')) type = 'DESTINATION';
 
-          if (!isNaN(val)) {
-            await prisma.fixedFee.create({
-              data: {
-                name: String(name).substring(0, 255).trim(),
-                type: String(type).toUpperCase().includes('DEST') ? 'DESTINATION' : 'ORIGIN',
-                value: val,
-                currency: String(currency).substring(0, 10).toUpperCase().trim(),
-                modal: String(modal).substring(0, 50).toUpperCase().trim(),
-                active: true
-              }
-            });
-            totalImported++;
+        let val = 0;
+        if (typeof valueStr === 'number') val = valueStr;
+        else if (typeof valueStr === 'string') {
+            const cleanStr = valueStr.replace(/[^\\d,-]/g, '');
+            if (cleanStr) val = parseFloat(cleanStr.replace(',', '.'));
+        }
+
+        if (!isNaN(val) && val > 0) {
+          // Salvar como FCL_20 (ex: "Nome da Taxa (20')") se for do SSZ
+          await prisma.fixedFee.create({
+            data: {
+              name: String(name).substring(0, 255).trim(),
+              type: type,
+              value: val,
+              currency: String(currency).substring(0, 10).toUpperCase().trim(),
+              modal: modal,
+              active: true
+            }
+          });
+          totalImported++;
+          
+          // Adicionar para 40' também, que está na coluna __EMPTY_1 normalmente (Heurística específica para planilha de armadores 2026)
+          if (keys.includes('__EMPTY_1') && typeof row['__EMPTY_1'] === 'number') {
+             await prisma.fixedFee.create({
+                data: {
+                  name: String(name).substring(0, 240).trim() + " (40')",
+                  type: type,
+                  value: row['__EMPTY_1'],
+                  currency: String(currency).substring(0, 10).toUpperCase().trim(),
+                  modal: modal,
+                  active: true
+                }
+             });
+             totalImported++;
           }
         }
       }
