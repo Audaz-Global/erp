@@ -696,11 +696,17 @@
               <input type="text" id="r-agent-carrier" placeholder="Ex: American Airlines">
             </div>
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
-              <label>Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <label style="margin:0;">Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
+                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Inserir Taxas Fixas de Origem</button>
+              </div>
               <textarea id="r-agent-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
-              <label>Taxas Locais de Destino (Itemizadas) <span id="conf-agent-destination-services"></span></label>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <label style="margin:0;">Taxas Locais de Destino (Itemizadas) <span id="conf-agent-destination-services"></span></label>
+                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Inserir Taxas Fixas de Destino</button>
+              </div>
               <textarea id="r-agent-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
             <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
@@ -1179,6 +1185,9 @@
         </li>
         <li onclick="switchSettingsTab('taxes')">
           <span class="nav-icon">💱</span> Taxas Padrão
+        </li>
+        <li onclick="switchSettingsTab('fixedFees')">
+          <span class="nav-icon">💰</span> Taxas Fixas
         </li>
         <li onclick="switchSettingsTab('template')">
           <span class="nav-icon">📄</span> Template PDF
@@ -3061,7 +3070,7 @@ function closeSettings() {
 function switchSettingsTab(tab) {
   document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
   const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','template','users'];
+  const tabMap = ['company','logo','knowledge','taxes','fixedFees','template','users'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 
@@ -3156,6 +3165,54 @@ function switchSettingsTab(tab) {
           </div>
         </div>
         <button class="btn btn-primary" onclick="saveTaxSettings()">💾 Salvar Taxas</button>`;
+      break;
+
+    case 'fixedFees':
+      content.innerHTML = `
+        <div class="sc-title">💰 Taxas Fixas de Origem/Destino</div>
+        <p class="sc-desc">Gerencie taxas fixas (BL Fee, Capatazia, etc) para adicioná-las rapidamente nas cotações.</p>
+        
+        <div class="settings-section" style="margin-bottom: 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">Gerenciar Taxas</h3>
+            <div style="display:flex; gap:10px;">
+              <input type="file" id="ffCsvInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importFixedFeesXlsx(event)">
+              <button class="btn btn-secondary" onclick="document.getElementById('ffCsvInput').click()" style="padding: 8px 12px; font-size: 12px;">📥 Importar Planilha</button>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: BL Fee"></div>
+            <div class="form-group" style="margin:0;"><label>Valor Numérico</label><input type="number" id="ff-value" step="0.01" placeholder="Ex: 50.00"></div>
+            <div class="form-group" style="margin:0;"><label>Moeda</label>
+              <select id="ff-currency">
+                <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+            <div class="form-group" style="margin:0;"><label>Tipo</label>
+              <select id="ff-type">
+                <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Modal Aplicável</label>
+              <select id="ff-modal">
+                <option value="ALL">Todos os Modais</option><option value="AIR">Aéreo (AIR)</option><option value="SEA_LCL">Marítimo LCL</option><option value="SEA_FCL">Marítimo FCL</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" id="ff-id">
+          <button class="btn btn-primary" id="btnSaveFixedFee" onclick="saveFixedFee()">💾 Salvar Taxa</button>
+          <button class="btn btn-secondary" id="btnCancelFixedFee" onclick="cancelEditFixedFee()" style="display:none;">Cancelar Edição</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Taxas Cadastradas</h3>
+          <div id="fixedFeesTableContainer"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+        </div>
+      `;
+      loadFixedFeesTable();
       break;
 
     case 'template':
@@ -3496,6 +3553,182 @@ async function importAgentCsv(event) {
     toast('❌ Erro na importação.');
   }
   event.target.value = ''; // clear input
+}
+
+// ════════════ GESTÃO DE TAXAS FIXAS ════════════
+async function loadFixedFeesTable() {
+  try {
+    const res = await fetch(API + '/fixed-fees');
+    const fees = await res.json();
+    const container = document.getElementById('fixedFeesTableContainer');
+    if (!container) return;
+    
+    if (fees.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma taxa cadastrada. Crie uma nova ou importe uma planilha.</p>';
+      return;
+    }
+    
+    let html = `<table class="k-table"><thead><tr>
+      <th>Nome</th><th>Valor</th><th>Moeda</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
+    </tr></thead><tbody>`;
+    
+    fees.forEach(f => {
+      html += `<tr>
+        <td style="font-weight:600;">${f.name}</td>
+        <td>${Number(f.value).toFixed(2)}</td>
+        <td>${f.currency}</td>
+        <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
+        <td>${f.modal}</td>
+        <td><span class="status-badge ${f.active ? 'approved' : 'expired'}">${f.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td>
+          <div class="action-btns">
+            <button class="action-btn" onclick='editFixedFee(${JSON.stringify(f).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+            <button class="action-btn danger" onclick="deleteFixedFee('${f.id}')" title="Excluir">🗑️</button>
+          </div>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(e) {
+    console.error('Erro ao carregar taxas', e);
+  }
+}
+
+function editFixedFee(fee) {
+  document.getElementById('ff-id').value = fee.id;
+  document.getElementById('ff-name').value = fee.name;
+  document.getElementById('ff-value').value = fee.value;
+  document.getElementById('ff-currency').value = fee.currency;
+  document.getElementById('ff-type').value = fee.type;
+  document.getElementById('ff-modal').value = fee.modal;
+  
+  document.getElementById('btnSaveFixedFee').innerText = '💾 Atualizar Taxa';
+  document.getElementById('btnCancelFixedFee').style.display = 'inline-block';
+}
+
+function cancelEditFixedFee() {
+  document.getElementById('ff-id').value = '';
+  document.getElementById('ff-name').value = '';
+  document.getElementById('ff-value').value = '';
+  document.getElementById('ff-currency').value = 'USD';
+  document.getElementById('ff-type').value = 'ORIGIN';
+  document.getElementById('ff-modal').value = 'ALL';
+  
+  document.getElementById('btnSaveFixedFee').innerText = '💾 Salvar Taxa';
+  document.getElementById('btnCancelFixedFee').style.display = 'none';
+}
+
+async function saveFixedFee() {
+  const id = document.getElementById('ff-id').value;
+  const name = document.getElementById('ff-name').value;
+  const value = document.getElementById('ff-value').value;
+  
+  if (!name || !value) {
+    toast('Preencha o Nome e o Valor.');
+    return;
+  }
+  
+  const payload = {
+    name,
+    value: parseFloat(value),
+    currency: document.getElementById('ff-currency').value,
+    type: document.getElementById('ff-type').value,
+    modal: document.getElementById('ff-modal').value,
+    active: true
+  };
+  
+  try {
+    const url = id ? API + '/fixed-fees/' + id : API + '/fixed-fees';
+    const method = id ? 'PUT' : 'POST';
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    toast('✅ Taxa salva com sucesso!');
+    cancelEditFixedFee();
+    loadFixedFeesTable();
+  } catch(e) {
+    toast('❌ Erro ao salvar taxa.');
+  }
+}
+
+async function deleteFixedFee(id) {
+  if (!confirm('Excluir esta taxa permanente?')) return;
+  try {
+    await fetch(API + '/fixed-fees/' + id, { method: 'DELETE' });
+    toast('🗑️ Taxa excluída.');
+    loadFixedFeesTable();
+  } catch (e) {
+    toast('❌ Erro ao excluir.');
+  }
+}
+
+async function importFixedFeesXlsx(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  toast('⏳ Lendo planilha, aguarde...');
+  try {
+    const res = await fetch(API + '/fixed-fees/import', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    toast('✅ ' + (data.message || 'Importação finalizada!'));
+    loadFixedFeesTable();
+  } catch (e) {
+    toast('❌ Erro na importação da planilha.');
+  }
+  event.target.value = ''; // clear input
+}
+
+async function applyFixedFees(type, targetId) {
+  try {
+    const res = await fetch(API + '/fixed-fees');
+    const fees = await res.json();
+    
+    // Obter cotação pendente pra descobrir o modal
+    const qId = document.getElementById('pending-quotations').value;
+    const q = allQuotations.find(x => x.id === qId);
+    let currentModal = 'ALL';
+    
+    if (q) {
+      if (q.modal === 'AIR') currentModal = 'AIR';
+      else if (q.loadType && q.loadType.includes('LCL')) currentModal = 'SEA_LCL';
+      else if (q.loadType && q.loadType.includes('FCL')) currentModal = 'SEA_FCL';
+    }
+
+    const applicableFees = fees.filter(f => f.active && f.type === type && (f.modal === 'ALL' || f.modal === currentModal));
+    
+    if (applicableFees.length === 0) {
+      toast('Nenhuma taxa fixa encontrada para este cenário.');
+      return;
+    }
+
+    const textarea = document.getElementById(targetId);
+    let currentText = textarea.value.trim();
+    let newLines = applicableFees.map(f => `${f.name}: ${Number(f.value).toFixed(2)} ${f.currency}`);
+    
+    if (currentText) {
+      textarea.value = currentText + '\\n' + newLines.join('\\n');
+    } else {
+      textarea.value = newLines.join('\\n');
+    }
+    
+    toast('✅ Taxas fixas aplicadas!');
+    // Dispara input pra forçar re-validação se houver lógica
+    textarea.dispatchEvent(new Event('input'));
+    checkValidation();
+  } catch (e) {
+    toast('❌ Erro ao buscar taxas fixas.');
+  }
 }
 
 // Inicializar aba de agentes ao trocar
