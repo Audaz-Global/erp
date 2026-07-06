@@ -38,6 +38,19 @@ export const parseEmlWithMedia = async (buffer: Buffer): Promise<ParsedEmlResult
       }
     }
 
+    let htmlContent = '';
+    if (parsed.html) {
+      // Limpeza básica para remover head, scripts e styles, preservando tabelas <table>, <tr>, <td>
+      const cleanHtml = parsed.html
+        .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .trim();
+      if (cleanHtml) {
+        htmlContent = `\n\n--- CORPO DO EMAIL (ESTRUTURA HTML PRESERVADA) ---\n${cleanHtml}`;
+      }
+    }
+
     let extractedText = `
 --- EMAIL ---
 De: ${fromText}
@@ -45,8 +58,9 @@ Para: ${toText}
 Assunto: ${parsed.subject || ''}
 Data: ${parsed.date || ''}
 
-Corpo do Email:
+Corpo do Email (Texto Puro):
 ${parsed.text || ''}
+${htmlContent}
     `;
 
     const mediaParts: Array<{ inlineData: { data: string; mimeType: string }; filename?: string }> = [];
