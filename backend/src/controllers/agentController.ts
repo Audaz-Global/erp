@@ -149,7 +149,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           const keys = Object.keys(row);
           if (keys.length === 0) continue;
 
-          const valA = String(row[keys[0]] || '').trim();
+          const valA = String(row[keys[0]!] || '').trim();
           
           if (!valA) {
               lastWasBlank = true;
