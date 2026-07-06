@@ -92,12 +92,10 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
         if (keys.length < 2) continue;
 
         // Achar a coluna de Nome (pode ser "TAXAS DE DESTINO", "Nome", "Fee", ou a primeira coluna)
-        let nameField = keys.find(k => k.toLowerCase().includes('taxa') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('fee') || k.toLowerCase().includes('charge'));
-        if (!nameField) nameField = keys[0];
+        let nameField: string = (keys.find(k => k.toLowerCase().includes('taxa') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('fee') || k.toLowerCase().includes('charge')) || keys[0])!;
 
         // Achar a coluna de Valor (pode ser "SSZ", "Valor", ou a segunda coluna)
-        let valueField = keys.find(k => k.toLowerCase().includes('valor') || k.toLowerCase().includes('value') || k.toLowerCase().includes('amount'));
-        if (!valueField) valueField = keys[1]; // Ex: 'SSZ' na planilha dos armadores
+        let valueField: string = (keys.find(k => k.toLowerCase().includes('valor') || k.toLowerCase().includes('value') || k.toLowerCase().includes('amount')) || keys[1])!; // Ex: 'SSZ' na planilha dos armadores
 
         let name = row[nameField];
         let valueStr = row[valueField];
