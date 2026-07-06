@@ -1781,25 +1781,37 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
-        '--no-zygote',
-        '--single-process',
         '--disable-extensions',
         '--disable-features=dbus',
-        '--font-render-hinting=none'
-      ]
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-translate',
+        '--no-first-run',
+        '--font-render-hinting=none',
+        '--hide-scrollbars',
+        '--mute-audio'
+      ],
+      timeout: 30000
     });
-    const page = await browser.newPage();
     
-    await page.setContent(html, { waitUntil: 'networkidle0' as any });
-    const pdfBuffer = await page.pdf({ 
-      format: 'A4', 
-      printBackground: true,
-      margin: { top: '5mm', right: '5mm', bottom: '5mm', left: '5mm' }
-    });
+    try {
+      const page = await browser.newPage();
+      
+      await page.setContent(html, { waitUntil: 'networkidle0' as any, timeout: 30000 });
+      const pdfBuffer = await page.pdf({ 
+        format: 'A4', 
+        printBackground: true,
+        margin: { top: '5mm', right: '5mm', bottom: '5mm', left: '5mm' },
+        timeout: 30000
+      });
 
-    await browser.close();
+      await browser.close();
     
-    return Buffer.from(pdfBuffer);
+      return Buffer.from(pdfBuffer);
+    } catch (innerError) {
+      try { await browser.close(); } catch (_) { /* ignore */ }
+      throw innerError;
+    }
   } catch (error: any) {
     console.error('Erro ao gerar PDF com Puppeteer:', error);
     throw new Error('Falha ao gerar documento PDF da cotação: ' + error.message);

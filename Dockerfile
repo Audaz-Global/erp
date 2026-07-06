@@ -1,10 +1,8 @@
 FROM node:20-bookworm
 
-# Instalar Chromium, dbus e TODAS as dependências necessárias para o Puppeteer
+# Instalar Chromium e TODAS as dependências necessárias para o Puppeteer
 RUN apt-get update && apt-get install -y \
     chromium \
-    dbus \
-    dbus-x11 \
     fonts-ipafont-gothic \
     fonts-wqy-zenhei \
     fonts-thai-tlwg \
@@ -42,12 +40,15 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     xdg-utils \
     --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/dbus
+    && rm -rf /var/lib/apt/lists/*
 
 # Configurar variáveis de ambiente do Puppeteer para usar o Chromium do sistema
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Desabilitar D-Bus completamente - evita erros de socket no container
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+ENV DBUS_SYSTEM_BUS_ADDRESS=/dev/null
 
 # Definir diretório de trabalho
 WORKDIR /app
@@ -78,6 +79,5 @@ RUN npm run build
 ENV PORT=3001
 EXPOSE 3001
 
-# Iniciar dbus e aplicação
-CMD dbus-daemon --system --nofork & npx prisma db push && npm start
-
+# Executa push no banco SQLite local e inicia o servidor
+CMD npx prisma db push && npm start
