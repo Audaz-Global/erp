@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:20-bookworm
 
 # Instalar Chromium e dependências necessárias do sistema para o Puppeteer
 RUN apt-get update && apt-get install -y \
@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y \
     fonts-thai-tlwg \
     fonts-kacst \
     fonts-freefont-ttf \
-    libxss1 \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
