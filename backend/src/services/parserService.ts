@@ -50,6 +50,28 @@ ${parsed.text || ''}
 
     const mediaParts: Array<{ inlineData: { data: string; mimeType: string }; filename?: string }> = [];
 
+    // Extrai imagens inline codificadas em Base64 do corpo HTML
+    if (parsed.html) {
+      const imgRegex = /<img[^>]+src=["']data:(image\/[^;]+);base64,([^"']+)["']/g;
+      let match;
+      let inlineCount = 0;
+      while ((match = imgRegex.exec(parsed.html)) !== null) {
+        if (match[1] && match[2]) {
+          inlineCount++;
+          const mimeType = match[1];
+          const base64Data = match[2];
+          mediaParts.push({
+            inlineData: {
+              data: base64Data,
+              mimeType
+            },
+            filename: `inline_image_${inlineCount}.${mimeType.split('/')[1] || 'png'}`
+          });
+          extractedText += `\n[Imagem Embutida #${inlineCount}]\n`;
+        }
+      }
+    }
+
     // Try to parse text from attachments if they are PDF or Excel
     if (parsed.attachments && parsed.attachments.length > 0) {
       extractedText += '\n--- ANEXOS DO EMAIL ---\n';

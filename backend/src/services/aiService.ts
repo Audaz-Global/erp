@@ -294,7 +294,8 @@ export const extractAgentCosts = async (
   text: string, 
   contextRules: string = '', 
   localFeesTable: string = '', 
-  quotationContext: string = ''
+  quotationContext: string = '',
+  mediaParts: any[] = []
 ) => {
   try {
     const model = genAI.getGenerativeModel({ 
@@ -407,7 +408,11 @@ export const extractAgentCosts = async (
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.
     - Se encontrar o frete oculto em expressões como "Total USD 1.04 com IOF", deduza o frete puro de 1.00.`;
 
-    const result = await model.generateContent(prompt);
+    const contentPayload = mediaParts.length > 0
+      ? [prompt, ...mediaParts.map(p => ({ inlineData: p.inlineData }))]
+      : [prompt];
+
+    const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.costs) {
       const ttStr = parsed.costs.transit_time;

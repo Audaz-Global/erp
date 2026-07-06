@@ -99,7 +99,7 @@ export const extractData = async (req: Request, res: Response) => {
       // Ler planilha de taxas locais de armador
       const localFeesTable = readLocalFeesTable();
 
-      aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext);
+      aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
     }
 
     res.json({ message: 'Extração concluída', data: aiResult, rawText: combinedText });
