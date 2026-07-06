@@ -137,7 +137,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
             route: {
               type: 'object',
               properties: {
-                incoterm: { type: 'string' },
+                incoterm: { type: 'string', description: 'O incoterm solicitado (ex: EXW, FCA, FOB, DAP) extraído da solicitação, tabela de resumo de informações básicas ou do corpo do e-mail.' },
                 origin_city: { type: 'string', description: 'Local Inicial de coleta da carga (Cidade/Estado/País)' },
                 origin_country: { type: 'string', description: 'País do porto ou aeroporto de origem' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem (formato IATA para aeroporto, ex: WNZ - Wenzhou)' },
@@ -199,7 +199,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     ${text}
 
     Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
-    - **Incoterm — PRIORIDADE CRÍTICA**: O incoterm correto é SEMPRE o que aparece no **corpo do e-mail de solicitação** enviado pelo cliente (ex: "EXW – AOD: GRU", "FOB Shangai", "FCA Darmstadt"). IGNORE e NÃO USE o incoterm que aparece dentro de PDFs de invoice ou packing list (como "Delivery conditions Incoterms® 2020: FCA: Free carrier..."), pois esses refletem a condição de venda entre fornecedor e importador, e NÃO a condição de frete solicitada. Se o cliente escreveu EXW no e-mail e as invoices dizem FCA, o incoterm correto para a cotação é EXW.
+    - **Incoterm — PRIORIDADE CRÍTICA**: Extraia o incoterm solicitado que aparece no **corpo do e-mail** ou em **Tabelas/Formulários de Cotação e Informações Básicas** enviados pelo cliente (ex: "EXW – AOD: GRU", "FOB Shangai", "FCA Planta do Fornecedor"). ATENÇÃO: IGNORE incoterms que aparecem EXCLUSIVAMENTE dentro de Invoices Comerciais (Commercial Invoice) ou Packing Lists, pois refletem a condição de venda do produto e não a condição de frete. Formulários de requisição e tabelas no corpo do e-mail são fontes válidas.
     - **Incoterm — Regra geral**: Analise se há um endereço de coleta detalhado (fábrica/fornecedor) no exterior. Em caso afirmativo (especialmente se o modal for Aéreo), defina o Incoterm como **EXW** ou **FCA** — nunca use "FOB" genérico de planilha de valor comercial.
     - **Origem (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de origem do frete principal. Se modal for Aéreo, infira o aeroporto internacional no formato "IATA - Nome do Aeroporto" (ex: "SZX - Shenzhen Bao'an International", "PRG - Prague Ruzyne International"). Se modal for Marítimo, identifique o porto de embarque internacional. Salve em "origin_airport".
     - **Destino (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de destino. Se modal for Aéreo, infira no formato "IATA - Nome do Aeroporto" (ex: "GRU - Aeroporto Internacional Guarulhos"). Se modal for Marítimo, identifique o porto de descarga (ex: "Santos"). Salve em "destination_airport".
