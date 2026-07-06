@@ -1773,13 +1773,19 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     const html = template(templateData);
 
     const browser = await puppeteer.launch({ 
-      headless: true,
+      headless: 'new' as any,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox', 
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--no-zygote',
+        '--single-process',
+        '--disable-extensions',
+        '--disable-features=dbus',
+        '--font-render-hinting=none'
       ]
     });
     const page = await browser.newPage();
