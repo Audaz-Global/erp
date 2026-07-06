@@ -85,12 +85,10 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           if (keys.length === 0) continue;
 
           // Achar a coluna de Nome
-          let nameField = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('agent'));
-          if (!nameField) nameField = keys[0];
+          let nameField: string = (keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('agent')) || keys[0])!;
 
           // Achar a coluna de E-mail
-          let emailField = keys.find(k => k.toLowerCase().includes('email') || k.toLowerCase().includes('e-mail'));
-          if (!emailField) emailField = keys[1]; // Se não achar, tenta a 2a coluna como chute
+          let emailField: string = (keys.find(k => k.toLowerCase().includes('email') || k.toLowerCase().includes('e-mail')) || keys[1])!; // Se não achar, tenta a 2a coluna como chute
 
           const name = row[nameField];
           const email = row[emailField];
