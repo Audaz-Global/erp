@@ -253,9 +253,13 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
     });
 
     res.send(pdfBuffer);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao gerar PDF:', error);
-    res.status(500).json({ error: 'Erro ao gerar o PDF da cotação' });
+    res.status(500).json({ 
+      error: 'Erro ao gerar o PDF da cotação', 
+      message: error.message, 
+      stack: error.stack 
+    });
   }
 };
 

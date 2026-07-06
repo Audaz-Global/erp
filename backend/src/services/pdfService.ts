@@ -1789,8 +1789,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     await browser.close();
     
     return Buffer.from(pdfBuffer);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao gerar PDF com Puppeteer:', error);
-    throw new Error('Falha ao gerar documento PDF da cotação');
+    throw new Error('Falha ao gerar documento PDF da cotação: ' + error.message);
   }
 };
