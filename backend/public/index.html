@@ -150,7 +150,7 @@
   pre.json { background: rgba(0,0,0,0.3); padding: 16px; border-radius: 10px; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; color: var(--success); }
 
   /* ═══ HISTÓRICO DE COTAÇÕES ═══ */
-  .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .summary-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
   .summary-card {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
     padding: 20px 22px; display: flex; align-items: center; gap: 16px;
@@ -743,6 +743,10 @@
         <div class="sc-icon purple">💰</div>
         <div class="sc-data"><h3 id="sc-volume">$0</h3><p>Volume Total (USD)</p></div>
       </div>
+      <div class="summary-card" style="border-color: var(--success); box-shadow: 0 4px 15px rgba(52, 211, 153, 0.1);">
+        <div class="sc-icon green" style="background: var(--success); color: var(--navy);">💲</div>
+        <div class="sc-data"><h3 id="sc-profit" style="color: var(--success);">$0</h3><p>Lucro (USD / BRL)</p></div>
+      </div>
     </div>
 
     <!-- Toolbar: busca e filtros -->
@@ -778,13 +782,14 @@
               <th onclick="sortQuotations('route')">Rota ↕</th>
               <th onclick="sortQuotations('modal')">Modal/Tipo</th>
               <th onclick="sortQuotations('freight')">Frete (USD) ↕</th>
+              <th onclick="sortQuotations('profit')">Profit (USD) ↕</th>
               <th onclick="sortQuotations('status')">Status ↕</th>
               <th onclick="sortQuotations('date')">Data ↕</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody id="quotationTbody">
-            <tr><td colspan="8">
+            <tr><td colspan="9">
               <div class="empty-state">
                 <div class="es-icon">📭</div>
                 <h3>Nenhuma cotação ainda</h3>
@@ -2630,10 +2635,21 @@ function updateSummaryCards() {
   // Garantir que é sempre número e não string para evitar crashes de .toFixed()
   const volume = allQuotations.reduce((s, q) => s + (Number(q.freightValue) || 0), 0);
   
+  const approvedQuotations = allQuotations.filter(q => q.status === 'APPROVED');
+  const profitUsd = approvedQuotations.reduce((s, q) => s + (Number(q.expectedProfit) || 0), 0);
+  const profitBrl = profitUsd * 5.05;
+  
   document.getElementById('sc-total').textContent = total;
   document.getElementById('sc-approved').textContent = approved;
   document.getElementById('sc-pending').textContent = pending;
   document.getElementById('sc-volume').textContent = '$' + volume.toFixed(2);
+  
+  const profitEl = document.getElementById('sc-profit');
+  if (profitEl) {
+    profitEl.textContent = '$' + profitUsd.toFixed(2) + ' | R$ ' + profitBrl.toFixed(2);
+    // Para caber melhor visualmente, vamos reduzir o font-size caso seja longo
+    profitEl.style.fontSize = '18px';
+  }
   
   loadPendingQuotationsDropdown();
 }
@@ -2673,6 +2689,7 @@ function applySorting() {
       case 'client': va = a.client?.name || ''; vb = b.client?.name || ''; break;
       case 'route': va = (a.originCity || ''); vb = (b.originCity || ''); break;
       case 'freight': va = Number(a.freightValue) || 0; vb = Number(b.freightValue) || 0; return sortAsc ? va - vb : vb - va;
+      case 'profit': va = Number(a.expectedProfit) || 0; vb = Number(b.expectedProfit) || 0; return sortAsc ? va - vb : vb - va;
       case 'status': va = a.status || ''; vb = b.status || ''; break;
       case 'date': default: va = a.createdAt || ''; vb = b.createdAt || ''; break;
     }
@@ -2753,6 +2770,9 @@ function renderTable() {
       modalTypeLabel = 'Marítimo';
     }
 
+    const profitNum = Number(q.expectedProfit) || 0;
+    const profitFmt = profitNum > 0 ? `<span style="color:var(--success);font-weight:600;">+$${profitNum.toFixed(2)}</span>` : '<span style="color:var(--text-muted)">—</span>';
+
     html += `<tr onclick="toggleDetail(${globalIdx}, this)">
       <td class="cell-ref" title="${refText}">${refText}</td>
       <td class="cell-client" title="${clientName}">${clientName === '—' ? '<span style="color:var(--text-muted)">—</span>' : clientName}</td>
@@ -2761,6 +2781,7 @@ function renderTable() {
       </td>
       <td><span class="modal-badge" title="${modalLabel} - ${q.loadType || ''}">${modalIcon} ${modalTypeLabel}</span></td>
       <td style="font-weight:600;">${currencySymbol}${freight}</td>
+      <td>${profitFmt}</td>
       <td><span class="status-badge ${st.cls}">${st.icon} ${st.label}</span></td>
       <td>${dateStr}</td>
       <td>
