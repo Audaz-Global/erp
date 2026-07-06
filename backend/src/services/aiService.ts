@@ -172,7 +172,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
                   items: { type: 'string' },
                   description: 'Lista de dimensões de cada lote de caixas/volumes. Cada item do array DEVE obrigatoriamente iniciar com a quantidade correspondente de caixas daquela dimensão no formato "QTDx CxLxA cm" (ex: "1x 50*50*28 cm", "2x 50*50*13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm").'
                 },
-                commercial_value_usd: { type: 'number' },
+                commercial_value_usd: { type: 'number', description: 'Valor comercial numérico da carga. Se a moeda original for EUR, BRL ou GBP, ignore a sigla e retorne apenas o número puro (ex: 2610.00). Não faça conversão cambial.' },
                 is_imo: { type: 'boolean' },
                 requires_insurance: { 
                   type: 'boolean', 
@@ -224,7 +224,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - **Múltiplos Shippers / Consolidação (CRÍTICO)**: Se a solicitação ou os anexos contiverem dados de múltiplos fornecedores (shippers), invoices ou packing lists distintos (ex: Shipper Yongsheng e Shipper Todenko no mesmo embarque/e-mail), você DEVE consolidar todas as cargas:
       1. Some os pesos brutos (gross_weight_kg) de todos os fornecedores (ex: 41.05 kg da Yongsheng + 113.40 kg da Todenko = 154.45 kg).
       2. Some a quantidade total de caixas/volumes (packages_count) de todos eles (ex: 3 caixas da Yongsheng + 9 caixas da Todenko = 12 volumes).
-      3. Some o valor comercial total de todas as invoices em USD (ex: USD 3036.00 + USD 10098.00 = USD 13134.00).
+      3. Some o valor comercial total de todas as invoices. ATENÇÃO: O campo chama-se commercial_value_usd, mas se o documento estiver em EUR, BRL, GBP, ou qualquer outra moeda, extraia APENAS o valor numérico (ex: se for EUR 2610.00, retorne 2610). Não tente converter moedas.
       4. Junte todas as dimensões/medidas das caixas de todos os fornecedores (cada uma com seu respectivo multiplicador de quantidade na frente!) em uma lista consolidada única de dimensions.
 
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
