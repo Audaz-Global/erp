@@ -417,30 +417,55 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     // Detalhar taxas de destino
     let detailedFeesDestino: any[] = [];
+    if (quotation.destinationServices) {
+      try {
+        const parsed = JSON.parse(quotation.destinationServices);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          detailedFeesDestino = parsed.map(f => {
+            const val = parseFloat(f.value) || 0;
+            const curr = f.currency || 'USD';
+            return {
+              name: f.name,
+              val: val,
+              currency: curr,
+              brl: getBrlValue(val, curr)
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao ler destinationServices na visualização pública:', err);
+      }
+    }
+
     if (isAir) {
-      // CCT fee
-      detailedFeesDestino.push({ name: 'CCT fee', val: 10.00, currency: 'USD', brl: getBrlValue(10.00, 'USD') });
+      const hasCct = detailedFeesDestino.some(f => f.name.toLowerCase().includes('cct'));
+      const hasDelivery = detailedFeesDestino.some(f => f.name.toLowerCase().includes('delivery'));
+      const hasDescon = detailedFeesDestino.some(f => f.name.toLowerCase().includes('desconsolida') || f.name.toLowerCase().includes('deconsolidation'));
+      const hasCollect = detailedFeesDestino.some(f => f.name.toLowerCase().includes('collect'));
       
-      // Collect Fee (3% of Frete + Origem BRL)
       const baseCollectBrl = fTotalBrl + subtotalOrigemBrl;
-      // collectFee min EUR 50 se for em EUR, ou USD 50
-      const collectFeeVal = Math.max(baseCollectBrl * 0.03, getBrlValue(50.00, fCurr));
-      detailedFeesDestino.push({ name: 'Collect Fee', val: collectFeeVal / getBrlValue(1.0, fCurr), currency: fCurr, brl: collectFeeVal });
+
+      if (!hasCct) detailedFeesDestino.push({ name: 'CCT fee', val: 10.00, currency: 'USD', brl: getBrlValue(10.00, 'USD') });
       
-      // Delivery Fee
-      detailedFeesDestino.push({ name: 'Delivery Fee', val: 55.00, currency: 'USD', brl: getBrlValue(55.00, 'USD') });
+      if (!hasCollect) {
+        const collectFeeVal = Math.max(baseCollectBrl * 0.03, getBrlValue(50.00, fCurr));
+        detailedFeesDestino.push({ name: 'Collect Fee', val: collectFeeVal / getBrlValue(1.0, fCurr), currency: fCurr, brl: collectFeeVal });
+      }
       
-      // Desconsolidação
-      detailedFeesDestino.push({ name: 'Desconsolidação / Deconsolidation', val: 55.00, currency: 'USD', brl: getBrlValue(55.00, 'USD') });
+      if (!hasDelivery) detailedFeesDestino.push({ name: 'Delivery Fee', val: 55.00, currency: 'USD', brl: getBrlValue(55.00, 'USD') });
+      
+      if (!hasDescon) detailedFeesDestino.push({ name: 'Desconsolidação / Deconsolidation', val: 55.00, currency: 'USD', brl: getBrlValue(55.00, 'USD') });
 
       // Desembaraço (Condicional ao flag)
-      if (quotation.customsClearanceIncluded) {
+      if (quotation.customsClearanceIncluded && !detailedFeesDestino.some(f => f.name.toLowerCase().includes('desembaraço'))) {
         detailedFeesDestino.push({ name: 'Desembaraço Aduaneiro', val: 900.00, currency: 'BRL', brl: 900.00 });
       }
 
       // IOF - 3.5% de Frete + Origem
-      const iofBrl = baseCollectBrl * 0.035;
-      detailedFeesDestino.push({ name: 'IOF - FRETE + TX ORIGEM', val: iofBrl / getBrlValue(1.0, fCurr), currency: fCurr, brl: iofBrl });
+      if (!detailedFeesDestino.some(f => f.name.includes('IOF'))) {
+        const iofBrl = baseCollectBrl * 0.035;
+        detailedFeesDestino.push({ name: 'IOF - FRETE + TX ORIGEM', val: iofBrl / getBrlValue(1.0, fCurr), currency: fCurr, brl: iofBrl });
+      }
     }
 
     const subtotalDestinoBrl = detailedFeesDestino.reduce((s, f) => s + f.brl, 0);
