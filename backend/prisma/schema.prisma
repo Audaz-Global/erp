@@ -159,14 +159,15 @@ model Agent {
 }
 
 model FixedFee {
-  id        String   @id @default(uuid())
-  name      String
-  type      String   // ORIGIN, DESTINATION
-  value     Float
-  currency  String   @default("USD")
-  modal     String   // ALL, AIR, SEA_FCL, SEA_LCL, etc.
-  active    Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(uuid())
+  name          String
+  carrier       String?
+  containerSize String?
+  type          String   // ORIGIN, DESTINATION
+  value         Float
+  currency      String   // USD, BRL
+  modal         String   // SEA_FCL, SEA_LCL, AIR, ROAD
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

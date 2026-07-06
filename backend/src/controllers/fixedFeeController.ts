@@ -18,10 +18,12 @@ export const getFixedFees = async (req: Request, res: Response) => {
 
 export const createFixedFee = async (req: Request, res: Response) => {
   try {
-    const { name, type, value, currency, modal, active } = req.body;
+    const { name, carrier, containerSize, type, value, currency, modal, active } = req.body;
     const fee = await prisma.fixedFee.create({
       data: {
         name,
+        carrier,
+        containerSize,
         type,
         value: Number(value),
         currency: currency || 'USD',
@@ -31,22 +33,23 @@ export const createFixedFee = async (req: Request, res: Response) => {
     });
     res.status(201).json(fee);
   } catch (error) {
-    console.error('Erro ao criar fixed fee:', error);
-    res.status(500).json({ error: 'Erro ao criar taxa fixa.' });
+    res.status(500).json({ error: 'Erro ao criar taxa.' });
   }
 };
 
 export const updateFixedFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, type, value, currency, modal, active } = req.body;
+    const { name, carrier, containerSize, type, value, currency, modal, active } = req.body;
     
     const fee = await prisma.fixedFee.update({
       where: { id },
       data: {
         name,
+        carrier,
+        containerSize,
         type,
-        value: Number(value),
+        value: value !== undefined ? Number(value) : undefined,
         currency,
         modal,
         active
@@ -129,10 +132,12 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
         }
 
         if (!isNaN(val) && val > 0) {
-          // Salvar como FCL_20 (ex: "Nome da Taxa (20')") se for do SSZ
+          // Salvar como FCL_20 se for do SSZ
           await prisma.fixedFee.create({
             data: {
-              name: `${sheetName.toUpperCase()} - ${String(name).substring(0, 200).trim()} (20')`,
+              name: String(name).substring(0, 255).trim(),
+              carrier: String(sheetName).toUpperCase().substring(0, 100).trim(),
+              containerSize: "20'",
               type: type,
               value: val,
               currency: String(currency).substring(0, 10).toUpperCase().trim(),
@@ -146,7 +151,9 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
           if (keys.includes('__EMPTY_1') && typeof row['__EMPTY_1'] === 'number') {
              await prisma.fixedFee.create({
                 data: {
-                  name: `${sheetName.toUpperCase()} - ${String(name).substring(0, 200).trim()} (40')`,
+                  name: String(name).substring(0, 255).trim(),
+                  carrier: String(sheetName).toUpperCase().substring(0, 100).trim(),
+                  containerSize: "40'",
                   type: type,
                   value: row['__EMPTY_1'],
                   currency: String(currency).substring(0, 10).toUpperCase().trim(),

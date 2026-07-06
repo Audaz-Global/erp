@@ -3183,13 +3183,23 @@ function switchSettingsTab(tab) {
           
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: BL Fee"></div>
+            <div class="form-group" style="margin:0;"><label>Armador</label><input type="text" id="ff-carrier" placeholder="Ex: COSCO (Opcional)"></div>
+            <div class="form-group" style="margin:0;"><label>Contêiner</label>
+              <select id="ff-container">
+                <option value="">Nenhum/Opcional</option>
+                <option value="20'">20'</option>
+                <option value="40'">40'</option>
+                <option value="LCL">LCL</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
             <div class="form-group" style="margin:0;"><label>Valor Numérico</label><input type="number" id="ff-value" step="0.01" placeholder="Ex: 50.00"></div>
             <div class="form-group" style="margin:0;"><label>Moeda</label>
               <select id="ff-currency">
                 <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
               </select>
             </div>
-          </div>
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
             <div class="form-group" style="margin:0;"><label>Tipo</label>
               <select id="ff-type">
@@ -3569,12 +3579,14 @@ async function loadFixedFeesTable() {
     }
     
     let html = `<table class="k-table"><thead><tr>
-      <th>Nome</th><th>Valor</th><th>Moeda</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
+      <th>Nome</th><th>Armador</th><th>Contêiner</th><th>Valor</th><th>Moeda</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
       html += `<tr>
         <td style="font-weight:600;">${f.name}</td>
+        <td>${f.carrier || '-'}</td>
+        <td>${f.containerSize || '-'}</td>
         <td>${Number(f.value).toFixed(2)}</td>
         <td>${f.currency}</td>
         <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
@@ -3598,6 +3610,8 @@ async function loadFixedFeesTable() {
 function editFixedFee(fee) {
   document.getElementById('ff-id').value = fee.id;
   document.getElementById('ff-name').value = fee.name;
+  document.getElementById('ff-carrier').value = fee.carrier || '';
+  document.getElementById('ff-container').value = fee.containerSize || '';
   document.getElementById('ff-value').value = fee.value;
   document.getElementById('ff-currency').value = fee.currency;
   document.getElementById('ff-type').value = fee.type;
@@ -3610,6 +3624,8 @@ function editFixedFee(fee) {
 function cancelEditFixedFee() {
   document.getElementById('ff-id').value = '';
   document.getElementById('ff-name').value = '';
+  document.getElementById('ff-carrier').value = '';
+  document.getElementById('ff-container').value = '';
   document.getElementById('ff-value').value = '';
   document.getElementById('ff-currency').value = 'USD';
   document.getElementById('ff-type').value = 'ORIGIN';
@@ -3622,6 +3638,8 @@ function cancelEditFixedFee() {
 async function saveFixedFee() {
   const id = document.getElementById('ff-id').value;
   const name = document.getElementById('ff-name').value;
+  const carrier = document.getElementById('ff-carrier').value;
+  const containerSize = document.getElementById('ff-container').value;
   const value = document.getElementById('ff-value').value;
   
   if (!name || !value) {
@@ -3631,6 +3649,8 @@ async function saveFixedFee() {
   
   const payload = {
     name,
+    carrier,
+    containerSize,
     value: parseFloat(value),
     currency: document.getElementById('ff-currency').value,
     type: document.getElementById('ff-type').value,
@@ -3714,7 +3734,12 @@ async function applyFixedFees(type, targetId) {
 
     const textarea = document.getElementById(targetId);
     let currentText = textarea.value.trim();
-    let newLines = applicableFees.map(f => `${f.name}: ${Number(f.value).toFixed(2)} ${f.currency}`);
+    let newLines = applicableFees.map(f => {
+      let line = f.name;
+      if (f.carrier) line = `[${f.carrier}] ` + line;
+      if (f.containerSize) line = line + ` (${f.containerSize})`;
+      return `${line}: ${Number(f.value).toFixed(2)} ${f.currency}`;
+    });
     
     if (currentText) {
       textarea.value = currentText + '\\n' + newLines.join('\\n');
