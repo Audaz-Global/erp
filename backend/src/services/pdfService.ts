@@ -313,8 +313,8 @@ const defaultTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">Armador:</span><span class="value">{{carrierRich}}</span></div>
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{originCountryRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{destinationCountryRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{originCountryRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{destinationCountryRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
@@ -323,7 +323,7 @@ const defaultTemplate = `
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
       <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
       {{#if roadFreightRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;">🚚 Incluso ({{roadFreightRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
       {{/if}}
     </div>
   </div>
@@ -752,8 +752,8 @@ const defaultAirTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">Cia Aérea:</span><span class="value">{{carrierRich}}</span></div>
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{originCountryRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value">📍 {{destinationCountryRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{originCountryRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{destinationCountryRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
@@ -762,7 +762,7 @@ const defaultAirTemplate = `
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
       <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
       {{#if roadFreightRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;">🚚 Incluso ({{roadFreightRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
       {{/if}}
     </div>
   </div>

@@ -661,7 +661,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       </div>
       <div class="meta-item">
         <span class="meta-label">País</span>
-        <span class="meta-value">📍 ${quotation.originCountry || '—'}</span>
+        <span class="meta-value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${quotation.originCountry || '—'}</span>
       </div>
       <div class="meta-item">
         <span class="meta-label">Local Inicial</span>
@@ -674,7 +674,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       </div>
       <div class="meta-item">
         <span class="meta-label">País</span>
-        <span class="meta-value">📍 ${quotation.destinationCountry || '—'}</span>
+        <span class="meta-value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>${quotation.destinationCountry || '—'}</span>
       </div>
       <div class="meta-item">
         <span class="meta-label">Destino Final</span>
