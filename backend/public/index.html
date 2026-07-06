@@ -118,7 +118,7 @@
   .form-group label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
   .form-group input, .form-group select { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; transition: all 0.3s; }
   .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--gold); }
-  .form-group input.error { border-color: var(--error); background: rgba(248,113,113,0.05); }
+  .form-group input.error, .form-group select.error { border-color: var(--error) !important; background: rgba(248,113,113,0.1) !important; box-shadow: 0 0 0 2px rgba(248,113,113,0.3) !important; }
 
   /* Confidence Indicators */
   .conf-wrapper { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; }
