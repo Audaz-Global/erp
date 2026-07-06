@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
@@ -1772,26 +1773,13 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     const html = template(templateData);
 
+    // Usar @sparticuz/chromium para ambientes de contêiner (Railway/Lambda)
+    const executablePath = await chromium.executablePath();
+    
     const browser = await puppeteer.launch({ 
+      args: chromium.args,
+      executablePath,
       headless: 'new' as any,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-features=dbus',
-        '--disable-background-networking',
-        '--disable-default-apps',
-        '--disable-translate',
-        '--no-first-run',
-        '--font-render-hinting=none',
-        '--hide-scrollbars',
-        '--mute-audio'
-      ],
-      timeout: 30000
     });
     
     try {
