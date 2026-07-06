@@ -698,14 +698,20 @@
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label style="margin:0;">Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
-                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Inserir Taxas dos Armadores (Origem)</button>
+                <div style="display:flex; gap:5px;">
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Armadores (O)</button>
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyStandardFees('ORIGIN', 'r-agent-origin-services')">➕ Taxas Locais (O)</button>
+                </div>
               </div>
               <textarea id="r-agent-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label style="margin:0;">Taxas Locais de Destino (Itemizadas) <span id="conf-agent-destination-services"></span></label>
-                <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Inserir Taxas dos Armadores (Destino)</button>
+                <div style="display:flex; gap:5px;">
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Armadores (D)</button>
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyStandardFees('DESTINATION', 'r-agent-destination-services')">➕ Taxas Locais (D)</button>
+                </div>
               </div>
               <textarea id="r-agent-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
             </div>
@@ -1188,6 +1194,9 @@
         </li>
         <li onclick="switchSettingsTab('fixedFees')">
           <span class="nav-icon">💰</span> Taxas dos Armadores
+        </li>
+        <li onclick="switchSettingsTab('standardFees')">
+          <span class="nav-icon">🏢</span> Taxas Locais
         </li>
         <li onclick="switchSettingsTab('template')">
           <span class="nav-icon">📄</span> Template PDF
@@ -3070,7 +3079,7 @@ function closeSettings() {
 function switchSettingsTab(tab) {
   document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
   const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','fixedFees','template','users'];
+  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','template','users'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 
@@ -3223,6 +3232,49 @@ function switchSettingsTab(tab) {
         </div>
       `;
       loadFixedFeesTable();
+      break;
+
+    case 'standardFees':
+      content.innerHTML = `
+        <div class="sc-title">🏢 Taxas Locais / Standard</div>
+        <p class="sc-desc">Gerencie as taxas locais (Delivery Fee, CCT Fee, IOF, etc) independentes de armador, fixas ou em porcentagem.</p>
+        
+        <div class="settings-section" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom:14px;">Gerenciar Taxa Local</h3>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="sf-name" placeholder="Ex: Delivery Fee"></div>
+            <div class="form-group" style="margin:0;"><label>Tipo de Cobrança</label>
+              <select id="sf-chargeType">
+                <option value="FIXED">Fixo</option>
+                <option value="PER_DOCUMENT">Por documento</option>
+                <option value="PERCENTAGE">% de Taxas Selecionadas</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Tipo (Origem/Destino)</label>
+              <select id="sf-type">
+                <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+            <div class="form-group" style="margin:0;"><label>Valor / Porcentagem</label><input type="number" id="sf-value" step="0.01" placeholder="Ex: 55.00 ou 3.5"></div>
+            <div class="form-group" style="margin:0;"><label>Moeda (se aplicável)</label>
+              <select id="sf-currency">
+                <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" id="sf-id">
+          <button class="btn btn-primary" id="btnSaveStandardFee" onclick="saveStandardFee()">💾 Salvar Taxa</button>
+          <button class="btn btn-secondary" id="btnCancelStandardFee" onclick="cancelEditStandardFee()" style="display:none;">Cancelar Edição</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Taxas Locais Cadastradas</h3>
+          <div id="standardFeesTableContainer"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+        </div>
+      `;
+      loadStandardFeesTable();
       break;
 
     case 'template':
@@ -3769,6 +3821,154 @@ switchTab = function(name) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSettings();
 });
+// ════════════ GESTÃO DE TAXAS LOCAIS (STANDARD) ════════════
+async function loadStandardFeesTable() {
+  try {
+    const res = await fetch(API + '/standard-fees');
+    const fees = await res.json();
+    const container = document.getElementById('standardFeesTableContainer');
+    if (!container) return;
+    
+    if (fees.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma taxa local cadastrada.</p>';
+      return;
+    }
+    
+    let html = `<table class="k-table"><thead><tr>
+      <th>Nome</th><th>Formato</th><th>Valor</th><th>Moeda</th><th>Tipo</th><th>Ativo</th><th>Ações</th>
+    </tr></thead><tbody>`;
+    
+    fees.forEach(f => {
+      let chargeTypeStr = f.chargeType === 'FIXED' ? 'Fixo' : (f.chargeType === 'PER_DOCUMENT' ? 'Por doc' : '% Taxas');
+      html += `<tr>
+        <td style="font-weight:600;">${f.name}</td>
+        <td>${chargeTypeStr}</td>
+        <td>${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ''}</td>
+        <td>${f.currency}</td>
+        <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
+        <td><span class="status-badge ${f.active ? 'approved' : 'expired'}">${f.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td>
+          <div class="action-btns">
+            <button class="action-btn" onclick='editStandardFee(${JSON.stringify(f).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+            <button class="action-btn danger" onclick="deleteStandardFee('${f.id}')" title="Excluir">🗑️</button>
+          </div>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(e) {
+    console.error('Erro ao carregar taxas locais', e);
+  }
+}
+
+function editStandardFee(fee) {
+  document.getElementById('sf-id').value = fee.id;
+  document.getElementById('sf-name').value = fee.name;
+  document.getElementById('sf-chargeType').value = fee.chargeType;
+  document.getElementById('sf-value').value = fee.value;
+  document.getElementById('sf-currency').value = fee.currency;
+  document.getElementById('sf-type').value = fee.type;
+  
+  document.getElementById('btnSaveStandardFee').innerText = '💾 Atualizar Taxa';
+  document.getElementById('btnCancelStandardFee').style.display = 'inline-block';
+}
+
+function cancelEditStandardFee() {
+  document.getElementById('sf-id').value = '';
+  document.getElementById('sf-name').value = '';
+  document.getElementById('sf-chargeType').value = 'FIXED';
+  document.getElementById('sf-value').value = '';
+  document.getElementById('sf-currency').value = 'USD';
+  document.getElementById('sf-type').value = 'ORIGIN';
+  
+  document.getElementById('btnSaveStandardFee').innerText = '💾 Salvar Taxa';
+  document.getElementById('btnCancelStandardFee').style.display = 'none';
+}
+
+async function saveStandardFee() {
+  const id = document.getElementById('sf-id').value;
+  const name = document.getElementById('sf-name').value;
+  const value = document.getElementById('sf-value').value;
+  
+  if (!name || !value) {
+    toast('Preencha o Nome e o Valor.');
+    return;
+  }
+  
+  const payload = {
+    name,
+    chargeType: document.getElementById('sf-chargeType').value,
+    value: parseFloat(value),
+    currency: document.getElementById('sf-currency').value,
+    type: document.getElementById('sf-type').value,
+    active: true
+  };
+  
+  try {
+    const url = id ? API + '/standard-fees/' + id : API + '/standard-fees';
+    const method = id ? 'PUT' : 'POST';
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    toast('✅ Taxa salva com sucesso!');
+    cancelEditStandardFee();
+    loadStandardFeesTable();
+  } catch(e) {
+    toast('❌ Erro ao salvar taxa.');
+  }
+}
+
+async function deleteStandardFee(id) {
+  if (!confirm('Excluir esta taxa permanente?')) return;
+  try {
+    await fetch(API + '/standard-fees/' + id, { method: 'DELETE' });
+    toast('🗑️ Taxa excluída.');
+    loadStandardFeesTable();
+  } catch (e) {
+    toast('❌ Erro ao excluir.');
+  }
+}
+
+async function applyStandardFees(type, targetId) {
+  try {
+    const res = await fetch(API + '/standard-fees');
+    const fees = await res.json();
+    
+    const applicableFees = fees.filter(f => f.active && f.type === type);
+    
+    if (applicableFees.length === 0) {
+      toast('Nenhuma taxa local encontrada.');
+      return;
+    }
+
+    const textarea = document.getElementById(targetId);
+    let currentText = textarea.value.trim();
+    
+    let newLines = applicableFees.map(f => {
+      let chargeInfo = f.chargeType === 'PERCENTAGE' ? `${Number(f.value).toFixed(2)}%` : `${Number(f.value).toFixed(2)} ${f.currency}`;
+      if (f.chargeType === 'PER_DOCUMENT') chargeInfo += ' (Por Doc)';
+      else if (f.chargeType === 'FIXED') chargeInfo += ' (Fixo)';
+      return `${f.name}: ${chargeInfo}`;
+    });
+    
+    if (currentText) {
+      textarea.value = currentText + '\\n' + newLines.join('\\n');
+    } else {
+      textarea.value = newLines.join('\\n');
+    }
+    
+    toast('✅ Taxas locais aplicadas!');
+    textarea.dispatchEvent(new Event('input'));
+    if (typeof checkValidation === 'function') checkValidation();
+  } catch (e) {
+    toast('❌ Erro ao buscar taxas locais.');
+  }
+}
 </script>
 </body>
 </html>

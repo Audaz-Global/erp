@@ -24,6 +24,7 @@ import extractRoutes from './routes/extract';
 import quotationRoutes from './routes/quotation';
 import agentRoutes from './routes/agent';
 import fixedFeeRoutes from './routes/fixedFee';
+import standardFeeRoutes from './routes/standardFee';
 
 import knowledgeRoutes from './routes/knowledge';
 import smartcomexRoutes from './routes/smartcomex';
@@ -33,6 +34,7 @@ app.use('/api/extract', extractRoutes);
 app.use('/api/quotations', quotationRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/fixed-fees', fixedFeeRoutes);
+app.use('/api/standard-fees', standardFeeRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);
