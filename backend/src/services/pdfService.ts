@@ -1196,16 +1196,32 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         { name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' }
       ];
     } else {
-      // Adicionar as taxas de destino calculadas e obrigatórias no final da lista se dinâmico
-      detailedFeesDestino.push({ 
-        name: 'Collect Fee', 
-        qty: '-', 
-        unit: '% de Taxas Selecionadas', 
-        valueUnit: '3.00 %', 
-        min: '50.00', 
-        currency: fCurr, 
-        total: `${fCurr} ${collectFeeTotal.toFixed(2)}` 
-      });
+      // Adicionar as taxas de destino padrão que não estejam presentes para cotações aéreas
+      const hasCct = detailedFeesDestino.some(f => f.name.toLowerCase().includes('cct'));
+      const hasDelivery = detailedFeesDestino.some(f => f.name.toLowerCase().includes('delivery'));
+      const hasDescon = detailedFeesDestino.some(f => f.name.toLowerCase().includes('desconsolida') || f.name.toLowerCase().includes('deconsolidation'));
+      const hasCollect = detailedFeesDestino.some(f => f.name.toLowerCase().includes('collect'));
+
+      if (!hasCct) {
+        detailedFeesDestino.push({ name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' });
+      }
+      if (!hasDelivery) {
+        detailedFeesDestino.push({ name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' });
+      }
+      if (!hasDescon) {
+        detailedFeesDestino.push({ name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' });
+      }
+      if (!hasCollect) {
+        detailedFeesDestino.push({ 
+          name: 'Collect Fee', 
+          qty: '-', 
+          unit: '% de Taxas Selecionadas', 
+          valueUnit: '3.00 %', 
+          min: '50.00', 
+          currency: fCurr, 
+          total: `${fCurr} ${collectFeeTotal.toFixed(2)}` 
+        });
+      }
     }
 
     if (quotationData.customsClearanceIncluded) {
