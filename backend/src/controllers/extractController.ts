@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { parseEml, parseEmlWithMedia, parsePdf, parseExcel } from '../services/parserService';
+import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
 import { extractClientData, extractAgentCosts, generateAgentDraft, readLocalFeesTable } from '../services/aiService';
 import { prisma } from '../prisma';
 
@@ -22,6 +22,12 @@ export const extractData = async (req: Request, res: Response) => {
             extractedFileText += emlResult.text;
             if (emlResult.mediaParts && emlResult.mediaParts.length > 0) {
               mediaParts.push(...emlResult.mediaParts);
+            }
+          } else if (file.mimetype === 'application/vnd.ms-outlook' || ext.endsWith('.msg')) {
+            const msgResult = await parseMsg(file.buffer);
+            extractedFileText += msgResult.text;
+            if (msgResult.mediaParts && msgResult.mediaParts.length > 0) {
+              mediaParts.push(...msgResult.mediaParts);
             }
           } else if (file.mimetype === 'application/pdf' || ext.endsWith('.pdf')) {
             const pdfText = await parsePdf(file.buffer);

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@kenjiuno/msgreader": "^1.28.0",
     "@prisma/client": "^5.22.0",
     "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",

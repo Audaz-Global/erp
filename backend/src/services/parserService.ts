@@ -3,6 +3,7 @@ import * as xlsx from 'xlsx';
 
 // pdf-parse v2 usa export diferente
 const pdfParse = require('pdf-parse');
+const MsgReader = require('@kenjiuno/msgreader').default || require('@kenjiuno/msgreader');
 
 export interface ParsedEmlResult {
   text: string;
@@ -158,5 +159,38 @@ export const parseExcel = async (buffer: Buffer): Promise<string> => {
   } catch (error) {
     console.error('Erro ao fazer parse do .xlsx:', error);
     throw new Error('Falha ao processar arquivo Excel');
+  }
+};
+
+export const parseMsg = async (buffer: Buffer): Promise<ParsedEmlResult> => {
+  try {
+    const msg = new MsgReader(buffer);
+    const testMsg = msg.getFileData();
+    const fromName = testMsg.senderName || '';
+    const fromEmail = testMsg.senderEmail || '';
+    
+    let toText = '';
+    if (testMsg.recipients && testMsg.recipients.length > 0) {
+      toText = testMsg.recipients.map((r: any) => r.name || r.email || '').join(', ');
+    }
+
+    const extractedText = `
+--- EMAIL (MSG/OUTLOOK) ---
+De: ${fromName} ${fromEmail ? '<'+fromEmail+'>' : ''}
+Para: ${toText}
+Assunto: ${testMsg.subject || ''}
+Data: ${testMsg.messageDeliveryTime || ''}
+
+Corpo do Email:
+${testMsg.body || ''}
+    `;
+
+    return {
+      text: extractedText,
+      mediaParts: []
+    };
+  } catch (error) {
+    console.error('Erro ao fazer parse do .msg:', error);
+    return { text: '\n[Erro ao processar arquivo .msg]\n', mediaParts: [] };
   }
 };

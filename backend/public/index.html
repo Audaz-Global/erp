@@ -432,8 +432,8 @@
 
       <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
         <div class="icon">📂</div>
-        <p>Arraste e solte arquivos aqui ou <strong>clique para selecionar</strong></p>
-        <input type="file" id="fileInput" multiple accept=".eml,.pdf,.xlsx,.csv,.xls">
+        <p>Arraste e solte arquivos / e-mails (.msg) aqui ou <strong>clique para selecionar</strong></p>
+        <input type="file" id="fileInput" multiple accept=".eml,.msg,.pdf,.xlsx,.csv,.xls">
       </div>
       <div class="file-list" id="fileList"></div>
 
@@ -611,8 +611,8 @@
 
       <div class="file-drop" id="fileDropAgent" onclick="document.getElementById('fileInputAgent').click()">
         <div class="icon">📂</div>
-        <p>Arraste e solte arquivos aqui ou <strong>clique para selecionar</strong></p>
-        <input type="file" id="fileInputAgent" multiple accept=".eml,.pdf,.xlsx,.csv,.xls">
+        <p>Arraste e solte arquivos / e-mails (.msg) aqui ou <strong>clique para selecionar</strong></p>
+        <input type="file" id="fileInputAgent" multiple accept=".eml,.msg,.pdf,.xlsx,.csv,.xls">
       </div>
       <div class="file-list" id="fileListAgent"></div>
       <textarea id="emailTextAgent" placeholder="OU cole a resposta do agente aqui..." style="margin-top:10px"></textarea>
@@ -1868,6 +1868,8 @@ async function saveAsAwaitingAgent() {
   } finally {
     btn.disabled = false; btn.innerHTML = originalHtml;
   }
+}
+
 function recalculateModalDestinationServicesTotal() {
   const destinationServicesRaw = document.getElementById('rev-destination-services').value || '';
   let destinationServicesTotalBrl = 0;
