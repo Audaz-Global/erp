@@ -1057,6 +1057,34 @@
       </div>
     </div>
 
+    <!-- SMART PROFIT -->
+    <div style="background:linear-gradient(to right, rgba(16,185,129,0.08), rgba(16,185,129,0.02)); border:1.5px solid rgba(16,185,129,0.3); border-radius:14px; padding:20px; margin-bottom:24px;">
+      <div style="font-size:13px; font-weight:700; color:#10B981; margin-bottom:14px; display:flex; align-items:center; gap:8px;">💎 Gestão Financeira (Smart Profit)</div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; align-items:end;">
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Custo do Agente (USD Estimado)</label>
+          <input type="number" id="rev-cost-total" disabled placeholder="0.00" style="background:rgba(0,0,0,0.1); border:1px solid rgba(16,185,129,0.3); font-weight:600;">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px; color:#10B981; font-weight:bold;">Profit Desejado (USD)</label>
+          <input type="number" id="rev-profit" step="0.01" placeholder="Ex: 150.00" style="border:1.5px solid #10B981; font-weight:bold; color:#10B981;">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Alocar Profit No:</label>
+          <select id="rev-profit-target" style="border:1px solid #10B981;">
+            <option value="freight">Frete Internacional (Zero Imposto)</option>
+            <option value="destination">Taxas de Destino (Spread/Handling)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <button onclick="applySmartProfit()" type="button" style="width:100%; height:38px; background:rgba(16,185,129,0.15); color:#10B981; border:1px solid #10B981; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">💸 Aplicar Profit</button>
+        </div>
+      </div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:8px;">
+        * O histórico salvará as taxas originais da I.A. como <strong>Custos</strong> e os valores atuais da tela como <strong>Venda</strong>.
+      </div>
+    </div>
+
     <!-- DESEMBARAÇO (DESTAQUE) -->
     <div style="background:rgba(245,166,35,0.08);border:1.5px solid rgba(245,166,35,0.3);border-radius:14px;padding:20px;margin-bottom:28px;">
       <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px;">🏛️ Desembaraço Aduaneiro</div>
@@ -1448,6 +1476,7 @@ async function runExtract(mode = 'CLIENT') {
         fillReviewForm(json.data, 'CLIENT');
         switchTab('draft');
       } else {
+        window.lastExtractedAgentData = json.data;
         toast('🎉 Custos extraídos! Valide os valores antes de gerar o PDF.');
         document.getElementById('costs-review-grid').style.display = 'block';
         fillReviewForm(json.data, 'AGENT');
@@ -2003,6 +2032,44 @@ function calculateAndInjectInsurance() {
   recalculateModalDestinationServicesTotal();
 }
 
+function applySmartProfit() {
+  const profitStr = document.getElementById('rev-profit').value;
+  const target = document.getElementById('rev-profit-target').value;
+  if (!profitStr) {
+    alert("Digite o valor do Profit desejado.");
+    return;
+  }
+  
+  const profitValUsd = parseFloat(profitStr);
+  if (isNaN(profitValUsd) || profitValUsd <= 0) return;
+
+  if (target === 'freight') {
+    let freightVal = parseFloat(document.getElementById('rev-freight').value) || 0;
+    const freightCurrency = document.getElementById('rev-freight-currency').value;
+    const usdRate = 5.05;
+    const eurRate = 5.50;
+
+    // Converte USD para a moeda do frete
+    let profitConverted = profitValUsd;
+    if (freightCurrency === 'EUR') profitConverted = profitValUsd * (usdRate / eurRate);
+    else if (freightCurrency === 'BRL') profitConverted = profitValUsd * usdRate;
+
+    document.getElementById('rev-freight').value = (freightVal + profitConverted).toFixed(2);
+    alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado no Frete Internacional!`);
+  } else {
+    const destFeesTextarea = document.getElementById('rev-destination-services');
+    let currentText = destFeesTextarea.value || '';
+    
+    // Remove "Spread / Profit" se já existir
+    const lines = currentText.split('\n').filter(line => !line.toLowerCase().includes('spread / profit'));
+    lines.push(`Spread / Profit: ${profitValUsd.toFixed(2)} USD`);
+    
+    destFeesTextarea.value = lines.join('\n');
+    recalculateModalDestinationServicesTotal();
+    alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado nas Taxas de Destino!`);
+  }
+}
+
 async function validateAndGeneratePDF(qIdParam = null) {
   const fromHistory = qIdParam !== null;
   const qId = qIdParam || document.getElementById('pending-quotations').value;
@@ -2459,7 +2526,10 @@ async function confirmAndGeneratePDF() {
         originServices: originServicesStr,
         originServicesTotal: originServicesTotal || null,
         destinationServices: destinationServicesStr,
-        destinationServicesTotal: destinationServicesTotal || null
+        destinationServicesTotal: destinationServicesTotal || null,
+        expectedProfit: parseFloat(document.getElementById('rev-profit').value) || 0,
+        costsData: window.lastExtractedAgentData ? JSON.stringify(window.lastExtractedAgentData) : undefined,
+        salesData: JSON.stringify(body)
       })
     });
 

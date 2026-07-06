@@ -111,6 +111,12 @@ model Quotation {
   frequency          String?
   weightBreak        String?
   
+  // Gestão de Profit
+  costsData          String?  // JSON string
+  salesData          String?  // JSON string
+  expectedProfit     Float?   @default(0)
+  insuranceProfit    Float?   @default(0)
+
   notes              String?  // JSON string array
 
   sourceEmails       String?  // JSON string array
