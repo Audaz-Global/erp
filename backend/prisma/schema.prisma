@@ -46,7 +46,9 @@ model Quotation {
   
   // Agente / Coloader
   agentEmail  String?
+  agentName   String?
   draftEmail  String?  // Rascunho do email para o agente
+  sentAt      DateTime? // Horário do envio pelo Outlook
   
   // Type Info
   direction   String   // IMPORT, EXPORT

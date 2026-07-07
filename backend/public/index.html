@@ -868,13 +868,14 @@
               <th onclick="sortQuotations('modal')">Modal/Tipo</th>
               <th onclick="sortQuotations('freight')">Frete (USD) ↕</th>
               <th onclick="sortQuotations('profit')">Profit (USD) ↕</th>
+              <th>Agente (Envio)</th>
               <th onclick="sortQuotations('status')">Status ↕</th>
               <th onclick="sortQuotations('date')">Data ↕</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody id="quotationTbody">
-            <tr><td colspan="9">
+            <tr><td colspan="10">
               <div class="empty-state">
                 <div class="es-icon">📭</div>
                 <h3>Nenhuma cotação ainda</h3>
@@ -2295,12 +2296,17 @@ async function sendOutlookEmail() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
+    const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
+    const agentNameFromData = selectedOption ? (selectedOption.dataset.agentName || '') : '';
+    const finalAgentName = agentNameFromData ? `${agentNameFromData} - ${contactName}` : contactName;
+
     const res = await fetch(API + '/outlook/send-draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         quotationId: currentQuotationId,
         agentEmail: agentEmail,
+        agentName: finalAgentName,
         htmlBody: draftText
       })
     });
@@ -3206,7 +3212,6 @@ function renderTable() {
     'SENT': { label: 'Enviada', cls: 'sent', icon: '📤' },
     'EXPIRED': { label: 'Expirada', cls: 'expired', icon: '⛔' },
   };
-
   let html = '';
   pageData.forEach((q, idx) => {
     const st = statusMap[q.status] || { label: q.status, cls: 'draft', icon: '❓' };
@@ -3232,7 +3237,6 @@ function renderTable() {
     if (q.modal === 'AIR') {
       modalTypeLabel = 'Aéreo';
     } else if (q.loadType) {
-      // Simplifica FCL_40 para FCL 40', etc.
       modalTypeLabel = String(q.loadType).replace('FCL_', 'FCL ').replace('AIR_', '');
     } else if (q.modal === 'SEA') {
       modalTypeLabel = 'Marítimo';
@@ -3241,6 +3245,18 @@ function renderTable() {
     const profitNum = Number(q.expectedProfit) || 0;
     const profitFmt = profitNum > 0 ? `<span style="color:var(--success);font-weight:600;">+$${profitNum.toFixed(2)}</span>` : '<span style="color:var(--text-muted)">—</span>';
 
+    // Agente e Data de Envio
+    let agentDisplay = '<span style="color:var(--text-muted)">—</span>';
+    if (q.agentName) {
+      agentDisplay = `<div style="font-size:12px; font-weight:600; color:var(--text); line-height:1.2;">${q.agentName}</div>`;
+      if (q.sentAt) {
+        const sentDate = new Date(q.sentAt);
+        const dateStr = sentDate.toLocaleDateString('pt-BR');
+        const timeStr = sentDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        agentDisplay += `<div style="font-size:10px; color:var(--gold); margin-top:4px;">${dateStr} às ${timeStr}</div>`;
+      }
+    }
+
     html += `<tr onclick="toggleDetail(${globalIdx}, this)">
       <td class="cell-ref" title="${refText}">${refText}</td>
       <td class="cell-client" title="${clientName}">${clientName === '—' ? '<span style="color:var(--text-muted)">—</span>' : clientName}</td>
@@ -3248,8 +3264,9 @@ function renderTable() {
         <div class="route-cell">${origin} <span class="arrow">→</span> ${dest}</div>
       </td>
       <td><span class="modal-badge" title="${modalLabel} - ${q.loadType || ''}">${modalIcon} ${modalTypeLabel}</span></td>
-      <td style="font-weight:600;">${currencySymbol}${freight}</td>
+      <td style="font-family: monospace; font-weight: 600;">${currencySymbol}${freight}</td>
       <td>${profitFmt}</td>
+      <td>${agentDisplay}</td>
       <td><span class="status-badge ${st.cls}">${st.icon} ${st.label}</span></td>
       <td>${dateStr}</td>
       <td>

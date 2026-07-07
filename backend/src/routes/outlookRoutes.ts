@@ -11,7 +11,7 @@ marked.setOptions({ breaks: true });
 // Rota para disparar o e-mail de cotação via Outlook
 router.post('/send-draft', async (req: Request, res: Response) => {
   try {
-    const { quotationId, htmlBody, subject, agentEmail } = req.body;
+    const { quotationId, htmlBody, subject, agentEmail, agentName } = req.body;
 
     if (!quotationId) return res.status(400).json({ error: 'quotationId é obrigatório' });
     if (!agentEmail) return res.status(400).json({ error: 'agentEmail é obrigatório' });
@@ -46,8 +46,10 @@ router.post('/send-draft', async (req: Request, res: Response) => {
           ...quotationData,
           reference: targetReference,
           agentEmail: agentEmail,
+          agentName: agentName,
           status: 'AGUARDANDO_AGENTE',
-          draftEmail: rawMarkdown
+          draftEmail: rawMarkdown,
+          sentAt: new Date()
         }
       });
 
@@ -77,7 +79,9 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       data: { 
         status: 'AGUARDANDO_AGENTE',
         agentEmail: agentEmail,
-        draftEmail: rawMarkdown
+        agentName: agentName,
+        draftEmail: rawMarkdown,
+        sentAt: new Date()
       }
     });
 
