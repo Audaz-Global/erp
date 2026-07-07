@@ -43,9 +43,14 @@
   --tag-remove-btn-color: var(--text);
   --tag-remove-btn-bg: transparent;
   --tag-remove-btn-bg--hover: var(--error);
+  --placeholder-color: var(--text-muted);
+  --placeholder-color-focus: var(--text-muted);
   border-radius: 8px;
-  background: var(--card-bg);
+  background: var(--bg);
   padding: 4px;
+}
+.tagify__input::before {
+  color: var(--text-muted);
 }
 .tagify__dropdown {
   background: var(--bg-card);
@@ -1283,11 +1288,11 @@
     
     <div class="form-group">
       <label>Modais Atendidos (Opcional)</label>
-      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg);">
-        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="AIR"> AIR</label>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_FCL"> FCL</label>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_LCL"> LCL</label>
-        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="ROAD"> ROAD</label>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--bg);">
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="AIR" style="width:16px;height:16px;"> AIR</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_FCL" style="width:16px;height:16px;"> FCL</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_LCL" style="width:16px;height:16px;"> LCL</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="ROAD" style="width:16px;height:16px;"> ROAD</label>
       </div>
     </div>
     
