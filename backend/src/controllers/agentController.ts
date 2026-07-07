@@ -162,7 +162,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
         let currentPhone = '';
         let currentWebsite = '';
         let parsedContacts: any[] = [];
-        let lastPotentialContact = '';
+        let recentTexts: string[] = [];
 
         const saveCompany = async () => {
           if (currentCompany && companyEmails.size > 0) {
@@ -188,6 +188,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           currentPhone = '';
           currentWebsite = '';
           parsedContacts = [];
+          recentTexts = [];
         };
 
         for (const row of data) {
@@ -229,7 +230,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                   lastWasBlank = false;
                   if (valALower.startsWith('http') || valALower.startsWith('www.')) {
                       currentWebsite = valA;
-                  } else if (valALower.startsWith('ph:') || valALower.startsWith('tel:') || valALower.startsWith('phone')) {
+                  } else if (valALower.startsWith('ph:') || valALower.startsWith('tel:') || valALower.startsWith('phone') || valALower.startsWith('mob:')) {
                       currentPhone = valA;
                   } else if (isAddress || valALower.startsWith('office') || valALower.startsWith('unit') || valALower.startsWith('add:')) {
                       if (currentAddress) {
@@ -237,16 +238,18 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                       } else {
                           currentAddress = valA;
                       }
-                  } else if (!valA.includes('@')) {
-                      // Se não é email, endereço, telefone ou site, pode ser o nome de um contato!
-                      lastPotentialContact = valA;
                   }
               }
           }
 
-          // Procurar e-mails na linha inteira
+          // Procurar e-mails e contatos em todas as células da linha
           for (const key of keys) {
             const cell = String(row[key] || '').trim();
+            if (!cell) continue;
+
+            const cellLower = cell.toLowerCase();
+            const isCellAddress = cellLower.includes('street') || cellLower.includes('road') || cellLower.includes('floor') || cellLower.includes('room') || cellLower.includes('district') || cellLower.includes('building');
+
             if (cell.includes('@') && cell.includes('.')) {
               // Regex para extrair email de dentro do texto
               const match = cell.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
@@ -260,8 +263,8 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                     
                     // Tentar extrair do mesmo texto da célula (ex: "Sandro (Manager) sandro@cn.com")
                     let cellWithoutEmail = cell.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '').trim();
-                    if (!cellWithoutEmail && lastPotentialContact) {
-                      cellWithoutEmail = lastPotentialContact;
+                    if (!cellWithoutEmail && recentTexts.length > 0) {
+                      cellWithoutEmail = recentTexts[recentTexts.length - 1]; // pega o último texto detectado
                     }
                     
                     if (cellWithoutEmail && !cellWithoutEmail.toLowerCase().startsWith('http') && !cellWithoutEmail.toLowerCase().startsWith('www')) {
@@ -271,14 +274,17 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                       
                       const exists = parsedContacts.find(c => c.email === emailFound);
                       if (!exists) {
-                         console.log("-> EXTRAÍDO CONTATO:", { name: cName, role: cRole, email: emailFound });
                          parsedContacts.push({ name: cName, role: cRole, email: emailFound, phone: '' });
                       }
-                    } else {
-                      console.log("-> FALHA AO EXTRAIR NOME:", cellWithoutEmail);
                     }
                   });
               }
+            } else if (!cellLower.startsWith('http') && !cellLower.startsWith('www.') && !cellLower.startsWith('ph:') && !cellLower.startsWith('tel:') && !cellLower.startsWith('phone') && !cellLower.startsWith('mob:') && !isCellAddress && !cellLower.startsWith('office') && !cellLower.startsWith('unit') && !cellLower.startsWith('add:')) {
+               // Se não é email, endereço, telefone ou site, vamos guardar na lista de potenciais contatos!
+               // Evita colocar o nome da empresa
+               if (cell !== currentCompany) {
+                 recentTexts.push(cell);
+               }
             }
           }
         }
