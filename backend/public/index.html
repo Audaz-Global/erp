@@ -837,6 +837,12 @@
         </div>
       </div>
       
+      <div class="history-toolbar" style="margin-bottom: 20px;">
+        <div class="search-box">
+          <input type="text" id="agentSearch" placeholder="🔍 Buscar agente, e-mail, origem ou destino..." oninput="filterAgents()">
+        </div>
+      </div>
+      
       <div style="overflow-x: auto;">
         <table class="q-table" id="agentsTable">
           <thead>
@@ -3499,6 +3505,25 @@ function openAgentModal(id = null) {
 
 function closeAgentModal() {
   document.getElementById('agentModal').style.display = 'none';
+}
+
+function filterAgents() {
+  const search = (document.getElementById('agentSearch').value || '').toLowerCase();
+  const table = document.getElementById('agentsTable');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  const rows = tbody.querySelectorAll('tr');
+
+  rows.forEach(row => {
+    // se o texto de toda a linha contiver a string buscada, mostra, senão esconde
+    const text = row.innerText.toLowerCase();
+    if (text.includes(search)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
 }
 
 async function loadAgents() {
