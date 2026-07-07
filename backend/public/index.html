@@ -638,8 +638,11 @@
         <button class="btn btn-secondary" onclick="generateDraftEmail()" id="btnGenDraft">
           🤖 Gerar Rascunho
         </button>
-        <button class="btn btn-primary" onclick="saveAsAwaitingAgent()" id="btnSendAgent">
-          ⏳ Marcar como "Aguardando Agente"
+        <button class="btn btn-primary" style="background-color: #0078d4; color: white;" onclick="sendOutlookEmail()" id="btnSendOutlook">
+          ✉️ Disparar pelo Outlook
+        </button>
+        <button class="btn btn-secondary" onclick="saveAsAwaitingAgent()" id="btnSendAgent">
+          ⏳ Só Marcar Aguardando
         </button>
       </div>
     </div>
@@ -2196,6 +2199,54 @@ async function generateDraftEmail() {
     alert('Erro ao gerar rascunho: ' + e.message);
   }
   btn.disabled = false; btn.innerHTML = '🤖 Gerar Rascunho';
+}
+
+async function sendOutlookEmail() {
+  if (!currentQuotationId) {
+    alert('Por favor, gere o rascunho primeiro para criar a cotação.');
+    return;
+  }
+  
+  const selectEl = document.getElementById('r-agent-email');
+  const agentEmail = selectEl.value;
+  if (!agentEmail) {
+    alert('Selecione um Agente/Contato válido.');
+    return;
+  }
+
+  const draftText = document.getElementById('r-draft-text').value;
+  if (!draftText) {
+    alert('Gere o rascunho primeiro.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSendOutlook');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
+
+  try {
+    const res = await fetch(API + '/outlook/send-draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quotationId: currentQuotationId,
+        agentEmail: agentEmail,
+        htmlBody: draftText.replace(/\n/g, '<br>')
+      })
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Erro desconhecido');
+    }
+
+    toast('✉️ E-mail enviado com sucesso pelo Outlook!');
+    clearExtract();
+  } catch (e) {
+    alert('Erro ao enviar pelo Outlook: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = originalHtml;
+  }
 }
 
 async function saveAsAwaitingAgent() {
