@@ -264,7 +264,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                     // Tentar extrair do mesmo texto da célula (ex: "Sandro (Manager) sandro@cn.com")
                     let cellWithoutEmail = cell.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '').trim();
                     if (!cellWithoutEmail && recentTexts.length > 0) {
-                      cellWithoutEmail = recentTexts[recentTexts.length - 1]; // pega o último texto detectado
+                      cellWithoutEmail = recentTexts[recentTexts.length - 1] || ''; // pega o último texto detectado
                     }
                     
                     if (cellWithoutEmail && !cellWithoutEmail.toLowerCase().startsWith('http') && !cellWithoutEmail.toLowerCase().startsWith('www')) {
