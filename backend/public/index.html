@@ -494,6 +494,18 @@
 
   <!-- ════════════ PAINEL 2: RASCUNHO AGENTE ════════════ -->
   <div class="panel" id="panel-draft">
+    <div class="card" style="border-color: var(--gold); background: rgba(245,166,35,0.05); margin-bottom: 24px;">
+      <div style="display: flex; gap: 16px; align-items: flex-end;">
+        <div style="flex: 1;">
+          <label style="color: var(--gold); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: block;">🔄 Reaproveitar Cotação Anterior</label>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">Selecione uma cotação para preencher os dados automaticamente e enviar para um novo agente.</p>
+          <select id="r-load-quotation" onchange="loadQuotationIntoDraft()" style="margin-bottom: 0;">
+            <option value="">-- Nenhuma cotação selecionada --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <h2><span class="emoji">✉️</span> Rascunho para o Agente</h2>
       <p class="desc">Revise e complete os dados extraídos, e a IA gerará um e-mail para você solicitar os custos ao agente.</p>
@@ -1590,6 +1602,9 @@ function switchTab(name) {
   if(name === 'quotation' || name === 'return') {
     loadQuotations();
   }
+  if (name === 'draft') {
+    loadRecentQuotations();
+  }
 }
 
 // FILE UPLOAD LOGIC
@@ -2185,11 +2200,20 @@ async function generateDraftEmail() {
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null
     };
-
-    const resCreate = await fetch(API + '/quotations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+    let resCreate;
+    if (currentQuotationId) {
+      // Atualizar cotação existente
+      resCreate = await fetch(API + '/quotations/' + currentQuotationId, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } else {
+      // Criar nova cotação
+      resCreate = await fetch(API + '/quotations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
     const qData = await resCreate.json();
     currentQuotationId = qData.id;
 
@@ -4281,6 +4305,87 @@ async function loadStandardFeesTable() {
     container.innerHTML = html;
   } catch(e) {
     console.error('Erro ao carregar taxas locais', e);
+  }
+}
+
+// ════════════ REAPROVEITAR COTAÇÕES (TELA DE RASCUNHO) ════════════
+async function loadRecentQuotations() {
+  try {
+    const res = await fetch(API + '/quotations');
+    const quotations = await res.json();
+    const select = document.getElementById('r-load-quotation');
+    if (!select) return;
+    
+    // Limpar e deixar a option default
+    select.innerHTML = '<option value="">-- Selecione uma cotação para reaproveitar --</option>';
+    
+    // Pegar as 30 mais recentes
+    const recent = quotations.slice(0, 30);
+    recent.forEach(q => {
+      const clientName = q.client ? q.client.name : q.clientName || 'Desconhecido';
+      const ref = q.reference ? `[${q.reference}] ` : '';
+      const route = `${q.originCity} x ${q.destinationCity}`;
+      
+      const option = document.createElement('option');
+      option.value = q.id;
+      option.textContent = `${ref}${clientName} - ${route}`;
+      select.appendChild(option);
+    });
+  } catch (error) {
+    console.error('Erro ao carregar cotações recentes', error);
+  }
+}
+
+async function loadQuotationIntoDraft() {
+  const select = document.getElementById('r-load-quotation');
+  const id = select.value;
+  if (!id) return;
+  
+  try {
+    const res = await fetch(API + '/quotations/' + id);
+    const quotation = await res.json();
+    
+    if (quotation) {
+      currentQuotationId = quotation.id;
+      
+      // Adaptar o formato do banco para o formato esperado pelo fillReviewForm
+      const mappedData = {
+        reference: quotation.reference,
+        client: {
+          name: quotation.client ? quotation.client.name : quotation.clientName,
+          cnpj: quotation.client ? quotation.client.cnpj : quotation.clientCnpj,
+          contactName: quotation.clientContactName,
+          contactPhone: quotation.clientContactPhone,
+          confidence: 1
+        },
+        route: {
+          incoterm: quotation.incoterm,
+          origin: quotation.originCity,
+          origin_country: quotation.originCountry,
+          origin_airport: quotation.originPort,
+          destination: quotation.destinationCity,
+          destination_country: quotation.destinationCountry,
+          destination_airport: quotation.destinationPort,
+          connections: quotation.connections,
+          confidence: 1
+        },
+        cargo: {
+          type: quotation.loadType,
+          gross_weight_kg: quotation.totalGrossWeightKg,
+          packages_count: quotation.totalPackages,
+          is_imo: quotation.isImo,
+          requires_insurance: quotation.requiresInsurance,
+          commercial_value_usd: quotation.commercialValue,
+          dimensions: quotation.packages,
+          confidence: 1
+        }
+      };
+      
+      fillReviewForm(mappedData, 'CLIENT');
+      toast('✅ Dados da cotação carregados!');
+    }
+  } catch (error) {
+    alert('Erro ao carregar os dados da cotação: ' + error.message);
   }
 }
 
