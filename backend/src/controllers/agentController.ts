@@ -191,6 +191,8 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           recentTexts = [];
         };
 
+        let previousRow: any = null;
+
         for (const row of data) {
           const keys = Object.keys(row);
           if (keys.length === 0) continue;
@@ -263,6 +265,9 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                     
                     // Tentar extrair do mesmo texto da célula (ex: "Sandro (Manager) sandro@cn.com")
                     let cellWithoutEmail = cell.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '').trim();
+                    if (!cellWithoutEmail && previousRow && previousRow[key]) {
+                      cellWithoutEmail = String(previousRow[key]).trim();
+                    }
                     if (!cellWithoutEmail && recentTexts.length > 0) {
                       cellWithoutEmail = recentTexts[recentTexts.length - 1] || ''; // pega o último texto detectado
                     }
@@ -287,6 +292,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                }
             }
           }
+          previousRow = row;
         }
         await saveCompany(); // Salvar a última do arquivo
       }
