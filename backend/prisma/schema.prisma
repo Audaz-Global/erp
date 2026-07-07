@@ -153,8 +153,7 @@ model Agent {
   address      String?
   phone        String?
   website      String?
-  contactName  String?
-  contactEmail String?
+  contacts     Json?    // Array de contatos ex: [{"name":"John","email":"j@a.com"}]
   modals       String?  // Ex: "Aéreo, Marítimo FCL"
   origins      String?  // Ex: "China, Estados Unidos, APAC"
   destinations String?  // Ex: "Brasil"

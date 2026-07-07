@@ -1302,20 +1302,19 @@
       </div>
     </div>
     
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-      <div class="form-group">
-        <label>Nome do Contato</label>
-        <input type="text" id="agent-contact-name" placeholder="Ex: John Doe">
-      </div>
-      <div class="form-group">
-        <label>E-mail do Contato</label>
-        <input type="email" id="agent-contact-email" placeholder="E-mail direto do contato">
-      </div>
-    </div>
-    
     <div class="form-group">
       <label>Site / Website</label>
       <input type="text" id="agent-website" placeholder="Ex: www.yongsheng.com">
+    </div>
+
+    <div style="margin-top:20px; margin-bottom:20px; border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--bg);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <label style="margin:0; font-weight:600; color:var(--gold);">Contatos (Opcional)</label>
+        <button type="button" class="btn btn-secondary" onclick="addAgentContact()" style="padding:6px 12px; font-size:12px; border-radius:6px;">➕ Novo Contato</button>
+      </div>
+      <div id="agent-contacts-container" style="display:flex; flex-direction:column; gap:12px;">
+        <!-- contatos dinâmicos serão inseridos aqui -->
+      </div>
     </div>
     
     <div class="form-group">
@@ -3573,6 +3572,24 @@ let tagifyOrigins, tagifyDestinations, tagifyNetworks;
 const countryWhitelist = ['Alemanha', 'Argentina', 'Austrália', 'Brasil', 'Canadá', 'Chile', 'China', 'Colômbia', 'Coreia do Sul', 'Emirados Árabes Unidos', 'Espanha', 'Estados Unidos', 'França', 'Hong Kong', 'Índia', 'Itália', 'Japão', 'México', 'Nova Zelândia', 'Portugal', 'Reino Unido', 'África do Sul', 'Taiwan', 'Europa', 'Latam', 'APAC', 'América do Norte'];
 const networkWhitelist = ['WCA', 'JCtrans', 'GLA', 'MarcoPolo', 'X2', 'OOG', 'Alianca', 'Lognet', 'PPL'];
 
+function addAgentContact(name = '', email = '', phone = '') {
+  const container = document.getElementById('agent-contacts-container');
+  const div = document.createElement('div');
+  div.className = 'agent-contact-row';
+  div.style.display = 'grid';
+  div.style.gridTemplateColumns = '1fr 1fr 1fr auto';
+  div.style.gap = '8px';
+  div.style.alignItems = 'center';
+  
+  div.innerHTML = `
+    <input type="text" class="contact-name" placeholder="Nome" value="${name}">
+    <input type="email" class="contact-email" placeholder="E-mail" value="${email}">
+    <input type="text" class="contact-phone" placeholder="Telefone (Opcional)" value="${phone}">
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.8;" title="Remover contato">🗑️</button>
+  `;
+  container.appendChild(div);
+}
+
 function initTagify() {
   if (!tagifyNetworks) {
     tagifyNetworks = new Tagify(document.getElementById('agent-networks'), {
@@ -3605,8 +3622,7 @@ function openAgentModal(id = null) {
     document.getElementById('agent-address').value = '';
     document.getElementById('agent-phone').value = '';
     document.getElementById('agent-website').value = '';
-    document.getElementById('agent-contact-name').value = '';
-    document.getElementById('agent-contact-email').value = '';
+    document.getElementById('agent-contacts-container').innerHTML = '';
     
     document.querySelectorAll('input[name="agent-modal"]').forEach(cb => cb.checked = false);
     tagifyNetworks.removeAllTags();
@@ -3682,8 +3698,11 @@ function editAgent(agent) {
   document.getElementById('agent-address').value = agent.address || '';
   document.getElementById('agent-phone').value = agent.phone || '';
   document.getElementById('agent-website').value = agent.website || '';
-  document.getElementById('agent-contact-name').value = agent.contactName || '';
-  document.getElementById('agent-contact-email').value = agent.contactEmail || '';
+  
+  document.getElementById('agent-contacts-container').innerHTML = '';
+  if (agent.contacts && Array.isArray(agent.contacts)) {
+    agent.contacts.forEach(c => addAgentContact(c.name || '', c.email || '', c.phone || ''));
+  }
   
   const modalsArr = (agent.modals || '').split(',').map(m => m.trim());
   document.querySelectorAll('input[name="agent-modal"]').forEach(cb => {
@@ -3738,6 +3757,16 @@ async function saveAgent() {
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
   const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
 
+  const contacts = [];
+  document.querySelectorAll('.agent-contact-row').forEach(row => {
+    const cName = row.querySelector('.contact-name').value.trim();
+    const cEmail = row.querySelector('.contact-email').value.trim();
+    const cPhone = row.querySelector('.contact-phone').value.trim();
+    if (cName || cEmail || cPhone) {
+      contacts.push({ name: cName, email: cEmail, phone: cPhone });
+    }
+  });
+
   const payload = {
     name,
     email,
@@ -3745,8 +3774,7 @@ async function saveAgent() {
     address: document.getElementById('agent-address').value,
     phone: document.getElementById('agent-phone').value,
     website: document.getElementById('agent-website').value,
-    contactName: document.getElementById('agent-contact-name').value,
-    contactEmail: document.getElementById('agent-contact-email').value,
+    contacts: contacts,
     modals: modalsStr,
     origins: originsStr,
     destinations: destinationsStr,

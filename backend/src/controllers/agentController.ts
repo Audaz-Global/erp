@@ -24,8 +24,7 @@ export const createAgent = async (req: Request, res: Response) => {
         address: data.address || null,
         phone: data.phone || null,
         website: data.website || null,
-        contactName: data.contactName || null,
-        contactEmail: data.contactEmail || null,
+        contacts: data.contacts || null,
         modals: data.modals || null,
         origins: data.origins || null,
         destinations: data.destinations || null,
@@ -51,8 +50,7 @@ export const updateAgent = async (req: Request, res: Response) => {
         address: data.address,
         phone: data.phone,
         website: data.website,
-        contactName: data.contactName,
-        contactEmail: data.contactEmail,
+        contacts: data.contacts,
         modals: data.modals,
         origins: data.origins,
         destinations: data.destinations,
@@ -138,6 +136,9 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
         let currentCompany = '';
         let lastWasBlank = true;
         let companyEmails = new Set<string>();
+        let currentAddress = '';
+        let currentPhone = '';
+        let currentWebsite = '';
 
         const saveCompany = async () => {
           if (currentCompany && companyEmails.size > 0) {
@@ -148,6 +149,9 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                 origins: sheetName,
                 destinations: sheetName,
                 modals: 'ALL',
+                address: currentAddress || null,
+                phone: currentPhone || null,
+                website: currentWebsite || null,
                 active: true
               }
             });
@@ -155,6 +159,9 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           }
           currentCompany = '';
           companyEmails.clear();
+          currentAddress = '';
+          currentPhone = '';
+          currentWebsite = '';
         };
 
         for (const row of data) {
@@ -194,6 +201,17 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
               } else {
                   // Even if it's an address or phone, it's not a blank line
                   lastWasBlank = false;
+                  if (valALower.startsWith('http') || valALower.startsWith('www.')) {
+                      currentWebsite = valA;
+                  } else if (valALower.startsWith('ph:') || valALower.startsWith('tel:') || valALower.startsWith('phone')) {
+                      currentPhone = valA;
+                  } else if (isAddress || valALower.startsWith('office') || valALower.startsWith('unit') || valALower.startsWith('add:')) {
+                      if (currentAddress) {
+                          currentAddress += ', ' + valA;
+                      } else {
+                          currentAddress = valA;
+                      }
+                  }
               }
           }
 
