@@ -1695,6 +1695,7 @@ async function runExtract(mode = 'CLIENT') {
 
     if (res.ok && json.data) {
       if (mode === 'CLIENT') {
+        currentQuotationId = null; // Limpa o ID se for uma cotação 100% nova
         window.lastExtractedRawText = json.rawText; // Armazena o texto original da extração
         toast('🎉 Dados do cliente extraídos! Complete e gere o rascunho.');
         fillReviewForm(json.data, 'CLIENT');
@@ -1720,6 +1721,7 @@ function clearExtract() {
   document.getElementById('emailText').value=''; 
   document.getElementById('emailTextAgent').value=''; 
   currentQuotationId = null;
+  window.lastExtractedRawText = null;
 }
 
 // 2. REVISÃO DA COTAÇÃO
@@ -4347,6 +4349,16 @@ async function loadQuotationIntoDraft() {
     
     if (quotation) {
       currentQuotationId = quotation.id;
+      window.lastExtractedRawText = null;
+      if (quotation.sourceEmails) {
+        try {
+          const arr = JSON.parse(quotation.sourceEmails);
+          if (Array.isArray(arr) && arr.length > 0) window.lastExtractedRawText = arr[0];
+          else window.lastExtractedRawText = quotation.sourceEmails;
+        } catch(e) {
+          window.lastExtractedRawText = quotation.sourceEmails;
+        }
+      }
       
       // Adaptar o formato do banco para o formato esperado pelo fillReviewForm
       const mappedData = {

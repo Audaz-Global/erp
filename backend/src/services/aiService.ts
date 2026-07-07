@@ -260,7 +260,8 @@ export const generateAgentDraft = async (data: any, contextRules: string = '', c
     INSTRUÇÃO CRÍTICA DE IDIOMA:
     Escreva o e-mail SEMPRE inteiramente em Português (Brasil) para revisão prévia do operador logístico.
 
-    Use os dados abaixo e o e-mail original (se disponível) para redigir o corpo do e-mail.
+    Use os dados abaixo para redigir o corpo do e-mail. Se o e-mail original for fornecido, use-o APENAS para contexto complementar.
+    ATENÇÃO: Os "DADOS EXTRAÍDOS DA CARGA" fornecidos abaixo têm precedência absoluta. Se houver divergência entre os dados abaixo e o e-mail original (ex: pesos ou dimensões diferentes), VOCÊ DEVE USAR OS DADOS EXTRAÍDOS ABAIXO, pois eles já foram validados e corrigidos manualmente pelo agente.
 
     REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES:
     ${contextRules}
