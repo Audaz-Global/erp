@@ -115,6 +115,23 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
             const modalsField = keys.find(k => k.toLowerCase().includes('modal'));
             const originsField = keys.find(k => k.toLowerCase().includes('origin') || k.toLowerCase().includes('origen'));
             const destinationsField = keys.find(k => k.toLowerCase().includes('destin'));
+            const networksField = keys.find(k => k.toLowerCase().includes('network') || k.toLowerCase().includes('rede'));
+            const addressField = keys.find(k => k.toLowerCase().includes('address') || k.toLowerCase().includes('endere'));
+            const phoneField = keys.find(k => k.toLowerCase().includes('phone') || k.toLowerCase().includes('telef') || k.toLowerCase().includes('celular'));
+            const websiteField = keys.find(k => k.toLowerCase().includes('website') || k.toLowerCase().includes('site'));
+            
+            const contactField = keys.find(k => k.toLowerCase().includes('contact') || k.toLowerCase().includes('contato') || k.toLowerCase() === 'nome');
+            const roleField = keys.find(k => k.toLowerCase().includes('role') || k.toLowerCase().includes('cargo') || k.toLowerCase().includes('title'));
+
+            let parsedContacts: any[] = [];
+            if (contactField && row[contactField]) {
+               parsedContacts.push({
+                 name: String(row[contactField]).trim(),
+                 role: roleField && row[roleField] ? String(row[roleField]).trim() : '',
+                 email: '',
+                 phone: ''
+               });
+            }
 
             await prisma.agent.create({
               data: {
@@ -123,6 +140,11 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                 modals: modalsField ? String(row[modalsField]).trim() : null,
                 origins: originsField ? String(row[originsField]).trim() : null,
                 destinations: destinationsField ? String(row[destinationsField]).trim() : null,
+                networks: networksField ? String(row[networksField]).trim() : null,
+                address: addressField ? String(row[addressField]).trim() : null,
+                phone: phoneField ? String(row[phoneField]).trim() : null,
+                website: websiteField ? String(row[websiteField]).trim() : null,
+                contacts: parsedContacts.length > 0 ? parsedContacts : undefined,
                 active: true
               }
             });
@@ -249,8 +271,11 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                       
                       const exists = parsedContacts.find(c => c.email === emailFound);
                       if (!exists) {
+                         console.log("-> EXTRAÍDO CONTATO:", { name: cName, role: cRole, email: emailFound });
                          parsedContacts.push({ name: cName, role: cRole, email: emailFound, phone: '' });
                       }
+                    } else {
+                      console.log("-> FALHA AO EXTRAIR NOME:", cellWithoutEmail);
                     }
                   });
               }
