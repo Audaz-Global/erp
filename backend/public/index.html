@@ -1717,13 +1717,39 @@ async function populateAgentDropdown(originCountry) {
     }
   }
 
-  const country = (originCountry || '').toLowerCase();
+  const countryLower = (originCountry || '').toLowerCase();
+  
+  const countryAliases = {
+    'france': ['france', 'frança'],
+    'frança': ['france', 'frança'],
+    'brazil': ['brazil', 'brasil'],
+    'brasil': ['brazil', 'brasil'],
+    'united states': ['united states', 'estados unidos', 'usa', 'eua'],
+    'estados unidos': ['united states', 'estados unidos', 'usa', 'eua'],
+    'usa': ['united states', 'estados unidos', 'usa', 'eua'],
+    'eua': ['united states', 'estados unidos', 'usa', 'eua'],
+    'germany': ['germany', 'alemanha'],
+    'alemanha': ['germany', 'alemanha'],
+    'italy': ['italy', 'itália', 'italia'],
+    'itália': ['italy', 'itália', 'italia'],
+    'spain': ['spain', 'espanha'],
+    'espanha': ['spain', 'espanha'],
+    'china': ['china', 'prc'],
+    'uk': ['uk', 'united kingdom', 'reino unido', 'england', 'inglaterra'],
+    'united kingdom': ['uk', 'united kingdom', 'reino unido', 'england', 'inglaterra'],
+    'reino unido': ['uk', 'united kingdom', 'reino unido', 'england', 'inglaterra'],
+    'netherlands': ['netherlands', 'holanda', 'países baixos', 'paises baixos'],
+    'holanda': ['netherlands', 'holanda', 'países baixos', 'paises baixos']
+  };
+
+  const searchTerms = countryAliases[countryLower] || [countryLower];
   
   const matchingAgents = window.globalAgentsList.filter(a => {
      if (!a.active) return false;
-     if (!country) return false;
+     if (!countryLower) return false;
      if (!a.origins) return false;
-     return a.origins.toLowerCase().includes(country);
+     const originsLower = a.origins.toLowerCase();
+     return searchTerms.some(term => originsLower.includes(term));
   });
 
   if (matchingAgents.length === 0) {
