@@ -23,7 +23,45 @@
     --warning: #fbbf24;
     --radius: 16px;
   }
-
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+<link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+<style>
+/* Tagify Dark Theme Adjustments */
+.tagify {
+  --tags-border-color: var(--border);
+  --tags-hover-border-color: var(--gold);
+  --tags-focus-border-color: var(--gold);
+  --tag-bg: var(--navy-light);
+  --tag-hover: var(--gold);
+  --tag-text-color: var(--text);
+  --tag-text-color--edit: var(--text);
+  --tag-pad: 0.4em 0.6em;
+  --tag-inset-shadow-size: 1.1em;
+  --tag-invalid-color: var(--error);
+  --tag-invalid-bg: rgba(248, 113, 113, 0.1);
+  --tag-remove-btn-color: var(--text);
+  --tag-remove-btn-bg: transparent;
+  --tag-remove-btn-bg--hover: var(--error);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 4px;
+}
+.tagify__dropdown {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  color: var(--text);
+}
+.tagify__dropdown__item {
+  color: var(--text);
+}
+.tagify__dropdown__item--active {
+  background: var(--navy-light);
+  color: var(--gold);
+}
+</style>
+<style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
@@ -1245,17 +1283,22 @@
     
     <div class="form-group">
       <label>Modais Atendidos (Opcional)</label>
-      <input type="text" id="agent-modals" placeholder="Ex: AIR, LCL, FCL">
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg);">
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="AIR"> AIR</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_FCL"> FCL</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_LCL"> LCL</label>
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:13px; margin:0;"><input type="checkbox" name="agent-modal" value="ROAD"> ROAD</label>
+      </div>
     </div>
     
     <div class="form-group">
       <label>Origens de Atuação (Opcional)</label>
-      <input type="text" id="agent-origins" placeholder="Ex: China, HK, APAC">
+      <input type="text" id="agent-origins" placeholder="Adicione países...">
     </div>
     
     <div class="form-group">
       <label>Destinos (Opcional)</label>
-      <input type="text" id="agent-destinations" placeholder="Ex: Brasil, Latam">
+      <input type="text" id="agent-destinations" placeholder="Adicione países...">
     </div>
     
     <div class="form-group" style="display:flex; align-items:center; gap:8px;">
@@ -3489,16 +3532,37 @@ async function deleteKnowledge(id) {
 }
 
 // ════════════ GESTÃO DE AGENTES ════════════
+let tagifyOrigins, tagifyDestinations;
+const countryWhitelist = ['Alemanha', 'Argentina', 'Austrália', 'Brasil', 'Canadá', 'Chile', 'China', 'Colômbia', 'Coreia do Sul', 'Emirados Árabes Unidos', 'Espanha', 'Estados Unidos', 'França', 'Hong Kong', 'Índia', 'Itália', 'Japão', 'México', 'Nova Zelândia', 'Portugal', 'Reino Unido', 'África do Sul', 'Taiwan', 'Europa', 'Latam', 'APAC', 'América do Norte'];
+
+function initTagify() {
+  if (!tagifyOrigins) {
+    tagifyOrigins = new Tagify(document.getElementById('agent-origins'), {
+      whitelist: countryWhitelist,
+      dropdown: { maxItems: 20, enabled: 0, closeOnSelect: false }
+    });
+  }
+  if (!tagifyDestinations) {
+    tagifyDestinations = new Tagify(document.getElementById('agent-destinations'), {
+      whitelist: countryWhitelist,
+      dropdown: { maxItems: 20, enabled: 0, closeOnSelect: false }
+    });
+  }
+}
+
 function openAgentModal(id = null) {
+  initTagify();
   document.getElementById('agentModal').style.display = 'block';
   if (!id) {
     document.getElementById('agentModalTitle').innerText = 'Novo Agente';
     document.getElementById('agent-id').value = '';
     document.getElementById('agent-name').value = '';
     document.getElementById('agent-email').value = '';
-    document.getElementById('agent-modals').value = '';
-    document.getElementById('agent-origins').value = '';
-    document.getElementById('agent-destinations').value = '';
+    
+    document.querySelectorAll('input[name="agent-modal"]').forEach(cb => cb.checked = false);
+    tagifyOrigins.removeAllTags();
+    tagifyDestinations.removeAllTags();
+    
     document.getElementById('agent-active').checked = true;
   }
 }
@@ -3565,9 +3629,18 @@ function editAgent(agent) {
   document.getElementById('agent-id').value = agent.id;
   document.getElementById('agent-name').value = agent.name;
   document.getElementById('agent-email').value = agent.email;
-  document.getElementById('agent-modals').value = agent.modals || '';
-  document.getElementById('agent-origins').value = agent.origins || '';
-  document.getElementById('agent-destinations').value = agent.destinations || '';
+  
+  const modalsArr = (agent.modals || '').split(',').map(m => m.trim());
+  document.querySelectorAll('input[name="agent-modal"]').forEach(cb => {
+    cb.checked = modalsArr.includes(cb.value) || agent.modals === 'ALL';
+  });
+  
+  tagifyOrigins.removeAllTags();
+  if (agent.origins) tagifyOrigins.addTags(agent.origins.split(',').map(s=>s.trim()));
+  
+  tagifyDestinations.removeAllTags();
+  if (agent.destinations) tagifyDestinations.addTags(agent.destinations.split(',').map(s=>s.trim()));
+  
   document.getElementById('agent-active').checked = agent.active;
 }
 
@@ -3577,12 +3650,18 @@ async function saveAgent() {
   btn.disabled = true;
   btn.innerText = 'Salvando...';
   
+  const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
+  const modalsStr = selectedModals.length === 4 ? 'ALL' : selectedModals.join(', ');
+  
+  const originsStr = tagifyOrigins.value.map(t => t.value).join(', ');
+  const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
+
   const payload = {
     name: document.getElementById('agent-name').value,
     email: document.getElementById('agent-email').value,
-    modals: document.getElementById('agent-modals').value,
-    origins: document.getElementById('agent-origins').value,
-    destinations: document.getElementById('agent-destinations').value,
+    modals: modalsStr,
+    origins: originsStr,
+    destinations: destinationsStr,
     active: document.getElementById('agent-active').checked
   };
   
