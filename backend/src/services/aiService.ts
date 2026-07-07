@@ -249,10 +249,13 @@ export const extractClientData = async (text: string, contextRules: string = '',
   }
 };
 
-export const generateAgentDraft = async (data: any, contextRules: string = '') => {
+export const generateAgentDraft = async (data: any, contextRules: string = '', contactName?: string) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezado(a) Agente,`;
+    
     const prompt = `Você é um agente de pricing escrevendo um e-mail para solicitar cotação de frete internacional a um coloader/agente.
+    ${greeting}
     Use os dados abaixo e o e-mail original (se disponível) para redigir o corpo do e-mail.
 
     REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES:

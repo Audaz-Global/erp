@@ -146,6 +146,8 @@ export const extractData = async (req: Request, res: Response) => {
 export const generateDraft = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { contactName } = req.body || {};
+    
     const quotation = await prisma.quotation.findUnique({ where: { id } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
 
@@ -189,7 +191,7 @@ export const generateDraft = async (req: Request, res: Response) => {
       originalEmailText
     };
 
-    const draftText = await generateAgentDraft(payload, contextRules);
+    const draftText = await generateAgentDraft(payload, contextRules, contactName);
     
     // Atualizar no banco
     const updated = await prisma.quotation.update({

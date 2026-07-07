@@ -619,8 +619,10 @@
       </div> <!-- Fecha o review-grid -->
 
       <div class="form-group" style="margin-top: 24px;">
-        <label>E-mail do Agente / Coloader</label>
-        <input type="email" id="r-agent-email" placeholder="agente@exemplo.com">
+        <label>Selecione o Agente / Coloader</label>
+        <select id="r-agent-email">
+          <option value="">Nenhum agente encontrado para esta origem</option>
+        </select>
       </div>
 
       <div class="form-group">
@@ -1701,6 +1703,63 @@ function renderConf(val, confStr) {
   return `<div class="conf-wrapper"><div class="conf-dot ${color}"></div> ${pct}%</div>`;
 }
 
+async function populateAgentDropdown(originCountry) {
+  const select = document.getElementById('r-agent-email');
+  if (!select) return;
+  select.innerHTML = '<option value="">Buscando agentes...</option>';
+  
+  if (!window.globalAgentsList) {
+    try {
+      const res = await fetch(API + '/agents');
+      window.globalAgentsList = await res.json();
+    } catch (e) {
+      window.globalAgentsList = [];
+    }
+  }
+
+  const country = (originCountry || '').toLowerCase();
+  
+  const matchingAgents = window.globalAgentsList.filter(a => {
+     if (!a.active) return false;
+     if (!country) return false;
+     if (!a.origins) return false;
+     return a.origins.toLowerCase().includes(country);
+  });
+
+  if (matchingAgents.length === 0) {
+    select.innerHTML = '<option value="">Nenhum agente encontrado para esta origem (' + (originCountry||'Desconhecida') + ')</option>';
+    return;
+  }
+
+  select.innerHTML = '';
+  
+  matchingAgents.forEach(agent => {
+    let contacts = [];
+    try {
+      contacts = typeof agent.contacts === 'string' ? JSON.parse(agent.contacts) : (agent.contacts || []);
+    } catch(e){}
+    
+    if (contacts.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = agent.email;
+      opt.dataset.contactName = 'Agente';
+      opt.dataset.agentName = agent.name;
+      opt.textContent = `${agent.name} - Principal (${agent.email})`;
+      select.appendChild(opt);
+    } else {
+      contacts.forEach(c => {
+         if(!c.email) return;
+         const opt = document.createElement('option');
+         opt.value = c.email;
+         opt.dataset.contactName = c.name || 'Agente';
+         opt.dataset.agentName = agent.name;
+         opt.textContent = `${agent.name} - ${c.name || 'Contato'} (${c.role ? c.role+' - ' : ''}${c.email})`;
+         select.appendChild(opt);
+      });
+    }
+  });
+}
+
 function fillReviewForm(d, mode) {
   if (mode === 'CLIENT') {
     document.getElementById('r-reference').value = d.reference || '';
@@ -1775,6 +1834,19 @@ function fillReviewForm(d, mode) {
         recommendAgents(d.route.origin_country || d.route.origin, d.cargo.type);
       }
     }
+    
+    // Após preencher o form, já popular o select de agentes se estivermos extraindo o CLIENTE (para a origem extraída)
+    populateAgentDropdown(document.getElementById('r-origin-country').value);
+    
+    // Adicionar listener para se o usuário alterar manualmente o país
+    const originCountryInput = document.getElementById('r-origin-country');
+    if (originCountryInput && !originCountryInput.hasAttribute('data-listener')) {
+      originCountryInput.setAttribute('data-listener', 'true');
+      originCountryInput.addEventListener('change', () => {
+        populateAgentDropdown(originCountryInput.value);
+      });
+    }
+
   } else if (mode === 'AGENT') {
     if(d.costs) {
       const freightInput = document.getElementById('r-freight');
@@ -2081,7 +2153,15 @@ async function generateDraftEmail() {
     const qData = await resCreate.json();
     currentQuotationId = qData.id;
 
-    const resDraft = await fetch(API + `/extract/draft/${currentQuotationId}`, { method: 'POST' });
+    const selectEl = document.getElementById('r-agent-email');
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
+
+    const resDraft = await fetch(API + `/extract/draft/${currentQuotationId}`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactName })
+    });
     const draftData = await resDraft.json();
     
     document.getElementById('r-draft-text').value = draftData.draft || '';
