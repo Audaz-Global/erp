@@ -625,20 +625,20 @@
         </select>
       </div>
 
-      <div class="form-group" style="display: flex; gap: 16px; align-items: flex-end;">
-        <div style="flex: 1;">
-          <label>Idioma do E-mail (Para o Agente)</label>
-          <select id="r-draft-language">
-            <option value="ORIGIN">Idioma do País de Origem (Automático)</option>
-            <option value="ENGLISH">Inglês</option>
-            <option value="PORTUGUESE">Português (Brasil)</option>
-          </select>
-        </div>
+      <div class="form-group">
+        <label>Rascunho de E-mail (Sempre gerado em Português para sua revisão)</label>
+        <textarea id="r-draft-text" rows="8" placeholder="O rascunho aparecerá aqui..." style="font-family: monospace;"></textarea>
       </div>
 
-      <div class="form-group">
-        <label>Rascunho de E-mail (Gerado pela IA)</label>
-        <textarea id="r-draft-text" rows="8" placeholder="O rascunho aparecerá aqui..." style="font-family: monospace;"></textarea>
+      <div class="form-group" style="display: flex; gap: 16px; align-items: flex-end; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 8px;">
+        <div style="flex: 1;">
+          <label style="font-size: 0.85rem; color: #64748b;">Tradução do Rascunho Final</label>
+          <select id="r-translate-language">
+            <option value="ORIGIN">Idioma do País de Origem (Automático)</option>
+            <option value="ENGLISH">Inglês Comercial</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" onclick="translateDraft()" id="translate-btn" style="white-space: nowrap;">🌐 Traduzir Texto</button>
       </div>
 
       <div class="status-strip warn" id="statusStrip">
@@ -2201,8 +2201,7 @@ async function generateDraftEmail() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        contactName, 
-        draftLanguage: document.getElementById('r-draft-language').value 
+        contactName 
       })
     });
     const draftData = await resDraft.json();

@@ -146,7 +146,7 @@ export const extractData = async (req: Request, res: Response) => {
 export const generateDraft = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { contactName, draftLanguage } = req.body || {};
+    const { contactName } = req.body || {};
     
     const quotation = await prisma.quotation.findUnique({ where: { id } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
@@ -192,7 +192,7 @@ export const generateDraft = async (req: Request, res: Response) => {
       originCountry: quotation.originCountry
     };
 
-    const draftText = await generateAgentDraft(payload, contextRules, contactName, draftLanguage);
+    const draftText = await generateAgentDraft(payload, contextRules, contactName);
     
     // Atualizar no banco
     const updated = await prisma.quotation.update({
@@ -201,6 +201,22 @@ export const generateDraft = async (req: Request, res: Response) => {
     });
 
     res.json({ draft: draftText, quotation: updated });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const translateDraftController = async (req: Request, res: Response) => {
+  try {
+    const { text, targetLanguage, originCountry } = req.body;
+    if (!text || !targetLanguage) {
+      return res.status(400).json({ error: 'Faltam parâmetros de tradução' });
+    }
+
+    const { translateDraftText } = await import('../services/aiService');
+    const translatedText = await translateDraftText(text, targetLanguage, originCountry);
+
+    res.json({ translatedText });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

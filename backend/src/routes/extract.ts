@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { extractData, generateDraft } from '../controllers/extractController';
+import { extractData, generateDraft, translateDraftController } from '../controllers/extractController';
 import { authenticate } from '../middlewares/auth';
 
 const router = Router();
@@ -12,5 +12,8 @@ router.post('/', authenticate, upload.array('files'), extractData);
 
 // Rota para gerar rascunho de e-mail para o agente
 router.post('/draft/:id', authenticate, generateDraft);
+
+// Rota para traduzir texto
+router.post('/translate', authenticate, translateDraftController);
 
 export default router;

@@ -249,25 +249,16 @@ export const extractClientData = async (text: string, contextRules: string = '',
   }
 };
 
-export const generateAgentDraft = async (data: any, contextRules: string = '', contactName?: string, draftLanguage?: string) => {
+export const generateAgentDraft = async (data: any, contextRules: string = '', contactName?: string) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezado(a) Agente,`;
     
-    let languageInstruction = 'Escreva o e-mail em Português (Brasil).';
-    if (draftLanguage === 'ENGLISH') {
-      languageInstruction = 'Escreva o e-mail INTEIRAMENTE EM INGLÊS. Formate a mensagem de acordo com os padrões comerciais da língua inglesa.';
-    } else if (draftLanguage === 'PORTUGUESE') {
-      languageInstruction = 'Escreva o e-mail inteiramente em Português (Brasil).';
-    } else if (draftLanguage === 'ORIGIN') {
-      languageInstruction = `Identifique o idioma oficial e primário do país de origem (${data.originCountry || 'não especificado'}). Escreva o e-mail inteiro nesse idioma (Ex: Se for França, escreva em Francês. Se for Espanha, em Espanhol). Exceção: Se o país de origem for de língua não latina (ex: China, Japão, Coreia, etc) ou se for indeterminado, escreva em INGLÊS.`;
-    }
-
     const prompt = `Você é um agente de pricing escrevendo um e-mail para solicitar cotação de frete internacional a um coloader/agente.
     ${greeting}
     
     INSTRUÇÃO CRÍTICA DE IDIOMA:
-    ${languageInstruction}
+    Escreva o e-mail SEMPRE inteiramente em Português (Brasil) para revisão prévia do operador logístico.
 
     Use os dados abaixo e o e-mail original (se disponível) para redigir o corpo do e-mail.
 
@@ -454,5 +445,39 @@ export const extractAgentCosts = async (
   } catch (error: any) {
     console.error('[extractAgentCosts] ERRO REAL:', error);
     throw new Error('Falha ao processar custos com IA: ' + (error?.message || String(error)));
+  }
+};
+
+export const translateDraftText = async (text: string, targetLanguage: string, originCountry: string = '') => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    
+    let instruction = '';
+    if (targetLanguage === 'ENGLISH') {
+      instruction = 'Traduza o e-mail abaixo inteiramente para o INGLÊS (padrão comercial internacional).';
+    } else if (targetLanguage === 'ORIGIN') {
+      instruction = `Identifique o idioma oficial e primário do país de origem do frete (${originCountry || 'não especificado'}). Traduza o e-mail para este idioma (Ex: Se for França, traduza para o Francês). Exceção: Se o país de origem for de língua não latina (ex: China, Japão, Coreia, etc) ou se for indeterminado, traduza para o INGLÊS.`;
+    } else {
+      instruction = 'Traduza o e-mail abaixo para o idioma alvo especificado.';
+    }
+
+    const prompt = `Você é um tradutor especialista em comércio exterior.
+    
+    INSTRUÇÃO:
+    ${instruction}
+
+    REGRAS DE TRADUÇÃO:
+    1. Mantenha a mesma formatação e estrutura do e-mail original (linhas, asteriscos, quebras de linha).
+    2. Traduza jargões técnicos de comércio exterior corretamente (ex: "Frete Marítimo FCL", "Valor Comercial", "Peso Bruto").
+    3. NÃO adicione nenhum comentário, nota ou saudação extra de sua parte. Retorne apenas o texto do e-mail traduzido.
+
+    E-MAIL ORIGINAL:
+    ${text}`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error: any) {
+    console.error('[translateDraftText] ERRO:', error);
+    throw new Error('Falha ao traduzir rascunho com IA: ' + (error?.message || String(error)));
   }
 };
