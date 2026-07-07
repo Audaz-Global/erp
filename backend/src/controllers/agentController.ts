@@ -166,18 +166,34 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           if (!valA) {
               lastWasBlank = true;
           } else {
+              const valALower = valA.toLowerCase();
+              const isAddress = /^\d+/.test(valA) || 
+                                valALower.includes('street') || 
+                                valALower.includes('road') || 
+                                valALower.includes('avenue') || 
+                                valALower.includes(' blvd') || 
+                                valALower.includes(' st') || 
+                                valALower.includes('room ') || 
+                                valALower.includes('floor,') ||
+                                valALower.includes('building');
+
               // Ignore lines that are just labels or addresses
-              if (!valA.toLowerCase().startsWith('office') && 
-                  !valA.toLowerCase().startsWith('ph:') && 
-                  !valA.toLowerCase().startsWith('unit') &&
-                  !valA.toLowerCase().startsWith('http') &&
-                  !valA.toLowerCase().startsWith('www.')) {
+              if (!valALower.startsWith('office') && 
+                  !valALower.startsWith('ph:') && 
+                  !valALower.startsWith('tel:') &&
+                  !valALower.startsWith('unit') &&
+                  !valALower.startsWith('http') &&
+                  !valALower.startsWith('www.') &&
+                  !isAddress) {
                   
                   if (lastWasBlank) {
                       await saveCompany();
                       currentCompany = valA;
                       lastWasBlank = false;
                   }
+              } else {
+                  // Even if it's an address or phone, it's not a blank line
+                  lastWasBlank = false;
               }
           }
 
