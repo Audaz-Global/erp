@@ -630,15 +630,15 @@
         <textarea id="r-draft-text" rows="8" placeholder="O rascunho aparecerá aqui..." style="font-family: monospace;"></textarea>
       </div>
 
-      <div class="form-group" style="display: flex; gap: 16px; align-items: flex-end; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 8px;">
+      <div class="form-group" style="display: flex; gap: 16px; align-items: flex-end; background: var(--bg-card); padding: 16px; border-radius: 8px; border: 1px dashed var(--gold); margin-top: 12px;">
         <div style="flex: 1;">
-          <label style="font-size: 0.85rem; color: #64748b;">Tradução do Rascunho Final</label>
-          <select id="r-translate-language">
+          <label style="font-size: 0.85rem; color: var(--gold); margin-bottom: 6px;">🌐 Tradução do Rascunho Final</label>
+          <select id="r-translate-language" style="margin-bottom: 0;">
             <option value="ORIGIN">Idioma do País de Origem (Automático)</option>
             <option value="ENGLISH">Inglês Comercial</option>
           </select>
         </div>
-        <button class="btn btn-secondary" onclick="translateDraft()" id="translate-btn" style="white-space: nowrap;">🌐 Traduzir Texto</button>
+        <button class="btn" onclick="translateDraft()" id="translate-btn" style="white-space: nowrap; height: 44px; padding: 0 24px; background: rgba(245,166,35,0.1); border: 1px solid var(--gold); color: var(--gold);">Traduzir Texto</button>
       </div>
 
       <div class="status-strip warn" id="statusStrip">
@@ -2212,6 +2212,37 @@ async function generateDraftEmail() {
     alert('Erro ao gerar rascunho: ' + e.message);
   }
   btn.disabled = false; btn.innerHTML = '🤖 Gerar Rascunho';
+}
+
+async function translateDraft() {
+  const btn = document.getElementById('translate-btn');
+  const text = document.getElementById('r-draft-text').value;
+  if (!text) return alert('Gere o rascunho primeiro.');
+  
+  const targetLanguage = document.getElementById('r-translate-language').value;
+  const originCountry = document.getElementById('r-origin-country').value;
+  
+  const oldText = btn.innerHTML;
+  btn.innerHTML = 'Traduzindo... ⏳';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(API + '/extract/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, targetLanguage, originCountry })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    document.getElementById('r-draft-text').value = data.translatedText || '';
+    toast('✅ Tradução concluída!');
+  } catch(e) {
+    alert('Erro ao traduzir: ' + e.message);
+  } finally {
+    btn.innerHTML = oldText;
+    btn.disabled = false;
+  }
 }
 
 async function sendOutlookEmail() {
