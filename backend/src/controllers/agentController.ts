@@ -24,7 +24,7 @@ export const createAgent = async (req: Request, res: Response) => {
         address: data.address || null,
         phone: data.phone || null,
         website: data.website || null,
-        contacts: data.contacts || null,
+        contacts: data.contacts || undefined,
         modals: data.modals || null,
         origins: data.origins || null,
         destinations: data.destinations || null,
@@ -50,7 +50,7 @@ export const updateAgent = async (req: Request, res: Response) => {
         address: data.address,
         phone: data.phone,
         website: data.website,
-        contacts: data.contacts,
+        contacts: data.contacts !== undefined ? data.contacts : undefined,
         modals: data.modals,
         origins: data.origins,
         destinations: data.destinations,
@@ -154,7 +154,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                 address: currentAddress || null,
                 phone: currentPhone || null,
                 website: currentWebsite || null,
-                contacts: parsedContacts.length > 0 ? parsedContacts : null,
+                contacts: parsedContacts.length > 0 ? parsedContacts : undefined,
                 active: true
               }
             });
@@ -244,8 +244,8 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                     
                     if (cellWithoutEmail && !cellWithoutEmail.toLowerCase().startsWith('http') && !cellWithoutEmail.toLowerCase().startsWith('www')) {
                       const parts = cellWithoutEmail.split(/[-/()]/).map(p=>p.trim()).filter(Boolean);
-                      if (parts.length > 0) cName = parts[0].replace(/^(Attn:|Pic:|Contact:)/i, '').trim();
-                      if (parts.length > 1) cRole = parts[1];
+                      if (parts.length > 0 && parts[0]) cName = parts[0].replace(/^(Attn:|Pic:|Contact:)/i, '').trim();
+                      if (parts.length > 1 && parts[1]) cRole = parts[1];
                       
                       const exists = parsedContacts.find(c => c.email === emailFound);
                       if (!exists) {
