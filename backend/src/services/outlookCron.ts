@@ -54,14 +54,51 @@ export const startOutlookWatcher = () => {
 
                 const costs = await extractAgentCosts(bodyContent, '', '', JSON.stringify(payload), []);
                 
-                if (costs) {
-                  // Aqui no futuro podemos salvar o JSON de custos direto na cotação
-                  // Para já, mudamos o status para avisar que chegou
+                if (costs && costs.costs) {
+                  const c = costs.costs;
+                  
+                  // Mapeia os dados da IA para as colunas do banco
+                  const updateData: any = {
+                    status: 'RETORNO_RECEBIDO',
+                    costsData: JSON.stringify(c),
+                  };
+
+                  if (c.freight_value != null) updateData.freightValue = c.freight_value;
+                  if (c.freight_currency) updateData.freightCurrency = c.freight_currency;
+                  if (c.freight_usd != null) updateData.totalUsd = c.freight_usd;
+                  if (c.iof_usd != null) updateData.iofUsd = c.iof_usd;
+                  if (c.storage_brl != null) {
+                    updateData.destinationStorage = c.storage_brl;
+                    updateData.destinationStorageCurrency = 'BRL';
+                  }
+                  if (c.services_brl != null) updateData.destinationServicesTotal = c.services_brl;
+                  if (c.taxes_brl != null) {
+                    updateData.destinationTaxes = c.taxes_brl;
+                    updateData.destinationTaxesCurrency = 'BRL';
+                  }
+                  if (c.total_brl != null) updateData.totalBrl = c.total_brl;
+                  
+                  if (c.carrier) updateData.carrier = c.carrier;
+                  if (c.transit_time_days != null) updateData.transitTimeDays = c.transit_time_days;
+                  if (c.frequency) updateData.frequency = c.frequency;
+                  if (c.weight_break) updateData.weightBreak = c.weight_break;
+                  
+                  if (Array.isArray(c.origin_fees) && c.origin_fees.length > 0) {
+                    updateData.originServices = JSON.stringify(c.origin_fees);
+                  }
+                  if (Array.isArray(c.destination_fees) && c.destination_fees.length > 0) {
+                    updateData.destinationServices = JSON.stringify(c.destination_fees);
+                  }
+                  if (c.insurance_requested === true) {
+                    updateData.requiresInsurance = true;
+                  }
+                  if (c.invoice_value && c.invoice_value > 0) {
+                    updateData.commercialValue = c.invoice_value;
+                  }
+
                   await prisma.quotation.update({
                     where: { id: quotation.id },
-                    data: { 
-                      status: 'RETORNO_RECEBIDO'
-                    }
+                    data: updateData
                   });
                   console.log(`[Outlook] Retorno processado com sucesso para cotação ${quotation.id}`);
                 }
