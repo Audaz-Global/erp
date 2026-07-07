@@ -19,12 +19,41 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
 
-    // Usa o assunto passado pelo frontend ou monta um padrão
-    const mailSubject = subject || `Solicitação de Cotação de Frete - REF: ${quotation.reference || quotation.id.substring(0,6).toUpperCase()}`;
-    
-    // Converte o texto Markdown vindo do rascunho para HTML limpo usando o 'marked'
-    const rawMarkdown = htmlBody || quotation.draftEmail || '';
-    
+    let targetQuotationId = quotation.id;
+    let baseReference = quotation.reference || quotation.id.substring(0,6).toUpperCase();
+    let targetReference = baseReference;
+    let mailSubject = subject || `Solicitação de Cotação de Frete - REF: ${targetReference}`;
+    let rawMarkdown = htmlBody || quotation.draftEmail || '';
+
+    // Lógica de Múltiplos Agentes (Duplicação)
+    // Se a cotação já tem um Agente definido e não é o mesmo
+    if (quotation.agentEmail && quotation.agentEmail !== agentEmail) {
+      // Contar quantas cópias existem
+      const cloneCount = await prisma.quotation.count({
+        where: { reference: { startsWith: baseReference + '-' } }
+      });
+      
+      targetReference = `${baseReference}-${cloneCount + 2}`;
+
+      // Substitui a referência antiga pela nova no Assunto e Corpo
+      mailSubject = mailSubject.replace(baseReference, targetReference);
+      rawMarkdown = rawMarkdown.replace(baseReference, targetReference);
+
+      // Duplicar a cotação no banco
+      const { id, createdAt, updatedAt, ...quotationData } = quotation;
+      const clone = await prisma.quotation.create({
+        data: {
+          ...quotationData,
+          reference: targetReference,
+          agentEmail: agentEmail,
+          status: 'AGUARDANDO_AGENTE',
+          draftEmail: rawMarkdown
+        }
+      });
+
+      targetQuotationId = clone.id;
+    }
+
     // Podemos adicionar uma folha de estilos básica para que o e-mail não fique feio no Outlook
     const emailStyle = `
       <style>
@@ -42,12 +71,13 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     // Envia usando a Microsoft Graph API
     await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail);
 
-    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail
+    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail (Apenas para a Original/Atual)
     const updated = await prisma.quotation.update({
-      where: { id: quotationId },
+      where: { id: targetQuotationId },
       data: { 
         status: 'AGUARDANDO_AGENTE',
-        agentEmail: agentEmail
+        agentEmail: agentEmail,
+        draftEmail: rawMarkdown
       }
     });
 
