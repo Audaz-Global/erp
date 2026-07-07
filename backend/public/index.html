@@ -625,6 +625,17 @@
         </select>
       </div>
 
+      <div class="form-group" style="display: flex; gap: 16px; align-items: flex-end;">
+        <div style="flex: 1;">
+          <label>Idioma do E-mail (Para o Agente)</label>
+          <select id="r-draft-language">
+            <option value="ORIGIN">Idioma do País de Origem (Automático)</option>
+            <option value="ENGLISH">Inglês</option>
+            <option value="PORTUGUESE">Português (Brasil)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="form-group">
         <label>Rascunho de E-mail (Gerado pela IA)</label>
         <textarea id="r-draft-text" rows="8" placeholder="O rascunho aparecerá aqui..." style="font-family: monospace;"></textarea>
@@ -2189,7 +2200,10 @@ async function generateDraftEmail() {
     const resDraft = await fetch(API + `/extract/draft/${currentQuotationId}`, { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contactName })
+      body: JSON.stringify({ 
+        contactName, 
+        draftLanguage: document.getElementById('r-draft-language').value 
+      })
     });
     const draftData = await resDraft.json();
     

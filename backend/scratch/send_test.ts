@@ -9,13 +9,13 @@ const run = async () => {
     console.log('Criando cotação fake no banco de dados...');
     
     // Deleta se já existir
-    await prisma.quotation.deleteMany({ where: { reference: 'AG-TEST-001' }});
+    await prisma.quotation.deleteMany({ where: { reference: 'AG-TEST-002' }});
     
     const user = await prisma.user.findFirst();
     
     const quote = await prisma.quotation.create({
       data: {
-        reference: 'AG-TEST-001',
+        reference: 'AG-TEST-002',
         originCountry: 'France',
         destinationCountry: 'Brazil',
         loadType: 'FCL',
@@ -34,7 +34,7 @@ const run = async () => {
 
 Por gentileza, solicito sua melhor cotação de frete marítimo para o embarque abaixo.
 
-**Referência Cliente:** AG-TEST-001
+**Referência Cliente:** AG-TEST-002
 **Modal:** Marítimo FCL
 **Origem:** Le Havre, France
 **Destino:** Santos, Brazil
@@ -53,7 +53,7 @@ Obrigado!`;
     const finalHtmlEmail = '<html><head>' + emailStyle + '</head><body>' + renderedHtml + '</body></html>';
 
     console.log('Disparando e-mail...');
-    await sendOutlookEmail('mkt@audazglobal.com', 'Solicitação de Cotação de Frete - REF: AG-TEST-001', finalHtmlEmail);
+    await sendOutlookEmail('mkt@audazglobal.com', 'Solicitação de Cotação de Frete - REF: AG-TEST-002', finalHtmlEmail);
     console.log('SUCESSO! E-mail de teste enviado.');
 
   } catch (err: any) {

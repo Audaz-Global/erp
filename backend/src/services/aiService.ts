@@ -249,13 +249,26 @@ export const extractClientData = async (text: string, contextRules: string = '',
   }
 };
 
-export const generateAgentDraft = async (data: any, contextRules: string = '', contactName?: string) => {
+export const generateAgentDraft = async (data: any, contextRules: string = '', contactName?: string, draftLanguage?: string) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezado(a) Agente,`;
     
+    let languageInstruction = 'Escreva o e-mail em Português (Brasil).';
+    if (draftLanguage === 'ENGLISH') {
+      languageInstruction = 'Escreva o e-mail INTEIRAMENTE EM INGLÊS. Formate a mensagem de acordo com os padrões comerciais da língua inglesa.';
+    } else if (draftLanguage === 'PORTUGUESE') {
+      languageInstruction = 'Escreva o e-mail inteiramente em Português (Brasil).';
+    } else if (draftLanguage === 'ORIGIN') {
+      languageInstruction = `Identifique o idioma oficial e primário do país de origem (${data.originCountry || 'não especificado'}). Escreva o e-mail inteiro nesse idioma (Ex: Se for França, escreva em Francês. Se for Espanha, em Espanhol). Exceção: Se o país de origem for de língua não latina (ex: China, Japão, Coreia, etc) ou se for indeterminado, escreva em INGLÊS.`;
+    }
+
     const prompt = `Você é um agente de pricing escrevendo um e-mail para solicitar cotação de frete internacional a um coloader/agente.
     ${greeting}
+    
+    INSTRUÇÃO CRÍTICA DE IDIOMA:
+    ${languageInstruction}
+
     Use os dados abaixo e o e-mail original (se disponível) para redigir o corpo do e-mail.
 
     REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES:
