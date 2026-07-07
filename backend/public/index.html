@@ -1287,7 +1287,39 @@
     </div>
     
     <div class="form-group">
-      <label>Modais Atendidos (Opcional)</label>
+      <label>Networks de Atuação</label>
+      <input type="text" id="agent-networks" placeholder="Ex: WCA, JCtrans...">
+    </div>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="form-group">
+        <label>Endereço</label>
+        <input type="text" id="agent-address" placeholder="Endereço da sede">
+      </div>
+      <div class="form-group">
+        <label>Telefone</label>
+        <input type="text" id="agent-phone" placeholder="Telefone principal">
+      </div>
+    </div>
+    
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="form-group">
+        <label>Nome do Contato</label>
+        <input type="text" id="agent-contact-name" placeholder="Ex: John Doe">
+      </div>
+      <div class="form-group">
+        <label>E-mail do Contato</label>
+        <input type="email" id="agent-contact-email" placeholder="E-mail direto do contato">
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label>Site / Website</label>
+      <input type="text" id="agent-website" placeholder="Ex: www.yongsheng.com">
+    </div>
+    
+    <div class="form-group">
+      <label>Modais Atendidos *</label>
       <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--bg);">
         <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="AIR" style="width:16px;height:16px;"> AIR</label>
         <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_FCL" style="width:16px;height:16px;"> FCL</label>
@@ -1297,7 +1329,7 @@
     </div>
     
     <div class="form-group">
-      <label>Origens de Atuação (Opcional)</label>
+      <label>Origens de Atuação *</label>
       <input type="text" id="agent-origins" placeholder="Adicione países...">
     </div>
     
@@ -3537,10 +3569,17 @@ async function deleteKnowledge(id) {
 }
 
 // ════════════ GESTÃO DE AGENTES ════════════
-let tagifyOrigins, tagifyDestinations;
+let tagifyOrigins, tagifyDestinations, tagifyNetworks;
 const countryWhitelist = ['Alemanha', 'Argentina', 'Austrália', 'Brasil', 'Canadá', 'Chile', 'China', 'Colômbia', 'Coreia do Sul', 'Emirados Árabes Unidos', 'Espanha', 'Estados Unidos', 'França', 'Hong Kong', 'Índia', 'Itália', 'Japão', 'México', 'Nova Zelândia', 'Portugal', 'Reino Unido', 'África do Sul', 'Taiwan', 'Europa', 'Latam', 'APAC', 'América do Norte'];
+const networkWhitelist = ['WCA', 'JCtrans', 'GLA', 'MarcoPolo', 'X2', 'OOG', 'Alianca', 'Lognet', 'PPL'];
 
 function initTagify() {
+  if (!tagifyNetworks) {
+    tagifyNetworks = new Tagify(document.getElementById('agent-networks'), {
+      whitelist: networkWhitelist,
+      dropdown: { maxItems: 20, enabled: 0, closeOnSelect: false }
+    });
+  }
   if (!tagifyOrigins) {
     tagifyOrigins = new Tagify(document.getElementById('agent-origins'), {
       whitelist: countryWhitelist,
@@ -3563,8 +3602,14 @@ function openAgentModal(id = null) {
     document.getElementById('agent-id').value = '';
     document.getElementById('agent-name').value = '';
     document.getElementById('agent-email').value = '';
+    document.getElementById('agent-address').value = '';
+    document.getElementById('agent-phone').value = '';
+    document.getElementById('agent-website').value = '';
+    document.getElementById('agent-contact-name').value = '';
+    document.getElementById('agent-contact-email').value = '';
     
     document.querySelectorAll('input[name="agent-modal"]').forEach(cb => cb.checked = false);
+    tagifyNetworks.removeAllTags();
     tagifyOrigins.removeAllTags();
     tagifyDestinations.removeAllTags();
     
@@ -3634,11 +3679,19 @@ function editAgent(agent) {
   document.getElementById('agent-id').value = agent.id;
   document.getElementById('agent-name').value = agent.name;
   document.getElementById('agent-email').value = agent.email;
+  document.getElementById('agent-address').value = agent.address || '';
+  document.getElementById('agent-phone').value = agent.phone || '';
+  document.getElementById('agent-website').value = agent.website || '';
+  document.getElementById('agent-contact-name').value = agent.contactName || '';
+  document.getElementById('agent-contact-email').value = agent.contactEmail || '';
   
   const modalsArr = (agent.modals || '').split(',').map(m => m.trim());
   document.querySelectorAll('input[name="agent-modal"]').forEach(cb => {
     cb.checked = modalsArr.includes(cb.value) || agent.modals === 'ALL';
   });
+  
+  tagifyNetworks.removeAllTags();
+  if (agent.networks) tagifyNetworks.addTags(agent.networks.split(',').map(s=>s.trim()));
   
   tagifyOrigins.removeAllTags();
   if (agent.origins) tagifyOrigins.addTags(agent.origins.split(',').map(s=>s.trim()));
@@ -3655,15 +3708,45 @@ async function saveAgent() {
   btn.disabled = true;
   btn.innerText = 'Salvando...';
   
+  const name = document.getElementById('agent-name').value;
+  const email = document.getElementById('agent-email').value;
+  
+  if (!name || !email) {
+    toast('⚠️ Nome e e-mail são obrigatórios.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Agente';
+    return;
+  }
+  
   const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
+  if (selectedModals.length === 0) {
+    toast('⚠️ Por favor, selecione ao menos um Modal Atendido.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Agente';
+    return;
+  }
   const modalsStr = selectedModals.length === 4 ? 'ALL' : selectedModals.join(', ');
   
   const originsStr = tagifyOrigins.value.map(t => t.value).join(', ');
+  if (!originsStr) {
+    toast('⚠️ Por favor, selecione ao menos um país de Origem de Atuação.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Agente';
+    return;
+  }
+  
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
+  const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
 
   const payload = {
-    name: document.getElementById('agent-name').value,
-    email: document.getElementById('agent-email').value,
+    name,
+    email,
+    networks: networksStr,
+    address: document.getElementById('agent-address').value,
+    phone: document.getElementById('agent-phone').value,
+    website: document.getElementById('agent-website').value,
+    contactName: document.getElementById('agent-contact-name').value,
+    contactEmail: document.getElementById('agent-contact-email').value,
     modals: modalsStr,
     origins: originsStr,
     destinations: destinationsStr,
