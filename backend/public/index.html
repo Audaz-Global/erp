@@ -3572,19 +3572,20 @@ let tagifyOrigins, tagifyDestinations, tagifyNetworks;
 const countryWhitelist = ['Alemanha', 'Argentina', 'Austrália', 'Brasil', 'Canadá', 'Chile', 'China', 'Colômbia', 'Coreia do Sul', 'Emirados Árabes Unidos', 'Espanha', 'Estados Unidos', 'França', 'Hong Kong', 'Índia', 'Itália', 'Japão', 'México', 'Nova Zelândia', 'Portugal', 'Reino Unido', 'África do Sul', 'Taiwan', 'Europa', 'Latam', 'APAC', 'América do Norte'];
 const networkWhitelist = ['WCA', 'JCtrans', 'GLA', 'MarcoPolo', 'X2', 'OOG', 'Alianca', 'Lognet', 'PPL'];
 
-function addAgentContact(name = '', email = '', phone = '') {
+function addAgentContact(name = '', email = '', phone = '', role = '') {
   const container = document.getElementById('agent-contacts-container');
   const div = document.createElement('div');
   div.className = 'agent-contact-row';
   div.style.display = 'grid';
-  div.style.gridTemplateColumns = '1fr 1fr 1fr auto';
+  div.style.gridTemplateColumns = '1.2fr 1fr 1.5fr 1fr auto';
   div.style.gap = '8px';
   div.style.alignItems = 'center';
   
   div.innerHTML = `
     <input type="text" class="contact-name" placeholder="Nome" value="${name}">
+    <input type="text" class="contact-role" placeholder="Cargo" value="${role}">
     <input type="email" class="contact-email" placeholder="E-mail" value="${email}">
-    <input type="text" class="contact-phone" placeholder="Telefone (Opcional)" value="${phone}">
+    <input type="text" class="contact-phone" placeholder="Telefone" value="${phone}">
     <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.8;" title="Remover contato">🗑️</button>
   `;
   container.appendChild(div);
@@ -3701,7 +3702,7 @@ function editAgent(agent) {
   
   document.getElementById('agent-contacts-container').innerHTML = '';
   if (agent.contacts && Array.isArray(agent.contacts)) {
-    agent.contacts.forEach(c => addAgentContact(c.name || '', c.email || '', c.phone || ''));
+    agent.contacts.forEach(c => addAgentContact(c.name || '', c.email || '', c.phone || '', c.role || ''));
   }
   
   const modalsArr = (agent.modals || '').split(',').map(m => m.trim());
@@ -3760,10 +3761,11 @@ async function saveAgent() {
   const contacts = [];
   document.querySelectorAll('.agent-contact-row').forEach(row => {
     const cName = row.querySelector('.contact-name').value.trim();
+    const cRole = row.querySelector('.contact-role').value.trim();
     const cEmail = row.querySelector('.contact-email').value.trim();
     const cPhone = row.querySelector('.contact-phone').value.trim();
-    if (cName || cEmail || cPhone) {
-      contacts.push({ name: cName, email: cEmail, phone: cPhone });
+    if (cName || cEmail || cPhone || cRole) {
+      contacts.push({ name: cName, role: cRole, email: cEmail, phone: cPhone });
     }
   });
 

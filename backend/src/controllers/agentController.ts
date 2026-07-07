@@ -139,6 +139,8 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
         let currentAddress = '';
         let currentPhone = '';
         let currentWebsite = '';
+        let parsedContacts: any[] = [];
+        let lastPotentialContact = '';
 
         const saveCompany = async () => {
           if (currentCompany && companyEmails.size > 0) {
@@ -152,6 +154,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                 address: currentAddress || null,
                 phone: currentPhone || null,
                 website: currentWebsite || null,
+                contacts: parsedContacts.length > 0 ? parsedContacts : null,
                 active: true
               }
             });
@@ -162,6 +165,7 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
           currentAddress = '';
           currentPhone = '';
           currentWebsite = '';
+          parsedContacts = [];
         };
 
         for (const row of data) {
@@ -211,6 +215,9 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
                       } else {
                           currentAddress = valA;
                       }
+                  } else if (!valA.includes('@')) {
+                      // Se não é email, endereço, telefone ou site, pode ser o nome de um contato!
+                      lastPotentialContact = valA;
                   }
               }
           }
@@ -222,7 +229,30 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
               // Regex para extrair email de dentro do texto
               const match = cell.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
               if (match) {
-                  match.forEach(e => companyEmails.add(e.toLowerCase()));
+                  match.forEach(e => {
+                    const emailFound = e.toLowerCase();
+                    companyEmails.add(emailFound);
+                    
+                    let cName = '';
+                    let cRole = '';
+                    
+                    // Tentar extrair do mesmo texto da célula (ex: "Sandro (Manager) sandro@cn.com")
+                    let cellWithoutEmail = cell.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '').trim();
+                    if (!cellWithoutEmail && lastPotentialContact) {
+                      cellWithoutEmail = lastPotentialContact;
+                    }
+                    
+                    if (cellWithoutEmail && !cellWithoutEmail.toLowerCase().startsWith('http') && !cellWithoutEmail.toLowerCase().startsWith('www')) {
+                      const parts = cellWithoutEmail.split(/[-/()]/).map(p=>p.trim()).filter(Boolean);
+                      if (parts.length > 0) cName = parts[0].replace(/^(Attn:|Pic:|Contact:)/i, '').trim();
+                      if (parts.length > 1) cRole = parts[1];
+                      
+                      const exists = parsedContacts.find(c => c.email === emailFound);
+                      if (!exists) {
+                         parsedContacts.push({ name: cName, role: cRole, email: emailFound, phone: '' });
+                      }
+                    }
+                  });
               }
             }
           }
