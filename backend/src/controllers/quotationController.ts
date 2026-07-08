@@ -93,7 +93,8 @@ export const createQuotation = async (req: Request, res: Response) => {
     res.status(201).json(quotation);
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
-    res.status(500).json({ error: 'Erro ao criar a cotação no banco de dados' });
+    const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
+    res.status(500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
   }
 };
 

@@ -2367,7 +2367,10 @@ async function saveAsAwaitingAgent() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!resCreate.ok) throw new Error('Falha ao criar cotação no banco');
+      if (!resCreate.ok) {
+        const errData = await resCreate.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao criar cotação no banco');
+      }
       const qData = await resCreate.json();
       currentQuotationId = qData.id;
     } else {

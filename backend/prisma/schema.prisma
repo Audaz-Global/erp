@@ -49,6 +49,8 @@ model Quotation {
   agentName   String?
   draftEmail  String?  // Rascunho do email para o agente
   sentAt      DateTime? // Horário do envio pelo Outlook
+  sentEmailConversationId  String?   // conversationId do MS Graph para tracking de thread
+  agentResponseRaw         String?   // Corpo do e-mail de retorno do agente (para auditoria)
   
   // Type Info
   direction   String   // IMPORT, EXPORT

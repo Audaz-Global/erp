@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { sendOutlookEmail } from '../services/outlookService';
+import { sendOutlookEmail, searchEmails } from '../services/outlookService';
 import { marked } from 'marked';
 
 const router = Router();
@@ -70,10 +70,10 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     const renderedHtml = await marked.parse(rawMarkdown);
     const finalHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedHtml}</body></html>`;
 
-    // Envia usando a Microsoft Graph API
-    await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail);
+    // Envia usando a Microsoft Graph API (draft+send para capturar conversationId)
+    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail);
 
-    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail (Apenas para a Original/Atual)
+    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail + conversationId
     const updated = await prisma.quotation.update({
       where: { id: targetQuotationId },
       data: { 
@@ -81,13 +81,58 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         agentEmail: agentEmail,
         agentName: agentName,
         draftEmail: rawMarkdown,
-        sentAt: new Date()
+        sentAt: new Date(),
+        sentEmailConversationId: conversationId || null
       }
     });
 
+    console.log(`[Outlook] E-mail enviado para ${agentEmail} | REF: ${targetReference} | ConversationId: ${conversationId || 'N/A'}`);
     res.json({ success: true, quotation: updated });
   } catch (error: any) {
     console.error('Erro ao disparar Outlook:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Busca manual de e-mails na caixa do Outlook.
+ * Útil para encontrar respostas de agentes que escaparam do watcher automático.
+ * GET /api/outlook/search?q=4500697368&from=agente@email.com
+ */
+router.get('/search', async (req: Request, res: Response) => {
+  try {
+    const { q, from } = req.query;
+
+    if (!q && !from) {
+      return res.status(400).json({ error: 'Informe ao menos um parâmetro: q (termo de busca) ou from (e-mail do remetente)' });
+    }
+
+    // Monta a query KQL para o MS Graph $search
+    let searchQuery = '';
+    if (q && from) {
+      searchQuery = `${q} from:${from}`;
+    } else if (from) {
+      searchQuery = `from:${from}`;
+    } else {
+      searchQuery = String(q);
+    }
+
+    const emails = await searchEmails(searchQuery);
+
+    // Retorna dados resumidos (sem o body completo para não poluir)
+    const results = emails.map((email: any) => ({
+      id: email.id,
+      subject: email.subject,
+      from: email.from?.emailAddress?.address,
+      fromName: email.from?.emailAddress?.name,
+      receivedDateTime: email.receivedDateTime,
+      bodyPreview: email.bodyPreview,
+      conversationId: email.conversationId
+    }));
+
+    res.json({ count: results.length, results });
+  } catch (error: any) {
+    console.error('Erro na busca de e-mails:', error);
     res.status(500).json({ error: error.message });
   }
 });

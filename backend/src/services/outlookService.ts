@@ -46,53 +46,72 @@ export const getAccessToken = async (): Promise<string> => {
 };
 
 /**
- * Envia um e-mail em nome do usuário configurado
+ * Envia um e-mail em nome do usuário configurado.
+ * Usa fluxo draft+send para capturar o conversationId do MS Graph.
+ * Retorna { conversationId } para tracking de thread.
  */
-export const sendOutlookEmail = async (toEmail: string, subject: string, htmlContent: string) => {
+export const sendOutlookEmail = async (toEmail: string, subject: string, htmlContent: string): Promise<{ conversationId: string | null }> => {
   if (!USER_EMAIL) throw new Error('E-mail do remetente (MS_GRAPH_USER_EMAIL) não configurado.');
   
   const token = await getAccessToken();
-  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/sendMail`;
-
-  const mailBody = {
-    message: {
-      subject: subject,
-      body: {
-        contentType: 'HTML',
-        content: htmlContent
-      },
-      toRecipients: [
-        {
-          emailAddress: { address: toEmail }
-        }
-      ]
+  
+  const messagePayload = {
+    subject: subject,
+    body: {
+      contentType: 'HTML',
+      content: htmlContent
     },
-    saveToSentItems: 'true'
+    toRecipients: [
+      {
+        emailAddress: { address: toEmail }
+      }
+    ]
   };
 
   try {
-    await axios.post(url, mailBody, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    // Passo 1: Criar como rascunho para obter conversationId
+    const draftRes = await axios.post(
+      `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages`,
+      messagePayload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       }
-    });
-    return true;
+    );
+
+    const messageId = draftRes.data.id;
+    const conversationId = draftRes.data.conversationId || null;
+
+    // Passo 2: Enviar o rascunho
+    await axios.post(
+      `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${messageId}/send`,
+      null,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    return { conversationId };
   } catch (err: any) {
     console.error('Erro ao enviar e-mail via MS Graph:', err.response?.data || err.message);
-    throw new Error('Falha ao enviar e-mail. Verifique permissões Mail.Send no Azure.');
+    throw new Error('Falha ao enviar e-mail. Verifique permissões Mail.Send e Mail.ReadWrite no Azure.');
   }
 };
 
 /**
- * Busca mensagens não lidas na Caixa de Entrada
+ * Busca mensagens não lidas na Caixa de Entrada.
+ * Inclui conversationId e from para matching inteligente.
  */
 export const fetchUnreadEmails = async () => {
   if (!USER_EMAIL) throw new Error('E-mail do remetente não configurado.');
   
   const token = await getAccessToken();
-  // Busca na pasta "Inbox", não lidos, top 20
-  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/mailFolders/inbox/messages?$filter=isRead eq false&$top=20&$select=id,subject,bodyPreview,body,from,receivedDateTime`;
+  // Inclui conversationId e from no $select para matching multi-estratégia
+  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/mailFolders/inbox/messages?$filter=isRead eq false&$top=20&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId`;
 
   try {
     const res = await axios.get(url, {
@@ -101,6 +120,50 @@ export const fetchUnreadEmails = async () => {
     return res.data.value; // Array de mensagens
   } catch (err: any) {
     console.error('Erro ao buscar e-mails não lidos:', err.response?.data || err.message);
+    return [];
+  }
+};
+
+/**
+ * Busca e-mails por conversationId (mesma thread de conversa).
+ */
+export const fetchEmailsByConversationId = async (conversationId: string) => {
+  if (!USER_EMAIL) throw new Error('E-mail do remetente não configurado.');
+
+  const token = await getAccessToken();
+  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages?$filter=conversationId eq '${conversationId}'&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId&$orderby=receivedDateTime desc&$top=10`;
+
+  try {
+    const res = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return res.data.value || [];
+  } catch (err: any) {
+    console.error('Erro ao buscar por conversationId:', err.response?.data || err.message);
+    return [];
+  }
+};
+
+/**
+ * Busca e-mails usando a Search API do MS Graph.
+ * Permite busca por assunto, remetente, corpo do e-mail, etc.
+ * @param query - Termo de busca (suporta KQL: from:, subject:, body:)
+ */
+export const searchEmails = async (query: string) => {
+  if (!USER_EMAIL) throw new Error('E-mail do remetente não configurado.');
+
+  const token = await getAccessToken();
+  // Usa $search com KQL (Keyword Query Language)
+  const encodedQuery = encodeURIComponent(query);
+  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages?$search="${encodedQuery}"&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId&$top=20`;
+
+  try {
+    const res = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return res.data.value || [];
+  } catch (err: any) {
+    console.error('Erro ao buscar e-mails:', err.response?.data || err.message);
     return [];
   }
 };
