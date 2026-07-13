@@ -1609,6 +1609,49 @@ function switchTab(name) {
 }
 
 // FILE UPLOAD LOGIC
+// FILE UPLOAD LOGIC
+function handleOutlookDropFallback(dataTransfer, isAgent) {
+  const html = dataTransfer.getData('text/html');
+  const text = dataTransfer.getData('text/plain');
+  
+  let targetText = '';
+  if (html) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      targetText = doc.body.textContent || doc.body.innerText || '';
+      targetText = targetText.replace(/\r\n/g, '\n').replace(/\n\s*\n/g, '\n\n').trim();
+    } catch(err) {
+      targetText = text || '';
+    }
+  } else if (text) {
+    targetText = text.trim();
+  }
+  
+  if (targetText) {
+    const textareaId = isAgent ? 'emailTextAgent' : 'emailText';
+    const textarea = document.getElementById(textareaId);
+    if (textarea) {
+      textarea.value = targetText;
+      
+      if (isAgent) {
+        const qId = document.getElementById('pending-quotations').value;
+        if (qId) {
+          toast('📥 Resposta do agente carregada do Outlook! Extraindo custos...');
+          runExtract('AGENT');
+        } else {
+          toast('📥 Resposta do agente carregada! Selecione a cotação e clique em "Extrair Custos".');
+        }
+      } else {
+        toast('📥 Solicitação do cliente carregada do Outlook! Extraindo dados...');
+        runExtract('CLIENT');
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 const fileDrop = document.getElementById('fileDrop');
 const fileInput = document.getElementById('fileInput');
 fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
@@ -1617,7 +1660,10 @@ fileDrop.addEventListener('drop', e => {
   e.preventDefault(); 
   fileDrop.classList.remove('dragover'); 
   if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
-    alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, o Windows/Navegador pode estar bloqueando. Arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
+    const success = handleOutlookDropFallback(e.dataTransfer, false);
+    if (!success) {
+      alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
+    }
   } else {
     addFiles(e.dataTransfer.files, false); 
   }
@@ -1633,7 +1679,10 @@ if(fileDropAgent) {
     e.preventDefault(); 
     fileDropAgent.classList.remove('dragover'); 
     if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
-      alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, o Windows/Navegador pode estar bloqueando. Arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
+      const success = handleOutlookDropFallback(e.dataTransfer, true);
+      if (!success) {
+        alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
+      }
     } else {
       addFiles(e.dataTransfer.files, true); 
     }
