@@ -130,6 +130,17 @@ model Quotation {
   customsClearanceIncluded Boolean @default(false)
   requiresInsurance        Boolean  @default(false)
 
+  // Transporte Terrestre Nacional
+  needsTransport       Boolean   @default(false)
+  truckerName          String?
+  truckerEmail         String?
+  transportRoute       String?
+  truckerDraftEmail    String?
+  truckerSentAt        DateTime?
+  truckerResponseRaw   String?
+  truckerValue         Float?
+  truckerCurrency      String?   @default("BRL")
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

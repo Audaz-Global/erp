@@ -648,6 +648,29 @@
         </select>
       </div>
 
+      <!-- Solicitação de Transporte Terrestre checkbox -->
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border);">
+        <input type="checkbox" id="r-needs-transport" onchange="toggleTransportSection(this.checked)" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
+        <label for="r-needs-transport" style="margin: 0; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">🚚 Solicitar Transporte Terrestre Nacional para esta cotação?</label>
+      </div>
+
+      <!-- Seção de Transporte Terrestre Nacional -->
+      <div id="transport-section" style="display: none; background: rgba(255,255,255,0.01); border: 1px dashed var(--gold); border-radius: 12px; padding: 18px; margin-top: 12px; margin-bottom: 20px;">
+        <h4 style="margin-top: 0; color: var(--gold); display: flex; align-items: center; gap: 8px; font-size: 14px;"><span class="emoji">🚚</span> TRANSPORTE RODOVIÁRIO NACIONAL</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-group" style="margin: 0;">
+            <label>Selecione a Transportadora</label>
+            <select id="r-trucker-email" style="margin: 0;">
+              <option value="">Selecione uma transportadora...</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label>Trecho / Rota Terrestre</label>
+            <input type="text" id="r-transport-route" placeholder="Ex: Santos x Itatiba/SP" style="margin: 0;">
+          </div>
+        </div>
+      </div>
+
       <div class="form-group">
         <label>Rascunho de E-mail (Sempre gerado em Português para sua revisão)</label>
         <textarea id="r-draft-text" rows="8" placeholder="O rascunho aparecerá aqui..." style="font-family: monospace;"></textarea>
@@ -929,6 +952,7 @@
         <button type="button" class="btn btn-secondary" id="partner-filter-agent" onclick="setPartnerFilter('AGENTE')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">👥 Agentes</button>
         <button type="button" class="btn btn-secondary" id="partner-filter-coloader" onclick="setPartnerFilter('COLOADER')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🤝 Coloaders</button>
         <button type="button" class="btn btn-secondary" id="partner-filter-carrier" onclick="setPartnerFilter('ARMADOR')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚢 Armadores</button>
+        <button type="button" class="btn btn-secondary" id="partner-filter-trucker" onclick="setPartnerFilter('TRANSPORTADORA')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚚 Transportadoras</button>
       </div>
       
       <div class="history-toolbar" style="margin-bottom: 20px;">
@@ -1339,11 +1363,12 @@
         <option value="AGENTE">👥 Agente</option>
         <option value="COLOADER">🤝 Coloader</option>
         <option value="ARMADOR">🚢 Armador</option>
+        <option value="TRANSPORTADORA">🚚 Transportadora</option>
       </select>
     </div>
     
     <div class="form-group">
-      <label>E-mail Principal (Opcional para Armadores) *</label>
+      <label>E-mail Principal (Opcional para Armadores e Transportadoras) *</label>
       <input type="email" id="agent-email" placeholder="Ex: booking@yongsheng.com">
     </div>
     
@@ -1934,6 +1959,75 @@ async function populateAgentDropdown(originCountry) {
   });
 }
 
+function toggleTransportSection(show) {
+  const section = document.getElementById('transport-section');
+  if (section) section.style.display = show ? 'block' : 'none';
+  const checkbox = document.getElementById('r-needs-transport');
+  if (checkbox) checkbox.checked = !!show;
+}
+
+async function populateTruckerDropdown() {
+  const select = document.getElementById('r-trucker-email');
+  if (!select) return;
+  
+  select.innerHTML = '<option value="">Buscando transportadoras...</option>';
+  
+  let partners = window.globalAgentsList;
+  if (!partners) {
+    try {
+      const res = await fetch(API + '/agents');
+      partners = await res.json();
+      window.globalAgentsList = partners;
+    } catch (e) {
+      partners = [];
+    }
+  }
+  
+  const truckers = partners.filter(p => p.active && p.type === 'TRANSPORTADORA');
+  
+  if (truckers.length === 0) {
+    select.innerHTML = '<option value="">Nenhuma transportadora ativa cadastrada</option>';
+    return;
+  }
+  
+  select.innerHTML = '<option value="">Selecione uma transportadora...</option>';
+  truckers.forEach(t => {
+    let contacts = [];
+    try {
+      contacts = typeof t.contacts === 'string' ? JSON.parse(t.contacts) : (t.contacts || []);
+    } catch(e){}
+    
+    const mainEmail = t.email || '';
+    
+    if (contacts.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = mainEmail;
+      opt.dataset.contactName = 'Contato';
+      opt.dataset.agentName = t.name;
+      opt.textContent = `${t.name} ${mainEmail ? '- Principal ('+mainEmail+')' : '(Sem e-mail)'}`;
+      select.appendChild(opt);
+    } else {
+      contacts.forEach(c => {
+         if(!c.email) return;
+         const opt = document.createElement('option');
+         opt.value = c.email;
+         opt.dataset.contactName = c.name || 'Contato';
+         opt.dataset.agentName = t.name;
+         opt.textContent = `${t.name} - ${c.name || 'Contato'} (${c.email})`;
+         select.appendChild(opt);
+      });
+      if (mainEmail) {
+        const opt = document.createElement('option');
+        opt.value = mainEmail;
+        opt.dataset.contactName = 'Principal';
+        opt.dataset.agentName = t.name;
+        opt.textContent = `${t.name} - Geral (${mainEmail})`;
+        select.appendChild(opt);
+      }
+    }
+  });
+}
+
 function fillReviewForm(d, mode) {
   if (mode === 'CLIENT') {
     document.getElementById('r-reference').value = d.reference || '';
@@ -1962,6 +2056,17 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-destination-country').value = d.route.destination_country || '';
       document.getElementById('r-destination-port').value = d.route.destination_airport || '';
       document.getElementById('r-connections').value = d.route.connections || '';
+
+      if (d.route.needs_transport !== undefined) {
+        const needsT = d.route.needs_transport;
+        document.getElementById('r-needs-transport').checked = !!needsT;
+        toggleTransportSection(!!needsT);
+        document.getElementById('r-transport-route').value = d.route.transport_route || '';
+      } else {
+        document.getElementById('r-needs-transport').checked = false;
+        toggleTransportSection(false);
+        document.getElementById('r-transport-route').value = '';
+      }
     }
     if(d.cargo) {
       const typeMap = {"LCL":"LCL", "FCL_20":"FCL_20", "FCL_40":"FCL_40", "AIR_GENERAL":"AIR_GENERAL"};
@@ -2317,7 +2422,11 @@ async function generateDraftEmail() {
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
-      sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null
+      sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
+      needsTransport: document.getElementById('r-needs-transport').checked,
+      truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
+      truckerEmail: document.getElementById('r-trucker-email').value || null,
+      transportRoute: document.getElementById('r-transport-route').value || null
     };
     let resCreate;
     if (currentQuotationId) {
@@ -2474,7 +2583,11 @@ async function saveAsAwaitingAgent() {
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
-      sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null
+      sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
+      needsTransport: document.getElementById('r-needs-transport').checked,
+      truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
+      truckerEmail: document.getElementById('r-trucker-email').value || null,
+      transportRoute: document.getElementById('r-transport-route').value || null
     };
 
     if (!currentQuotationId) {
@@ -3429,10 +3542,23 @@ function toggleDetail(idx, rowEl) {
   if (!q) return;
   expandedRow = idx;
 
+  let transportGroup = '';
+  if (q.needsTransport) {
+    transportGroup = `
+      <div class="detail-group">
+        <h4>🚚 Transporte Rodoviário</h4>
+        <div class="dl"><span class="dt">Transportadora</span><span class="dd" style="font-weight:600; color:var(--gold);">${q.truckerName || '—'}</span></div>
+        <div class="dl"><span class="dt">E-mail Contato</span><span class="dd">${q.truckerEmail || '—'}</span></div>
+        <div class="dl"><span class="dt">Trecho / Rota</span><span class="dd" style="font-weight:600;">${q.transportRoute || '—'}</span></div>
+        <div class="dl"><span class="dt">Custo Terrestre</span><span class="dd">${q.truckerValue != null ? (q.truckerCurrency || 'R$') + ' ' + Number(q.truckerValue).toFixed(2) : '<span style="color:var(--text-muted)">Aguardando cotação</span>'}</span></div>
+      </div>
+    `;
+  }
+
   const detailTr = document.createElement('tr');
   detailTr.className = 'detail-row';
   detailTr.dataset.idx = idx;
-  detailTr.innerHTML = `<td colspan="8">
+  detailTr.innerHTML = `<td colspan="10">
     <div class="detail-content">
       <div class="detail-group">
         <h4>Informações Gerais</h4>
@@ -3452,6 +3578,7 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">IMO</span><span class="dd">${q.isImo ? '⚠️ Sim' : 'Não'}</span></div>
         <div class="dl"><span class="dt">Descrição</span><span class="dd">${q.cargoDescription || '—'}</span></div>
       </div>
+      ${transportGroup}
       <div class="detail-group">
         <h4>Custos & Valores</h4>
         <div class="dl"><span class="dt">Frete (${q.freightCurrency || 'USD'})</span><span class="dd" style="color:var(--gold); font-weight:700;">${q.freightCurrency === 'EUR' ? '€' : (q.freightCurrency === 'BRL' ? 'R$' : '$')}${q.freightValue != null ? Number(q.freightValue).toFixed(2) : '—'}</span></div>
@@ -4029,6 +4156,7 @@ function setPartnerFilter(filter) {
   document.getElementById('partner-filter-agent').classList.toggle('active', filter === 'AGENTE');
   document.getElementById('partner-filter-coloader').classList.toggle('active', filter === 'COLOADER');
   document.getElementById('partner-filter-carrier').classList.toggle('active', filter === 'ARMADOR');
+  document.getElementById('partner-filter-trucker').classList.toggle('active', filter === 'TRANSPORTADORA');
   renderAgentsTable();
 }
 
@@ -4048,7 +4176,7 @@ function renderAgentsTable() {
   }
   
   tbody.innerHTML = filtered.map(a => {
-    const typeLabel = a.type === 'COLOADER' ? '🤝 Coloader' : a.type === 'ARMADOR' ? '🚢 Armador' : '👥 Agente';
+    const typeLabel = a.type === 'COLOADER' ? '🤝 Coloader' : a.type === 'ARMADOR' ? '🚢 Armador' : a.type === 'TRANSPORTADORA' ? '🚚 Transportadora' : '👥 Agente';
     return `
       <tr>
         <td style="font-weight:600;">${a.name}</td>
@@ -4074,10 +4202,10 @@ async function loadAgents() {
     const res = await fetch(API + '/agents');
     const agents = await res.json();
     window.allPartnersList = agents;
-    // Salvar também na lista usada na cotação e forçar atualização do dropdown de cotações
     window.globalAgentsList = agents;
     
     renderAgentsTable();
+    populateTruckerDropdown();
   } catch (e) {
     console.error('Erro ao carregar agentes', e);
   }
@@ -4133,7 +4261,7 @@ async function saveAgent() {
     return;
   }
   
-  if (type !== 'ARMADOR' && !email) {
+  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && !email) {
     toast('⚠️ E-mail é obrigatório para agentes e coloaders.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
@@ -4141,22 +4269,22 @@ async function saveAgent() {
   }
   
   const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
-  if (type !== 'ARMADOR' && selectedModals.length === 0) {
+  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && selectedModals.length === 0) {
     toast('⚠️ Por favor, selecione ao menos um Modal Atendido.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const modalsStr = type === 'ARMADOR' && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
+  const modalsStr = (type === 'ARMADOR' || type === 'TRANSPORTADORA') && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
   
   const originsStr = tagifyOrigins.value.map(t => t.value).join(', ');
-  if (type !== 'ARMADOR' && !originsStr) {
+  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && !originsStr) {
     toast('⚠️ Por favor, selecione ao menos um país de Origem de Atuação.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const finalOrigins = type === 'ARMADOR' && !originsStr ? 'Global' : originsStr;
+  const finalOrigins = (type === 'ARMADOR' || type === 'TRANSPORTADORA') && !originsStr ? 'Global' : originsStr;
   
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
   const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
