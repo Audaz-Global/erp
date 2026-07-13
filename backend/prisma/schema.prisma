@@ -152,7 +152,8 @@ model KnowledgeEntry {
 model Agent {
   id           String   @id @default(uuid())
   name         String
-  email        String
+  email        String?
+  type         String   @default("AGENTE") // AGENTE, COLOADER, ARMADOR
   networks     String?  // Ex: "WCA, JCtrans"
   address      String?
   phone        String?

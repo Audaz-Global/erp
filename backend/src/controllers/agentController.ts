@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import * as xlsx from 'xlsx';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export const getAgents = async (req: Request, res: Response) => {
   try {
@@ -19,7 +21,8 @@ export const createAgent = async (req: Request, res: Response) => {
     const agent = await prisma.agent.create({
       data: {
         name: data.name,
-        email: data.email,
+        email: data.email || null,
+        type: data.type || 'AGENTE',
         networks: data.networks || null,
         address: data.address || null,
         phone: data.phone || null,
@@ -45,7 +48,8 @@ export const updateAgent = async (req: Request, res: Response) => {
       where: { id },
       data: {
         name: data.name,
-        email: data.email,
+        email: data.email || null,
+        type: data.type,
         networks: data.networks,
         address: data.address,
         phone: data.phone,
@@ -301,6 +305,74 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
     res.json({ message: `Importação concluída. Importados: ${imported}. Erros/Ignorados: ${errors}.` });
   } catch (error: any) {
     console.error('Erro ao importar agentes:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const syncCarriers = async (req: Request, res: Response) => {
+  try {
+    const paths = [
+      path.join(process.cwd(), 'Taxas locais Armadores 2026.xlsx'),
+      path.join(process.cwd(), '..', 'Taxas locais Armadores 2026.xlsx'),
+      path.join(__dirname, '..', '..', 'Taxas locais Armadores 2026.xlsx'),
+    ];
+    let finalPath = '';
+    for (const p of paths) {
+      if (fs.existsSync(p)) {
+        finalPath = p;
+        break;
+      }
+    }
+    
+    if (!finalPath) {
+      return res.status(404).json({ error: 'Planilha de Taxas Locais de Armadores não encontrada.' });
+    }
+
+    const workbook = xlsx.readFile(finalPath);
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    for (const sheetName of workbook.SheetNames) {
+      const carrierName = sheetName.trim();
+      if (!carrierName || ['guide', 'summary', 'capa', 'resumo'].includes(carrierName.toLowerCase())) continue;
+
+      // Procurar se já existe no banco de dados como ARMADOR
+      const existing = await prisma.agent.findFirst({
+        where: {
+          name: { equals: carrierName, mode: 'insensitive' as const },
+          type: 'ARMADOR'
+        }
+      });
+
+      if (existing) {
+        await prisma.agent.update({
+          where: { id: existing.id },
+          data: {
+            active: true,
+            modals: 'SEA_FCL, SEA_LCL',
+            origins: 'Global',
+            destinations: 'Brasil'
+          }
+        });
+        updatedCount++;
+      } else {
+        await prisma.agent.create({
+          data: {
+            name: carrierName,
+            email: null,
+            type: 'ARMADOR',
+            modals: 'SEA_FCL, SEA_LCL',
+            origins: 'Global',
+            destinations: 'Brasil',
+            active: true
+          }
+        });
+        createdCount++;
+      }
+    }
+
+    res.json({ message: 'Sincronização concluída com sucesso', created: createdCount, updated: updatedCount });
+  } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 };

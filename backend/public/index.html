@@ -179,6 +179,7 @@
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   .btn-secondary { background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid var(--border); }
   .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+  .btn-secondary.active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
   .btn-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
 
   /* Feedback Strip */
@@ -631,9 +632,18 @@
       </div> <!-- Fecha o review-grid -->
 
       <div class="form-group" style="margin-top: 24px;">
-        <label>Selecione o Agente / Coloader</label>
+        <label>Tipo de Parceiro</label>
+        <div class="partner-type-selector" style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button type="button" class="btn btn-secondary active" id="partner-type-agent" onclick="setPartnerType('AGENTE')" style="flex: 1; padding: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">👥 Agente</button>
+          <button type="button" class="btn btn-secondary" id="partner-type-coloader" onclick="setPartnerType('COLOADER')" style="flex: 1; padding: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">🤝 Coloader</button>
+          <button type="button" class="btn btn-secondary" id="partner-type-carrier" onclick="setPartnerType('ARMADOR')" style="flex: 1; padding: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">🚢 Armador</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label id="partner-select-label">Selecione o Agente</label>
         <select id="r-agent-email">
-          <option value="">Nenhum agente encontrado para esta origem</option>
+          <option value="">Nenhum parceiro encontrado</option>
         </select>
       </div>
 
@@ -905,9 +915,18 @@
         </div>
         <div style="display: flex; gap: 12px;">
           <input type="file" id="agentCsvInput" accept=".csv" style="display:none;" onchange="importAgentCsv(event)">
+          <button class="btn btn-secondary" onclick="syncCarriersFromExcel()" style="padding: 10px 16px; font-size: 13px;">🚢 Sincronizar Armadores</button>
           <button class="btn btn-secondary" onclick="document.getElementById('agentCsvInput').click()" style="padding: 10px 16px; font-size: 13px;">📥 Importar CSV</button>
           <button class="btn btn-primary" onclick="openAgentModal()" style="padding: 10px 16px; font-size: 13px;">➕ Novo Agente</button>
         </div>
+      </div>
+      
+      <!-- Filtro de Categorias de Parceiros -->
+      <div class="partner-filter-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+        <button type="button" class="btn btn-secondary active" id="partner-filter-all" onclick="setPartnerFilter('ALL')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">Todos</button>
+        <button type="button" class="btn btn-secondary" id="partner-filter-agent" onclick="setPartnerFilter('AGENTE')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">👥 Agentes</button>
+        <button type="button" class="btn btn-secondary" id="partner-filter-coloader" onclick="setPartnerFilter('COLOADER')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🤝 Coloaders</button>
+        <button type="button" class="btn btn-secondary" id="partner-filter-carrier" onclick="setPartnerFilter('ARMADOR')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚢 Armadores</button>
       </div>
       
       <div class="history-toolbar" style="margin-bottom: 20px;">
@@ -920,8 +939,9 @@
         <table class="q-table" id="agentsTable">
           <thead>
             <tr>
-              <th>Agente</th>
+              <th>Parceiro</th>
               <th>E-mail</th>
+              <th>Tipo</th>
               <th>Modais</th>
               <th>Origens (Atuação)</th>
               <th>Destinos</th>
@@ -1307,12 +1327,21 @@
     <input type="hidden" id="agent-id">
     
     <div class="form-group">
-      <label>Nome do Agente *</label>
+      <label>Nome do Parceiro *</label>
       <input type="text" id="agent-name" placeholder="Ex: Yongsheng Logistics">
+    </div>
+
+    <div class="form-group">
+      <label>Tipo de Parceiro *</label>
+      <select id="agent-type" style="width: 100%;">
+        <option value="AGENTE">👥 Agente</option>
+        <option value="COLOADER">🤝 Coloader</option>
+        <option value="ARMADOR">🚢 Armador</option>
+      </select>
     </div>
     
     <div class="form-group">
-      <label>E-mail Principal *</label>
+      <label>E-mail Principal (Opcional para Armadores) *</label>
       <input type="email" id="agent-email" placeholder="Ex: booking@yongsheng.com">
     </div>
     
@@ -1784,10 +1813,30 @@ function renderConf(val, confStr) {
   return `<div class="conf-wrapper"><div class="conf-dot ${color}"></div> ${pct}%</div>`;
 }
 
+let currentPartnerType = 'AGENTE';
+
+function setPartnerType(type) {
+  currentPartnerType = type;
+  
+  document.getElementById('partner-type-agent').classList.toggle('active', type === 'AGENTE');
+  document.getElementById('partner-type-coloader').classList.toggle('active', type === 'COLOADER');
+  document.getElementById('partner-type-carrier').classList.toggle('active', type === 'ARMADOR');
+  
+  const label = document.getElementById('partner-select-label');
+  if (label) {
+    if (type === 'AGENTE') label.textContent = 'Selecione o Agente';
+    else if (type === 'COLOADER') label.textContent = 'Selecione o Coloader';
+    else if (type === 'ARMADOR') label.textContent = 'Selecione o Armador';
+  }
+  
+  const originCountry = document.getElementById('r-origin-country').value || '';
+  populateAgentDropdown(originCountry);
+}
+
 async function populateAgentDropdown(originCountry) {
   const select = document.getElementById('r-agent-email');
   if (!select) return;
-  select.innerHTML = '<option value="">Buscando agentes...</option>';
+  select.innerHTML = '<option value="">Buscando parceiros...</option>';
   
   if (!window.globalAgentsList) {
     try {
@@ -1827,6 +1876,12 @@ async function populateAgentDropdown(originCountry) {
   
   const matchingAgents = window.globalAgentsList.filter(a => {
      if (!a.active) return false;
+     
+     const agentType = a.type || 'AGENTE';
+     if (agentType !== currentPartnerType) return false;
+     
+     if (currentPartnerType === 'ARMADOR') return true;
+     
      if (!countryLower) return false;
      if (!a.origins) return false;
      const originsLower = a.origins.toLowerCase();
@@ -1834,7 +1889,7 @@ async function populateAgentDropdown(originCountry) {
   });
 
   if (matchingAgents.length === 0) {
-    select.innerHTML = '<option value="">Nenhum agente encontrado para esta origem (' + (originCountry||'Desconhecida') + ')</option>';
+    select.innerHTML = '<option value="">Nenhum parceiro encontrado para ' + (currentPartnerType === 'ARMADOR' ? 'atuação' : 'a origem ' + (originCountry||'Desconhecida')) + '</option>';
     return;
   }
 
@@ -1846,23 +1901,33 @@ async function populateAgentDropdown(originCountry) {
       contacts = typeof agent.contacts === 'string' ? JSON.parse(agent.contacts) : (agent.contacts || []);
     } catch(e){}
     
+    const mainEmail = agent.email || '';
+    
     if (contacts.length === 0) {
       const opt = document.createElement('option');
-      opt.value = agent.email;
-      opt.dataset.contactName = 'Agente';
+      opt.value = mainEmail;
+      opt.dataset.contactName = 'Contato';
       opt.dataset.agentName = agent.name;
-      opt.textContent = `${agent.name} - Principal (${agent.email})`;
+      opt.textContent = `${agent.name} ${mainEmail ? '- Principal ('+mainEmail+')' : '(Sem e-mail cadastrado)'}`;
       select.appendChild(opt);
     } else {
       contacts.forEach(c => {
          if(!c.email) return;
          const opt = document.createElement('option');
          opt.value = c.email;
-         opt.dataset.contactName = c.name || 'Agente';
+         opt.dataset.contactName = c.name || 'Contato';
          opt.dataset.agentName = agent.name;
          opt.textContent = `${agent.name} - ${c.name || 'Contato'} (${c.role ? c.role+' - ' : ''}${c.email})`;
          select.appendChild(opt);
       });
+      if (mainEmail) {
+        const opt = document.createElement('option');
+        opt.value = mainEmail;
+        opt.dataset.contactName = 'Principal';
+        opt.dataset.agentName = agent.name;
+        opt.textContent = `${agent.name} - Geral (${mainEmail})`;
+        select.appendChild(opt);
+      }
     }
   });
 }
@@ -3913,10 +3978,11 @@ function openAgentModal(id = null) {
   initTagify();
   document.getElementById('agentModal').style.display = 'block';
   if (!id) {
-    document.getElementById('agentModalTitle').innerText = 'Novo Agente';
+    document.getElementById('agentModalTitle').innerText = 'Novo Parceiro';
     document.getElementById('agent-id').value = '';
     document.getElementById('agent-name').value = '';
     document.getElementById('agent-email').value = '';
+    document.getElementById('agent-type').value = 'AGENTE';
     document.getElementById('agent-address').value = '';
     document.getElementById('agent-phone').value = '';
     document.getElementById('agent-website').value = '';
@@ -3944,7 +4010,6 @@ function filterAgents() {
   const rows = tbody.querySelectorAll('tr');
 
   rows.forEach(row => {
-    // se o texto de toda a linha contiver a string buscada, mostra, senão esconde
     const text = row.innerText.toLowerCase();
     if (text.includes(search)) {
       row.style.display = '';
@@ -3954,22 +4019,39 @@ function filterAgents() {
   });
 }
 
-async function loadAgents() {
-  try {
-    const res = await fetch(API + '/agents');
-    const agents = await res.json();
-    const tbody = document.getElementById('agentsTbody');
-    if (!tbody) return;
-    
-    if (agents.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 20px;">Nenhum agente cadastrado. Importe sua planilha ou crie manualmente.</td></tr>';
-      return;
-    }
-    
-    tbody.innerHTML = agents.map(a => `
+let currentPartnerFilter = 'ALL';
+
+function setPartnerFilter(filter) {
+  currentPartnerFilter = filter;
+  document.getElementById('partner-filter-all').classList.toggle('active', filter === 'ALL');
+  document.getElementById('partner-filter-agent').classList.toggle('active', filter === 'AGENTE');
+  document.getElementById('partner-filter-coloader').classList.toggle('active', filter === 'COLOADER');
+  document.getElementById('partner-filter-carrier').classList.toggle('active', filter === 'ARMADOR');
+  renderAgentsTable();
+}
+
+function renderAgentsTable() {
+  const tbody = document.getElementById('agentsTbody');
+  if (!tbody || !window.allPartnersList) return;
+  
+  const filtered = window.allPartnersList.filter(p => {
+    if (currentPartnerFilter === 'ALL') return true;
+    const type = p.type || 'AGENTE';
+    return type === currentPartnerFilter;
+  });
+  
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding: 20px;">Nenhum parceiro encontrado nesta categoria.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filtered.map(a => {
+    const typeLabel = a.type === 'COLOADER' ? '🤝 Coloader' : a.type === 'ARMADOR' ? '🚢 Armador' : '👥 Agente';
+    return `
       <tr>
         <td style="font-weight:600;">${a.name}</td>
-        <td>${a.email}</td>
+        <td>${a.email || '<span style="color:var(--text-muted)">Sem e-mail</span>'}</td>
+        <td style="color:var(--text-muted); font-weight: 500;">${typeLabel}</td>
         <td style="color:var(--text-muted);">${a.modals || '-'}</td>
         <td style="color:var(--text-muted);">${a.origins || '-'}</td>
         <td style="color:var(--text-muted);">${a.destinations || '-'}</td>
@@ -3981,7 +4063,19 @@ async function loadAgents() {
           </div>
         </td>
       </tr>
-    `).join('');
+    `;
+  }).join('');
+}
+
+async function loadAgents() {
+  try {
+    const res = await fetch(API + '/agents');
+    const agents = await res.json();
+    window.allPartnersList = agents;
+    // Salvar também na lista usada na cotação e forçar atualização do dropdown de cotações
+    window.globalAgentsList = agents;
+    
+    renderAgentsTable();
   } catch (e) {
     console.error('Erro ao carregar agentes', e);
   }
@@ -3989,10 +4083,11 @@ async function loadAgents() {
 
 function editAgent(agent) {
   openAgentModal(agent.id);
-  document.getElementById('agentModalTitle').innerText = 'Editar Agente';
+  document.getElementById('agentModalTitle').innerText = 'Editar Parceiro';
   document.getElementById('agent-id').value = agent.id;
   document.getElementById('agent-name').value = agent.name;
-  document.getElementById('agent-email').value = agent.email;
+  document.getElementById('agent-email').value = agent.email || '';
+  document.getElementById('agent-type').value = agent.type || 'AGENTE';
   document.getElementById('agent-address').value = agent.address || '';
   document.getElementById('agent-phone').value = agent.phone || '';
   document.getElementById('agent-website').value = agent.website || '';
@@ -4027,30 +4122,39 @@ async function saveAgent() {
   
   const name = document.getElementById('agent-name').value;
   const email = document.getElementById('agent-email').value;
+  const type = document.getElementById('agent-type').value;
   
-  if (!name || !email) {
-    toast('⚠️ Nome e e-mail são obrigatórios.');
+  if (!name) {
+    toast('⚠️ Nome do parceiro é obrigatório.');
     btn.disabled = false;
-    btn.innerText = 'Salvar Agente';
+    btn.innerText = 'Salvar Parceiro';
+    return;
+  }
+  
+  if (type !== 'ARMADOR' && !email) {
+    toast('⚠️ E-mail é obrigatório para agentes e coloaders.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Parceiro';
     return;
   }
   
   const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
-  if (selectedModals.length === 0) {
+  if (type !== 'ARMADOR' && selectedModals.length === 0) {
     toast('⚠️ Por favor, selecione ao menos um Modal Atendido.');
     btn.disabled = false;
-    btn.innerText = 'Salvar Agente';
+    btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const modalsStr = selectedModals.length === 4 ? 'ALL' : selectedModals.join(', ');
+  const modalsStr = type === 'ARMADOR' && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
   
   const originsStr = tagifyOrigins.value.map(t => t.value).join(', ');
-  if (!originsStr) {
+  if (type !== 'ARMADOR' && !originsStr) {
     toast('⚠️ Por favor, selecione ao menos um país de Origem de Atuação.');
     btn.disabled = false;
-    btn.innerText = 'Salvar Agente';
+    btn.innerText = 'Salvar Parceiro';
     return;
   }
+  const finalOrigins = type === 'ARMADOR' && !originsStr ? 'Global' : originsStr;
   
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
   const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
@@ -4068,14 +4172,15 @@ async function saveAgent() {
 
   const payload = {
     name,
-    email,
+    email: email || null,
+    type,
     networks: networksStr,
     address: document.getElementById('agent-address').value,
     phone: document.getElementById('agent-phone').value,
     website: document.getElementById('agent-website').value,
     contacts: contacts,
     modals: modalsStr,
-    origins: originsStr,
+    origins: finalOrigins,
     destinations: destinationsStr,
     active: document.getElementById('agent-active').checked
   };
@@ -4090,25 +4195,45 @@ async function saveAgent() {
       body: JSON.stringify(payload)
     });
     
-    toast('✅ Agente salvo com sucesso!');
+    toast('✅ Parceiro salvo com sucesso!');
     closeAgentModal();
+    // Resetar cache e recarregar
+    window.globalAgentsList = null;
     loadAgents();
   } catch(e) {
-    toast('❌ Erro ao salvar agente.');
+    toast('❌ Erro ao salvar parceiro.');
   } finally {
     btn.disabled = false;
-    btn.innerText = 'Salvar Agente';
+    btn.innerText = 'Salvar Parceiro';
   }
 }
 
 async function deleteAgent(id) {
-  if (!confirm('Tem certeza que deseja excluir este agente permanentemente?')) return;
+  if (!confirm('Tem certeza que deseja excluir este parceiro permanentemente?')) return;
   try {
     await fetch(API + '/agents/' + id, { method: 'DELETE' });
-    toast('🗑️ Agente excluído.');
+    toast('🗑️ Parceiro excluído.');
+    window.globalAgentsList = null;
     loadAgents();
   } catch (e) {
     toast('❌ Erro ao excluir.');
+  }
+}
+
+async function syncCarriersFromExcel() {
+  toast('⏳ Sincronizando armadores a partir do Excel...');
+  try {
+    const res = await fetch(API + '/agents/sync-carriers', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      toast(`✅ Sincronização concluída! Criados: ${data.created}, Atualizados: ${data.updated}`);
+      window.globalAgentsList = null;
+      loadAgents();
+    } else {
+      toast('❌ Erro ao sincronizar: ' + (data.error || 'Erro desconhecido'));
+    }
+  } catch (e) {
+    toast('❌ Erro na requisição de sincronização.');
   }
 }
 
@@ -4127,6 +4252,7 @@ async function importAgentCsv(event) {
     });
     const data = await res.json();
     toast('✅ ' + data.message);
+    window.globalAgentsList = null;
     loadAgents();
   } catch (e) {
     toast('❌ Erro na importação.');
