@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
-import { extractClientData, extractAgentCosts, generateAgentDraft, readLocalFeesTable } from '../services/aiService';
+import { extractClientData, extractAgentCosts, generateAgentDraft, generateTruckerDraft, readLocalFeesTable } from '../services/aiService';
 import { prisma } from '../prisma';
 
 export const extractData = async (req: Request, res: Response) => {
@@ -180,6 +180,7 @@ export const generateDraft = async (req: Request, res: Response) => {
       reference: quotation.reference,
       modal: quotation.modal,
       route: { origin: quotation.originCity, destination: quotation.destinationCity, incoterm: quotation.incoterm },
+      transportRoute: quotation.transportRoute,
       cargo: { 
         type: quotation.loadType, 
         gross_weight_kg: quotation.totalGrossWeightKg, 
@@ -194,13 +195,26 @@ export const generateDraft = async (req: Request, res: Response) => {
 
     const draftText = await generateAgentDraft(payload, contextRules, contactName);
     
+    let truckerDraftText = null;
+    if (quotation.needsTransport) {
+      try {
+        // Obter nome de contato da transportadora se houver no banco ou gerar padrão
+        truckerDraftText = await generateTruckerDraft(payload, contextRules);
+      } catch (err) {
+        console.error('Erro ao gerar rascunho de transportadora:', err);
+      }
+    }
+    
     // Atualizar no banco
     const updated = await prisma.quotation.update({
       where: { id },
-      data: { draftEmail: draftText }
+      data: { 
+        draftEmail: draftText,
+        truckerDraftEmail: truckerDraftText
+      }
     });
 
-    res.json({ draft: draftText, quotation: updated });
+    res.json({ draft: draftText, truckerDraft: truckerDraftText, quotation: updated });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

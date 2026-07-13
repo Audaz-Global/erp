@@ -310,6 +310,51 @@ export const generateAgentDraft = async (data: any, contextRules: string = '', c
   } catch (error) { throw new Error('Falha ao gerar rascunho com IA'); }
 };
 
+export const generateTruckerDraft = async (data: any, contextRules: string = '', contactName?: string) => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezada Transportadora,`;
+    
+    const prompt = `Você é um analista de logística de comércio exterior escrevendo um e-mail para solicitar cotação de frete rodoviário nacional (transporte terrestre doméstico no Brasil).
+    ${greeting}
+    
+    INSTRUÇÃO CRÍTICA DE IDIOMA:
+    Escreva o e-mail SEMPRE inteiramente em Português (Brasil).
+
+    Use os dados abaixo para redigir o corpo do e-mail de forma profissional e objetiva.
+
+    DADOS DA SOLICITAÇÃO RODOVIÁRIA:
+    - Trecho/Rota Rodoviária: ${data.transportRoute || 'TBD'}
+    - Modal de Chegada/Embarque: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
+    - Tipo de Carga/Modal: ${data.loadType || 'TBD'}
+    - Peso Bruto Total: ${data.totalGrossWeightKg || 'TBD'} kg
+    - Volumes: ${data.totalPackages || 'TBD'}
+    - Dimensões/CBM das Embalagens: ${data.packages || 'Não informado'}
+    - Valor da Carga (para Seguro/GR): ${data.commercialValue ? '$' + data.commercialValue : 'Não informado'}
+    - IMO (Carga Perigosa): ${data.isImo ? 'SIM (Requer motorista com MOPP e veículo adequado)' : 'NÃO'}
+    ${data.reference ? `- Referência do Processo: ${data.reference}` : ''}
+
+    Regras e Instruções Específicas para o E-mail de Transportadora:
+    1. **Foco Rodoviário Doméstico:** Solicite a cotação do frete rodoviário para o trecho rodoviário indicado.
+    2. **Tipo de Equipamento de Transporte:**
+       - Se for FCL (FCL_20 ou FCL_40), mencione que o transporte é de contêiner de 20 pés ou 40 pés, necessitando de cavalo mecânico e chassi porta-contêiner, e solicite a inclusão dos custos de devolução do contêiner vazio.
+       - Se for LCL ou Aéreo, mencione que é transporte de carga fracionada/solta, e solicite o tipo de veículo adequado (ex: Fiorino, HR, VUC, caminhão 3/4, Toco, Truck, Carreta Baú ou Aberta) de acordo com o peso e dimensões fornecidos.
+    3. **Detalhamento de Custos:** Solicite que venha especificado na proposta:
+       - Frete Peso / Frete Valor
+       - Taxa de pedágio (se cobrado à parte)
+       - Ad Valorem e GRIS (Gerenciamento de Risco)
+       - Franquia de tempo (horas livres) para carregamento e descarregamento (e valor da hora excedente/pernoite).
+    4. **Assinatura Neutra:** Finalize com uma assinatura genérica ("Atenciosamente,"), sem listar contatos de pessoas físicas adicionais.
+
+    Retorne APENAS o corpo do e-mail.`;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error) {
+    throw new Error('Falha ao gerar rascunho de transportadora com IA');
+  }
+};
+
 export const extractAgentCosts = async (
   text: string, 
   contextRules: string = '', 

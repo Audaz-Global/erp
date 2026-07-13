@@ -687,6 +687,14 @@
         <button class="btn" onclick="translateDraft()" id="translate-btn" style="white-space: nowrap; height: 44px; padding: 0 24px; background: rgba(245,166,35,0.1); border: 1px solid var(--gold); color: var(--gold);">Traduzir Texto</button>
       </div>
 
+      <!-- Seção do Rascunho da Transportadora -->
+      <div id="trucker-draft-container" style="display: none; margin-top: 24px;">
+        <div class="form-group" style="margin: 0;">
+          <label style="color: var(--gold); font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">🚚 Rascunho de E-mail para Transportadora (Sempre em Português)</label>
+          <textarea id="r-trucker-draft-text" rows="8" placeholder="O rascunho da transportadora aparecerá aqui..." style="font-family: monospace;"></textarea>
+        </div>
+      </div>
+
       <div class="status-strip warn" id="statusStrip">
         ⚠️ Revise os dados acima antes de gerar o rascunho.
       </div>
@@ -1962,6 +1970,8 @@ async function populateAgentDropdown(originCountry) {
 function toggleTransportSection(show) {
   const section = document.getElementById('transport-section');
   if (section) section.style.display = show ? 'block' : 'none';
+  const draftContainer = document.getElementById('trucker-draft-container');
+  if (draftContainer) draftContainer.style.display = show ? 'block' : 'none';
   const checkbox = document.getElementById('r-needs-transport');
   if (checkbox) checkbox.checked = !!show;
 }
@@ -2031,6 +2041,8 @@ async function populateTruckerDropdown() {
 function fillReviewForm(d, mode) {
   if (mode === 'CLIENT') {
     document.getElementById('r-reference').value = d.reference || '';
+    document.getElementById('r-draft-text').value = d.draftEmail || '';
+    document.getElementById('r-trucker-draft-text').value = d.truckerDraftEmail || '';
     if(d.client) {
       document.getElementById('r-client-name').value = d.client.name || '';
       document.getElementById('conf-client-name').innerHTML = renderConf(d.client.name, d.client.confidence);
@@ -2459,6 +2471,11 @@ async function generateDraftEmail() {
     const draftData = await resDraft.json();
     
     document.getElementById('r-draft-text').value = draftData.draft || '';
+    if (draftData.truckerDraft) {
+      document.getElementById('r-trucker-draft-text').value = draftData.truckerDraft;
+    } else {
+      document.getElementById('r-trucker-draft-text').value = '';
+    }
     toast('✅ Rascunho gerado com sucesso!');
   } catch(e) {
     alert('Erro ao gerar rascunho: ' + e.message);
