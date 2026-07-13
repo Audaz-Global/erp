@@ -224,7 +224,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count), Valor Comercial (commercial_value_usd) e Dimensões (dimensions):**
     - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso TOTAL consolidado de todas as cargas do embarque, utilize esse valor.
     - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente se houver um total explícito nela ou se houver um arquivo de packing list de imagem anexo legível.
-    - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 3 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 20000 pcs etc.).
+    - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 3 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 20000 pcs etc.). Identifique também termos como "ctns", "ctn", "carton" ou "cartons" no packing list ou e-mail, pois eles significam caixas de papelão e devem ser contados como volumes físicos no packages_count.
     - **Dimensões com Quantidade (CRÍTICO)**: Cada item no array "dimensions" DEVE obrigatoriamente iniciar com a quantidade de volumes correspondente àquela dimensão usando o formato "[Quantidade]x [Comprimento]x[Widht]x[Altura] cm" (ex: "1x 50x50x28 cm", "2x 50x50x13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm"). Se a quantidade não for colocada na frente de cada dimensão, a cubagem acumulada falhará.
     - **Somente Extrair Itens com Dimensões Explícitas (CRÍTICO)**: Ao extrair o array de "dimensions", inclua APENAS as caixas/paletes que tenham medidas/dimensões explicitamente detalhadas no texto do e-mail ou documentos. Se um item (como Europacks, NPS400, etc.) for apenas mencionado por nome sem nenhuma dimensão explícita, NÃO tente deduzir nem criar dimensões artificiais para ele, pois supõe-se que ele já esteja consolidado e empilhado dentro dos paletes principais que possuem medidas informadas.
     - **Seguro (requires_insurance)**: Identifique se o e-mail original do cliente pede "com seguro", "frete com seguro", ou similar. Se sim, defina "requires_insurance" como true. Se pedir "sem seguro" ou não mencionar nada sobre seguro, defina como false.
@@ -336,15 +336,16 @@ export const generateTruckerDraft = async (data: any, contextRules: string = '',
 
     Regras e Instruções Específicas para o E-mail de Transportadora:
     1. **Foco Rodoviário Doméstico:** Solicite a cotação do frete rodoviário para o trecho rodoviário indicado.
-    2. **Tipo de Equipamento de Transporte:**
-       - Se for FCL (FCL_20 ou FCL_40), mencione que o transporte é de contêiner de 20 pés ou 40 pés, necessitando de cavalo mecânico e chassi porta-contêiner, e solicite a inclusão dos custos de devolução do contêiner vazio.
-       - Se for LCL ou Aéreo, mencione que é transporte de carga fracionada/solta, e solicite o tipo de veículo adequado (ex: Fiorino, HR, VUC, caminhão 3/4, Toco, Truck, Carreta Baú ou Aberta) de acordo com o peso e dimensões fornecidos.
-    3. **Detalhamento de Custos:** Solicite que venha especificado na proposta:
+    2. **Apresentação Obrigatória dos Dados Físicos (CRÍTICO):** Você deve incluir obrigatoriamente no corpo do e-mail, de forma clara e estruturada (em tópicos/lista), as informações físicas da carga (Peso Bruto total, quantidade de volumes e dimensões/embalagens). Nunca omita estes dados.
+    3. **Tipo de Equipamento e Exclusão Mútua Rígida (CRÍTICO):**
+       - **Se o tipo de carga/modal for LCL ou AIR_GENERAL:** Solicite estritamente veículo rodoviário para carga solta/fracionada (ex: Fiorino, HR, VUC, caminhão 3/4, Toco, Truck ou Carreta Baú) que seja adequado para o peso e dimensões fornecidos. **NÃO mencione** de forma alguma contêineres de 20 ou 40 pés, devolução de vazio, demurrage de container ou chassi porta-contêiner no e-mail.
+       - **Se o tipo de carga/modal for FCL (FCL_20 ou FCL_40):** Solicite transporte para contêiner cheio de 20' ou 40' (conforme o tipo de carga), necessitando de chassi porta-contêiner e cavalo mecânico, e solicite a inclusão dos custos de devolução do contêiner vazio no porto. **NÃO mencione** de forma alguma Fiorino, HR, VUC, caminhão 3/4, Toco ou Truck.
+    4. **Detalhamento de Custos:** Solicite que venha especificado na proposta:
        - Frete Peso / Frete Valor
        - Taxa de pedágio (se cobrado à parte)
        - Ad Valorem e GRIS (Gerenciamento de Risco)
        - Franquia de tempo (horas livres) para carregamento e descarregamento (e valor da hora excedente/pernoite).
-    4. **Assinatura Neutra:** Finalize com uma assinatura genérica ("Atenciosamente,"), sem listar contatos de pessoas físicas adicionais.
+    5. **Assinatura Neutra:** Finalize com uma assinatura genérica ("Atenciosamente,"), sem listar contatos de pessoas físicas adicionais.
 
     Retorne APENAS o corpo do e-mail.`;
 
