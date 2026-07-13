@@ -418,6 +418,7 @@
 
   /* Knowledge table */
   .k-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 16px; }
+  .k-table th, .k-table td { white-space: nowrap; }
   .k-table thead th {
     text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted);
@@ -915,7 +916,8 @@
         </div>
         <div style="display: flex; gap: 12px;">
           <input type="file" id="agentCsvInput" accept=".csv" style="display:none;" onchange="importAgentCsv(event)">
-          <button class="btn btn-secondary" onclick="syncCarriersFromExcel()" style="padding: 10px 16px; font-size: 13px;">🚢 Sincronizar Armadores</button>
+          <input type="file" id="carrierExcelInput" accept=".xlsx,.xls" style="display:none;" onchange="syncCarriersFromExcel(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('carrierExcelInput').click()" style="padding: 10px 16px; font-size: 13px;">🚢 Sincronizar Armadores</button>
           <button class="btn btn-secondary" onclick="document.getElementById('agentCsvInput').click()" style="padding: 10px 16px; font-size: 13px;">📥 Importar CSV</button>
           <button class="btn btn-primary" onclick="openAgentModal()" style="padding: 10px 16px; font-size: 13px;">➕ Novo Agente</button>
         </div>
@@ -3590,7 +3592,7 @@ function switchSettingsTab(tab) {
         </div>
         <div class="settings-section">
           <h3>Regras Cadastradas</h3>
-          <div id="knowledgeTableContainer"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+          <div id="knowledgeTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>`;
       loadKnowledgeTable();
       break;
@@ -3673,7 +3675,7 @@ function switchSettingsTab(tab) {
 
         <div class="settings-section">
           <h3>Taxas Cadastradas</h3>
-          <div id="fixedFeesTableContainer"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+          <div id="fixedFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
       loadFixedFeesTable();
@@ -3716,7 +3718,7 @@ function switchSettingsTab(tab) {
 
         <div class="settings-section">
           <h3>Taxas Locais Cadastradas</h3>
-          <div id="standardFeesTableContainer"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+          <div id="standardFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
       loadStandardFeesTable();
@@ -4220,13 +4222,25 @@ async function deleteAgent(id) {
   }
 }
 
-async function syncCarriersFromExcel() {
-  toast('⏳ Sincronizando armadores a partir do Excel...');
+async function syncCarriersFromExcel(event) {
+  const file = event ? event.target.files[0] : null;
+  
+  const formData = new FormData();
+  if (file) {
+    formData.append('file', file);
+    toast('⏳ Enviando planilha e sincronizando armadores...');
+  } else {
+    toast('⏳ Sincronizando armadores a partir do Excel...');
+  }
+  
   try {
-    const res = await fetch(API + '/agents/sync-carriers', { method: 'POST' });
+    const res = await fetch(API + '/agents/sync-carriers', {
+      method: 'POST',
+      body: file ? formData : undefined
+    });
     const data = await res.json();
     if (res.ok) {
-      toast(`✅ Sincronização concluída! Criados: ${data.created}, Atualizados: ${data.updated}`);
+      toast(`✅ Sincronização concluída! Criados: ${data.created}, Atualizados: ${data.updated}, Taxas: ${data.feesImported || 0}`);
       window.globalAgentsList = null;
       loadAgents();
     } else {
@@ -4235,6 +4249,7 @@ async function syncCarriersFromExcel() {
   } catch (e) {
     toast('❌ Erro na requisição de sincronização.');
   }
+  if (event) event.target.value = ''; // limpar input
 }
 
 async function importAgentCsv(event) {

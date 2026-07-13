@@ -10,6 +10,6 @@ router.post('/', createAgent);
 router.put('/:id', updateAgent);
 router.delete('/:id', deleteAgent);
 router.post('/import', upload.single('file'), importAgents);
-router.post('/sync-carriers', syncCarriers);
+router.post('/sync-carriers', upload.single('file'), syncCarriers);
 
 export default router;

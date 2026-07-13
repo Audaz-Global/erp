@@ -311,24 +311,37 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
 
 export const syncCarriers = async (req: Request, res: Response) => {
   try {
-    const paths = [
-      path.join(process.cwd(), 'Taxas locais Armadores 2026.xlsx'),
-      path.join(process.cwd(), '..', 'Taxas locais Armadores 2026.xlsx'),
-      path.join(__dirname, '..', '..', 'Taxas locais Armadores 2026.xlsx'),
-    ];
-    let finalPath = '';
-    for (const p of paths) {
-      if (fs.existsSync(p)) {
-        finalPath = p;
-        break;
+    let workbook: xlsx.WorkBook;
+
+    if (req.file) {
+      workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      const rootPath = path.join(process.cwd(), 'Taxas locais Armadores 2026.xlsx');
+      try {
+        fs.writeFileSync(rootPath, req.file.buffer);
+      } catch (e) {
+        console.error('Erro ao sobrescrever planilha física na raiz:', e);
       }
-    }
-    
-    if (!finalPath) {
-      return res.status(404).json({ error: 'Planilha de Taxas Locais de Armadores não encontrada.' });
+    } else {
+      const paths = [
+        path.join(process.cwd(), 'Taxas locais Armadores 2026.xlsx'),
+        path.join(process.cwd(), '..', 'Taxas locais Armadores 2026.xlsx'),
+        path.join(__dirname, '..', '..', 'Taxas locais Armadores 2026.xlsx'),
+      ];
+      let finalPath = '';
+      for (const p of paths) {
+        if (fs.existsSync(p)) {
+          finalPath = p;
+          break;
+        }
+      }
+      
+      if (!finalPath) {
+        return res.status(404).json({ error: 'Planilha de Taxas Locais de Armadores não encontrada.' });
+      }
+
+      workbook = xlsx.readFile(finalPath);
     }
 
-    const workbook = xlsx.readFile(finalPath);
     let createdCount = 0;
     let updatedCount = 0;
     let feesImported = 0;
