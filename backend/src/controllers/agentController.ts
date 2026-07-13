@@ -331,12 +331,13 @@ export const syncCarriers = async (req: Request, res: Response) => {
     const workbook = xlsx.readFile(finalPath);
     let createdCount = 0;
     let updatedCount = 0;
+    let feesImported = 0;
 
     for (const sheetName of workbook.SheetNames) {
       const carrierName = sheetName.trim();
       if (!carrierName || ['guide', 'summary', 'capa', 'resumo'].includes(carrierName.toLowerCase())) continue;
 
-      // Procurar se já existe no banco de dados como ARMADOR
+      // 1. Procurar se já existe no banco de dados como ARMADOR
       const existing = await prisma.agent.findFirst({
         where: {
           name: { equals: carrierName, mode: 'insensitive' as const },
@@ -369,9 +370,110 @@ export const syncCarriers = async (req: Request, res: Response) => {
         });
         createdCount++;
       }
+
+      // 2. Importar as taxas locais da aba do armador correspondente para a tabela FixedFee
+      const sheet = workbook.Sheets[sheetName];
+      if (sheet) {
+        // Limpar taxas anteriores do armador para evitar duplicações
+        await prisma.fixedFee.deleteMany({
+          where: {
+            carrier: { equals: carrierName, mode: 'insensitive' as const }
+          }
+        });
+
+        const data = xlsx.utils.sheet_to_json<any>(sheet, { defval: '' });
+
+        for (const row of data) {
+          const keys = Object.keys(row);
+          if (keys.length < 2) continue;
+
+          let nameField = keys.find(k => k.toLowerCase().includes('taxa') || k.toLowerCase().includes('nome') || k.toLowerCase().includes('fee') || k.toLowerCase().includes('charge')) || keys[0];
+          let valueField = keys.find(k => k.toLowerCase().includes('valor') || k.toLowerCase().includes('value') || k.toLowerCase().includes('amount') || k.toLowerCase().includes('ssz')) || keys[1];
+
+          let name = String(row[nameField || ''] || '').trim();
+          let valueStr = row[valueField || ''];
+          
+          if (!name || name === '') continue;
+          if (valueStr === undefined || valueStr === '') continue;
+
+          // Parar a leitura se chegar no bloco de taxas adicionais
+          const nameUpper = name.toUpperCase();
+          if (
+            nameUpper.includes('ADICIONAL') || 
+            nameUpper.includes('ADICIONAIS') || 
+            nameUpper.includes('ADICONAIS') ||
+            nameUpper.includes('ADICIONA')
+          ) {
+            break;
+          }
+
+          let currency = 'BRL'; // Padrão
+          if (keys.some(k => k.toLowerCase().includes('moeda'))) {
+              currency = row[keys.find(k => k.toLowerCase().includes('moeda'))!] || 'BRL';
+          } else if (typeof valueStr === 'string' && valueStr.includes('USD')) {
+              currency = 'USD';
+          }
+
+          let val = 0;
+          if (typeof valueStr === 'number') val = valueStr;
+          else if (typeof valueStr === 'string') {
+              const cleanStr = valueStr.replace(/[^\d,-]/g, '');
+              if (cleanStr) val = parseFloat(cleanStr.replace(',', '.'));
+          }
+
+          if (!isNaN(val) && val > 0) {
+            // Criar registro de 20'
+            await prisma.fixedFee.create({
+              data: {
+                name: name.substring(0, 255).trim(),
+                carrier: carrierName.toUpperCase().substring(0, 100).trim(),
+                containerSize: "20'",
+                type: 'DESTINATION',
+                value: val,
+                currency: currency.substring(0, 10).toUpperCase().trim(),
+                modal: 'SEA_FCL',
+                active: true
+              }
+            });
+            feesImported++;
+
+            // Criar registro de 40' se houver na coluna __EMPTY_1
+            if (keys.includes('__EMPTY_1') && row['__EMPTY_1'] !== undefined && row['__EMPTY_1'] !== '') {
+               let val40 = 0;
+               const val40Str = row['__EMPTY_1'];
+               if (typeof val40Str === 'number') val40 = val40Str;
+               else if (typeof val40Str === 'string') {
+                   const cleanStr = val40Str.replace(/[^\d,-]/g, '');
+                   if (cleanStr) val40 = parseFloat(cleanStr.replace(',', '.'));
+               }
+               
+               if (!isNaN(val40) && val40 > 0) {
+                  await prisma.fixedFee.create({
+                     data: {
+                       name: name.substring(0, 255).trim(),
+                       carrier: carrierName.toUpperCase().substring(0, 100).trim(),
+                       containerSize: "40'",
+                       type: 'DESTINATION',
+                       value: val40,
+                       currency: currency.substring(0, 10).toUpperCase().trim(),
+                       modal: 'SEA_FCL',
+                       active: true
+                     }
+                  });
+                  feesImported++;
+               }
+            }
+          }
+        }
+      }
     }
 
-    res.json({ message: 'Sincronização concluída com sucesso', created: createdCount, updated: updatedCount });
+    res.json({ 
+      message: 'Sincronização concluída com sucesso', 
+      created: createdCount, 
+      updated: updatedCount,
+      feesImported: feesImported
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
