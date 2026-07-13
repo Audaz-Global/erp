@@ -469,7 +469,14 @@ export const extractAgentCosts = async (
        - Calcule a soma total dessas taxas locais padrão em BRL:
          - Para taxas do tipo "(per container)" ou "(per contianer)" ou similar: multiplique o valor unitário da taxa pela quantidade de contêineres indicada no CONTEXTO DA COTAÇÃO ORIGINAL (deduza a quantidade a partir da descrição ou de referências, ex: "4 x Container de 40'" significa 4 contêineres).
          - Para taxas do tipo "(per shipment)" ou "(per documento)" ou similar: aplique o valor da taxa uma única vez no embarque.
-       - Some todas as taxas obtenidas e insira o valor final calculated (em reais BRL) no campo "services_brl" do JSON de resposta, a menos que o retorno do agente já contenha expressamente outras taxas locais de destino in BRL informadas no texto (se houver taxas locais de destino especificadas no texto do agente, prefira as informadas pelo agente).
+       - Some todas as taxas obtidas e insira o valor final calculated (em reais BRL) no campo "services_brl" do JSON de resposta, a menos que o retorno do agente já contenha expressamente outras taxas locais de destino in BRL informadas no texto (se houver taxas locais de destino especificadas no texto do agente, prefira as informadas pelo agente).
+    
+    Instruções Importantes para Taxas Locais de Companhia Aérea (Destino BRL):
+    2. Se os dados de CONTEXTO DA COTAÇÃO ORIGINAL indicarem que o embarque é aéreo (AIR / AIR_GENERAL) ou se o modal for Aéreo:
+       - Identifique qual é a COMPANHIA AÉREA (Carrier) mencionada no RETORNO DO AGENTE ou nos documentos (ex: LATAM, Lufthansa, Emirates, etc.).
+       - Se encontrar a companhia aérea, consulte na tabela "TABELA DE TAXAS LOCAIS DE DESTINO POR COMPANHIA AÉREA (CADASTRADAS NO BANCO)" fornecida acima.
+       - Extraia todas as taxas de destino ativas cadastradas para aquela companhia aérea específica (ou taxas gerais sem companhia definida).
+       - Some o valor de todas as taxas encontradas aplicadas ao processo e insira o valor final calculado (em reais BRL, convertendo taxas em USD/EUR para BRL se necessário usando câmbio de 5.0) no campo "services_brl" do JSON de resposta, a menos que o retorno do agente já contenha expressamente outras taxas locais de destino em BRL informadas no texto.
     
     RETORNO DO AGENTE:
     ${text}

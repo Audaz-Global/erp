@@ -835,7 +835,7 @@
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label style="margin:0;">Taxas Locais de Origem (Itemizadas) <span id="conf-agent-origin-services"></span></label>
                 <div style="display:flex; gap:5px;">
-                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Armadores (O)</button>
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('ORIGIN', 'r-agent-origin-services')">➕ Cia/Armador (O)</button>
                   <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyStandardFees('ORIGIN', 'r-agent-origin-services')">➕ Taxas Locais (O)</button>
                 </div>
               </div>
@@ -845,7 +845,7 @@
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label style="margin:0;">Taxas Locais de Destino (Itemizadas) <span id="conf-agent-destination-services"></span></label>
                 <div style="display:flex; gap:5px;">
-                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Armadores (D)</button>
+                  <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyFixedFees('DESTINATION', 'r-agent-destination-services')">➕ Cia/Armador (D)</button>
                   <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="applyStandardFees('DESTINATION', 'r-agent-destination-services')">➕ Taxas Locais (D)</button>
                 </div>
               </div>
@@ -983,6 +983,7 @@
         <button type="button" class="btn btn-secondary" id="partner-filter-coloader" onclick="setPartnerFilter('COLOADER')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🤝 Coloaders</button>
         <button type="button" class="btn btn-secondary" id="partner-filter-carrier" onclick="setPartnerFilter('ARMADOR')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚢 Armadores</button>
         <button type="button" class="btn btn-secondary" id="partner-filter-trucker" onclick="setPartnerFilter('TRANSPORTADORA')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚚 Transportadoras</button>
+        <button type="button" class="btn btn-secondary" id="partner-filter-airline" onclick="setPartnerFilter('CIA_AEREA')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">✈️ Cias Aéreas</button>
       </div>
       
       <div class="history-toolbar" style="margin-bottom: 20px;">
@@ -1348,7 +1349,7 @@
           <span class="nav-icon">💱</span> Taxas Padrão
         </li>
         <li onclick="switchSettingsTab('fixedFees')">
-          <span class="nav-icon">💰</span> Taxas dos Armadores
+          <span class="nav-icon">💰</span> Taxas Locais Parceiros
         </li>
         <li onclick="switchSettingsTab('standardFees')">
           <span class="nav-icon">🏢</span> Taxas Locais
@@ -1394,11 +1395,12 @@
         <option value="COLOADER">🤝 Coloader</option>
         <option value="ARMADOR">🚢 Armador</option>
         <option value="TRANSPORTADORA">🚚 Transportadora</option>
+        <option value="CIA_AEREA">✈️ Cia Aérea</option>
       </select>
     </div>
     
     <div class="form-group">
-      <label>E-mail Principal (Opcional para Armadores e Transportadoras) *</label>
+      <label>E-mail Principal (Opcional para Armadores, Transportadoras e Cias Aéreas) *</label>
       <input type="email" id="agent-email" placeholder="Ex: booking@yongsheng.com">
     </div>
     
@@ -3844,8 +3846,8 @@ function switchSettingsTab(tab) {
 
     case 'fixedFees':
       content.innerHTML = `
-        <div class="sc-title">💰 Taxas dos Armadores</div>
-        <p class="sc-desc">Gerencie taxas fixas dos armadores para adicioná-las rapidamente nas cotações.</p>
+        <div class="sc-title">💰 Taxas Locais de Parceiros</div>
+        <p class="sc-desc">Gerencie taxas locais fixas de Armadores e Companhias Aéreas para o cálculo automático de cotações.</p>
         
         <div class="settings-section" style="margin-bottom: 24px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -3857,9 +3859,9 @@ function switchSettingsTab(tab) {
           </div>
           
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: BL Fee"></div>
-            <div class="form-group" style="margin:0;"><label>Armador</label><input type="text" id="ff-carrier" placeholder="Ex: COSCO (Opcional)"></div>
-            <div class="form-group" style="margin:0;"><label>Contêiner</label>
+            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: Capatazia, AWB Fee, BL Fee..."></div>
+            <div class="form-group" style="margin:0;"><label>Armador / Cia Aérea</label><input type="text" id="ff-carrier" placeholder="Ex: COSCO, LATAM, Azul (Opcional)"></div>
+            <div class="form-group" style="margin:0;"><label>Equipamento / Carga</label>
               <select id="ff-container">
                 <option value="">Nenhum/Opcional</option>
                 <option value="20'">20'</option>
@@ -4249,6 +4251,7 @@ function setPartnerFilter(filter) {
   document.getElementById('partner-filter-coloader').classList.toggle('active', filter === 'COLOADER');
   document.getElementById('partner-filter-carrier').classList.toggle('active', filter === 'ARMADOR');
   document.getElementById('partner-filter-trucker').classList.toggle('active', filter === 'TRANSPORTADORA');
+  document.getElementById('partner-filter-airline').classList.toggle('active', filter === 'CIA_AEREA');
   renderAgentsTable();
 }
 
@@ -4268,7 +4271,7 @@ function renderAgentsTable() {
   }
   
   tbody.innerHTML = filtered.map(a => {
-    const typeLabel = a.type === 'COLOADER' ? '🤝 Coloader' : a.type === 'ARMADOR' ? '🚢 Armador' : a.type === 'TRANSPORTADORA' ? '🚚 Transportadora' : '👥 Agente';
+    const typeLabel = a.type === 'COLOADER' ? '🤝 Coloader' : a.type === 'ARMADOR' ? '🚢 Armador' : a.type === 'TRANSPORTADORA' ? '🚚 Transportadora' : a.type === 'CIA_AEREA' ? '✈️ Cia Aérea' : '👥 Agente';
     return `
       <tr>
         <td style="font-weight:600;">${a.name}</td>
@@ -4353,7 +4356,7 @@ async function saveAgent() {
     return;
   }
   
-  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && !email) {
+  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && type !== 'CIA_AEREA' && !email) {
     toast('⚠️ E-mail é obrigatório para agentes e coloaders.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
@@ -4361,22 +4364,22 @@ async function saveAgent() {
   }
   
   const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
-  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && selectedModals.length === 0) {
+  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && type !== 'CIA_AEREA' && selectedModals.length === 0) {
     toast('⚠️ Por favor, selecione ao menos um Modal Atendido.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const modalsStr = (type === 'ARMADOR' || type === 'TRANSPORTADORA') && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
+  const modalsStr = (type === 'ARMADOR' || type === 'TRANSPORTADORA' || type === 'CIA_AEREA') && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
   
   const originsStr = tagifyOrigins.value.map(t => t.value).join(', ');
-  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && !originsStr) {
+  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && type !== 'CIA_AEREA' && !originsStr) {
     toast('⚠️ Por favor, selecione ao menos um país de Origem de Atuação.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const finalOrigins = (type === 'ARMADOR' || type === 'TRANSPORTADORA') && !originsStr ? 'Global' : originsStr;
+  const finalOrigins = (type === 'ARMADOR' || type === 'TRANSPORTADORA' || type === 'CIA_AEREA') && !originsStr ? 'Global' : originsStr;
   
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
   const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
@@ -4655,7 +4658,23 @@ async function applyFixedFees(type, targetId) {
       else if (q.loadType && q.loadType.includes('FCL')) currentModal = 'SEA_FCL';
     }
 
-    const applicableFees = fees.filter(f => f.active && f.type === type && (f.modal === 'ALL' || f.modal === currentModal));
+    // Tentar descobrir o carrier digitado na tela
+    const carrierInput = document.getElementById('r-agent-carrier');
+    const enteredCarrier = carrierInput ? carrierInput.value.trim().toLowerCase() : '';
+
+    const applicableFees = fees.filter(f => {
+      if (!f.active || f.type !== type) return false;
+      
+      const modalMatch = (f.modal === 'ALL' || f.modal === currentModal);
+      if (!modalMatch) return false;
+
+      if (enteredCarrier) {
+        // Se há carrier preenchido na tela, traz gerais (sem carrier) OU as correspondentes
+        return !f.carrier || f.carrier.toLowerCase().includes(enteredCarrier) || enteredCarrier.includes(f.carrier.toLowerCase());
+      }
+      
+      return true;
+    });
     
     if (applicableFees.length === 0) {
       toast('Nenhuma taxa fixa encontrada para este cenário.');

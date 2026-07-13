@@ -86,9 +86,10 @@ export const extractData = async (req: Request, res: Response) => {
       // Buscar cotação original para passar como contexto de cálculo
       const quotationId = req.body.quotationId || '';
       let quotationContext = '';
+      let quotation = null;
       if (quotationId) {
         try {
-          const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+          quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
           if (quotation) {
             quotationContext = `
 - Rota: ${quotation.originCity || 'Não informada'} para ${quotation.destinationCity || 'Não informada'}
@@ -102,8 +103,23 @@ export const extractData = async (req: Request, res: Response) => {
         }
       }
 
-      // Ler planilha de taxas locais de armador
-      const localFeesTable = readLocalFeesTable();
+      // Ler planilha de taxas locais de armador ou carregar taxas aéreas do banco
+      let localFeesTable = '';
+      if (quotation && quotation.modal === 'AIR') {
+        try {
+          const airFees = await prisma.fixedFee.findMany({
+            where: { active: true, modal: 'AIR' }
+          });
+          localFeesTable = 'TABELA DE TAXAS LOCAIS DE DESTINO POR COMPANHIA AÉREA (CADASTRADAS NO BANCO):\n\n';
+          airFees.forEach(f => {
+            localFeesTable += `- Cia: ${f.carrier || 'Geral'} | Taxa: ${f.name} | Valor: ${f.value} ${f.currency} (${f.type === 'ORIGIN' ? 'Origem' : 'Destino'})\n`;
+          });
+        } catch (dbErr) {
+          console.error('Erro ao carregar taxas de Cia Aérea no banco:', dbErr);
+        }
+      } else {
+        localFeesTable = readLocalFeesTable();
+      }
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
       
