@@ -50,12 +50,12 @@ export const getAccessToken = async (): Promise<string> => {
  * Usa fluxo draft+send para capturar o conversationId do MS Graph.
  * Retorna { conversationId } para tracking de thread.
  */
-export const sendOutlookEmail = async (toEmail: string, subject: string, htmlContent: string): Promise<{ conversationId: string | null }> => {
+export const sendOutlookEmail = async (toEmail: string, subject: string, htmlContent: string, ccEmail?: string): Promise<{ conversationId: string | null }> => {
   if (!USER_EMAIL) throw new Error('E-mail do remetente (MS_GRAPH_USER_EMAIL) não configurado.');
   
   const token = await getAccessToken();
   
-  const messagePayload = {
+  const messagePayload: any = {
     subject: subject,
     body: {
       contentType: 'HTML',
@@ -67,6 +67,14 @@ export const sendOutlookEmail = async (toEmail: string, subject: string, htmlCon
       }
     ]
   };
+
+  if (ccEmail) {
+    messagePayload.ccRecipients = [
+      {
+        emailAddress: { address: ccEmail }
+      }
+    ];
+  }
 
   try {
     // Passo 1: Criar como rascunho para obter conversationId

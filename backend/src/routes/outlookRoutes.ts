@@ -11,7 +11,7 @@ marked.setOptions({ breaks: true });
 // Rota para disparar o e-mail de cotação via Outlook
 router.post('/send-draft', async (req: Request, res: Response) => {
   try {
-    const { quotationId, htmlBody, subject, agentEmail, agentName } = req.body;
+    const { quotationId, htmlBody, subject, agentEmail, agentName, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail } = req.body;
 
     if (!quotationId) return res.status(400).json({ error: 'quotationId é obrigatório' });
     if (!agentEmail) return res.status(400).json({ error: 'agentEmail é obrigatório' });
@@ -71,9 +71,26 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     const finalHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedHtml}</body></html>`;
 
     // Envia usando a Microsoft Graph API (draft+send para capturar conversationId)
-    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail);
+    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail);
 
-    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail + conversationId
+    // Se houver necessidade de transporte terrestre e o e-mail da transportadora for fornecido
+    let truckerConversationId = null;
+    if (needsTransport && truckerEmail) {
+      try {
+        const truckerSubject = `Solicitação de Coleta/Entrega Rodoviária - REF: ${targetReference}`;
+        const truckerMarkdown = quotation.truckerDraftEmail || '';
+        const renderedTruckerHtml = await marked.parse(truckerMarkdown);
+        const finalTruckerHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedTruckerHtml}</body></html>`;
+        
+        const truckerRes = await sendOutlookEmail(truckerEmail, truckerSubject, finalTruckerHtmlEmail, truckerCcEmail);
+        truckerConversationId = truckerRes.conversationId;
+        console.log(`[Outlook] E-mail de transportadora enviado para ${truckerEmail} | REF: ${targetReference} | ConversationId: ${truckerConversationId || 'N/A'}`);
+      } catch (tErr: any) {
+        console.error('Erro ao enviar e-mail da transportadora pelo Outlook:', tErr);
+      }
+    }
+
+    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail + conversationId + dados da transportadora
     const updated = await prisma.quotation.update({
       where: { id: targetQuotationId },
       data: { 
@@ -82,7 +99,12 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         agentName: agentName,
         draftEmail: rawMarkdown,
         sentAt: new Date(),
-        sentEmailConversationId: conversationId || null
+        sentEmailConversationId: conversationId || null,
+        ...(needsTransport && truckerEmail ? {
+          truckerEmail,
+          truckerName,
+          truckerSentAt: new Date()
+        } : {})
       }
     });
 

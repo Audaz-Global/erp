@@ -641,11 +641,22 @@
         </div>
       </div>
 
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+        <div class="form-group" style="margin: 0;">
+          <label id="partner-select-label">Selecione o Agente</label>
+          <select id="r-agent-email" onchange="onAgentSelectChange()" style="margin: 0;">
+            <option value="">Nenhum parceiro encontrado</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <label>E-mail de Envio (Destinatário)</label>
+          <input type="text" id="r-agent-send-email" placeholder="Ex: booking@agent.com" style="margin: 0;">
+        </div>
+      </div>
+
       <div class="form-group">
-        <label id="partner-select-label">Selecione o Agente</label>
-        <select id="r-agent-email">
-          <option value="">Nenhum parceiro encontrado</option>
-        </select>
+        <label>Receber Cópia (CC) no seu E-mail da Audaz</label>
+        <input type="email" id="r-agent-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)">
       </div>
 
       <!-- Solicitação de Transporte Terrestre checkbox -->
@@ -657,16 +668,27 @@
       <!-- Seção de Transporte Terrestre Nacional -->
       <div id="transport-section" style="display: none; background: rgba(255,255,255,0.01); border: 1px dashed var(--gold); border-radius: 12px; padding: 18px; margin-top: 12px; margin-bottom: 20px;">
         <h4 style="margin-top: 0; color: var(--gold); display: flex; align-items: center; gap: 8px; font-size: 14px;"><span class="emoji">🚚</span> TRANSPORTE RODOVIÁRIO NACIONAL</h4>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
           <div class="form-group" style="margin: 0;">
             <label>Selecione a Transportadora</label>
-            <select id="r-trucker-email" style="margin: 0;">
+            <select id="r-trucker-email" onchange="onTruckerSelectChange()" style="margin: 0;">
               <option value="">Selecione uma transportadora...</option>
             </select>
           </div>
           <div class="form-group" style="margin: 0;">
+            <label>E-mail de Envio da Transportadora</label>
+            <input type="text" id="r-trucker-send-email" placeholder="Ex: operacional@transportadora.com" style="margin: 0;">
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-group" style="margin: 0;">
             <label>Trecho / Rota Terrestre</label>
             <input type="text" id="r-transport-route" placeholder="Ex: Santos x Itatiba/SP" style="margin: 0;">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label>Receber Cópia (CC) da Transportadora</label>
+            <input type="email" id="r-trucker-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)" style="margin: 0;">
           </div>
         </div>
       </div>
@@ -1965,6 +1987,23 @@ async function populateAgentDropdown(originCountry) {
       }
     }
   });
+  onAgentSelectChange();
+}
+
+function onAgentSelectChange() {
+  const select = document.getElementById('r-agent-email');
+  const sendEmailInput = document.getElementById('r-agent-send-email');
+  if (select && sendEmailInput) {
+    sendEmailInput.value = select.value || '';
+  }
+}
+
+function onTruckerSelectChange() {
+  const select = document.getElementById('r-trucker-email');
+  const sendEmailInput = document.getElementById('r-trucker-send-email');
+  if (select && sendEmailInput) {
+    sendEmailInput.value = select.value || '';
+  }
 }
 
 function toggleTransportSection(show) {
@@ -2036,6 +2075,7 @@ async function populateTruckerDropdown() {
       }
     }
   });
+  onTruckerSelectChange();
 }
 
 function fillReviewForm(d, mode) {
@@ -2043,6 +2083,8 @@ function fillReviewForm(d, mode) {
     document.getElementById('r-reference').value = d.reference || '';
     document.getElementById('r-draft-text').value = d.draftEmail || '';
     document.getElementById('r-trucker-draft-text').value = d.truckerDraftEmail || '';
+    if (d.agentEmail) document.getElementById('r-agent-send-email').value = d.agentEmail;
+    if (d.truckerEmail) document.getElementById('r-trucker-send-email').value = d.truckerEmail;
     if(d.client) {
       document.getElementById('r-client-name').value = d.client.name || '';
       document.getElementById('conf-client-name').innerHTML = renderConf(d.client.name, d.client.confidence);
@@ -2520,10 +2562,9 @@ async function sendOutlookEmail() {
     return;
   }
   
-  const selectEl = document.getElementById('r-agent-email');
-  const agentEmail = selectEl.value;
+  const agentEmail = document.getElementById('r-agent-send-email').value.trim();
   if (!agentEmail) {
-    alert('Selecione um Agente/Contato válido.');
+    alert('Por favor, insira o E-mail de Envio do Agente/Parceiro.');
     return;
   }
 
@@ -2538,9 +2579,33 @@ async function sendOutlookEmail() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
+    const selectEl = document.getElementById('r-agent-email');
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
     const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
-    const agentNameFromData = selectedOption ? (selectedOption.dataset.agentName || '') : '';
+    const agentNameFromData = selectedOption ? (selectedOption.dataset.agentName || '') : 'Parceiro';
     const finalAgentName = agentNameFromData ? `${agentNameFromData} - ${contactName}` : contactName;
+
+    const ccEmail = document.getElementById('r-agent-cc-email').value.trim();
+    const needsTransport = document.getElementById('r-needs-transport').checked;
+    
+    let truckerEmail = null;
+    let truckerName = null;
+    let truckerCcEmail = null;
+    
+    if (needsTransport) {
+      truckerEmail = document.getElementById('r-trucker-send-email').value.trim();
+      if (!truckerEmail) {
+        alert('Por favor, preencha o E-mail de Envio da Transportadora.');
+        btn.disabled = false; btn.innerHTML = originalHtml;
+        return;
+      }
+      const selectTrucker = document.getElementById('r-trucker-email');
+      const selectedTruckerOpt = selectTrucker.options[selectTrucker.selectedIndex];
+      const truckerContactName = selectedTruckerOpt ? (selectedTruckerOpt.dataset.contactName || '') : '';
+      const truckerNameFromData = selectedTruckerOpt ? (selectedTruckerOpt.dataset.agentName || '') : 'Transportadora';
+      truckerName = truckerNameFromData ? `${truckerNameFromData} - ${truckerContactName}` : truckerContactName;
+      truckerCcEmail = document.getElementById('r-trucker-cc-email').value.trim();
+    }
 
     const res = await fetch(API + '/outlook/send-draft', {
       method: 'POST',
@@ -2549,7 +2614,12 @@ async function sendOutlookEmail() {
         quotationId: currentQuotationId,
         agentEmail: agentEmail,
         agentName: finalAgentName,
-        htmlBody: draftText
+        htmlBody: draftText,
+        ccEmail: ccEmail || null,
+        needsTransport,
+        truckerEmail,
+        truckerName,
+        truckerCcEmail: truckerCcEmail || null
       })
     });
     
@@ -2573,7 +2643,12 @@ async function saveAsAwaitingAgent() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
 
   try {
-    const agentEmail = document.getElementById('r-agent-email').value;
+    const agentEmail = document.getElementById('r-agent-send-email').value.trim();
+    if (!agentEmail) {
+      alert('Por favor, insira o E-mail de Envio do Agente.');
+      btn.disabled = false; btn.innerHTML = originalHtml;
+      return;
+    }
     
     const body = {
       reference: document.getElementById('r-reference').value,
@@ -2603,7 +2678,7 @@ async function saveAsAwaitingAgent() {
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
-      truckerEmail: document.getElementById('r-trucker-email').value || null,
+      truckerEmail: document.getElementById('r-trucker-send-email').value.trim() || null,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
 
