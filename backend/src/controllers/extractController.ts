@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
 import { extractClientData, extractAgentCosts, generateAgentDraft, generateTruckerDraft, readLocalFeesTable } from '../services/aiService';
 import { prisma } from '../prisma';
+import { buildDraftPayload } from '../utils/draftPayload';
 
 export const extractData = async (req: Request, res: Response) => {
   try {
@@ -191,23 +192,8 @@ export const generateDraft = async (req: Request, res: Response) => {
       }
     }
 
-    // Montar o objeto no formato esperado pela IA
-    const payload = {
-      reference: quotation.reference,
-      modal: quotation.modal,
-      route: { origin: quotation.originCity, destination: quotation.destinationCity, incoterm: quotation.incoterm },
-      transportRoute: quotation.transportRoute,
-      cargo: { 
-        type: quotation.loadType, 
-        gross_weight_kg: quotation.totalGrossWeightKg, 
-        packages_count: quotation.totalPackages, 
-        is_imo: quotation.isImo,
-        dimensions: quotation.packages,
-        commercial_value_usd: quotation.commercialValue
-      },
-      originalEmailText,
-      originCountry: quotation.originCountry
-    };
+    // Um único formato tipado alimenta os rascunhos do agente e da transportadora.
+    const payload = buildDraftPayload(quotation, originalEmailText);
 
     const draftText = await generateAgentDraft(payload, contextRules, contactName);
     

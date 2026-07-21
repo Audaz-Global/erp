@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as XLSX from 'xlsx';
 import { parsePackages } from '../utils/cargoUtils';
+import type { DraftPayload } from '../utils/draftPayload';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -256,7 +257,46 @@ export const extractClientData = async (text: string, contextRules: string = '',
   }
 };
 
-export const generateAgentDraft = async (data: any, contextRules: string = '', contactName?: string) => {
+export function buildAgentDraftDataContext(data: DraftPayload): string {
+  return `- Origem (Porto/Aeroporto): ${data.originPort || data.originCity || 'TBD'}
+    - Destino (Porto/Aeroporto): ${data.destinationPort || data.destinationCity || 'TBD'}
+    - Local Inicial (Coleta): ${data.originCity || 'TBD'}
+    - País de Origem: ${data.originCountry || 'TBD'}
+    - Destino Final (Entrega): ${data.destinationCity || 'TBD'}
+    - País de Destino: ${data.destinationCountry || 'TBD'}
+    - Conexões (Voo/Porto): ${data.connections || 'Sem conexões (direto)'}
+    - Incoterm: ${data.incoterm || 'TBD'}
+    - Modal: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
+    - Modal/Tipo: ${data.loadType || 'TBD'}
+    - Peso Bruto: ${data.totalGrossWeightKg || 'TBD'} kg
+    - Peso Líquido: ${data.totalNetWeightKg || 'Não informado'} kg
+    - Volumes: ${data.totalPackages || 'TBD'}
+    - Dimensões: ${data.packages || 'Não informado'}
+    - CBM Total: ${data.totalCbm || 'Não informado'}
+    - Descrição da Carga: ${data.cargoDescription || 'Não informada'}
+    - NCM: ${data.ncmCodes || 'Não informado'}
+    - Valor da Carga: ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'Não informado'}
+    - IMO: ${data.isImo ? 'SIM' : 'NÃO'}
+    - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
+    ${data.reference ? `- Referência: ${data.reference}` : ''}`;
+}
+
+export function buildTruckerDraftDataContext(data: DraftPayload): string {
+  return `- Trecho/Rota Rodoviária: ${data.transportRoute || 'TBD'}
+    - Modal de Chegada/Embarque: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
+    - Tipo de Carga/Modal: ${data.loadType || 'TBD'}
+    - Peso Bruto Total: ${data.totalGrossWeightKg || 'TBD'} kg
+    - Peso Líquido Total: ${data.totalNetWeightKg || 'Não informado'} kg
+    - Volumes: ${data.totalPackages || 'TBD'}
+    - Dimensões das Embalagens: ${data.packages || 'Não informado'}
+    - CBM Total: ${data.totalCbm || 'Não informado'}
+    - Descrição da Carga: ${data.cargoDescription || 'Não informada'}
+    - Valor da Carga (para Seguro/GR): ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'Não informado'}
+    - IMO (Carga Perigosa): ${data.isImo ? 'SIM (Requer motorista com MOPP e veículo adequado)' : 'NÃO'}
+    ${data.reference ? `- Referência do Processo: ${data.reference}` : ''}`;
+}
+
+export const generateAgentDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezado(a) Agente,`;
@@ -274,20 +314,7 @@ export const generateAgentDraft = async (data: any, contextRules: string = '', c
     ${contextRules}
     
     DADOS EXTRAÍDOS DA CARGA:
-    - Origem (Porto/Aeroporto): ${data.originPort || 'TBD'}
-    - Destino (Porto/Aeroporto): ${data.destinationPort || 'TBD'}
-    - Local Inicial (Coleta): ${data.originCity || 'TBD'}
-    - Destino Final (Entrega): ${data.destinationCity || 'TBD'}
-    - Conexões (Voo/Porto): ${data.connections || 'Sem conexões (direto)'}
-    - Incoterm: ${data.incoterm || 'TBD'}
-    - Modal: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
-    - Modal/Tipo: ${data.loadType || 'TBD'}
-    - Peso Bruto: ${data.totalGrossWeightKg || 'TBD'} kg
-    - Volumes: ${data.totalPackages || 'TBD'}
-    - Dimensões/CBM: ${data.packages || 'Não informado'}
-    - Valor da Carga: ${data.commercialValue ? '$' + data.commercialValue : 'Não informado'}
-    - IMO: ${data.isImo ? 'SIM' : 'NÃO'}
-    ${data.reference ? `- Referência: ${data.reference}` : ''}
+    ${buildAgentDraftDataContext(data)}
 
     ${data.originalEmailText ? `CONTEÚDO DO E-MAIL ORIGINAL DO CLIENTE:\n${data.originalEmailText}` : ''}
     
@@ -310,7 +337,7 @@ export const generateAgentDraft = async (data: any, contextRules: string = '', c
   } catch (error) { throw new Error('Falha ao gerar rascunho com IA'); }
 };
 
-export const generateTruckerDraft = async (data: any, contextRules: string = '', contactName?: string) => {
+export const generateTruckerDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezada Transportadora,`;
@@ -324,15 +351,7 @@ export const generateTruckerDraft = async (data: any, contextRules: string = '',
     Use os dados abaixo para redigir o corpo do e-mail de forma profissional e objetiva.
 
     DADOS DA SOLICITAÇÃO RODOVIÁRIA:
-    - Trecho/Rota Rodoviária: ${data.transportRoute || 'TBD'}
-    - Modal de Chegada/Embarque: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
-    - Tipo de Carga/Modal: ${data.loadType || 'TBD'}
-    - Peso Bruto Total: ${data.totalGrossWeightKg || 'TBD'} kg
-    - Volumes: ${data.totalPackages || 'TBD'}
-    - Dimensões/CBM das Embalagens: ${data.packages || 'Não informado'}
-    - Valor da Carga (para Seguro/GR): ${data.commercialValue ? '$' + data.commercialValue : 'Não informado'}
-    - IMO (Carga Perigosa): ${data.isImo ? 'SIM (Requer motorista com MOPP e veículo adequado)' : 'NÃO'}
-    ${data.reference ? `- Referência do Processo: ${data.reference}` : ''}
+    ${buildTruckerDraftDataContext(data)}
 
     Regras e Instruções Específicas para o E-mail de Transportadora:
     1. **Foco Rodoviário Doméstico:** Solicite a cotação do frete rodoviário para o trecho rodoviário indicado.
