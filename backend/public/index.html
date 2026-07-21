@@ -4048,7 +4048,7 @@ function switchSettingsTab(tab) {
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-sortOrder" value="0" placeholder="0"></div>
           </div>
           <input type="hidden" id="ir-id">
-          <button class="btn btn-primary" onclick="saveIncotermRule()">💾 Salvar Regra</button>
+          <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">💾 Salvar Regra</button>
           <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
         </div>
 
@@ -5111,13 +5111,17 @@ async function loadIncotermRulesTable() {
         <td><strong style="color:var(--gold)">${r.incoterm}</strong></td>
         <td>${modalLabel}</td>
         <td>${typeLabel}</td>
-        <td>${r.feeName}</td>
+        <td>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:210px;">
+            <span>${r.feeName}</span>
+            <button class="action-btn" onclick="editIncotermRule('${r.id}')" title="Editar taxa" aria-label="Editar taxa ${r.feeName}">✏️</button>
+          </div>
+        </td>
         <td>${chargeLabel}</td>
         <td>${r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.value.toFixed(2)}</td>
         <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
         <td>${r.currency}</td>
         <td style="white-space:nowrap;">
-          <button onclick="editIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--info);font-size:14px;" title="Editar">✏️</button>
           <button onclick="deleteIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;" title="Excluir">🗑️</button>
         </td></tr>`;
     }
@@ -5174,6 +5178,7 @@ async function editIncotermRule(id) {
     document.getElementById('ir-currency').value = rule.currency;
     if (rule.percentBase) document.getElementById('ir-percentBase').value = rule.percentBase;
     document.getElementById('ir-sortOrder').value = rule.sortOrder || 0;
+    document.getElementById('btnSaveIr').innerText = '💾 Atualizar Regra';
     document.getElementById('btnCancelIr').style.display = '';
     toggleIrPercentBase();
     document.getElementById('ir-incoterm').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -5195,6 +5200,7 @@ function cancelEditIr() {
   document.getElementById('ir-value').value = '';
   document.getElementById('ir-minValue').value = '';
   document.getElementById('ir-sortOrder').value = '0';
+  document.getElementById('btnSaveIr').innerText = '💾 Salvar Regra';
   document.getElementById('btnCancelIr').style.display = 'none';
 }
 
@@ -5274,7 +5280,6 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
   if (info) {
     html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid rgba(245,166,35,0.2);">`;
     html += `<div style="font-weight:800; color:var(--gold); font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">📦 ${incoterm} — ${info.name}</div>`;
-    html += `<button onclick="openSettings(); switchSettingsTab('incotermRules');" style="background:rgba(245,166,35,0.1); border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:4px;">⚙️ Editar Regras</button>`;
     html += `</div>`;
     html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:12px;">`;
     html += `<div><strong style="color:var(--info);">🔵 VENDEDOR (Exportador)</strong><ul style="margin-left:16px; margin-top:8px; color:var(--text-muted); line-height:1.4;">`;
