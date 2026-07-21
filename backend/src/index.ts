@@ -13,7 +13,9 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
-app.use(express.json());
+// E-mails extraídos podem ultrapassar o limite padrão de 100 KB do Express
+// quando são reenviados junto com a cotação para gerar o rascunho.
+app.use(express.json({ limit: '5mb' }));
 
 // Servir o painel de testes
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -51,6 +53,25 @@ app.use('/api/smartcomex', smartcomexRoutes);
 // Basic Route
 app.get('/', (req, res) => {
   res.json({ message: '🚀 Audaz Global - Automação de Cotações API' });
+});
+
+// Evita que erros do parser (por exemplo, payload acima do limite) retornem
+// a página HTML padrão do Express para clientes que esperam JSON.
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = Number(err?.status || err?.statusCode) || 500;
+
+  if (status === 413 || err?.type === 'entity.too.large') {
+    return res.status(413).json({
+      error: 'O conteúdo do e-mail excede o limite de 5 MB. Remova anexos muito grandes ou reduza o texto antes de tentar novamente.'
+    });
+  }
+
+  if (status === 400 && err instanceof SyntaxError) {
+    return res.status(400).json({ error: 'A requisição enviada possui JSON inválido.' });
+  }
+
+  console.error('Erro não tratado na API:', err);
+  return res.status(status).json({ error: err?.message || 'Erro interno do servidor.' });
 });
 
 // Start Server

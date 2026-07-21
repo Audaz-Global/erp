@@ -2485,6 +2485,36 @@ document.getElementById('r-weight-break').addEventListener('change', function() 
 
 
 // Geração de rascunho (Fase 2)
+async function readApiJson(response, actionLabel) {
+  const rawBody = await response.text();
+  let data = null;
+
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody);
+    } catch (e) {
+      data = null;
+    }
+  }
+
+  if (!response.ok) {
+    if (data && data.error) throw new Error(data.error);
+    if (response.status === 413) {
+      throw new Error('O conteúdo do e-mail é muito grande. Remova anexos ou reduza o texto antes de tentar novamente.');
+    }
+    if ([502, 503, 504].includes(response.status)) {
+      throw new Error('O serviço está temporariamente indisponível. Aguarde alguns instantes e tente novamente.');
+    }
+    throw new Error(`${actionLabel} falhou (HTTP ${response.status}).`);
+  }
+
+  if (!data) {
+    throw new Error(`${actionLabel} retornou uma resposta inválida do servidor.`);
+  }
+
+  return data;
+}
+
 async function generateDraftEmail() {
   const btn = document.getElementById('btnGenDraft');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
@@ -2535,7 +2565,8 @@ async function generateDraftEmail() {
         body: JSON.stringify(body)
       });
     }
-    const qData = await resCreate.json();
+    const qData = await readApiJson(resCreate, 'O salvamento da cotação');
+    if (!qData.id) throw new Error('O servidor não retornou o identificador da cotação.');
     currentQuotationId = qData.id;
 
     const selectEl = document.getElementById('r-agent-email');
@@ -2549,7 +2580,7 @@ async function generateDraftEmail() {
         contactName 
       })
     });
-    const draftData = await resDraft.json();
+    const draftData = await readApiJson(resDraft, 'A geração do rascunho');
     
     document.getElementById('r-draft-text').value = draftData.draft || '';
     if (draftData.truckerDraft) {
