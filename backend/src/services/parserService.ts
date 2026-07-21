@@ -39,7 +39,9 @@ export const parseEmlWithMedia = async (buffer: Buffer): Promise<ParsedEmlResult
     }
 
     let htmlContent = '';
-    if (parsed.html) {
+    // O mailparser normalmente entrega o mesmo corpo em texto puro e HTML.
+    // Enviar ambos duplica o conteúdo e pode estourar a janela de contexto da IA.
+    if (parsed.html && !String(parsed.text || '').trim()) {
       // Limpeza básica para remover head, scripts e styles, preservando tabelas <table>, <tr>, <td>
       const cleanHtml = parsed.html
         .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
@@ -72,9 +74,13 @@ ${htmlContent}
       let inlineCount = 0;
       while ((match = imgRegex.exec(parsed.html)) !== null) {
         if (match[1] && match[2]) {
-          inlineCount++;
           const mimeType = match[1];
           const base64Data = match[2];
+          const approximateBytes = Math.floor(base64Data.length * 0.75);
+          // Pequenos data URIs costumam ser logos/ícones de assinatura. Mantemos
+          // no máximo duas imagens embutidas com tamanho relevante.
+          if (approximateBytes < 20_000 || inlineCount >= 2) continue;
+          inlineCount++;
           mediaParts.push({
             inlineData: {
               data: base64Data,
@@ -94,16 +100,20 @@ ${htmlContent}
         try {
           if (attachment.contentType === 'application/pdf') {
             const pdfData = await pdfParse(attachment.content);
-            extractedText += `\n[Anexo PDF: ${attachment.filename}]\n${pdfData.text}\n`;
-            
-            // Adicionar como mídia multimodal
-            mediaParts.push({
-              inlineData: {
-                data: attachment.content.toString('base64'),
-                mimeType: 'application/pdf'
-              },
-              filename: attachment.filename
-            });
+            const pdfText = String(pdfData.text || '').trim();
+            extractedText += `\n[Anexo PDF: ${attachment.filename}]\n${pdfText || '[PDF sem texto pesquisável]'}\n`;
+
+            // PDFs com texto pesquisável já estão representados acima.
+            // O binário fica reservado a PDFs digitalizados/imagens.
+            if (pdfText.length < 200) {
+              mediaParts.push({
+                inlineData: {
+                  data: attachment.content.toString('base64'),
+                  mimeType: 'application/pdf'
+                },
+                filename: attachment.filename
+              });
+            }
           } else if (
             attachment.contentType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
             attachment.contentType === 'application/vnd.ms-excel'
@@ -118,6 +128,13 @@ ${htmlContent}
               }
             });
           } else if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+            const filename = String(attachment.filename || '').toLowerCase();
+            const isSignatureAsset = Boolean((attachment as any).related) ||
+              /logo|signature|assinatura|facebook|instagram|linkedin|twitter|icon/.test(filename);
+            if (isSignatureAsset) {
+              extractedText += `\n[Imagem inline/assinatura ignorada: ${attachment.filename}]\n`;
+              continue;
+            }
             mediaParts.push({
               inlineData: {
                 data: attachment.content.toString('base64'),

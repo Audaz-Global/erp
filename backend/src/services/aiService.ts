@@ -11,6 +11,62 @@ if (!apiKey) {
 }
 const genAI = new GoogleGenerativeAI(apiKey || '');
 
+const MAX_AI_INPUT_TOKENS = 800_000;
+const MAX_SOURCE_TEXT_CHARS = 600_000;
+const MAX_CONTEXT_TEXT_CHARS = 120_000;
+const MAX_MEDIA_PARTS = 8;
+
+export function compactAiText(value: string, maxChars: number = MAX_SOURCE_TEXT_CHARS): string {
+  const text = String(value || '').replace(/\0/g, '').trim();
+  if (text.length <= maxChars) return text;
+
+  const beginningSize = Math.floor(maxChars * 0.7);
+  const endSize = maxChars - beginningSize;
+  const removedChars = text.length - maxChars;
+  return `${text.slice(0, beginningSize)}\n\n[... ${removedChars} caracteres intermediários removidos para respeitar o limite da IA ...]\n\n${text.slice(-endSize)}`;
+}
+
+export async function buildTokenSafeContent(
+  model: any,
+  prompt: string,
+  mediaParts: any[] = []
+): Promise<Array<string | { inlineData: { data: string; mimeType: string } }>> {
+  const safePrompt = compactAiText(prompt, MAX_SOURCE_TEXT_CHARS + MAX_CONTEXT_TEXT_CHARS);
+  const promptTokens = Number((await model.countTokens(safePrompt)).totalTokens) || 0;
+
+  if (promptTokens >= MAX_AI_INPUT_TOKENS) {
+    throw new Error('O texto do e-mail ainda excede o limite seguro da IA mesmo após a compactação.');
+  }
+
+  const selectedContent: Array<string | { inlineData: { data: string; mimeType: string } }> = [safePrompt];
+  let usedTokens = promptTokens;
+  let skippedMedia = 0;
+
+  for (const part of mediaParts.slice(0, MAX_MEDIA_PARTS)) {
+    if (!part?.inlineData?.data || !part?.inlineData?.mimeType) continue;
+    try {
+      const mediaContent = { inlineData: part.inlineData };
+      const mediaTokens = Number((await model.countTokens([mediaContent])).totalTokens) || 0;
+      if (usedTokens + mediaTokens <= MAX_AI_INPUT_TOKENS) {
+        selectedContent.push(mediaContent);
+        usedTokens += mediaTokens;
+      } else {
+        skippedMedia++;
+      }
+    } catch (error) {
+      skippedMedia++;
+      console.warn(`Não foi possível contabilizar o anexo ${part.filename || 'sem nome'}; ele foi ignorado.`);
+    }
+  }
+
+  skippedMedia += Math.max(0, mediaParts.length - MAX_MEDIA_PARTS);
+  if (skippedMedia > 0) {
+    console.warn(`[IA] ${skippedMedia} anexo(s) ignorado(s) para respeitar o limite de tokens. Tokens estimados enviados: ${usedTokens}.`);
+  }
+
+  return selectedContent;
+}
+
 
 function getExcelPath() {
   const paths = [
@@ -193,15 +249,18 @@ export const extractClientData = async (text: string, contextRules: string = '',
       }
     });
 
+    const safeSourceText = compactAiText(text, MAX_SOURCE_TEXT_CHARS);
+    const safeContextRules = compactAiText(contextRules, MAX_CONTEXT_TEXT_CHARS);
+
     const prompt = `Você é um especialista em comércio exterior brasileiro.
     Analise a SOLICITAÇÃO DO CLIENTE e os documentos anexos para extrair os dados principais.
     NÃO se preocupe com custos ou valores de frete, pois isso será cotado depois com os agentes.
 
     CONTEXTO DE REGRAS DE NEGÓCIO:
-    ${contextRules}
+    ${safeContextRules}
 
     DOCUMENTO(S) / SOLICITAÇÃO:
-    ${text}
+    ${safeSourceText}
 
     Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
     - **Incoterm — PRIORIDADE CRÍTICA**: Identifique e extraia OBRIGATORIAMENTE o Incoterm (ex: EXW, FCA, FOB, CIF, DAP, etc) de qualquer lugar dos documentos, seja do texto corrido do e-mail, de imagens coladas, de tabelas de informações básicas, Invoices ou formulários anexados (ex: "FCA Planta do Fornecedor"). Se as palavras FCA, EXW, FOB ou similar aparecerem, capture-as imediatamente.
@@ -237,9 +296,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
 
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
 
-    const contentPayload = mediaParts.length > 0
-      ? [prompt, ...mediaParts.map(p => ({ inlineData: p.inlineData }))]
-      : [prompt];
+    const contentPayload = await buildTokenSafeContent(model, prompt, mediaParts);
 
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
@@ -445,15 +502,20 @@ export const extractAgentCosts = async (
       }
     });
 
+    const safeSourceText = compactAiText(text, MAX_SOURCE_TEXT_CHARS);
+    const safeContextRules = compactAiText(contextRules, MAX_CONTEXT_TEXT_CHARS);
+    const safeLocalFeesTable = compactAiText(localFeesTable, MAX_CONTEXT_TEXT_CHARS);
+    const safeQuotationContext = compactAiText(quotationContext, 30_000);
+
     const prompt = `Você é um especialista em comércio exterior brasileiro.
     Analise o RETORNO DO AGENTE e extraia os custos informados.
 
     REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES:
-    ${contextRules}
+    ${safeContextRules}
 
-    ${quotationContext ? `CONTEXTO DA COTAÇÃO ORIGINAL:\n${quotationContext}` : ''}
+    ${safeQuotationContext ? `CONTEXTO DA COTAÇÃO ORIGINAL:\n${safeQuotationContext}` : ''}
     
-    ${localFeesTable ? `${localFeesTable}` : ''}
+    ${safeLocalFeesTable ? `${safeLocalFeesTable}` : ''}
 
     Instruções Gerais de Extração:
     1. **Tempo de Trânsito (Transit Time):** Identifique o tempo de trânsito (T/T ou Transit Time) mencionado no RETORNO DO AGENTE (ex: "3 days", "9-12 days", "35 dias"). Salve esse texto literal no campo "transit_time". Se não encontrar nenhuma menção ao tempo de trânsito, retorne "n/a".
@@ -498,14 +560,12 @@ export const extractAgentCosts = async (
        - Some o valor de todas as taxas encontradas aplicadas ao processo e insira o valor final calculado (em reais BRL, convertendo taxas em USD/EUR para BRL se necessário usando câmbio de 5.0) no campo "services_brl" do JSON de resposta, a menos que o retorno do agente já contenha expressamente outras taxas locais de destino em BRL informadas no texto.
     
     RETORNO DO AGENTE:
-    ${text}
+    ${safeSourceText}
 
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.
     - Se encontrar o frete oculto em expressões como "Total USD 1.04 com IOF", deduza o frete puro de 1.00.`;
 
-    const contentPayload = mediaParts.length > 0
-      ? [prompt, ...mediaParts.map(p => ({ inlineData: p.inlineData }))]
-      : [prompt];
+    const contentPayload = await buildTokenSafeContent(model, prompt, mediaParts);
 
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
@@ -524,6 +584,9 @@ export const extractAgentCosts = async (
     return parsed;
   } catch (error: any) {
     console.error('[extractAgentCosts] ERRO REAL:', error);
+    if (String(error?.message || '').toLowerCase().includes('token')) {
+      throw new Error('O retorno do agente contém mais informações do que a IA consegue processar de uma vez. Remova anexos que não contenham valores da cotação e tente novamente.');
+    }
     throw new Error('Falha ao processar custos com IA: ' + (error?.message || String(error)));
   }
 };

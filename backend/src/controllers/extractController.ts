@@ -33,13 +33,17 @@ export const extractData = async (req: Request, res: Response) => {
           } else if (file.mimetype === 'application/pdf' || ext.endsWith('.pdf')) {
             const pdfText = await parsePdf(file.buffer);
             extractedFileText += `\n[PDF: ${file.originalname}]\n${pdfText}\n`;
-            mediaParts.push({
-              inlineData: {
-                data: file.buffer.toString('base64'),
-                mimeType: 'application/pdf'
-              },
-              filename: file.originalname
-            });
+            // Evita enviar o mesmo PDF como texto e binário. O binário é
+            // necessário apenas quando o documento não possui texto pesquisável.
+            if (String(pdfText || '').trim().length < 200) {
+              mediaParts.push({
+                inlineData: {
+                  data: file.buffer.toString('base64'),
+                  mimeType: 'application/pdf'
+                },
+                filename: file.originalname
+              });
+            }
           } else if (
             ext.endsWith('.xlsx') || ext.endsWith('.xls') || ext.endsWith('.csv') ||
             file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
