@@ -477,7 +477,7 @@
       <h2><span class="emoji">🤖</span> Extração do Pedido do Cliente</h2>
       <p class="desc">Envie o e-mail do cliente pedindo a cotação. A IA extrairá os dados da carga e da rota (sem custos).</p>
 
-      <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+      <div class="file-drop" id="fileDrop">
         <div class="icon">📂</div>
         <p>Arraste e solte arquivos / e-mails (.msg) aqui ou <strong>clique para selecionar</strong></p>
         <input type="file" id="fileInput" multiple accept=".eml,.msg,.pdf,.xlsx,.csv,.xls">
@@ -748,7 +748,7 @@
         <select id="pending-quotations" class="req" onchange="loadPendingQuotationData()"><option value="">Carregando...</option></select>
       </div>
 
-      <div class="file-drop" id="fileDropAgent" onclick="document.getElementById('fileInputAgent').click()">
+      <div class="file-drop" id="fileDropAgent">
         <div class="icon">📂</div>
         <p>Arraste e solte arquivos / e-mails (.msg) aqui ou <strong>clique para selecionar</strong></p>
         <input type="file" id="fileInputAgent" multiple accept=".eml,.msg,.pdf,.xlsx,.csv,.xls">
@@ -1748,41 +1748,57 @@ function handleOutlookDropFallback(dataTransfer, isAgent) {
 
 const fileDrop = document.getElementById('fileDrop');
 const fileInput = document.getElementById('fileInput');
-fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
-fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
-fileDrop.addEventListener('drop', e => { 
-  e.preventDefault(); 
-  fileDrop.classList.remove('dragover'); 
-  if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
-    const success = handleOutlookDropFallback(e.dataTransfer, false);
-    if (!success) {
-      alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
-    }
-  } else {
-    addFiles(e.dataTransfer.files, false); 
-  }
-});
-fileInput.addEventListener('change', () => addFiles(fileInput.files, false));
 
-const fileDropAgent = document.getElementById('fileDropAgent');
-const fileInputAgent = document.getElementById('fileInputAgent');
-if(fileDropAgent) {
-  fileDropAgent.addEventListener('dragover', e => { e.preventDefault(); fileDropAgent.classList.add('dragover'); });
-  fileDropAgent.addEventListener('dragleave', () => fileDropAgent.classList.remove('dragover'));
-  fileDropAgent.addEventListener('drop', e => { 
-    e.preventDefault(); 
-    fileDropAgent.classList.remove('dragover'); 
+// Função auxiliar para configurar zona de drop com segurança
+function setupDropZone(dropZone, inputElement, isAgent) {
+  if (!dropZone || !inputElement) return;
+
+  // Previne o comportamento padrão que bloqueia o drop
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('dragover');
+    }, false);
+  });
+
+  // Limpa classe de hover
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, e => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('dragover');
+    }, false);
+  });
+
+  // Trata o drop
+  dropZone.addEventListener('drop', e => {
     if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) {
-      const success = handleOutlookDropFallback(e.dataTransfer, true);
+      const success = handleOutlookDropFallback(e.dataTransfer, isAgent);
       if (!success) {
         alert("Nenhum arquivo detectado. Se estiver arrastando direto do Outlook, arraste para a Área de Trabalho primeiro e depois para cá, ou clique para anexar.");
       }
     } else {
-      addFiles(e.dataTransfer.files, true); 
+      addFiles(e.dataTransfer.files, isAgent);
     }
   });
-  fileInputAgent.addEventListener('change', () => addFiles(fileInputAgent.files, true));
+
+  // Trata o clique na zona de drop para abrir o seletor de arquivos de forma segura (sem loop infinito)
+  dropZone.addEventListener('click', e => {
+    if (e.target !== inputElement) {
+      inputElement.click();
+    }
+  });
+
+  // Trata a seleção manual de arquivos
+  inputElement.addEventListener('change', () => addFiles(inputElement.files, isAgent));
 }
+
+setupDropZone(fileDrop, fileInput, false);
+
+const fileDropAgent = document.getElementById('fileDropAgent');
+const fileInputAgent = document.getElementById('fileInputAgent');
+setupDropZone(fileDropAgent, fileInputAgent, true);
 
 let agentFiles = [];
 function addFiles(files, isAgent) { 
