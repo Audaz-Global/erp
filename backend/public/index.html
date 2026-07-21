@@ -762,6 +762,7 @@
 
       <div class="review-grid" style="margin-top: 32px; display: none;" id="costs-review-grid">
         <div class="review-col" style="grid-column: 1 / -1;">
+          <div id="incoterm-rules-preview-panel3" style="display:none; margin-bottom: 24px;"></div>
           <div class="review-section">
             <div class="review-section-title">Custos Retornados pelo Agente</div>
             <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
@@ -3401,9 +3402,38 @@ function loadPendingQuotationsDropdown() {
 }
 
 function loadPendingQuotationData() {
-  // Limpa os campos visuais quando troca
-  document.getElementById('costs-review-grid').style.display = 'none';
+  // Limpa campos extraídos via IA, mas mostra o grid
   clearExtract();
+  const select = document.getElementById('pending-quotations');
+  const q = allQuotations.find(x => x.id === select.value);
+  if (!q) {
+    document.getElementById('costs-review-grid').style.display = 'none';
+    checkValidation();
+    return;
+  }
+  
+  // Mostra o formulário de revisão de custos para aguardar input do parceiro
+  document.getElementById('costs-review-grid').style.display = 'block';
+  
+  // Atualiza o painel de taxas fixas do Incoterm para esta cotação
+  const incoterm = q.route?.incoterm || q.incoterm;
+  if (window.updateIncotermPreview && incoterm) {
+    window.updateIncotermPreview(incoterm, 'incoterm-rules-preview-panel3');
+  } else {
+    document.getElementById('incoterm-rules-preview-panel3').style.display = 'none';
+  }
+  
+  // Preenche os dados base da cotação no painel de Retorno
+  // Campos a preencher, se quisermos mostrar as taxas fixas, etc.
+  // Como o cálculo final das taxas (IOF, armazenagem) é feito no backend ao gerar o PDF,
+  // Podemos apenas limpar os inputs ou buscar as taxas fixas do backend
+  document.getElementById('r-freight').value = '';
+  document.getElementById('r-iof').value = '';
+  document.getElementById('r-storage').value = '';
+  document.getElementById('r-services').value = '';
+  document.getElementById('r-taxes').value = '';
+  document.getElementById('r-total').value = '';
+  
   checkValidation();
 }
 
@@ -5163,8 +5193,8 @@ async function seedIncotermRules() {
 }
 
 // Auto-aplicação de regras ao mudar o Incoterm na revisão
-window.updateIncotermPreview = async function(incoterm) {
-  const preview = document.getElementById('incoterm-rules-preview');
+window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rules-preview') {
+  const preview = document.getElementById(targetId);
   if (!incoterm || !preview) {
     if(preview) preview.style.display = 'none';
     return;
@@ -5228,7 +5258,6 @@ window.updateIncotermPreview = async function(incoterm) {
   if (info) {
     html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid rgba(245,166,35,0.2);">`;
     html += `<div style="font-weight:800; color:var(--gold); font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">📦 ${incoterm} — ${info.name}</div>`;
-    html += `<button onclick="openSettings(); switchSettingsTab('incotermRules');" style="background:rgba(245,166,35,0.1); border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:4px;">⚙️ Editar Regras</button>`;
     html += `</div>`;
     html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:12px;">`;
     html += `<div><strong style="color:var(--info);">🔵 VENDEDOR (Exportador)</strong><ul style="margin-left:16px; margin-top:8px; color:var(--text-muted); line-height:1.4;">`;
@@ -5260,7 +5289,7 @@ window.updateIncotermPreview = async function(incoterm) {
         rulesHtml += '<div style="color:var(--info); font-weight:600; margin-bottom:6px;">Origem:</div>';
         originRules.forEach(r => {
           const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
-          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
+          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px; display:flex; align-items:center; gap:4px;">• ' + r.feeName + ': ' + val + ' <button onclick="openSettings(); switchSettingsTab(\\\'incotermRules\\\'); editIncotermRule(\\'' + r.id + '\\');" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.7;padding:0;" title="Editar Taxa">✏️</button></div>';
         });
       } else {
         rulesHtml += '<div style="color:var(--text-muted); font-style:italic;">Nenhuma regra na origem.</div>';
@@ -5270,7 +5299,7 @@ window.updateIncotermPreview = async function(incoterm) {
         rulesHtml += '<div style="color:var(--warning); font-weight:600; margin-bottom:6px;">Destino:</div>';
         destRules.forEach(r => {
           const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
-          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
+          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px; display:flex; align-items:center; gap:4px;">• ' + r.feeName + ': ' + val + ' <button onclick="openSettings(); switchSettingsTab(\\\'incotermRules\\\'); editIncotermRule(\\'' + r.id + '\\');" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.7;padding:0;" title="Editar Taxa">✏️</button></div>';
         });
       } else {
         rulesHtml += '<div style="color:var(--text-muted); font-style:italic;">Nenhuma regra no destino.</div>';
