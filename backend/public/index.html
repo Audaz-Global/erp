@@ -5274,6 +5274,7 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
   if (info) {
     html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid rgba(245,166,35,0.2);">`;
     html += `<div style="font-weight:800; color:var(--gold); font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">📦 ${incoterm} — ${info.name}</div>`;
+    html += `<button onclick="openSettings(); switchSettingsTab('incotermRules');" style="background:rgba(245,166,35,0.1); border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:4px;">⚙️ Editar Regras</button>`;
     html += `</div>`;
     html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:12px;">`;
     html += `<div><strong style="color:var(--info);">🔵 VENDEDOR (Exportador)</strong><ul style="margin-left:16px; margin-top:8px; color:var(--text-muted); line-height:1.4;">`;
@@ -5305,7 +5306,7 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
         rulesHtml += '<div style="color:var(--info); font-weight:600; margin-bottom:6px;">Origem:</div>';
         originRules.forEach(r => {
           const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
-          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px; display:flex; align-items:center; gap:4px;">• ' + r.feeName + ': ' + val + ' <button onclick="openSettings(); switchSettingsTab(\\\'incotermRules\\\'); editIncotermRule(\\'' + r.id + '\\');" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.7;padding:0;" title="Editar Taxa">✏️</button></div>';
+          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
         });
       } else {
         rulesHtml += '<div style="color:var(--text-muted); font-style:italic;">Nenhuma regra na origem.</div>';
@@ -5315,7 +5316,7 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
         rulesHtml += '<div style="color:var(--warning); font-weight:600; margin-bottom:6px;">Destino:</div>';
         destRules.forEach(r => {
           const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
-          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px; display:flex; align-items:center; gap:4px;">• ' + r.feeName + ': ' + val + ' <button onclick="openSettings(); switchSettingsTab(\\\'incotermRules\\\'); editIncotermRule(\\'' + r.id + '\\');" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.7;padding:0;" title="Editar Taxa">✏️</button></div>';
+          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
         });
       } else {
         rulesHtml += '<div style="color:var(--text-muted); font-style:italic;">Nenhuma regra no destino.</div>';
