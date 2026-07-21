@@ -556,6 +556,7 @@
                   <option value="DDP">DDP</option>
                   <option value="FCA">FCA</option>
                 </select>
+                <div id="incoterm-rules-preview" style="margin-top:8px; display:none;"></div>
               </div>
               <div class="form-group" style="grid-column: 1 / -1;">
                 <label>Origem (Porto ou Aeroporto)</label>
@@ -1353,6 +1354,9 @@
         </li>
         <li onclick="switchSettingsTab('standardFees')">
           <span class="nav-icon">🏢</span> Taxas Locais
+        </li>
+        <li onclick="switchSettingsTab('incotermRules')">
+          <span class="nav-icon">📦</span> Regras por Incoterm
         </li>
         <li onclick="switchSettingsTab('template')">
           <span class="nav-icon">📄</span> Template PDF
@@ -3747,7 +3751,7 @@ function closeSettings() {
 function switchSettingsTab(tab) {
   document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
   const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','template','users'];
+  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','incotermRules','template','users'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 
@@ -3943,6 +3947,76 @@ function switchSettingsTab(tab) {
         </div>
       `;
       loadStandardFeesTable();
+      break;
+
+    case 'incotermRules':
+      content.innerHTML = `
+        <div class="sc-title">📦 Regras por Incoterm</div>
+        <p class="sc-desc">Gerencie as taxas que são aplicadas automaticamente conforme o Incoterm da cotação (EXW, FCA, FOB, CIF, etc).</p>
+        
+        <div class="settings-section" style="margin-bottom: 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">Gerenciar Regra</h3>
+            <button class="btn btn-secondary" onclick="seedIncotermRules()" style="padding: 8px 12px; font-size: 12px;">🌱 Popular Regras Padrão</button>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin:0;"><label>Incoterm</label>
+              <select id="ir-incoterm">
+                <option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
+                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="DAP">DAP</option><option value="DDP">DDP</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Modal</label>
+              <select id="ir-modal">
+                <option value="AIR">Aéreo (AIR)</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="ALL">Todos</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Tipo</label>
+              <select id="ir-feeType">
+                <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ir-feeName" placeholder="Ex: Airport Fee, CCT fee"></div>
+            <div class="form-group" style="margin:0;"><label>Tipo Cobrança</label>
+              <select id="ir-chargeType" onchange="toggleIrPercentBase()">
+                <option value="FIXED">Fixo</option><option value="PER_KG">Por Kg</option><option value="PER_DOCUMENT">Por Doc</option><option value="PERCENTAGE">Percentual (%)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Valor</label><input type="number" id="ir-value" step="0.01" placeholder="Ex: 55.00"></div>
+            <div class="form-group" style="margin:0;"><label>Mín. (Opcional)</label><input type="number" id="ir-minValue" step="0.01" placeholder="Ex: 45.00"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div class="form-group" style="margin:0;"><label>Moeda</label>
+              <select id="ir-currency"><option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option></select>
+            </div>
+            <div class="form-group" style="margin:0; display:none;" id="ir-percentBase-group"><label>Base %</label>
+              <select id="ir-percentBase"><option value="FREIGHT">Frete</option><option value="FREIGHT_PLUS_ORIGIN">Frete + Origem</option></select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-sortOrder" value="0" placeholder="0"></div>
+          </div>
+          <input type="hidden" id="ir-id">
+          <button class="btn btn-primary" onclick="saveIncotermRule()">💾 Salvar Regra</button>
+          <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
+        </div>
+
+        <div class="settings-section">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">Regras Cadastradas</h3>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <label style="font-size:12px; color:var(--text-muted);">Filtrar Incoterm:</label>
+              <select id="ir-filter" onchange="loadIncotermRulesTable()" style="padding:6px 10px; font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                <option value="">Todos</option><option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
+                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="DAP">DAP</option><option value="DDP">DDP</option>
+              </select>
+            </div>
+          </div>
+          <div id="incotermRulesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+        </div>
+      `;
+      loadIncotermRulesTable();
       break;
 
     case 'template':
@@ -4957,6 +5031,175 @@ async function applyStandardFees(type, targetId) {
     toast('❌ Erro ao buscar taxas locais.');
   }
 }
+
+// ═══ REGRAS POR INCOTERM ═══
+function toggleIrPercentBase() {
+  const ct = document.getElementById('ir-chargeType');
+  const g = document.getElementById('ir-percentBase-group');
+  if (ct && g) g.style.display = ct.value === 'PERCENTAGE' ? '' : 'none';
+}
+
+async function loadIncotermRulesTable() {
+  try {
+    const filter = document.getElementById('ir-filter');
+    const incotermParam = filter ? filter.value : '';
+    const url = incotermParam ? `/api/incoterm-rules?incoterm=${incotermParam}` : '/api/incoterm-rules';
+    const res = await fetch(url);
+    const rules = await res.json();
+    const container = document.getElementById('incotermRulesTableContainer');
+    if (!container) return;
+    if (!rules.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.</p>';
+      return;
+    }
+    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Tipo</th><th>Taxa</th><th>Cobrança</th><th>Valor</th><th>Mín</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
+    for (const r of rules) {
+      const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
+      const modalLabel = {AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos'}[r.modal] || r.modal;
+      const typeLabel = r.feeType === 'ORIGIN' ? '<span style="color:var(--info)">Origem</span>' : '<span style="color:var(--warning)">Destino</span>';
+      html += `<tr>
+        <td><strong style="color:var(--gold)">${r.incoterm}</strong></td>
+        <td>${modalLabel}</td>
+        <td>${typeLabel}</td>
+        <td>${r.feeName}</td>
+        <td>${chargeLabel}</td>
+        <td>${r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.value.toFixed(2)}</td>
+        <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
+        <td>${r.currency}</td>
+        <td style="white-space:nowrap;">
+          <button onclick="editIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--info);font-size:14px;" title="Editar">✏️</button>
+          <button onclick="deleteIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;" title="Excluir">🗑️</button>
+        </td></tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('Erro ao carregar regras de incoterm:', e);
+  }
+}
+
+async function saveIncotermRule() {
+  const id = document.getElementById('ir-id').value;
+  const data = {
+    incoterm: document.getElementById('ir-incoterm').value,
+    modal: document.getElementById('ir-modal').value,
+    feeType: document.getElementById('ir-feeType').value,
+    feeName: document.getElementById('ir-feeName').value,
+    chargeType: document.getElementById('ir-chargeType').value,
+    value: parseFloat(document.getElementById('ir-value').value) || 0,
+    minValue: document.getElementById('ir-minValue').value ? parseFloat(document.getElementById('ir-minValue').value) : null,
+    currency: document.getElementById('ir-currency').value,
+    percentBase: document.getElementById('ir-chargeType').value === 'PERCENTAGE' ? document.getElementById('ir-percentBase').value : null,
+    sortOrder: parseInt(document.getElementById('ir-sortOrder').value) || 0
+  };
+  try {
+    if (id) {
+      await fetch(`/api/incoterm-rules/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+      toast('✅ Regra atualizada!');
+    } else {
+      await fetch('/api/incoterm-rules', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+      toast('✅ Regra criada!');
+    }
+    cancelEditIr();
+    loadIncotermRulesTable();
+  } catch (e) {
+    toast('❌ Erro ao salvar regra.');
+  }
+}
+
+async function editIncotermRule(id) {
+  try {
+    const res = await fetch('/api/incoterm-rules');
+    const rules = await res.json();
+    const rule = rules.find(r => r.id === id);
+    if (!rule) return;
+    document.getElementById('ir-id').value = rule.id;
+    document.getElementById('ir-incoterm').value = rule.incoterm;
+    document.getElementById('ir-modal').value = rule.modal;
+    document.getElementById('ir-feeType').value = rule.feeType;
+    document.getElementById('ir-feeName').value = rule.feeName;
+    document.getElementById('ir-chargeType').value = rule.chargeType;
+    document.getElementById('ir-value').value = rule.value;
+    document.getElementById('ir-minValue').value = rule.minValue || '';
+    document.getElementById('ir-currency').value = rule.currency;
+    if (rule.percentBase) document.getElementById('ir-percentBase').value = rule.percentBase;
+    document.getElementById('ir-sortOrder').value = rule.sortOrder || 0;
+    document.getElementById('btnCancelIr').style.display = '';
+    toggleIrPercentBase();
+    document.getElementById('ir-incoterm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) { toast('❌ Erro ao carregar regra.'); }
+}
+
+async function deleteIncotermRule(id) {
+  if (!confirm('Excluir esta regra?')) return;
+  try {
+    await fetch(`/api/incoterm-rules/${id}`, { method: 'DELETE' });
+    toast('✅ Regra excluída!');
+    loadIncotermRulesTable();
+  } catch (e) { toast('❌ Erro ao excluir.'); }
+}
+
+function cancelEditIr() {
+  document.getElementById('ir-id').value = '';
+  document.getElementById('ir-feeName').value = '';
+  document.getElementById('ir-value').value = '';
+  document.getElementById('ir-minValue').value = '';
+  document.getElementById('ir-sortOrder').value = '0';
+  document.getElementById('btnCancelIr').style.display = 'none';
+}
+
+async function seedIncotermRules() {
+  if (!confirm('Popular regras padrão por Incoterm? (regras existentes serão mantidas)')) return;
+  try {
+    const res = await fetch('/api/incoterm-rules/seed', { method: 'POST' });
+    const data = await res.json();
+    toast('✅ ' + data.message);
+    loadIncotermRulesTable();
+  } catch (e) { toast('❌ Erro ao popular regras.'); }
+}
+
+// Auto-aplicação de regras ao mudar o Incoterm na revisão
+document.addEventListener('DOMContentLoaded', function() {
+  const incotermSelect = document.getElementById('r-incoterm');
+  if (incotermSelect) {
+    incotermSelect.addEventListener('change', async function() {
+      const preview = document.getElementById('incoterm-rules-preview');
+      const incoterm = this.value;
+      if (!incoterm || !preview) return;
+      try {
+        const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}`);
+        const rules = await res.json();
+        if (!rules.length) {
+          preview.style.display = 'none';
+          return;
+        }
+        const originRules = rules.filter(r => r.feeType === 'ORIGIN');
+        const destRules = rules.filter(r => r.feeType === 'DESTINATION');
+        let html = '<div style="background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.25); border-radius:8px; padding:12px; font-size:12px;">';
+        html += '<div style="font-weight:700; color:var(--gold); margin-bottom:6px;">📦 Regras automáticas para ' + incoterm + ':</div>';
+        if (originRules.length) {
+          html += '<div style="color:var(--info); font-weight:600; margin-bottom:4px;">Origem:</div>';
+          originRules.forEach(r => {
+            const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
+            html += '<div style="color:var(--text-muted); margin-left:8px;">• ' + r.feeName + ': ' + val + '</div>';
+          });
+        }
+        if (destRules.length) {
+          html += '<div style="color:var(--warning); font-weight:600; margin-top:6px; margin-bottom:4px;">Destino:</div>';
+          destRules.forEach(r => {
+            const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
+            html += '<div style="color:var(--text-muted); margin-left:8px;">• ' + r.feeName + ': ' + val + '</div>';
+          });
+        }
+        html += '</div>';
+        preview.innerHTML = html;
+        preview.style.display = 'block';
+      } catch (e) {
+        preview.style.display = 'none';
+      }
+    });
+  }
+});
 </script>
 </body>
 </html>

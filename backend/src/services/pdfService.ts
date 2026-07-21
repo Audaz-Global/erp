@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
+import { getFeesForIncoterm, formatFeesForPdf } from '../services/incotermRuleService';
 
 function formatSubtotals(fees: any[]): string {
   if (!fees || !Array.isArray(fees)) return '';
@@ -1127,8 +1128,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     sumUsd = 4707.22;
     totalGeralLabel = 'USD 4707.22';
   } else {
-    // Lógica geral de custos (Totalmente Dinâmica)
-    const isExw = String(incoterm).toUpperCase() === 'EXW';
+    // Lógica geral de custos (Totalmente Dinâmica via IncotermRules)
     const isAco = String(quotationData.reference).includes('ACO');
     const fCurr = quotationData.freightCurrency || (isAco ? 'EUR' : 'USD');
 
@@ -1140,7 +1140,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     freightTotalValue = `${fCurr} ${fVal.toFixed(2)}`;
     freightUnitValue = chargableWeight > 0 ? `${fCurr} ${(fVal / chargableWeight).toFixed(2)}` : `${fCurr} 0.00`;
 
-    // Origem
+    // Origem — usa dados salvos se existirem
     if (quotationData.originServices) {
       try {
         const parsedServices = JSON.parse(quotationData.originServices);
@@ -1164,69 +1164,45 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       }
     }
 
-    // Fallback se detailedFeesOrigem estiver vazio
-    if (detailedFeesOrigem.length === 0) {
-      if (isExw) {
-        const originVal = isAco ? 340.00 : 91.00;
-        const originCurr = isAco ? 'EUR' : 'USD';
-        detailedFeesOrigem = [
-          { name: 'Origin Charges (Coleta, Doc, Handling, Despacho)', qty: 1, unit: 'Fixo', valueUnit: originVal.toFixed(2), min: '0,00', currency: originCurr, total: `${originCurr} ${originVal.toFixed(2)}` }
-        ];
-      } else {
-        // FCA padrão
-        const airportFeeUnit = 0.15;
-        const airportFeeTotal = Math.max(airportFeeUnit * chargableWeight, 45.00);
-        detailedFeesOrigem = [
-          { name: 'Airport Fee', qty: chargableWeight, unit: 'Por Kg/cm3 (6000)', valueUnit: airportFeeUnit.toFixed(2), min: '45.00', currency: 'USD', total: `USD ${airportFeeTotal.toFixed(2)}` },
-          { name: 'AWB Fee', qty: 1, unit: 'Por documento', valueUnit: '16.00', min: '0,00', currency: 'USD', total: 'USD 16.00' },
-          { name: 'Handling', qty: 1, unit: 'Fixo', valueUnit: '30.00', min: '0,00', currency: 'USD', total: 'USD 30.00' }
-        ];
-      }
-    }
+    // Aplicar regras de Incoterm do banco se não há taxas de origem salvas
+    const incotermStr = String(incoterm || 'FCA').toUpperCase();
+    const modalStr = String(quotationData.modal || 'AIR').toUpperCase();
+    const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
 
-    // Calcular bases para taxas proporcionais
-    let baseProporcional = fVal;
-    if (quotationData.originServices) {
+    if (detailedFeesOrigem.length === 0) {
       try {
-        const parsedServices = JSON.parse(quotationData.originServices);
-        if (Array.isArray(parsedServices)) {
-          parsedServices.forEach(f => {
-            const val = parseFloat(f.value) || 0;
-            const curr = f.currency || 'USD';
-            if (curr.toUpperCase() === fCurr.toUpperCase()) {
-              baseProporcional += val;
-            } else {
-              if (fCurr.toUpperCase() === 'USD' && curr.toUpperCase() === 'EUR') {
-                baseProporcional += val * 1.08;
-              } else if (fCurr.toUpperCase() === 'EUR' && curr.toUpperCase() === 'USD') {
-                baseProporcional += val / 1.08;
-              } else if (fCurr.toUpperCase() === 'USD' && curr.toUpperCase() === 'BRL') {
-                baseProporcional += val / 5.05;
-              } else if (fCurr.toUpperCase() === 'EUR' && curr.toUpperCase() === 'BRL') {
-                baseProporcional += val / 5.50;
-              } else {
-                baseProporcional += val;
-              }
-            }
-          });
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr);
+        if (originFees.length > 0) {
+          detailedFeesOrigem = formatFeesForPdf(originFees);
         }
       } catch (err) {
-        console.error('Erro ao calcular baseProporcional:', err);
-      }
-    } else {
-      if (fCurr === 'EUR') {
-        const totalOrigemEur = isExw && isAco ? 340.00 : 0;
-        baseProporcional += totalOrigemEur;
-      } else {
-        const totalOrigemUsd = isExw ? (isAco ? 340.00 : 91.00) : (Math.max(0.15 * chargableWeight, 45.00) + 16.00 + 30.00);
-        baseProporcional += totalOrigemUsd;
+        console.error('Erro ao buscar regras de Incoterm para origem (PDF):', err);
       }
     }
 
-    // Collect Fee e IOF
+    // Calcular base proporcional para totais
+    let baseProporcional = fVal;
+    detailedFeesOrigem.forEach(f => {
+      const total = f.total ? String(f.total) : '';
+      const parts = total.split(' ');
+      if (parts.length >= 2) {
+        const val = parseFloat(parts[parts.length - 1]!) || 0;
+        const curr = parts[0]!.toUpperCase();
+        if (curr === fCurr.toUpperCase()) {
+          baseProporcional += val;
+        } else {
+          // Conversão simplificada
+          if (fCurr.toUpperCase() === 'USD' && curr === 'EUR') baseProporcional += val * 1.08;
+          else if (fCurr.toUpperCase() === 'EUR' && curr === 'USD') baseProporcional += val / 1.08;
+          else baseProporcional += val;
+        }
+      }
+    });
+
     const collectFeeTotal = Math.max(baseProporcional * 0.03, 50.00);
     const iofTotal = baseProporcional * 0.035;
 
+    // Destino — usa dados salvos se existirem
     if (quotationData.destinationServices) {
       try {
         const parsedDestServices = JSON.parse(quotationData.destinationServices);
@@ -1250,42 +1226,46 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       }
     }
 
+    // Aplicar regras de Incoterm para destino se não há taxas salvas
     if (detailedFeesDestino.length === 0) {
-      detailedFeesDestino = [
-        { name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' },
-        { name: 'Collect Fee', qty: '-', unit: '% de Taxas Selecionadas', valueUnit: '3.00 %', min: '50.00', currency: fCurr, total: `${fCurr} ${collectFeeTotal.toFixed(2)}` },
-        { name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' },
-        { name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' }
-      ];
+      try {
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr);
+        if (destinationFees.length > 0) {
+          detailedFeesDestino = formatFeesForPdf(destinationFees);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar regras de Incoterm para destino (PDF):', err);
+      }
     } else {
-      // Adicionar as taxas de destino padrão que não estejam presentes para cotações aéreas
-      const hasCct = detailedFeesDestino.some(f => f.name.toLowerCase().includes('cct'));
-      const hasDelivery = detailedFeesDestino.some(f => f.name.toLowerCase().includes('delivery'));
-      const hasDescon = detailedFeesDestino.some(f => f.name.toLowerCase().includes('desconsolida') || f.name.toLowerCase().includes('deconsolidation'));
-      const hasCollect = detailedFeesDestino.some(f => f.name.toLowerCase().includes('collect'));
-
-      if (!hasCct) {
-        detailedFeesDestino.push({ name: 'CCT fee', qty: 1, unit: 'Fixo', valueUnit: '10.00', min: '0,00', currency: 'USD', total: 'USD 10.00' });
-      }
-      if (!hasDelivery) {
-        detailedFeesDestino.push({ name: 'Delivery Fee', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' });
-      }
-      if (!hasDescon) {
-        detailedFeesDestino.push({ name: 'Desconsolidação / Deconsolidation', qty: 1, unit: 'Por documento', valueUnit: '55.00', min: '0,00', currency: 'USD', total: 'USD 55.00' });
-      }
-      if (!hasCollect) {
-        detailedFeesDestino.push({ 
-          name: 'Collect Fee', 
-          qty: '-', 
-          unit: '% de Taxas Selecionadas', 
-          valueUnit: '3.00 %', 
-          min: '50.00', 
-          currency: fCurr, 
-          total: `${fCurr} ${collectFeeTotal.toFixed(2)}` 
-        });
+      // Complementar taxas faltantes do banco
+      try {
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr);
+        const existingNames = new Set(detailedFeesDestino.map(f => f.name.toLowerCase()));
+        for (const ruleFee of destinationFees) {
+          const nameMatch = existingNames.has(ruleFee.name.toLowerCase()) ||
+            (ruleFee.name.toLowerCase().includes('cct') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('cct'))) ||
+            (ruleFee.name.toLowerCase().includes('collect') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('collect'))) ||
+            (ruleFee.name.toLowerCase().includes('delivery') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('delivery'))) ||
+            (ruleFee.name.toLowerCase().includes('desconsolida') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('desconsolida') || f.name.toLowerCase().includes('deconsolidation'))) ||
+            (ruleFee.name.toLowerCase().includes('iof') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('iof')));
+          if (!nameMatch) {
+            detailedFeesDestino.push({
+              name: ruleFee.name,
+              qty: ruleFee.qty,
+              unit: ruleFee.unit,
+              valueUnit: ruleFee.valueUnit,
+              min: ruleFee.min,
+              currency: ruleFee.currency,
+              total: ruleFee.total
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao complementar regras de Incoterm para destino (PDF):', err);
       }
     }
 
+    // Desembaraço (Condicional ao flag — independente do Incoterm)
     if (quotationData.customsClearanceIncluded) {
       detailedFeesDestino.push({ 
         name: 'Desembaraço', 
@@ -1298,45 +1278,35 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       });
     }
 
-    if (detailedFeesDestino.some(f => f.name === 'Collect Fee')) {
-      detailedFeesDestino.push({ 
-        name: 'IOF - FRETE + TX ORIGEM', 
-        qty: '-', 
-        unit: '% de Taxas Selecionadas', 
-        valueUnit: '3.50 %', 
-        min: '0,00', 
-        currency: fCurr, 
-        total: `${fCurr} ${iofTotal.toFixed(2)}` 
-      });
-    }
-
     // Consolidar subtotais e totais por moeda
     let sumOrigemBrl = 0;
     let sumOrigemUsd = 0;
     let sumOrigemEur = 0;
     detailedFeesOrigem.forEach(f => {
-      let v = 0;
-      if (f.name === 'Airport Fee' && !quotationData.originServices) {
-        v = Math.max(0.15 * chargableWeight, 45.00);
-      } else {
-        v = parseFloat(f.valueUnit) || 0;
+      const total = f.total ? String(f.total) : '';
+      const parts = total.split(' ');
+      if (parts.length >= 2) {
+        const v = parseFloat(parts[parts.length - 1]!) || 0;
+        const curr = parts[0]!.toUpperCase();
+        if (curr === 'USD') sumOrigemUsd += v;
+        else if (curr === 'EUR') sumOrigemEur += v;
+        else if (curr === 'BRL') sumOrigemBrl += v;
       }
-      if (f.currency === 'USD') sumOrigemUsd += v;
-      else if (f.currency === 'EUR') sumOrigemEur += v;
-      else if (f.currency === 'BRL') sumOrigemBrl += v;
     });
 
     let sumDestinoBrl = 0;
     let sumDestinoUsd = 0;
     let sumDestinoEur = 0;
     detailedFeesDestino.forEach(f => {
-      let v = parseFloat(f.valueUnit);
-      if (f.name === 'Collect Fee') v = collectFeeTotal;
-      else if (f.name === 'IOF - FRETE + TX ORIGEM') v = iofTotal;
-      
-      if (f.currency === 'USD') sumDestinoUsd += v;
-      else if (f.currency === 'EUR') sumDestinoEur += v;
-      else if (f.currency === 'BRL') sumDestinoBrl += v;
+      const total = f.total ? String(f.total) : '';
+      const parts = total.split(' ');
+      if (parts.length >= 2) {
+        const v = parseFloat(parts[parts.length - 1]!) || 0;
+        const curr = parts[0]!.toUpperCase();
+        if (curr === 'USD') sumDestinoUsd += v;
+        else if (curr === 'EUR') sumDestinoEur += v;
+        else if (curr === 'BRL') sumDestinoBrl += v;
+      }
     });
 
     sumUsd = sumDestinoUsd + (fCurr === 'USD' ? fVal : 0) + sumOrigemUsd;

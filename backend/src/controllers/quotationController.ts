@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
+import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
 
 // 1. Create a new Quotation
 export const createQuotation = async (req: Request, res: Response) => {
@@ -394,28 +395,6 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       }
     }
 
-    if (detailedFeesOrigem.length === 0 && isAir) {
-      if (isExw) {
-        // EXW tem Origin Charges consolidada
-        const originVal = String(quotation.reference).includes('ACO') ? 340.00 : 91.00;
-        const originCurr = String(quotation.reference).includes('ACO') ? 'EUR' : 'USD';
-        detailedFeesOrigem.push({
-          name: 'Origin Charges (Coleta, Doc, Handling, Despacho)',
-          val: originVal,
-          currency: originCurr,
-          brl: getBrlValue(originVal, originCurr)
-        });
-      } else {
-        // FCA padrão
-        const airportFee = Math.max(0.15 * taxavel, 45.00);
-        detailedFeesOrigem.push({ name: 'Airport Fee', val: airportFee, currency: 'USD', brl: getBrlValue(airportFee, 'USD') });
-        detailedFeesOrigem.push({ name: 'AWB Fee', val: 16.00, currency: 'USD', brl: getBrlValue(16.00, 'USD') });
-        detailedFeesOrigem.push({ name: 'Handling', val: 30.00, currency: 'USD', brl: getBrlValue(30.00, 'USD') });
-      }
-    }
-
-    const subtotalOrigemBrl = detailedFeesOrigem.reduce((s, f) => s + f.brl, 0);
-
     // Detalhar taxas de destino
     let detailedFeesDestino: any[] = [];
     if (quotation.destinationServices) {
@@ -438,35 +417,62 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       }
     }
 
-    if (isAir) {
-      const hasCct = detailedFeesDestino.some(f => f.name.toLowerCase().includes('cct'));
-      const hasDelivery = detailedFeesDestino.some(f => f.name.toLowerCase().includes('delivery'));
-      const hasDescon = detailedFeesDestino.some(f => f.name.toLowerCase().includes('desconsolida') || f.name.toLowerCase().includes('deconsolidation'));
-      const hasCollect = detailedFeesDestino.some(f => f.name.toLowerCase().includes('collect'));
-      
-      const baseCollectBrl = fTotalBrl + subtotalOrigemBrl;
-
-      if (!hasCct) detailedFeesDestino.push({ name: 'CCT fee', val: 10.00, currency: 'USD', brl: getBrlValue(10.00, 'USD') });
-      
-      if (!hasCollect) {
-        const collectFeeVal = Math.max(baseCollectBrl * 0.03, getBrlValue(50.00, fCurr));
-        detailedFeesDestino.push({ name: 'Collect Fee', val: collectFeeVal / getBrlValue(1.0, fCurr), currency: fCurr, brl: collectFeeVal });
+    // Aplicar regras de Incoterm do banco se não há taxas salvas manualmente
+    const incotermStr = String(quotation.incoterm || 'FCA').toUpperCase();
+    const modalStr = String(quotation.modal || 'AIR').toUpperCase();
+    const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
+    
+    if (detailedFeesOrigem.length === 0) {
+      try {
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr);
+        if (originFees.length > 0) {
+          detailedFeesOrigem = formatFeesForController(originFees, getBrlValue);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar regras de Incoterm para origem:', err);
       }
-      
-      if (!hasDelivery) detailedFeesDestino.push({ name: 'Delivery Fee', val: 55.00, currency: 'USD', brl: getBrlValue(55.00, 'USD') });
-      
-      if (!hasDescon) detailedFeesDestino.push({ name: 'Desconsolidação / Deconsolidation', val: 55.00, currency: 'USD', brl: getBrlValue(55.00, 'USD') });
+    }
 
-      // Desembaraço (Condicional ao flag)
-      if (quotation.customsClearanceIncluded && !detailedFeesDestino.some(f => f.name.toLowerCase().includes('desembaraço'))) {
-        detailedFeesDestino.push({ name: 'Desembaraço Aduaneiro', val: 900.00, currency: 'BRL', brl: 900.00 });
-      }
+    const subtotalOrigemBrl = detailedFeesOrigem.reduce((s, f) => s + f.brl, 0);
 
-      // IOF - 3.5% de Frete + Origem
-      if (!detailedFeesDestino.some(f => f.name.includes('IOF'))) {
-        const iofBrl = baseCollectBrl * 0.035;
-        detailedFeesDestino.push({ name: 'IOF - FRETE + TX ORIGEM', val: iofBrl / getBrlValue(1.0, fCurr), currency: fCurr, brl: iofBrl });
+    if (detailedFeesDestino.length === 0) {
+      try {
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr);
+        if (destinationFees.length > 0) {
+          detailedFeesDestino = formatFeesForController(destinationFees, getBrlValue);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar regras de Incoterm para destino:', err);
       }
+    } else {
+      // Complementar taxas faltantes com regras do banco
+      try {
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr);
+        const existingNames = new Set(detailedFeesDestino.map(f => f.name.toLowerCase()));
+        for (const ruleFee of destinationFees) {
+          const nameMatch = existingNames.has(ruleFee.name.toLowerCase()) ||
+            (ruleFee.name.toLowerCase().includes('cct') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('cct'))) ||
+            (ruleFee.name.toLowerCase().includes('collect') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('collect'))) ||
+            (ruleFee.name.toLowerCase().includes('delivery') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('delivery'))) ||
+            (ruleFee.name.toLowerCase().includes('desconsolida') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('desconsolida') || f.name.toLowerCase().includes('deconsolidation'))) ||
+            (ruleFee.name.toLowerCase().includes('iof') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('iof')));
+          if (!nameMatch) {
+            detailedFeesDestino.push({
+              name: ruleFee.name,
+              val: ruleFee.value,
+              currency: ruleFee.currency,
+              brl: getBrlValue(ruleFee.value, ruleFee.currency)
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao complementar regras de Incoterm para destino:', err);
+      }
+    }
+
+    // Desembaraço (Condicional ao flag — independente do Incoterm)
+    if (quotation.customsClearanceIncluded && !detailedFeesDestino.some(f => f.name.toLowerCase().includes('desembaraço'))) {
+      detailedFeesDestino.push({ name: 'Desembaraço Aduaneiro', val: 900.00, currency: 'BRL', brl: 900.00 });
     }
 
     const subtotalDestinoBrl = detailedFeesDestino.reduce((s, f) => s + f.brl, 0);

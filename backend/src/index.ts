@@ -25,6 +25,7 @@ import quotationRoutes from './routes/quotation';
 import agentRoutes from './routes/agent';
 import fixedFeeRoutes from './routes/fixedFee';
 import standardFeeRoutes from './routes/standardFee';
+import incotermRuleRoutes from './routes/incotermRule';
 import outlookRoutes from './routes/outlookRoutes';
 
 import knowledgeRoutes from './routes/knowledge';
@@ -36,6 +37,7 @@ app.use('/api/quotations', quotationRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/fixed-fees', fixedFeeRoutes);
 app.use('/api/standard-fees', standardFeeRoutes);
+app.use('/api/incoterm-rules', incotermRuleRoutes);
 app.use('/api/outlook', outlookRoutes);
 
 app.post('/api/log-error', (req, res) => {

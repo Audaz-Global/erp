@@ -204,3 +204,21 @@ model StandardFee {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+model IncotermRule {
+  id            String   @id @default(uuid())
+  incoterm      String   // EXW, FCA, FOB, CIF, CFR, DAP, DDP
+  modal         String   // AIR, SEA_FCL, SEA_LCL, ALL
+  feeType       String   // ORIGIN, DESTINATION
+  feeName       String   // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
+  chargeType    String   // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
+  value         Float    // Valor unitário ou percentual
+  minValue      Float?   // Valor mínimo (ex: Airport Fee mín USD 45)
+  currency      String   @default("USD")
+  percentBase   String?  // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
+  description   String?  // Descrição informativa para o operador
+  sortOrder     Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
