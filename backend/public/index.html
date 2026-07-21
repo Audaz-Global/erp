@@ -556,7 +556,6 @@
                   <option value="DDP">DDP</option>
                   <option value="FCA">FCA</option>
                 </select>
-                <div id="incoterm-rules-preview" style="margin-top:8px; display:none;"></div>
               </div>
               <div class="form-group" style="grid-column: 1 / -1;">
                 <label>Origem (Porto ou Aeroporto)</label>
@@ -592,6 +591,8 @@
 
         <!-- CARGA & CUSTOS -->
         <div class="review-col">
+          <div id="incoterm-rules-preview" style="display:none; margin-bottom: 24px;"></div>
+          
           <div class="review-section" style="margin-bottom: 24px;">
             <div class="review-section-title">Detalhes da Carga</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -2105,6 +2106,9 @@ function fillReviewForm(d, mode) {
     if(d.route) {
       document.getElementById('r-incoterm').value = d.route.incoterm || '';
       document.getElementById('conf-incoterm').innerHTML = renderConf(d.route.incoterm, d.route.confidence);
+      if (window.updateIncotermPreview && d.route.incoterm) {
+        window.updateIncotermPreview(d.route.incoterm);
+      }
       
       document.getElementById('r-origin').value = d.route.origin_city || d.route.origin || '';
       document.getElementById('conf-origin').innerHTML = renderConf(d.route.origin_city || d.route.origin, d.route.confidence);
@@ -5159,128 +5163,142 @@ async function seedIncotermRules() {
 }
 
 // Auto-aplicação de regras ao mudar o Incoterm na revisão
+window.updateIncotermPreview = async function(incoterm) {
+  const preview = document.getElementById('incoterm-rules-preview');
+  if (!incoterm || !preview) {
+    if(preview) preview.style.display = 'none';
+    return;
+  }
+  
+  const incotermDetails = {
+    'EXW': {
+      name: 'Ex Works (Na Origem)',
+      seller: ['Embalar a mercadoria', 'Disponibilizar na fábrica/armazém'],
+      buyer: ['Coleta e transporte interno na origem', 'Despacho aduaneiro de exportação', 'Frete internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
+      risk: 'Transferido ao comprador na fábrica.',
+      cost: 'Mínimo para o vendedor.'
+    },
+    'FCA': {
+      name: 'Free Carrier (Livre no Transportador)',
+      seller: ['Embalar a mercadoria', 'Despacho aduaneiro de exportação', 'Carregamento no veículo do transportador na origem'],
+      buyer: ['Frete internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
+      risk: 'Transferido ao comprador após entrega ao transportador nomeado.',
+      cost: 'Vendedor arca com custos até a entrega ao transportador.'
+    },
+    'FOB': {
+      name: 'Free on Board (Livre a Bordo)',
+      seller: ['Embalar a mercadoria', 'Transporte até o porto de origem', 'Despacho aduaneiro de exportação', 'Carregamento a bordo do navio'],
+      buyer: ['Frete marítimo internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
+      risk: 'Transferido ao comprador quando a mercadoria cruza a amurada do navio.',
+      cost: 'Vendedor paga custos até a mercadoria estar a bordo.'
+    },
+    'CFR': {
+      name: 'Cost and Freight (Custo e Frete)',
+      seller: ['Embalar a mercadoria', 'Transporte até o porto', 'Despacho de exportação', 'Frete marítimo internacional até o porto de destino'],
+      buyer: ['Seguro internacional', 'Despacho de importação', 'Descarga no destino e transporte final'],
+      risk: 'Transferido ao comprador a bordo do navio na origem (risco e custo se separam).',
+      cost: 'Vendedor paga o frete principal.'
+    },
+    'CIF': {
+      name: 'Cost, Insurance and Freight (Custo, Seguro e Frete)',
+      seller: ['Embalar a mercadoria', 'Transporte, despacho de exportação', 'Frete marítimo internacional', 'Seguro internacional mínimo'],
+      buyer: ['Despacho de importação', 'Descarga no destino e transporte final'],
+      risk: 'Transferido ao comprador a bordo do navio na origem.',
+      cost: 'Vendedor paga frete principal e seguro.'
+    },
+    'DAP': {
+      name: 'Delivered at Place (Entregue no Local)',
+      seller: ['Embalar, transporte, exportação, frete internacional', 'Disponibilizar a mercadoria no local de destino (pronta para descarga)'],
+      buyer: ['Descarga no local de destino', 'Despacho aduaneiro de importação e impostos'],
+      risk: 'Transferido ao comprador no local de destino, antes da descarga.',
+      cost: 'Vendedor arca com quase todos os custos, exceto importação e descarga.'
+    },
+    'DDP': {
+      name: 'Delivered Duty Paid (Entregue com Direitos Pagos)',
+      seller: ['Embalar, transporte, exportação, frete, seguro', 'Despacho de importação e pagamento de impostos', 'Entrega no local de destino final'],
+      buyer: ['Apenas receber e descarregar a mercadoria no destino'],
+      risk: 'Transferido ao comprador no local de destino final.',
+      cost: 'Máximo para o vendedor.'
+    }
+  };
+  
+  let html = '<div class="review-section" style="background:rgba(245,166,35,0.05); border:1px solid rgba(245,166,35,0.3); border-radius:12px; padding:20px; font-size:12px; margin-bottom: 0;">';
+  
+  const info = incotermDetails[incoterm];
+  if (info) {
+    html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid rgba(245,166,35,0.2);">`;
+    html += `<div style="font-weight:800; color:var(--gold); font-size:14px; text-transform:uppercase; letter-spacing:0.5px;">📦 ${incoterm} — ${info.name}</div>`;
+    html += `<button onclick="openSettings(); switchSettingsTab('incotermRules');" style="background:rgba(245,166,35,0.1); border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:4px;">⚙️ Editar Regras</button>`;
+    html += `</div>`;
+    html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:12px;">`;
+    html += `<div><strong style="color:var(--info);">🔵 VENDEDOR (Exportador)</strong><ul style="margin-left:16px; margin-top:8px; color:var(--text-muted); line-height:1.4;">`;
+    info.seller.forEach(item => html += `<li style="margin-bottom:4px;">${item}</li>`);
+    html += `</ul></div>`;
+    html += `<div><strong style="color:var(--gold);">🟠 COMPRADOR (Importador)</strong><ul style="margin-left:16px; margin-top:8px; color:var(--text-muted); line-height:1.4;">`;
+    info.buyer.forEach(item => html += `<li style="margin-bottom:4px;">${item}</li>`);
+    html += `</ul></div>`;
+    html += `</div>`;
+    html += `<div style="background:rgba(0,0,0,0.2); padding:10px 12px; border-radius:6px; color:var(--text); line-height:1.5;">`;
+    html += `<div>⚠️ <strong>Risco:</strong> ${info.risk}</div>`;
+    html += `<div>💰 <strong>Custo:</strong> ${info.cost}</div>`;
+    html += `</div>`;
+  }
+
+  try {
+    const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}`);
+    const rules = await res.json();
+    if (rules && rules.length > 0) {
+      const originRules = rules.filter(r => r.feeType === 'ORIGIN');
+      const destRules = rules.filter(r => r.feeType === 'DESTINATION');
+      
+      html += '<div style="margin-top:16px; padding-top:16px; border-top:1px dashed rgba(245,166,35,0.3);">';
+      html += '<div style="font-weight:700; color:var(--gold); margin-bottom:10px;">Regras automáticas vinculadas a esta cotação:</div>';
+      
+      let rulesHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">';
+      rulesHtml += '<div>';
+      if (originRules.length) {
+        rulesHtml += '<div style="color:var(--info); font-weight:600; margin-bottom:6px;">Origem:</div>';
+        originRules.forEach(r => {
+          const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
+          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
+        });
+      } else {
+        rulesHtml += '<div style="color:var(--text-muted); font-style:italic;">Nenhuma regra na origem.</div>';
+      }
+      rulesHtml += '</div><div>';
+      if (destRules.length) {
+        rulesHtml += '<div style="color:var(--warning); font-weight:600; margin-bottom:6px;">Destino:</div>';
+        destRules.forEach(r => {
+          const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
+          rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
+        });
+      } else {
+        rulesHtml += '<div style="color:var(--text-muted); font-style:italic;">Nenhuma regra no destino.</div>';
+      }
+      rulesHtml += '</div></div>';
+      html += rulesHtml + '</div>';
+    } else {
+      html += '<div style="margin-top:16px; padding-top:16px; border-top:1px dashed rgba(245,166,35,0.3); color:var(--text-muted); font-style:italic;">Nenhuma regra automática vinculada a este Incoterm.</div>';
+    }
+  } catch (e) {
+    console.error('Erro ao buscar regras de incoterm:', e);
+  }
+  
+  html += '</div>';
+  preview.innerHTML = html;
+  preview.style.display = 'block';
+  
+  // Animação suave
+  preview.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: 'ease-out' });
+};
+
 document.addEventListener('DOMContentLoaded', function() {
   const incotermSelect = document.getElementById('r-incoterm');
   if (incotermSelect) {
-    const incotermDetails = {
-      'EXW': {
-        name: 'Ex Works (Na Origem)',
-        seller: ['Embalar a mercadoria', 'Disponibilizar na fábrica/armazém'],
-        buyer: ['Coleta e transporte interno na origem', 'Despacho aduaneiro de exportação', 'Frete internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
-        risk: 'Transferido ao comprador na fábrica.',
-        cost: 'Mínimo para o vendedor.'
-      },
-      'FCA': {
-        name: 'Free Carrier (Livre no Transportador)',
-        seller: ['Embalar a mercadoria', 'Despacho aduaneiro de exportação', 'Carregamento no veículo do transportador na origem'],
-        buyer: ['Frete internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
-        risk: 'Transferido ao comprador após entrega ao transportador nomeado.',
-        cost: 'Vendedor arca com custos até a entrega ao transportador.'
-      },
-      'FOB': {
-        name: 'Free on Board (Livre a Bordo)',
-        seller: ['Embalar a mercadoria', 'Transporte até o porto de origem', 'Despacho aduaneiro de exportação', 'Carregamento a bordo do navio'],
-        buyer: ['Frete marítimo internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
-        risk: 'Transferido ao comprador quando a mercadoria cruza a amurada do navio.',
-        cost: 'Vendedor paga custos até a mercadoria estar a bordo.'
-      },
-      'CFR': {
-        name: 'Cost and Freight (Custo e Frete)',
-        seller: ['Embalar a mercadoria', 'Transporte até o porto', 'Despacho de exportação', 'Frete marítimo internacional até o porto de destino'],
-        buyer: ['Seguro internacional', 'Despacho de importação', 'Descarga no destino e transporte final'],
-        risk: 'Transferido ao comprador a bordo do navio na origem (risco e custo se separam).',
-        cost: 'Vendedor paga o frete principal.'
-      },
-      'CIF': {
-        name: 'Cost, Insurance and Freight (Custo, Seguro e Frete)',
-        seller: ['Embalar a mercadoria', 'Transporte, despacho de exportação', 'Frete marítimo internacional', 'Seguro internacional mínimo'],
-        buyer: ['Despacho de importação', 'Descarga no destino e transporte final'],
-        risk: 'Transferido ao comprador a bordo do navio na origem.',
-        cost: 'Vendedor paga frete principal e seguro.'
-      },
-      'DAP': {
-        name: 'Delivered at Place (Entregue no Local)',
-        seller: ['Embalar, transporte, exportação, frete internacional', 'Disponibilizar a mercadoria no local de destino (pronta para descarga)'],
-        buyer: ['Descarga no local de destino', 'Despacho aduaneiro de importação e impostos'],
-        risk: 'Transferido ao comprador no local de destino, antes da descarga.',
-        cost: 'Vendedor arca com quase todos os custos, exceto importação e descarga.'
-      },
-      'DDP': {
-        name: 'Delivered Duty Paid (Entregue com Direitos Pagos)',
-        seller: ['Embalar, transporte, exportação, frete, seguro', 'Despacho de importação e pagamento de impostos', 'Entrega no local de destino final'],
-        buyer: ['Apenas receber e descarregar a mercadoria no destino'],
-        risk: 'Transferido ao comprador no local de destino final.',
-        cost: 'Máximo para o vendedor.'
+    incotermSelect.addEventListener('change', function() {
+      if (window.updateIncotermPreview) {
+        window.updateIncotermPreview(this.value);
       }
-    };
-
-    incotermSelect.addEventListener('change', async function() {
-      const preview = document.getElementById('incoterm-rules-preview');
-      const incoterm = this.value;
-      if (!incoterm || !preview) {
-        if(preview) preview.style.display = 'none';
-        return;
-      }
-      
-      let html = '<div style="background:rgba(245,166,35,0.05); border:1px solid rgba(245,166,35,0.3); border-radius:8px; padding:16px; font-size:12px;">';
-      
-      const info = incotermDetails[incoterm];
-      if (info) {
-        html += `<div style="font-weight:800; color:var(--gold); font-size:14px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(245,166,35,0.2);">📦 ${incoterm} — ${info.name}</div>`;
-        html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom:12px;">`;
-        html += `<div><strong style="color:var(--info);">🔵 VENDEDOR (Exportador)</strong><ul style="margin-left:16px; margin-top:4px; color:var(--text-muted); line-height:1.4;">`;
-        info.seller.forEach(item => html += `<li>${item}</li>`);
-        html += `</ul></div>`;
-        html += `<div><strong style="color:var(--gold);">🟠 COMPRADOR (Importador)</strong><ul style="margin-left:16px; margin-top:4px; color:var(--text-muted); line-height:1.4;">`;
-        info.buyer.forEach(item => html += `<li>${item}</li>`);
-        html += `</ul></div>`;
-        html += `</div>`;
-        html += `<div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; color:var(--text); line-height:1.5;">`;
-        html += `<div>⚠️ <strong>Risco:</strong> ${info.risk}</div>`;
-        html += `<div>💰 <strong>Custo:</strong> ${info.cost}</div>`;
-        html += `</div>`;
-      }
-
-      try {
-        const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}`);
-        const rules = await res.json();
-        if (rules && rules.length > 0) {
-          const originRules = rules.filter(r => r.feeType === 'ORIGIN');
-          const destRules = rules.filter(r => r.feeType === 'DESTINATION');
-          
-          html += '<div style="margin-top:16px; padding-top:12px; border-top:1px dashed rgba(245,166,35,0.3);">';
-          html += '<div style="font-weight:700; color:var(--gold); margin-bottom:8px;">Regras automáticas vinculadas:</div>';
-          
-          let rulesHtml = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">';
-          rulesHtml += '<div>';
-          if (originRules.length) {
-            rulesHtml += '<div style="color:var(--info); font-weight:600; margin-bottom:4px;">Origem:</div>';
-            originRules.forEach(r => {
-              const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
-              rulesHtml += '<div style="color:var(--text-muted);">• ' + r.feeName + ': ' + val + '</div>';
-            });
-          }
-          rulesHtml += '</div><div>';
-          if (destRules.length) {
-            rulesHtml += '<div style="color:var(--warning); font-weight:600; margin-bottom:4px;">Destino:</div>';
-            destRules.forEach(r => {
-              const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
-              rulesHtml += '<div style="color:var(--text-muted);">• ' + r.feeName + ': ' + val + '</div>';
-            });
-          }
-          rulesHtml += '</div></div>';
-          html += rulesHtml + '</div>';
-        }
-      } catch (e) {
-        console.error('Erro ao buscar regras de incoterm:', e);
-      }
-      
-      html += '</div>';
-      preview.innerHTML = html;
-      preview.style.display = 'block';
-      
-      // Animação suave
-      preview.animate([{ opacity: 0, transform: 'translateY(-10px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: 'ease-out' });
     });
   }
 });
