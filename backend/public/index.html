@@ -773,6 +773,7 @@
               <div class="form-group">
                 <label>Moeda</label>
                 <select id="r-freight-currency">
+                  <option value="">Selecione...</option>
                   <option value="USD">USD ($)</option>
                   <option value="EUR">EUR (€)</option>
                   <option value="BRL">BRL (R$)</option>
@@ -814,6 +815,7 @@
             <div class="form-group">
               <label>Faixa Tarifária (Weight Break)</label>
               <select id="r-weight-break">
+                <option value="">Selecione...</option>
                 <option value="normal">Padrão (Maior peso)</option>
                 <option value="+45">+45 kg</option>
                 <option value="+100">+100 kg</option>
@@ -2211,7 +2213,7 @@ function fillReviewForm(d, mode) {
     if(d.costs) {
       const freightInput = document.getElementById('r-freight');
       const origValue = d.costs.freight_value !== undefined ? d.costs.freight_value : d.costs.freight_usd;
-      const origCurrency = d.costs.freight_currency || 'USD';
+      const origCurrency = d.costs.freight_currency || '';
       
       freightInput.value = origValue || '';
       if (document.getElementById('r-freight-currency')) {
@@ -2281,9 +2283,16 @@ function fillReviewForm(d, mode) {
       const isLcl = loadType.toUpperCase().includes('LCL');
       const unitVal = isAir || isLcl ? (freightVal / taxavel) : freightVal;
 
-      document.getElementById('r-frequency').value = d.costs.frequency || 'Semanal';
+      document.getElementById('r-frequency').value = d.costs.frequency || '';
       document.getElementById('conf-frequency').innerHTML = renderConf(d.costs.frequency, d.costs.confidence);
-      document.getElementById('r-freight-unit').value = unitVal.toFixed(2);
+      document.getElementById('r-freight-unit').value = origValue ? unitVal.toFixed(2) : '';
+
+      // As regras conhecidas do Incoterm prevalecem e as taxas novas do agente
+      // são apenas complementadas, sem apagar ou duplicar os valores prefixados.
+      const selectedQuotation = allQuotations.find(x => x.id === qId);
+      if (selectedQuotation && returnIncotermRules.length) {
+        applyReturnIncotermRules(selectedQuotation, true);
+      }
     }
     checkValidation();
   }
@@ -2394,7 +2403,7 @@ document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r
 document.getElementById('r-freight').addEventListener('input', function() {
   const freight = parseFloat(this.value) || 0;
   const iofField = document.getElementById('r-iof');
-  if (freight > 0 && (!iofField.value || parseFloat(iofField.value) === 0)) {
+  if (!returnIncotermRules.length && freight > 0 && (!iofField.value || parseFloat(iofField.value) === 0)) {
     iofField.value = (freight * 0.035).toFixed(2);
   }
   
@@ -2415,6 +2424,7 @@ document.getElementById('r-freight').addEventListener('input', function() {
   } else {
     document.getElementById('r-freight-unit').value = freight.toFixed(2);
   }
+  if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
 });
 
 document.getElementById('r-freight-unit').addEventListener('input', function() {
@@ -2440,7 +2450,8 @@ document.getElementById('r-freight-unit').addEventListener('input', function() {
   document.getElementById('r-freight').value = totalFreight.toFixed(2);
   
   const iofField = document.getElementById('r-iof');
-  iofField.value = (totalFreight * 0.035).toFixed(2);
+  if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
+  else iofField.value = (totalFreight * 0.035).toFixed(2);
   checkValidation();
 });
 
@@ -2466,7 +2477,8 @@ document.getElementById('r-weight-break').addEventListener('change', function() 
   document.getElementById('r-freight').value = totalFreight.toFixed(2);
   
   const iofField = document.getElementById('r-iof');
-  iofField.value = (totalFreight * 0.035).toFixed(2);
+  if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
+  else iofField.value = (totalFreight * 0.035).toFixed(2);
   checkValidation();
 });
 
@@ -2994,9 +3006,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
           console.error(e);
         }
       }
-      if (!destFeesText) {
-        destFeesText = "CCT fee: 10.00 USD\nDelivery Fee: 55.00 USD\nDesconsolidação / Deconsolidation: 55.00 USD";
-      }
       document.getElementById('rev-destination-services').value = destFeesText;
     } else {
       document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
@@ -3017,7 +3026,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
       
       document.getElementById('rev-origin-services').value = document.getElementById('r-agent-origin-services').value || '';
 
-      let defaultDestText = "CCT fee: 10.00 USD\nDelivery Fee: 55.00 USD\nDesconsolidação / Deconsolidation: 55.00 USD";
       document.getElementById('rev-destination-services').value = document.getElementById('r-agent-destination-services').value.trim() || (q.destinationServices ? (function(){
         try {
           const fees = JSON.parse(q.destinationServices);
@@ -3025,8 +3033,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
             return fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
           }
         } catch(e){}
-        return defaultDestText;
-      })() : defaultDestText);
+        return '';
+      })() : '');
     }
 
     // Calcular o unitário inicial
@@ -3417,9 +3425,165 @@ function loadPendingQuotationsDropdown() {
   }
 }
 
-function loadPendingQuotationData() {
+let returnIncotermRules = [];
+
+function normalizeReturnRuleModal(q) {
+  const modal = String(q.modal || '').toUpperCase();
+  const loadType = String(q.loadType || '').toUpperCase();
+  if (modal === 'AIR' || loadType.includes('AIR')) return 'AIR';
+  if (loadType.includes('LCL')) return 'SEA_LCL';
+  return 'SEA_FCL';
+}
+
+function normalizeReturnFeeName(name) {
+  const normalized = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (normalized.includes('iof')) return 'iof';
+  if (normalized.includes('cct')) return 'cct';
+  if (normalized.includes('collect')) return 'collect';
+  if (normalized.includes('delivery')) return 'delivery';
+  if (normalized.includes('desconsol') || normalized.includes('deconsolid')) return 'deconsolidation';
+  return normalized.replace(/[^a-z0-9]/g, '');
+}
+
+function parseReturnFeeLines(text) {
+  if (!String(text || '').trim()) return [];
+  return String(text).split('\n').map(line => {
+    const separator = line.indexOf(':');
+    if (separator < 0) return null;
+    const name = line.slice(0, separator).trim();
+    const valueParts = line.slice(separator + 1).trim().split(/\s+/);
+    const value = parseFloat(String(valueParts[0] || '').replace(',', '.'));
+    if (!name || !Number.isFinite(value)) return null;
+    return { name, value, currency: String(valueParts[1] || 'USD').toUpperCase() };
+  }).filter(Boolean);
+}
+
+function parseSavedReturnFees(raw) {
+  if (!raw) return [];
+  try {
+    const fees = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(fees) ? fees.map(f => ({
+      name: f.name,
+      value: Number(f.value) || 0,
+      currency: String(f.currency || 'USD').toUpperCase()
+    })).filter(f => f.name) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function mergeReturnFees(existingFees, presetFees) {
+  const merged = new Map();
+  existingFees.forEach(f => merged.set(normalizeReturnFeeName(f.name), f));
+  // A regra cadastrada é a fonte oficial para taxas prefixadas pelo Incoterm.
+  presetFees.forEach(f => merged.set(normalizeReturnFeeName(f.name), f));
+  return Array.from(merged.values());
+}
+
+function formatReturnFees(fees) {
+  return fees.map(f => `${f.name}: ${Number(f.value).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+}
+
+function toReturnBrl(value, currency) {
+  const current = String(currency || 'USD').toUpperCase();
+  if (current === 'BRL') return value;
+  if (current === 'EUR') return value * 5.50;
+  return value * 5.05;
+}
+
+function calculateReturnRuleFees(q) {
+  const freight = parseFloat(document.getElementById('r-freight').value) || 0;
+  const weightBreak = document.getElementById('r-weight-break').value || q.weightBreak || 'normal';
+  const taxable = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, q.loadType, q.totalCbm, weightBreak);
+  const calculated = [];
+  let originTotal = 0;
+
+  const calculateRule = rule => {
+    let value = null;
+    if (rule.chargeType === 'FIXED' || rule.chargeType === 'PER_DOCUMENT') value = Number(rule.value) || 0;
+    if (rule.chargeType === 'PER_KG') value = (Number(rule.value) || 0) * taxable;
+    if (rule.chargeType === 'PERCENTAGE' && freight > 0) {
+      const base = rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freight + originTotal : freight;
+      value = base * ((Number(rule.value) || 0) / 100);
+    }
+    if (value != null && rule.minValue != null) value = Math.max(value, Number(rule.minValue) || 0);
+    return value;
+  };
+
+  returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
+    const value = calculateRule(rule);
+    if (value != null) {
+      calculated.push({ name: rule.feeName, value, currency: rule.currency || 'USD', feeType: 'ORIGIN' });
+      originTotal += value;
+    }
+  });
+  returnIncotermRules.filter(r => r.active !== false && r.feeType === 'DESTINATION').forEach(rule => {
+    const value = calculateRule(rule);
+    if (value != null) calculated.push({ name: rule.feeName, value, currency: rule.currency || 'USD', feeType: 'DESTINATION' });
+  });
+  return calculated;
+}
+
+function applyReturnIncotermRules(q, preserveExisting = false) {
+  const calculated = calculateReturnRuleFees(q);
+  const originPreset = calculated.filter(f => f.feeType === 'ORIGIN');
+  const destinationPreset = calculated.filter(f => f.feeType === 'DESTINATION');
+  const originField = document.getElementById('r-agent-origin-services');
+  const destinationField = document.getElementById('r-agent-destination-services');
+  const existingOrigin = preserveExisting ? parseReturnFeeLines(originField.value) : [];
+  const existingDestination = preserveExisting ? parseReturnFeeLines(destinationField.value) : [];
+  const originFees = mergeReturnFees(existingOrigin, originPreset);
+  const destinationFees = mergeReturnFees(existingDestination, destinationPreset);
+
+  originField.value = formatReturnFees(originFees);
+  destinationField.value = formatReturnFees(destinationFees);
+  const presetBadge = '<span style="font-size:10px; color:var(--success); font-weight:700;">INCOTERM</span>';
+  if (originPreset.length) document.getElementById('conf-agent-origin-services').innerHTML = presetBadge;
+  if (destinationPreset.length) document.getElementById('conf-agent-destination-services').innerHTML = presetBadge;
+
+  const findByName = fragments => destinationFees.find(f => fragments.some(fragment => normalizeReturnFeeName(f.name).includes(fragment)));
+  const iof = destinationFees.find(f => normalizeReturnFeeName(f.name) === 'iof');
+  const storage = findByName(['armazen', 'storage']);
+  const taxes = findByName(['imposto', 'tributo']);
+  const serviceFees = destinationFees.filter(f => f !== iof && f !== storage && f !== taxes);
+
+  if (iof) {
+    document.getElementById('r-iof').value = Number(iof.value).toFixed(2);
+    document.getElementById('conf-iof').innerHTML = presetBadge;
+  }
+  if (storage) {
+    document.getElementById('r-storage').value = toReturnBrl(storage.value, storage.currency).toFixed(2);
+    document.getElementById('conf-storage').innerHTML = presetBadge;
+  }
+  if (taxes) {
+    document.getElementById('r-taxes').value = toReturnBrl(taxes.value, taxes.currency).toFixed(2);
+    document.getElementById('conf-taxes').innerHTML = presetBadge;
+  }
+  if (serviceFees.length) {
+    document.getElementById('r-services').value = serviceFees.reduce((sum, fee) => sum + toReturnBrl(fee.value, fee.currency), 0).toFixed(2);
+    document.getElementById('conf-services').innerHTML = presetBadge;
+  }
+}
+
+function resetAgentReturnFields() {
+  ['r-freight', 'r-iof', 'r-storage', 'r-services', 'r-taxes', 'r-total', 'r-transit-time',
+   'r-frequency', 'r-freight-unit', 'r-agent-origin-port', 'r-agent-connections',
+   'r-agent-carrier', 'r-agent-origin-services', 'r-agent-destination-services'].forEach(id => {
+    const field = document.getElementById(id);
+    if (field) field.value = '';
+  });
+  document.getElementById('r-freight-currency').value = '';
+  document.getElementById('r-weight-break').value = '';
+  document.getElementById('r-customs-clearance-included').checked = false;
+  document.querySelectorAll('#costs-review-grid [id^="conf-"]').forEach(el => el.innerHTML = '');
+}
+
+async function loadPendingQuotationData() {
   // Limpa campos extraídos via IA, mas mostra o grid
   clearExtract();
+  resetAgentReturnFields();
+  window.lastExtractedAgentData = null;
+  returnIncotermRules = [];
   const select = document.getElementById('pending-quotations');
   const q = allQuotations.find(x => x.id === select.value);
   if (!q) {
@@ -3439,16 +3603,24 @@ function loadPendingQuotationData() {
     document.getElementById('incoterm-rules-preview-panel3').style.display = 'none';
   }
   
-  // Preenche os dados base da cotação no painel de Retorno
-  // Campos a preencher, se quisermos mostrar as taxas fixas, etc.
-  // Como o cálculo final das taxas (IOF, armazenagem) é feito no backend ao gerar o PDF,
-  // Podemos apenas limpar os inputs ou buscar as taxas fixas do backend
-  document.getElementById('r-freight').value = '';
-  document.getElementById('r-iof').value = '';
-  document.getElementById('r-storage').value = '';
-  document.getElementById('r-services').value = '';
-  document.getElementById('r-taxes').value = '';
-  document.getElementById('r-total').value = '';
+  // Recupera valores já salvos e prefixa as taxas conhecidas pelo Incoterm/modal.
+  document.getElementById('r-agent-origin-services').value = formatReturnFees(parseSavedReturnFees(q.originServices));
+  document.getElementById('r-agent-destination-services').value = formatReturnFees(parseSavedReturnFees(q.destinationServices));
+  try {
+    const modal = normalizeReturnRuleModal(q);
+    const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}`);
+    if (!rulesResponse.ok) throw new Error('Falha ao carregar regras de Incoterm.');
+    const loadedRules = await rulesResponse.json();
+    if (select.value !== q.id) return;
+    const ruleList = Array.isArray(loadedRules) ? loadedRules : [];
+    const specificRules = ruleList.filter(rule => rule.modal === modal);
+    const specificNames = new Set(specificRules.map(rule => `${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
+    const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
+    returnIncotermRules = [...specificRules, ...complementaryRules];
+    applyReturnIncotermRules(q, true);
+  } catch (e) {
+    console.error('Erro ao prefixar taxas do Incoterm:', e);
+  }
   
   checkValidation();
 }
