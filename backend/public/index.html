@@ -1482,13 +1482,16 @@ let isOnlyEditMode = false;
 // Funções utilitárias locais de cubagem
 function parsePackagesLocal(packagesStr, defaultPackagesCount = 1) {
   if (!packagesStr) return [];
+  const normalizedPackagesStr = String(packagesStr)
+    .replace(/(\d),(\d)/g, '$1.$2')
+    .replace(/[×X]/g, 'x');
   let items = [];
   try {
-    const parsed = JSON.parse(packagesStr);
+    const parsed = JSON.parse(normalizedPackagesStr);
     if (Array.isArray(parsed)) items = parsed.map(String);
     else items = [String(parsed)];
   } catch (e) {
-    items = packagesStr.split(/[,;\n]/);
+    items = normalizedPackagesStr.split(/[,;\n]/);
   }
   const result = [];
   for (let item of items) {
@@ -2360,13 +2363,34 @@ function checkValidation() {
       else f.classList.remove('error');
     });
 
+    let cargoValidationMessage = '';
+    const loadType = document.getElementById('r-type').value;
+    if (String(loadType || '').toUpperCase().includes('AIR')) {
+      const packagesField = document.getElementById('r-packages');
+      const dimensionsField = document.getElementById('r-dimensions');
+      const packagesCount = parseInt(packagesField.value, 10) || 0;
+      const parsedDimensions = parsePackagesLocal(dimensionsField.value || '', packagesCount || 1);
+      const missingPackages = packagesCount <= 0;
+      const invalidDimensions = parsedDimensions.length === 0;
+
+      packagesField.classList.toggle('error', missingPackages);
+      dimensionsField.classList.toggle('error', invalidDimensions);
+      if (missingPackages || invalidDimensions) {
+        isValid = false;
+        cargoValidationMessage = 'Para cotação aérea, informe os volumes e dimensões válidas para calcular o peso cubado.';
+      }
+    } else {
+      document.getElementById('r-packages').classList.remove('error');
+      document.getElementById('r-dimensions').classList.remove('error');
+    }
+
     const strip = document.getElementById('statusStrip');
     const btn = document.getElementById('btnGenDraft');
     if(isValid) {
       strip.className = 'status-strip ok'; strip.innerHTML = '✅ Todos os dados preenchidos. Pronto para gerar Rascunho!';
       if (btn) btn.disabled = false;
     } else {
-      strip.className = 'status-strip warn'; strip.innerHTML = '⚠️ Há campos destacados em vermelho vazios.';
+      strip.className = 'status-strip warn'; strip.innerHTML = '⚠️ ' + (cargoValidationMessage || 'Há campos destacados em vermelho vazios.');
       if (btn) btn.disabled = true;
     }
   }
@@ -2396,8 +2420,8 @@ function checkValidation() {
   }
 }
 
-document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('input', checkValidation));
-document.querySelectorAll('.req, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('change', checkValidation));
+document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('input', checkValidation));
+document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('change', checkValidation));
 
 // Auto-calculate IOF and Freight Unit/Total reatively
 document.getElementById('r-freight').addEventListener('input', function() {
@@ -4169,8 +4193,9 @@ function switchSettingsTab(tab) {
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="sf-name" placeholder="Ex: Delivery Fee"></div>
             <div class="form-group" style="margin:0;"><label>Tipo de Cobrança</label>
-              <select id="sf-chargeType">
+              <select id="sf-chargeType" onchange="toggleSfPercentBase()">
                 <option value="FIXED">Fixo</option>
+                <option value="PER_KG">Por Kg</option>
                 <option value="PER_DOCUMENT">Por documento</option>
                 <option value="PERCENTAGE">% de Taxas Selecionadas</option>
               </select>
@@ -4181,13 +4206,20 @@ function switchSettingsTab(tab) {
               </select>
             </div>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin:0;"><label>Valor / Porcentagem</label><input type="number" id="sf-value" step="0.01" placeholder="Ex: 55.00 ou 3.5"></div>
             <div class="form-group" style="margin:0;"><label>Moeda (se aplicável)</label>
               <select id="sf-currency">
                 <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
               </select>
             </div>
+            <div class="form-group" style="margin:0;"><label>Mínimo (opcional)</label><input type="number" id="sf-minValue" step="0.01" placeholder="Ex: 45.00"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px; margin-bottom: 16px;">
+            <div class="form-group" style="margin:0; display:none;" id="sf-percentBase-group"><label>Base do percentual</label>
+              <select id="sf-percentBase"><option value="FREIGHT">Frete</option><option value="FREIGHT_PLUS_ORIGIN">Frete + Origem</option></select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Descrição (opcional)</label><input type="text" id="sf-description" placeholder="Detalhes da aplicação da taxa"></div>
           </div>
           <input type="hidden" id="sf-id">
           <button class="btn btn-primary" id="btnSaveStandardFee" onclick="saveStandardFee()">💾 Salvar Taxa</button>
@@ -4213,7 +4245,7 @@ function switchSettingsTab(tab) {
             <button class="btn btn-secondary" onclick="seedIncotermRules()" style="padding: 8px 12px; font-size: 12px;">🌱 Popular Regras Padrão</button>
           </div>
           
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin:0;"><label>Incoterm</label>
               <select id="ir-incoterm">
                 <option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
@@ -4225,31 +4257,14 @@ function switchSettingsTab(tab) {
                 <option value="AIR">Aéreo (AIR)</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="ALL">Todos</option>
               </select>
             </div>
-            <div class="form-group" style="margin:0;"><label>Tipo</label>
-              <select id="ir-feeType">
-                <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
+            <div class="form-group" style="margin:0;"><label>Taxa Local</label>
+              <select id="ir-standardFeeId">
+                <option value="">Carregando taxas...</option>
               </select>
             </div>
+            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
           </div>
-          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ir-feeName" placeholder="Ex: Airport Fee, CCT fee"></div>
-            <div class="form-group" style="margin:0;"><label>Tipo Cobrança</label>
-              <select id="ir-chargeType" onchange="toggleIrPercentBase()">
-                <option value="FIXED">Fixo</option><option value="PER_KG">Por Kg</option><option value="PER_DOCUMENT">Por Doc</option><option value="PERCENTAGE">Percentual (%)</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Valor</label><input type="number" id="ir-value" step="0.01" placeholder="Ex: 55.00"></div>
-            <div class="form-group" style="margin:0;"><label>Mín. (Opcional)</label><input type="number" id="ir-minValue" step="0.01" placeholder="Ex: 45.00"></div>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-            <div class="form-group" style="margin:0;"><label>Moeda</label>
-              <select id="ir-currency"><option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option></select>
-            </div>
-            <div class="form-group" style="margin:0; display:none;" id="ir-percentBase-group"><label>Base %</label>
-              <select id="ir-percentBase"><option value="FREIGHT">Frete</option><option value="FREIGHT_PLUS_ORIGIN">Frete + Origem</option></select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-sortOrder" value="0" placeholder="0"></div>
-          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">Nome, tipo, cobrança e valor são definidos no cadastro da Taxa Local. Alterar a taxa atualiza todos os Incoterms vinculados.</p>
           <input type="hidden" id="ir-id">
           <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">💾 Salvar Regra</button>
           <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
@@ -4269,6 +4284,7 @@ function switchSettingsTab(tab) {
           <div id="incotermRulesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
+      loadIncotermFeeOptions();
       loadIncotermRulesTable();
       break;
 
@@ -5063,7 +5079,7 @@ async function loadStandardFeesTable() {
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
-      let chargeTypeStr = f.chargeType === 'FIXED' ? 'Fixo' : (f.chargeType === 'PER_DOCUMENT' ? 'Por doc' : '% Taxas');
+      let chargeTypeStr = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_DOCUMENT: 'Por doc', PERCENTAGE: '% Taxas' })[f.chargeType] || f.chargeType;
       html += `<tr>
         <td style="font-weight:600;">${f.name}</td>
         <td>${chargeTypeStr}</td>
@@ -5184,6 +5200,10 @@ function editStandardFee(fee) {
   document.getElementById('sf-value').value = fee.value;
   document.getElementById('sf-currency').value = fee.currency;
   document.getElementById('sf-type').value = fee.type;
+  document.getElementById('sf-minValue').value = fee.minValue ?? '';
+  document.getElementById('sf-percentBase').value = fee.percentBase || 'FREIGHT';
+  document.getElementById('sf-description').value = fee.description || '';
+  toggleSfPercentBase();
   
   document.getElementById('btnSaveStandardFee').innerText = '💾 Atualizar Taxa';
   document.getElementById('btnCancelStandardFee').style.display = 'inline-block';
@@ -5196,6 +5216,10 @@ function cancelEditStandardFee() {
   document.getElementById('sf-value').value = '';
   document.getElementById('sf-currency').value = 'USD';
   document.getElementById('sf-type').value = 'ORIGIN';
+  document.getElementById('sf-minValue').value = '';
+  document.getElementById('sf-percentBase').value = 'FREIGHT';
+  document.getElementById('sf-description').value = '';
+  toggleSfPercentBase();
   
   document.getElementById('btnSaveStandardFee').innerText = '💾 Salvar Taxa';
   document.getElementById('btnCancelStandardFee').style.display = 'none';
@@ -5211,12 +5235,16 @@ async function saveStandardFee() {
     return;
   }
   
+  const chargeType = document.getElementById('sf-chargeType').value;
   const payload = {
     name,
-    chargeType: document.getElementById('sf-chargeType').value,
+    chargeType,
     value: parseFloat(value),
     currency: document.getElementById('sf-currency').value,
     type: document.getElementById('sf-type').value,
+    minValue: document.getElementById('sf-minValue').value ? parseFloat(document.getElementById('sf-minValue').value) : null,
+    percentBase: chargeType === 'PERCENTAGE' ? document.getElementById('sf-percentBase').value : null,
+    description: document.getElementById('sf-description').value.trim() || null,
     active: true
   };
   
@@ -5224,11 +5252,15 @@ async function saveStandardFee() {
     const url = id ? API + '/standard-fees/' + id : API + '/standard-fees';
     const method = id ? 'PUT' : 'POST';
     
-    await fetch(url, {
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || 'Erro ao salvar taxa.');
+    }
     
     toast('✅ Taxa salva com sucesso!');
     cancelEditStandardFee();
@@ -5241,12 +5273,22 @@ async function saveStandardFee() {
 async function deleteStandardFee(id) {
   if (!confirm('Excluir esta taxa permanente?')) return;
   try {
-    await fetch(API + '/standard-fees/' + id, { method: 'DELETE' });
+    const res = await fetch(API + '/standard-fees/' + id, { method: 'DELETE' });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || 'Erro ao excluir.');
+    }
     toast('🗑️ Taxa excluída.');
     loadStandardFeesTable();
   } catch (e) {
-    toast('❌ Erro ao excluir.');
+    toast('❌ ' + e.message);
   }
+}
+
+function toggleSfPercentBase() {
+  const chargeType = document.getElementById('sf-chargeType');
+  const group = document.getElementById('sf-percentBase-group');
+  if (chargeType && group) group.style.display = chargeType.value === 'PERCENTAGE' ? '' : 'none';
 }
 
 async function applyStandardFees(type, targetId) {
@@ -5254,16 +5296,19 @@ async function applyStandardFees(type, targetId) {
     const res = await fetch(API + '/standard-fees');
     const fees = await res.json();
     
-    const applicableFees = fees.filter(f => f.active && f.type === type);
+    const textarea = document.getElementById(targetId);
+    const currentText = textarea.value.trim();
+    const existingNames = new Set(currentText.split(/\r?\n/).map(line => normalizeReturnFeeName(line.split(':')[0])).filter(Boolean));
+    // Taxas vinculadas a Incoterms entram automaticamente; este botao inclui apenas taxas avulsas.
+    const applicableFees = fees.filter(f =>
+      f.active && f.type === type && (f._count?.incotermRules || 0) === 0 && !existingNames.has(normalizeReturnFeeName(f.name))
+    );
     
     if (applicableFees.length === 0) {
       toast('Nenhuma taxa local encontrada.');
       return;
     }
 
-    const textarea = document.getElementById(targetId);
-    let currentText = textarea.value.trim();
-    
     let newLines = applicableFees.map(f => {
       let chargeInfo = f.chargeType === 'PERCENTAGE' ? `${Number(f.value).toFixed(2)}%` : `${Number(f.value).toFixed(2)} ${f.currency}`;
       if (f.chargeType === 'PER_DOCUMENT') chargeInfo += ' (Por Doc)';
@@ -5286,10 +5331,23 @@ async function applyStandardFees(type, targetId) {
 }
 
 // ═══ REGRAS POR INCOTERM ═══
-function toggleIrPercentBase() {
-  const ct = document.getElementById('ir-chargeType');
-  const g = document.getElementById('ir-percentBase-group');
-  if (ct && g) g.style.display = ct.value === 'PERCENTAGE' ? '' : 'none';
+async function loadIncotermFeeOptions(selectedId = '') {
+  const select = document.getElementById('ir-standardFeeId');
+  if (!select) return;
+  try {
+    const res = await fetch(API + '/standard-fees');
+    if (!res.ok) throw new Error('Falha ao carregar taxas locais.');
+    const fees = await res.json();
+    const activeFees = fees.filter(f => f.active || f.id === selectedId);
+    select.innerHTML = '<option value="">-- Selecione a taxa local --</option>' + activeFees.map(f => {
+      const side = f.type === 'ORIGIN' ? 'Origem' : 'Destino';
+      const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
+      return `<option value="${f.id}">${side} - ${f.name} (${format})</option>`;
+    }).join('');
+    if (selectedId) select.value = selectedId;
+  } catch (e) {
+    select.innerHTML = '<option value="">Erro ao carregar taxas</option>';
+  }
 }
 
 async function loadIncotermRulesTable() {
@@ -5317,7 +5375,7 @@ async function loadIncotermRulesTable() {
         <td>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:210px;">
             <span>${r.feeName}</span>
-            <button class="action-btn" onclick="editIncotermRule('${r.id}')" title="Editar taxa" aria-label="Editar taxa ${r.feeName}">✏️</button>
+            <button class="action-btn" onclick="editIncotermLinkedFee('${r.standardFeeId}')" title="Editar taxa local" aria-label="Editar taxa ${r.feeName}">✏️</button>
           </div>
         </td>
         <td>${chargeLabel}</td>
@@ -5325,6 +5383,7 @@ async function loadIncotermRulesTable() {
         <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
         <td>${r.currency}</td>
         <td style="white-space:nowrap;">
+          <button class="action-btn" onclick="editIncotermRule('${r.id}')" title="Editar vinculo">🔗</button>
           <button onclick="deleteIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;" title="Excluir">🗑️</button>
         </td></tr>`;
     }
@@ -5340,27 +5399,29 @@ async function saveIncotermRule() {
   const data = {
     incoterm: document.getElementById('ir-incoterm').value,
     modal: document.getElementById('ir-modal').value,
-    feeType: document.getElementById('ir-feeType').value,
-    feeName: document.getElementById('ir-feeName').value,
-    chargeType: document.getElementById('ir-chargeType').value,
-    value: parseFloat(document.getElementById('ir-value').value) || 0,
-    minValue: document.getElementById('ir-minValue').value ? parseFloat(document.getElementById('ir-minValue').value) : null,
-    currency: document.getElementById('ir-currency').value,
-    percentBase: document.getElementById('ir-chargeType').value === 'PERCENTAGE' ? document.getElementById('ir-percentBase').value : null,
-    sortOrder: parseInt(document.getElementById('ir-sortOrder').value) || 0
+    standardFeeId: document.getElementById('ir-standardFeeId').value,
+    sortOrder: parseInt(document.getElementById('ir-linkSortOrder').value) || 0
   };
+  if (!data.standardFeeId) {
+    toast('Selecione uma Taxa Local.');
+    return;
+  }
   try {
+    let res;
     if (id) {
-      await fetch(`/api/incoterm-rules/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-      toast('✅ Regra atualizada!');
+      res = await fetch(`/api/incoterm-rules/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     } else {
-      await fetch('/api/incoterm-rules', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-      toast('✅ Regra criada!');
+      res = await fetch('/api/incoterm-rules', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
     }
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || 'Erro ao salvar vinculo.');
+    }
+    toast(id ? '✅ Regra atualizada!' : '✅ Regra criada!');
     cancelEditIr();
     loadIncotermRulesTable();
   } catch (e) {
-    toast('❌ Erro ao salvar regra.');
+    toast('❌ ' + e.message);
   }
 }
 
@@ -5373,17 +5434,10 @@ async function editIncotermRule(id) {
     document.getElementById('ir-id').value = rule.id;
     document.getElementById('ir-incoterm').value = rule.incoterm;
     document.getElementById('ir-modal').value = rule.modal;
-    document.getElementById('ir-feeType').value = rule.feeType;
-    document.getElementById('ir-feeName').value = rule.feeName;
-    document.getElementById('ir-chargeType').value = rule.chargeType;
-    document.getElementById('ir-value').value = rule.value;
-    document.getElementById('ir-minValue').value = rule.minValue || '';
-    document.getElementById('ir-currency').value = rule.currency;
-    if (rule.percentBase) document.getElementById('ir-percentBase').value = rule.percentBase;
-    document.getElementById('ir-sortOrder').value = rule.sortOrder || 0;
+    await loadIncotermFeeOptions(rule.standardFeeId);
+    document.getElementById('ir-linkSortOrder').value = rule.sortOrder || 0;
     document.getElementById('btnSaveIr').innerText = '💾 Atualizar Regra';
     document.getElementById('btnCancelIr').style.display = '';
-    toggleIrPercentBase();
     document.getElementById('ir-incoterm').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (e) { toast('❌ Erro ao carregar regra.'); }
 }
@@ -5397,12 +5451,29 @@ async function deleteIncotermRule(id) {
   } catch (e) { toast('❌ Erro ao excluir.'); }
 }
 
+async function editIncotermLinkedFee(standardFeeId) {
+  if (!standardFeeId) {
+    toast('Esta regra ainda precisa ser vinculada a uma Taxa Local.');
+    return;
+  }
+  try {
+    const res = await fetch(API + '/standard-fees');
+    if (!res.ok) throw new Error('Falha ao carregar a taxa local.');
+    const fees = await res.json();
+    const fee = fees.find(item => item.id === standardFeeId);
+    if (!fee) throw new Error('Taxa local nao encontrada.');
+    switchSettingsTab('standardFees');
+    editStandardFee(fee);
+    document.getElementById('sf-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) {
+    toast('Erro: ' + e.message);
+  }
+}
+
 function cancelEditIr() {
   document.getElementById('ir-id').value = '';
-  document.getElementById('ir-feeName').value = '';
-  document.getElementById('ir-value').value = '';
-  document.getElementById('ir-minValue').value = '';
-  document.getElementById('ir-sortOrder').value = '0';
+  document.getElementById('ir-standardFeeId').value = '';
+  document.getElementById('ir-linkSortOrder').value = '0';
   document.getElementById('btnSaveIr').innerText = '💾 Salvar Regra';
   document.getElementById('btnCancelIr').style.display = 'none';
 }

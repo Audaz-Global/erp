@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
 import { prisma } from './prisma';
+import { backfillIncotermRuleStandardFees } from './services/standardFeeLinkService';
 export { prisma };
 
 const app = express();
@@ -77,6 +78,13 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
+
+  // Vincula regras antigas ao cadastro mestre sem interromper a inicialização.
+  backfillIncotermRuleStandardFees(prisma)
+    .then(total => {
+      if (total > 0) console.log(`✅ ${total} regra(s) de Incoterm vinculada(s) às taxas locais.`);
+    })
+    .catch(error => console.error('Erro ao vincular regras antigas às taxas locais:', error));
   
   // Iniciar worker de leitura do Outlook
   import('./services/outlookCron').then(cron => {

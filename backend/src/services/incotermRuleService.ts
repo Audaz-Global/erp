@@ -1,6 +1,9 @@
-import { PrismaClient, IncotermRule } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { effectiveIncotermRule } from './standardFeeLinkService';
 
 const prisma = new PrismaClient();
+
+type EffectiveIncotermRule = ReturnType<typeof effectiveIncotermRule>;
 
 export interface CalculatedFee {
   name: string;
@@ -20,7 +23,7 @@ export interface CalculatedFee {
  * Busca as regras de Incoterm ativas para um dado incoterm + modal.
  * Primeiro busca regras específicas para o modal, depois complementa com regras "ALL".
  */
-export async function getRulesForIncoterm(incoterm: string, modal: string): Promise<IncotermRule[]> {
+export async function getRulesForIncoterm(incoterm: string, modal: string): Promise<EffectiveIncotermRule[]> {
   const normalizedIncoterm = incoterm.toUpperCase().trim();
   
   // Normalizar modal para o formato do banco
@@ -35,6 +38,7 @@ export async function getRulesForIncoterm(incoterm: string, modal: string): Prom
       modal: { in: [dbModal, 'ALL'] },
       active: true
     },
+    include: { standardFee: true },
     orderBy: [
       { feeType: 'asc' }, // DESTINATION vem antes de ORIGIN por ordem alfa, mas usamos sortOrder
       { sortOrder: 'asc' }
@@ -43,8 +47,9 @@ export async function getRulesForIncoterm(incoterm: string, modal: string): Prom
 
   // Se há regras específicas para o modal, elas têm prioridade.
   // Regras "ALL" só entram se não existir regra com mesmo feeName no modal específico.
-  const specificRules = rules.filter(r => r.modal === dbModal);
-  const allRules = rules.filter(r => r.modal === 'ALL');
+  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active);
+  const specificRules = effectiveRules.filter(r => r.modal === dbModal);
+  const allRules = effectiveRules.filter(r => r.modal === 'ALL');
   
   const specificNames = new Set(specificRules.map(r => `${r.feeType}:${r.feeName}`));
   const complementary = allRules.filter(r => !specificNames.has(`${r.feeType}:${r.feeName}`));
@@ -104,7 +109,7 @@ export async function getFeesForIncoterm(
  * Calcula o valor de uma taxa individual baseada na regra.
  */
 function calculateFee(
-  rule: IncotermRule,
+  rule: EffectiveIncotermRule,
   chargableWeight: number,
   freightValue: number,
   totalOrigin: number

@@ -11,16 +11,20 @@ export interface PackageDimension {
 export function parsePackages(packagesStr: string, defaultPackagesCount: number = 1): PackageDimension[] {
   if (!packagesStr) return [];
 
+  const normalizedPackagesStr = String(packagesStr)
+    .replace(/(\d),(\d)/g, '$1.$2')
+    .replace(/[×X]/g, 'x');
+
   let items: string[] = [];
   try {
-    const parsed = JSON.parse(packagesStr);
+    const parsed = JSON.parse(normalizedPackagesStr);
     if (Array.isArray(parsed)) {
       items = parsed.map(String);
     } else {
       items = [String(parsed)];
     }
   } catch (e) {
-    items = packagesStr.split(/[,;\n]/);
+    items = normalizedPackagesStr.split(/[,;\n]/);
   }
 
   const result: PackageDimension[] = [];

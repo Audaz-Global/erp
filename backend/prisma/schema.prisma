@@ -17,7 +17,7 @@ model User {
   password    String
   role        String   @default("OPERATOR") // ADMIN, OPERATOR
   active      Boolean  @default(true)
-  preferences String?  // JSON string
+  preferences String? // JSON string
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -25,43 +25,43 @@ model User {
 }
 
 model Client {
-  id            String   @id @default(uuid())
-  name          String
-  cnpj          String?  @unique
-  contactName   String?
-  contactEmail  String?
-  contactPhone  String?
-  smartcomexId  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String
+  cnpj         String?  @unique
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  smartcomexId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   quotations Quotation[]
 }
 
 model Quotation {
-  id          String   @id @default(uuid())
-  reference   String?  @unique
-  status      String   @default("SOLICITADO") // SOLICITADO, AGUARDANDO_AGENTE, RETORNO_RECEBIDO, APPROVED, SENT, EXPIRED
-  validUntil  DateTime?
-  
+  id         String    @id @default(uuid())
+  reference  String?   @unique
+  status     String    @default("SOLICITADO") // SOLICITADO, AGUARDANDO_AGENTE, RETORNO_RECEBIDO, APPROVED, SENT, EXPIRED
+  validUntil DateTime?
+
   // Agente / Coloader
-  agentEmail  String?
-  agentName   String?
-  draftEmail  String?  // Rascunho do email para o agente
-  sentAt      DateTime? // Horário do envio pelo Outlook
-  sentEmailConversationId  String?   // conversationId do MS Graph para tracking de thread
-  agentResponseRaw         String?   // Corpo do e-mail de retorno do agente (para auditoria)
-  
+  agentEmail              String?
+  agentName               String?
+  draftEmail              String? // Rascunho do email para o agente
+  sentAt                  DateTime? // Horário do envio pelo Outlook
+  sentEmailConversationId String? // conversationId do MS Graph para tracking de thread
+  agentResponseRaw        String? // Corpo do e-mail de retorno do agente (para auditoria)
+
   // Type Info
-  direction   String   // IMPORT, EXPORT
-  modal       String   // SEA, AIR
-  loadType    String   // LCL, FCL_20, FCL_40, FCL_40HC, AIR_GENERAL, AIR_CONSOLIDATED
+  direction String // IMPORT, EXPORT
+  modal     String // SEA, AIR
+  loadType  String // LCL, FCL_20, FCL_40, FCL_40HC, AIR_GENERAL, AIR_CONSOLIDATED
 
   // Relations
   clientId    String?
-  client      Client?  @relation(fields: [clientId], references: [id])
+  client      Client? @relation(fields: [clientId], references: [id])
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
 
   supplierName    String?
   supplierCountry String?
@@ -83,100 +83,100 @@ model Quotation {
   ncmCodes           String? // Stored as comma separated string
   contractNumber     String?
   commercialValue    Float?
-  commercialCurrency String?  @default("USD")
+  commercialCurrency String? @default("USD")
   totalGrossWeightKg Float?
   totalNetWeightKg   Float?
   totalCbm           Float?
   totalPackages      Int?
-  isImo              Boolean  @default(false)
-  isPerishable       Boolean  @default(false)
-  requiresAnvisa     Boolean  @default(false)
-  requiresArmy       Boolean  @default(false)
-  requiresMapa       Boolean  @default(false)
-  
-  packages           String?  // Stored as JSON string
+  isImo              Boolean @default(false)
+  isPerishable       Boolean @default(false)
+  requiresAnvisa     Boolean @default(false)
+  requiresArmy       Boolean @default(false)
+  requiresMapa       Boolean @default(false)
+
+  packages String? // Stored as JSON string
 
   // Costs
-  freightValue       Float?
-  freightCurrency    String?
-  iofUsd             Float?
-  carrier            String?
-  destinationStorage Float?
+  freightValue               Float?
+  freightCurrency            String?
+  iofUsd                     Float?
+  carrier                    String?
+  destinationStorage         Float?
   destinationStorageCurrency String?
-  destinationServicesTotal Float?
-  destinationServices String? // JSON string
-  destinationTaxes   Float?
-  destinationTaxesCurrency String?
-  originServices           String?  // JSON string
-  originServicesTotal      Float?
-  
-  totalBrl           Float?
-  totalUsd           Float?
-  frequency          String?
-  weightBreak        String?
-  
+  destinationServicesTotal   Float?
+  destinationServices        String? // JSON string
+  destinationTaxes           Float?
+  destinationTaxesCurrency   String?
+  originServices             String? // JSON string
+  originServicesTotal        Float?
+
+  totalBrl    Float?
+  totalUsd    Float?
+  frequency   String?
+  weightBreak String?
+
   // Gestão de Profit
-  costsData          String?  // JSON string
-  salesData          String?  // JSON string
-  expectedProfit     Float?   @default(0)
-  insuranceProfit    Float?   @default(0)
+  costsData       String? // JSON string
+  salesData       String? // JSON string
+  expectedProfit  Float?  @default(0)
+  insuranceProfit Float?  @default(0)
 
-  notes              String?  // JSON string array
+  notes String? // JSON string array
 
-  sourceEmails       String?  // JSON string array
-  sourceDocuments    String?  // JSON string array
-  aiConfidence       Float?
-  smartcomexSynced   Boolean  @default(false)
+  sourceEmails             String? // JSON string array
+  sourceDocuments          String? // JSON string array
+  aiConfidence             Float?
+  smartcomexSynced         Boolean @default(false)
   customsClearanceIncluded Boolean @default(false)
-  requiresInsurance        Boolean  @default(false)
+  requiresInsurance        Boolean @default(false)
 
   // Transporte Terrestre Nacional
-  needsTransport       Boolean   @default(false)
-  truckerName          String?
-  truckerEmail         String?
-  transportRoute       String?
-  truckerDraftEmail    String?
-  truckerSentAt        DateTime?
-  truckerResponseRaw   String?
-  truckerValue         Float?
-  truckerCurrency      String?   @default("BRL")
+  needsTransport     Boolean   @default(false)
+  truckerName        String?
+  truckerEmail       String?
+  transportRoute     String?
+  truckerDraftEmail  String?
+  truckerSentAt      DateTime?
+  truckerResponseRaw String?
+  truckerValue       Float?
+  truckerCurrency    String?   @default("BRL")
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model KnowledgeEntry {
-  id          String   @id @default(uuid())
-  category    String   // rule, template, tariff, procedure, faq, scenario
+  id          String  @id @default(uuid())
+  category    String // rule, template, tariff, procedure, faq, scenario
   title       String
   content     String
-  appliesTo   String?  // JSON string
-  priority    Int      @default(0)
-  active      Boolean  @default(true)
+  appliesTo   String? // JSON string
+  priority    Int     @default(0)
+  active      Boolean @default(true)
   createdById String
-  tags        String?  // Comma separated string
+  tags        String? // Comma separated string
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Agent {
-  id           String   @id @default(uuid())
+  id           String  @id @default(uuid())
   name         String
   email        String?
-  type         String   @default("AGENTE") // AGENTE, COLOADER, ARMADOR
-  networks     String?  // Ex: "WCA, JCtrans"
+  type         String  @default("AGENTE") // AGENTE, COLOADER, ARMADOR
+  networks     String? // Ex: "WCA, JCtrans"
   address      String?
   phone        String?
   website      String?
-  contacts     Json?    // Array de contatos ex: [{"name":"John","email":"j@a.com"}]
-  modals       String?  // Ex: "Aéreo, Marítimo FCL"
-  origins      String?  // Ex: "China, Estados Unidos, APAC"
-  destinations String?  // Ex: "Brasil"
-  active       Boolean  @default(true)
+  contacts     Json? // Array de contatos ex: [{"name":"John","email":"j@a.com"}]
+  modals       String? // Ex: "Aéreo, Marítimo FCL"
+  origins      String? // Ex: "China, Estados Unidos, APAC"
+  destinations String? // Ex: "Brasil"
+  active       Boolean @default(true)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model FixedFee {
@@ -184,41 +184,53 @@ model FixedFee {
   name          String
   carrier       String?
   containerSize String?
-  type          String   // ORIGIN, DESTINATION
+  type          String // ORIGIN, DESTINATION
   value         Float
-  currency      String   // USD, BRL
-  modal         String   // SEA_FCL, SEA_LCL, AIR, ROAD
+  currency      String // USD, BRL
+  modal         String // SEA_FCL, SEA_LCL, AIR, ROAD
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
 model StandardFee {
-  id         String   @id @default(uuid())
-  name       String
-  type       String   // ORIGIN, DESTINATION
-  chargeType String   // FIXED, PER_DOCUMENT, PERCENTAGE
-  value      Float
-  currency   String
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String
+  type        String // ORIGIN, DESTINATION
+  chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
+  value       Float
+  minValue    Float?
+  currency    String
+  percentBase String? // FREIGHT, FREIGHT_PLUS_ORIGIN
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  incotermRules IncotermRule[]
 }
 
 model IncotermRule {
-  id            String   @id @default(uuid())
-  incoterm      String   // EXW, FCA, FOB, CIF, CFR, DAP, DDP
-  modal         String   // AIR, SEA_FCL, SEA_LCL, ALL
-  feeType       String   // ORIGIN, DESTINATION
-  feeName       String   // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
-  chargeType    String   // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
-  value         Float    // Valor unitário ou percentual
-  minValue      Float?   // Valor mínimo (ex: Airport Fee mín USD 45)
-  currency      String   @default("USD")
-  percentBase   String?  // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
-  description   String?  // Descrição informativa para o operador
-  sortOrder     Int      @default(0)
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(uuid())
+  incoterm    String // EXW, FCA, FOB, CIF, CFR, DAP, DDP
+  modal       String // AIR, SEA_FCL, SEA_LCL, ALL
+  feeType     String // ORIGIN, DESTINATION
+  feeName     String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
+  chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
+  value       Float // Valor unitário ou percentual
+  minValue    Float? // Valor mínimo (ex: Airport Fee mín USD 45)
+  currency    String   @default("USD")
+  percentBase String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
+  description String? // Descrição informativa para o operador
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Fonte oficial da taxa. Os campos acima permanecem temporariamente para
+  // compatibilidade e migração dos registros criados antes deste vínculo.
+  standardFeeId String?
+  standardFee   StandardFee? @relation(fields: [standardFeeId], references: [id], onDelete: Restrict)
+
+  @@index([standardFeeId])
 }

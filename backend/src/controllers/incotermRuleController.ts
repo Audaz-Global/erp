@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import {
+  effectiveIncotermRule,
+  findOrCreateStandardFeeForLegacyRule,
+  standardFeeSnapshot
+} from '../services/standardFeeLinkService';
 
 const prisma = new PrismaClient();
 
@@ -13,13 +18,14 @@ export const getIncotermRules = async (req: Request, res: Response) => {
 
     const rules = await prisma.incotermRule.findMany({
       where,
+      include: { standardFee: true },
       orderBy: [
         { incoterm: 'asc' },
         { feeType: 'asc' },
         { sortOrder: 'asc' }
       ]
     });
-    res.json(rules);
+    res.json(rules.map(effectiveIncotermRule));
   } catch (error) {
     console.error('Erro ao buscar regras de incoterm:', error);
     res.status(500).json({ error: 'Erro ao buscar regras de incoterm.' });
@@ -29,24 +35,42 @@ export const getIncotermRules = async (req: Request, res: Response) => {
 // Cria uma nova regra
 export const createIncotermRule = async (req: Request, res: Response) => {
   try {
-    const { incoterm, modal, feeType, feeName, chargeType, value, minValue, currency, percentBase, description, sortOrder, active } = req.body;
-    const rule = await prisma.incotermRule.create({
-      data: {
-        incoterm: String(incoterm).toUpperCase(),
-        modal: String(modal).toUpperCase(),
-        feeType,
+    const { incoterm, modal, standardFeeId, feeType, feeName, chargeType, value, minValue, currency, percentBase, description, sortOrder, active } = req.body;
+    let fee = standardFeeId ? await prisma.standardFee.findUnique({ where: { id: standardFeeId } }) : null;
+    if (!fee && feeName) {
+      fee = await findOrCreateStandardFeeForLegacyRule(prisma, {
         feeName,
+        feeType,
         chargeType,
         value: Number(value),
         minValue: minValue !== undefined && minValue !== null ? Number(minValue) : null,
         currency: currency || 'USD',
         percentBase: percentBase || null,
         description: description || null,
-        sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
         active: active !== undefined ? active : true
-      }
+      } as any);
+    }
+    if (!fee) return res.status(400).json({ error: 'Selecione uma taxa local para vincular ao Incoterm.' });
+
+    const normalizedIncoterm = String(incoterm).toUpperCase();
+    const normalizedModal = String(modal).toUpperCase();
+    const duplicate = await prisma.incotermRule.findFirst({
+      where: { incoterm: normalizedIncoterm, modal: normalizedModal, standardFeeId: fee.id }
     });
-    res.status(201).json(rule);
+    if (duplicate) return res.status(409).json({ error: 'Esta taxa já está vinculada ao Incoterm e modal selecionados.' });
+
+    const rule = await prisma.incotermRule.create({
+      data: {
+        incoterm: normalizedIncoterm,
+        modal: normalizedModal,
+        standardFeeId: fee.id,
+        ...standardFeeSnapshot(fee),
+        sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
+        active: active !== undefined ? active : true,
+      },
+      include: { standardFee: true }
+    });
+    res.status(201).json(effectiveIncotermRule(rule));
   } catch (error) {
     console.error('Erro ao criar regra de incoterm:', error);
     res.status(500).json({ error: 'Erro ao criar regra de incoterm.' });
@@ -57,26 +81,39 @@ export const createIncotermRule = async (req: Request, res: Response) => {
 export const updateIncotermRule = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { incoterm, modal, feeType, feeName, chargeType, value, minValue, currency, percentBase, description, sortOrder, active } = req.body;
+    const { incoterm, modal, standardFeeId, sortOrder, active } = req.body;
+    const current = await prisma.incotermRule.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: 'Regra de Incoterm não encontrada.' });
+
+    const feeId = standardFeeId || current.standardFeeId;
+    const fee = feeId ? await prisma.standardFee.findUnique({ where: { id: feeId } }) : null;
+    if (!fee) return res.status(400).json({ error: 'Selecione uma taxa local válida.' });
+
+    const normalizedIncoterm = incoterm ? String(incoterm).toUpperCase() : current.incoterm;
+    const normalizedModal = modal ? String(modal).toUpperCase() : current.modal;
+    const duplicate = await prisma.incotermRule.findFirst({
+      where: {
+        id: { not: id },
+        incoterm: normalizedIncoterm,
+        modal: normalizedModal,
+        standardFeeId: fee.id
+      }
+    });
+    if (duplicate) return res.status(409).json({ error: 'Esta taxa já está vinculada ao Incoterm e modal selecionados.' });
     
     const rule = await prisma.incotermRule.update({
       where: { id },
       data: {
-        ...(incoterm && { incoterm: String(incoterm).toUpperCase() }),
-        ...(modal && { modal: String(modal).toUpperCase() }),
-        ...(feeType && { feeType }),
-        ...(feeName && { feeName }),
-        ...(chargeType && { chargeType }),
-        ...(value !== undefined && { value: Number(value) }),
-        ...(minValue !== undefined && { minValue: minValue !== null ? Number(minValue) : null }),
-        ...(currency && { currency }),
-        ...(percentBase !== undefined && { percentBase }),
-        ...(description !== undefined && { description }),
+        incoterm: normalizedIncoterm,
+        modal: normalizedModal,
+        standardFeeId: fee.id,
+        ...standardFeeSnapshot(fee),
         ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
         ...(active !== undefined && { active })
-      }
+      },
+      include: { standardFee: true }
     });
-    res.json(rule);
+    res.json(effectiveIncotermRule(rule));
   } catch (error) {
     console.error('Erro ao atualizar regra de incoterm:', error);
     res.status(500).json({ error: 'Erro ao atualizar regra de incoterm.' });
@@ -112,7 +149,10 @@ export const seedIncotermRules = async (req: Request, res: Response) => {
     const rules = getDefaultRules();
     
     for (const rule of rules) {
-      await prisma.incotermRule.create({ data: rule });
+      const fee = await findOrCreateStandardFeeForLegacyRule(prisma, rule as any);
+      await prisma.incotermRule.create({
+        data: { ...rule, standardFeeId: fee.id }
+      });
     }
 
     res.json({ message: `${rules.length} regras de Incoterm criadas com sucesso!` });

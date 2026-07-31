@@ -145,6 +145,48 @@ function calculateCbmFromDimensions(dimensionsStr: string | string[], packagesCo
   return parseFloat(totalCbm.toFixed(3));
 }
 
+export function extractPackagingFacts(sourceText: string): {
+  grossWeightKg: number;
+  packagesCount: number;
+  dimensions: string[];
+} | null {
+  const numberPattern = '(\\d+(?:[.,]\\d+)?)';
+  const boxPattern = new RegExp(
+    `box\\s*\\d+\\s*:\\s*${numberPattern}\\s*[x*×]\\s*${numberPattern}\\s*[x*×]\\s*${numberPattern}\\s*cm\\b[^\\n]*?${numberPattern}\\s*(?:kg\\s*)?\\/\\s*${numberPattern}\\s*kg`,
+    'gi'
+  );
+  const boxes: Array<{ length: number; width: number; height: number; gross: number }> = [];
+  const toNumber = (value: string) => Number(value.replace(',', '.'));
+  let match: RegExpExecArray | null;
+
+  while ((match = boxPattern.exec(String(sourceText || ''))) !== null) {
+    const length = toNumber(match[1] || '0');
+    const width = toNumber(match[2] || '0');
+    const height = toNumber(match[3] || '0');
+    const gross = toNumber(match[4] || '0');
+    if (length > 0 && width > 0 && height > 0 && gross > 0) {
+      boxes.push({ length, width, height, gross });
+    }
+  }
+  if (boxes.length === 0) return null;
+
+  const totalPattern = new RegExp(
+    `total\\s+gross\\s*\\/\\s*net\\s+weight\\s*:\\s*${numberPattern}\\s*kg\\s*\\/\\s*${numberPattern}\\s*kg`,
+    'i'
+  );
+  const totalMatch = totalPattern.exec(String(sourceText || ''));
+  const explicitGross = totalMatch?.[1] ? toNumber(totalMatch[1]) : 0;
+  const grossWeightKg = explicitGross > 0
+    ? explicitGross
+    : boxes.reduce((sum, box) => sum + box.gross, 0);
+
+  return {
+    grossWeightKg: parseFloat(grossWeightKg.toFixed(3)),
+    packagesCount: boxes.length,
+    dimensions: boxes.map(box => `1x ${box.length}x${box.width}x${box.height} cm`)
+  };
+}
+
 // Retry com backoff exponencial para lidar com 429 temporários da API Gemini
 async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   const delays = [5000, 10000, 20000];
@@ -283,6 +325,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
 
     - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count), Valor Comercial (commercial_value_usd) e Dimensões (dimensions):**
     - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso TOTAL consolidado de todas as cargas do embarque, utilize esse valor.
+    - **Notas de embalagem gross/net**: Em linhas como "Box 1: 53x53x20 cm, 12 / 7 kg (gross/net weight)", os valores 12 e 7 são respectivamente peso bruto e líquido daquela caixa, NÃO quantidades. Conte "Box 1", "Box 2", etc. como volumes individuais, some somente os primeiros pesos para gross_weight_kg e extraia as dimensões de cada caixa com quantidade 1. Se houver "TOTAL gross/net weight", esse total explícito tem prioridade.
     - **Cuidado com PDFs de packing list**: Tabelas de packing list em PDF frequentemente têm colunas grudadas na extração de texto (por exemplo, "2371" pode ser na verdade "237 kg" do gross weight + "1" da coluna de quantidade seguinte, ou "2501" = "250 kg" + "1"). NÃO some os números internos de cada item da tabela diretamente se houver um total explícito nela ou se houver um arquivo de packing list de imagem anexo legível.
     - **packages_count**: O número de volumes/caixas físicas do embarque (ex: 3 wooden boxes), NÃO a quantidade de peças individuais dentro das caixas (que podem ser 100 pcs, 20000 pcs etc.). Identifique também termos como "ctns", "ctn", "carton" ou "cartons" no packing list ou e-mail, pois eles significam caixas de papelão e devem ser contados como volumes físicos no packages_count.
     - **Dimensões com Quantidade (CRÍTICO)**: Cada item no array "dimensions" DEVE obrigatoriamente iniciar com a quantidade de volumes correspondente àquela dimensão usando o formato "[Quantidade]x [Comprimento]x[Widht]x[Altura] cm" (ex: "1x 50x50x28 cm", "2x 50x50x13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm"). Se a quantidade não for colocada na frente de cada dimensão, a cubagem acumulada falhará.
@@ -301,6 +344,12 @@ export const extractClientData = async (text: string, contextRules: string = '',
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.cargo) {
+      const packagingFacts = extractPackagingFacts(text);
+      if (packagingFacts) {
+        parsed.cargo.gross_weight_kg = packagingFacts.grossWeightKg;
+        parsed.cargo.packages_count = packagingFacts.packagesCount;
+        parsed.cargo.dimensions = packagingFacts.dimensions;
+      }
       const packagesCount = parseInt(parsed.cargo.packages_count, 10) || 1;
       const dims = parsed.cargo.dimensions || [];
       const computedCbm = calculateCbmFromDimensions(dims, packagesCount);
