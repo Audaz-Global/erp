@@ -3481,6 +3481,11 @@ function loadPendingQuotationsDropdown() {
 }
 
 let returnIncotermRules = [];
+const RETURN_ESTIMATE_LABEL = ' [Estimativa Incoterm]';
+
+function stripReturnEstimateLabel(name) {
+  return String(name || '').replace(/\s*\[estimativa incoterm\]\s*/gi, ' ').trim();
+}
 
 function normalizeReturnRuleModal(q) {
   const modal = String(q.modal || '').toUpperCase();
@@ -3491,7 +3496,7 @@ function normalizeReturnRuleModal(q) {
 }
 
 function normalizeReturnFeeName(name) {
-  const normalized = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const normalized = stripReturnEstimateLabel(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (normalized.includes('iof')) return 'iof';
   if (normalized.includes('cct')) return 'cct';
   if (normalized.includes('collect')) return 'collect';
@@ -3505,11 +3510,13 @@ function parseReturnFeeLines(text) {
   return String(text).split('\n').map(line => {
     const separator = line.indexOf(':');
     if (separator < 0) return null;
-    const name = line.slice(0, separator).trim();
+    const rawName = line.slice(0, separator).trim();
+    const estimated = /\[estimativa incoterm\]/i.test(rawName);
+    const name = stripReturnEstimateLabel(rawName);
     const valueParts = line.slice(separator + 1).trim().split(/\s+/);
     const value = parseFloat(String(valueParts[0] || '').replace(',', '.'));
     if (!name || !Number.isFinite(value)) return null;
-    return { name, value, currency: String(valueParts[1] || 'USD').toUpperCase() };
+    return { name, value, currency: String(valueParts[1] || 'USD').toUpperCase(), source: estimated ? 'INCOTERM' : 'PARTNER' };
   }).filter(Boolean);
 }
 
@@ -3518,9 +3525,10 @@ function parseSavedReturnFees(raw) {
   try {
     const fees = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return Array.isArray(fees) ? fees.map(f => ({
-      name: f.name,
+      name: stripReturnEstimateLabel(f.name),
       value: Number(f.value) || 0,
-      currency: String(f.currency || 'USD').toUpperCase()
+      currency: String(f.currency || 'USD').toUpperCase(),
+      source: f.source === 'INCOTERM' || /\[estimativa incoterm\]/i.test(f.name) ? 'INCOTERM' : 'PARTNER'
     })).filter(f => f.name) : [];
   } catch (e) {
     return [];
@@ -3529,14 +3537,17 @@ function parseSavedReturnFees(raw) {
 
 function mergeReturnFees(existingFees, presetFees) {
   const merged = new Map();
-  existingFees.forEach(f => merged.set(normalizeReturnFeeName(f.name), f));
-  // A regra cadastrada é a fonte oficial para taxas prefixadas pelo Incoterm.
-  presetFees.forEach(f => merged.set(normalizeReturnFeeName(f.name), f));
+  presetFees.forEach(f => merged.set(normalizeReturnFeeName(f.name), { ...f, source: 'INCOTERM' }));
+  // O retorno do parceiro é a fonte oficial; regras do Incoterm apenas preenchem lacunas.
+  existingFees.forEach(f => merged.set(normalizeReturnFeeName(f.name), { ...f, source: f.source || 'PARTNER' }));
   return Array.from(merged.values());
 }
 
 function formatReturnFees(fees) {
-  return fees.map(f => `${f.name}: ${Number(f.value).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+  return fees.map(f => {
+    const label = f.source === 'INCOTERM' ? RETURN_ESTIMATE_LABEL : '';
+    return `${stripReturnEstimateLabel(f.name)}${label}: ${Number(f.value).toFixed(2)} ${f.currency || 'USD'}`;
+  }).join('\n');
 }
 
 function toReturnBrl(value, currency) {
@@ -3592,9 +3603,11 @@ function applyReturnIncotermRules(q, preserveExisting = false) {
 
   originField.value = formatReturnFees(originFees);
   destinationField.value = formatReturnFees(destinationFees);
-  const presetBadge = '<span style="font-size:10px; color:var(--success); font-weight:700;">INCOTERM</span>';
-  if (originPreset.length) document.getElementById('conf-agent-origin-services').innerHTML = presetBadge;
-  if (destinationPreset.length) document.getElementById('conf-agent-destination-services').innerHTML = presetBadge;
+  const originEstimateCount = originFees.filter(f => f.source === 'INCOTERM').length;
+  const destinationEstimateCount = destinationFees.filter(f => f.source === 'INCOTERM').length;
+  const estimateBadge = count => `<span style="font-size:10px; color:var(--warning); font-weight:700;">${count} ESTIMATIVA(S) INCOTERM</span>`;
+  document.getElementById('conf-agent-origin-services').innerHTML = originEstimateCount ? estimateBadge(originEstimateCount) : '';
+  document.getElementById('conf-agent-destination-services').innerHTML = destinationEstimateCount ? estimateBadge(destinationEstimateCount) : '';
 
   const findByName = fragments => destinationFees.find(f => fragments.some(fragment => normalizeReturnFeeName(f.name).includes(fragment)));
   const iof = destinationFees.find(f => normalizeReturnFeeName(f.name) === 'iof');
@@ -3604,19 +3617,20 @@ function applyReturnIncotermRules(q, preserveExisting = false) {
 
   if (iof) {
     document.getElementById('r-iof').value = Number(iof.value).toFixed(2);
-    document.getElementById('conf-iof').innerHTML = presetBadge;
+    if (iof.source === 'INCOTERM') document.getElementById('conf-iof').innerHTML = estimateBadge(1);
   }
   if (storage) {
     document.getElementById('r-storage').value = toReturnBrl(storage.value, storage.currency).toFixed(2);
-    document.getElementById('conf-storage').innerHTML = presetBadge;
+    if (storage.source === 'INCOTERM') document.getElementById('conf-storage').innerHTML = estimateBadge(1);
   }
   if (taxes) {
     document.getElementById('r-taxes').value = toReturnBrl(taxes.value, taxes.currency).toFixed(2);
-    document.getElementById('conf-taxes').innerHTML = presetBadge;
+    if (taxes.source === 'INCOTERM') document.getElementById('conf-taxes').innerHTML = estimateBadge(1);
   }
   if (serviceFees.length) {
     document.getElementById('r-services').value = serviceFees.reduce((sum, fee) => sum + toReturnBrl(fee.value, fee.currency), 0).toFixed(2);
-    document.getElementById('conf-services').innerHTML = presetBadge;
+    const estimatedServiceCount = serviceFees.filter(fee => fee.source === 'INCOTERM').length;
+    if (estimatedServiceCount) document.getElementById('conf-services').innerHTML = estimateBadge(estimatedServiceCount);
   }
 }
 
