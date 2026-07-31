@@ -52,6 +52,11 @@ function normalizeComparableLine(value: string): string {
     .replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+function getPngDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 24 || buffer.toString('ascii', 1, 4) !== 'PNG') return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
 export function extractUniqueHtmlText(html: string, plainText: string): string {
   const structured = htmlToStructuredText(html);
   if (!structured) return '';
@@ -175,8 +180,13 @@ ${htmlContent}
           } else if (attachment.contentType && attachment.contentType.startsWith('image/')) {
             const filename = String(attachment.filename || '').toLowerCase();
             const imageSize = Number(attachment.content?.length || 0);
+            const dimensions = getPngDimensions(attachment.content);
             const isKnownSignatureName = /logo|signature|assinatura|facebook|instagram|linkedin|twitter|icon/.test(filename);
-            const isSmallRelatedAsset = Boolean((attachment as any).related) && imageSize < 20_000;
+            const isSmallRelatedAsset = Boolean((attachment as any).related) && (
+              dimensions
+                ? dimensions.width <= 64 && dimensions.height <= 64
+                : imageSize < 4_000
+            );
             const isSignatureAsset = isKnownSignatureName || isSmallRelatedAsset;
             if (isSignatureAsset) {
               extractedText += `\n[Imagem inline/assinatura ignorada: ${attachment.filename}]\n`;
