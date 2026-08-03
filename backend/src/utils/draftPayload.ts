@@ -24,6 +24,8 @@ export interface DraftPayload {
   commercialCurrency: string | null;
   isImo: boolean;
   requiresInsurance: boolean;
+  needsOriginInland: boolean;
+  originInlandRoute: string | null;
   transportRoute: string | null;
   originalEmailText: string;
 }
@@ -53,6 +55,8 @@ export function buildDraftPayload(quotation: Quotation, originalEmailText: strin
     commercialCurrency: quotation.commercialCurrency,
     isImo: quotation.isImo,
     requiresInsurance: quotation.requiresInsurance,
+    needsOriginInland: quotation.needsOriginInland,
+    originInlandRoute: quotation.originInlandRoute,
     transportRoute: quotation.transportRoute,
     originalEmailText
   };

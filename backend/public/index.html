@@ -661,6 +661,18 @@
         <input type="email" id="r-agent-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)">
       </div>
 
+      <div style="display:flex;align-items:center;gap:8px;margin:16px 0;background:rgba(245,166,35,0.05);padding:12px 16px;border-radius:8px;border:1px solid rgba(245,166,35,0.3);">
+        <input type="checkbox" id="r-needs-origin-inland" onchange="toggleOriginInlandSection(this.checked)" style="width:18px;height:18px;cursor:pointer;margin:0;">
+        <label for="r-needs-origin-inland" style="margin:0;cursor:pointer;font-weight:600;">🚚 Solicitar Inland de Origem (Coleta)? <span style="font-size:11px;color:var(--text-muted);font-weight:400;">Opcional — normalmente EXW/FCA</span></label>
+      </div>
+      <div id="origin-inland-section" style="display:none;background:rgba(245,166,35,0.03);border:1px dashed var(--gold);border-radius:12px;padding:16px;margin-bottom:20px;">
+        <div class="form-group" style="margin:0;">
+          <label>Rota do Inland de Origem</label>
+          <input type="text" id="r-origin-inland-route" placeholder="Ex: Aachen → Frankfurt Airport">
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">O valor ficará em branco até o retorno do parceiro.</div>
+      </div>
+
       <!-- Solicitação de Transporte Terrestre checkbox -->
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border);">
         <input type="checkbox" id="r-needs-transport" onchange="toggleTransportSection(this.checked)" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
@@ -845,6 +857,15 @@
                 </div>
               </div>
               <textarea id="r-agent-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+            </div>
+            <div style="grid-column:1/-1;margin-top:10px;padding:14px;border:1px solid rgba(245,166,35,0.35);border-radius:10px;background:rgba(245,166,35,0.04);">
+              <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:10px;">🚚 INLAND DE ORIGEM (COLETA)</div>
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;">
+                <div class="form-group" style="margin:0;"><label>Rota</label><input type="text" id="r-agent-origin-inland-route" placeholder="Aachen → Frankfurt Airport"></div>
+                <div class="form-group" style="margin:0;"><label>Valor</label><input type="number" id="r-agent-origin-inland-value" step="0.01" placeholder="Em branco"></div>
+                <div class="form-group" style="margin:0;"><label>Moeda</label><select id="r-agent-origin-inland-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="BRL">BRL</option></select></div>
+                <div class="form-group" style="margin:0;"><label>Prazo</label><input type="text" id="r-agent-origin-inland-transit" placeholder="Ex: 1 dia"></div>
+              </div>
             </div>
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
@@ -1132,6 +1153,15 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
           <textarea id="rev-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+        </div>
+        <div style="grid-column:1/-1;margin-top:12px;padding:14px;border:1px solid rgba(245,166,35,0.35);border-radius:10px;background:rgba(245,166,35,0.04);">
+          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:10px;">🚚 INLAND DE ORIGEM (COLETA) — OPCIONAL</div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;">
+            <div class="form-group" style="margin:0;"><label style="font-size:11px;">Rota</label><input type="text" id="rev-origin-inland-route" placeholder="Aachen → Frankfurt Airport"></div>
+            <div class="form-group" style="margin:0;"><label style="font-size:11px;">Valor</label><input type="number" id="rev-origin-inland-value" step="0.01" placeholder="0.00"></div>
+            <div class="form-group" style="margin:0;"><label style="font-size:11px;">Moeda</label><select id="rev-origin-inland-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="BRL">BRL</option></select></div>
+            <div class="form-group" style="margin:0;"><label style="font-size:11px;">Prazo</label><input type="text" id="rev-origin-inland-transit" placeholder="Ex: 1 dia"></div>
+          </div>
         </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Destino (Itemizadas)</label>
@@ -2044,6 +2074,13 @@ function toggleTransportSection(show) {
   if (checkbox) checkbox.checked = !!show;
 }
 
+function toggleOriginInlandSection(show) {
+  const section = document.getElementById('origin-inland-section');
+  const checkbox = document.getElementById('r-needs-origin-inland');
+  if (section) section.style.display = show ? 'block' : 'none';
+  if (checkbox) checkbox.checked = !!show;
+}
+
 async function populateTruckerDropdown() {
   const select = document.getElementById('r-trucker-email');
   if (!select) return;
@@ -2142,6 +2179,11 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-destination-country').value = d.route.destination_country || '';
       document.getElementById('r-destination-port').value = d.route.destination_airport || '';
       document.getElementById('r-connections').value = d.route.connections || '';
+
+      const needsOriginInland = !!d.route.needs_origin_inland;
+      document.getElementById('r-needs-origin-inland').checked = needsOriginInland;
+      document.getElementById('r-origin-inland-route').value = d.route.origin_inland_route || '';
+      toggleOriginInlandSection(needsOriginInland);
 
       if (d.route.needs_transport !== undefined) {
         const needsT = d.route.needs_transport;
@@ -2256,11 +2298,19 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-agent-carrier').innerHTML = renderConf(d.costs.carrier, d.costs.confidence);
 
       if (d.costs.origin_fees && Array.isArray(d.costs.origin_fees)) {
-        const lines = d.costs.origin_fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
+        const lines = d.costs.origin_fees
+          .filter(f => !/(pick\s*up|pickup|collection|pre[- ]?carriage|coleta)/i.test(String(f.name || '')))
+          .map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
         document.getElementById('r-agent-origin-services').value = lines.join('\n');
       } else {
         document.getElementById('r-agent-origin-services').value = '';
       }
+
+      const originInland = d.costs.origin_inland || {};
+      document.getElementById('r-agent-origin-inland-route').value = originInland.route || '';
+      document.getElementById('r-agent-origin-inland-value').value = originInland.quoted && originInland.value != null ? originInland.value : '';
+      document.getElementById('r-agent-origin-inland-currency').value = originInland.currency || 'USD';
+      document.getElementById('r-agent-origin-inland-transit').value = originInland.transit_time || '';
 
       if (d.costs.destination_fees && Array.isArray(d.costs.destination_fees)) {
         const lines = d.costs.destination_fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
@@ -2570,6 +2620,8 @@ async function generateDraftEmail() {
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
+      needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
+      originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
       truckerEmail: document.getElementById('r-trucker-email').value || null,
@@ -2770,6 +2822,8 @@ async function saveAsAwaitingAgent() {
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
+      needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
+      originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
       truckerEmail: document.getElementById('r-trucker-send-email').value.trim() || null,
@@ -2875,6 +2929,12 @@ function recalculateModalDestinationServicesTotal() {
     });
   }
 
+  const originInlandValue = parseFloat(document.getElementById('rev-origin-inland-value').value) || 0;
+  const originInlandCurrency = document.getElementById('rev-origin-inland-currency').value || 'USD';
+  if (originInlandCurrency === 'BRL') originBrl += originInlandValue;
+  else if (originInlandCurrency === 'EUR') originBrl += originInlandValue * 5.50;
+  else originBrl += originInlandValue * 5.05;
+
   const finalTotal = freightBrl + originBrl + destinationServicesTotalBrl + storage + taxes + (customsClearance ? customsValue : 0);
   document.getElementById('r-total').value = finalTotal.toFixed(2);
 }
@@ -2919,6 +2979,12 @@ function calculateAndInjectInsurance() {
         }
       });
     }
+
+    const originInlandValue = parseFloat(document.getElementById('rev-origin-inland-value').value) || 0;
+    const originInlandCurrency = document.getElementById('rev-origin-inland-currency').value || 'USD';
+    if (originInlandCurrency === 'EUR') originServicesTotalUsd += originInlandValue * 1.08;
+    else if (originInlandCurrency === 'BRL') originServicesTotalUsd += originInlandValue / usdRate;
+    else originServicesTotalUsd += originInlandValue;
 
     // Calcular Base e Taxa
     const baseSeguroUsd = valMercadoria + valFreteUsd + originServicesTotalUsd;
@@ -3008,6 +3074,10 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
     document.getElementById('rev-connections').value = q.connections || '';
     document.getElementById('rev-carrier').value = q.carrier || '';
+    document.getElementById('rev-origin-inland-route').value = q.originInlandRoute || '';
+    document.getElementById('rev-origin-inland-value').value = q.originInlandValue ?? '';
+    document.getElementById('rev-origin-inland-currency').value = q.originInlandCurrency || 'USD';
+    document.getElementById('rev-origin-inland-transit').value = q.originInlandTransitTime || '';
 
     // Atualizar título, descrição e botão de acordo com o modo
     const titleEl = document.querySelector('#pdfReviewOverlay h2');
@@ -3080,6 +3150,10 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-carrier').value = document.getElementById('r-agent-carrier').value || q.carrier || '';
       
       document.getElementById('rev-origin-services').value = document.getElementById('r-agent-origin-services').value || '';
+      document.getElementById('rev-origin-inland-route').value = document.getElementById('r-agent-origin-inland-route').value || q.originInlandRoute || '';
+      document.getElementById('rev-origin-inland-value').value = document.getElementById('r-agent-origin-inland-value').value || q.originInlandValue || '';
+      document.getElementById('rev-origin-inland-currency').value = document.getElementById('r-agent-origin-inland-currency').value || q.originInlandCurrency || 'USD';
+      document.getElementById('rev-origin-inland-transit').value = document.getElementById('r-agent-origin-inland-transit').value || q.originInlandTransitTime || '';
 
       document.getElementById('rev-destination-services').value = document.getElementById('r-agent-destination-services').value.trim() || (q.destinationServices ? (function(){
         try {
@@ -3228,6 +3302,12 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-origin-services').removeEventListener('input', onInsuranceTriggerFieldsChange);
     document.getElementById('rev-origin-services').addEventListener('input', onInsuranceTriggerFieldsChange);
 
+    ['rev-origin-inland-value', 'rev-origin-inland-currency'].forEach(id => {
+      const field = document.getElementById(id);
+      field.removeEventListener(id.endsWith('currency') ? 'change' : 'input', onInsuranceTriggerFieldsChange);
+      field.addEventListener(id.endsWith('currency') ? 'change' : 'input', onInsuranceTriggerFieldsChange);
+    });
+
     document.getElementById('rev-destination-services').removeEventListener('input', recalculateModalDestinationServicesTotal);
     document.getElementById('rev-destination-services').addEventListener('input', recalculateModalDestinationServicesTotal);
 
@@ -3342,6 +3422,10 @@ async function confirmAndGeneratePDF() {
     const destinationServicesStr = destinationServicesList.length > 0 ? JSON.stringify(destinationServicesList) : null;
 
     const targetServicesBrl = destinationServicesList.length > 0 ? destinationServicesTotalBrl : (parseFloat(document.getElementById('rev-services').value) || 0);
+    const originInlandValue = parseFloat(document.getElementById('rev-origin-inland-value').value);
+    const originInlandRoute = document.getElementById('rev-origin-inland-route').value.trim();
+    const originInlandCurrency = document.getElementById('rev-origin-inland-currency').value || 'USD';
+    const originInlandTransitTime = document.getElementById('rev-origin-inland-transit').value.trim();
 
     const body = {
       status: 'APPROVED',
@@ -3361,6 +3445,11 @@ async function confirmAndGeneratePDF() {
       loadType: document.getElementById('rev-load-type').value,
       totalGrossWeightKg: parseFloat(document.getElementById('rev-weight').value) || null,
       totalPackages: parseInt(document.getElementById('rev-packages').value) || null,
+      needsOriginInland: Boolean(originInlandRoute || !Number.isNaN(originInlandValue)),
+      originInlandRoute: originInlandRoute || null,
+      originInlandValue: Number.isNaN(originInlandValue) ? null : originInlandValue,
+      originInlandCurrency,
+      originInlandTransitTime: originInlandTransitTime || null,
       costs: {
         freight_usd: (function() {
           const val = parseFloat(document.getElementById('rev-freight').value) || 0;
@@ -3418,6 +3507,11 @@ async function confirmAndGeneratePDF() {
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
         carrier: document.getElementById('rev-carrier').value || null,
+        needsOriginInland: Boolean(originInlandRoute || !Number.isNaN(originInlandValue)),
+        originInlandRoute: originInlandRoute || null,
+        originInlandValue: Number.isNaN(originInlandValue) ? null : originInlandValue,
+        originInlandCurrency,
+        originInlandTransitTime: originInlandTransitTime || null,
         originServices: originServicesStr,
         originServicesTotal: originServicesTotal || null,
         destinationServices: destinationServicesStr,
@@ -3637,11 +3731,13 @@ function applyReturnIncotermRules(q, preserveExisting = false) {
 function resetAgentReturnFields() {
   ['r-freight', 'r-iof', 'r-storage', 'r-services', 'r-taxes', 'r-total', 'r-transit-time',
    'r-frequency', 'r-freight-unit', 'r-agent-origin-port', 'r-agent-connections',
-   'r-agent-carrier', 'r-agent-origin-services', 'r-agent-destination-services'].forEach(id => {
+   'r-agent-carrier', 'r-agent-origin-services', 'r-agent-destination-services',
+   'r-agent-origin-inland-route', 'r-agent-origin-inland-value', 'r-agent-origin-inland-transit'].forEach(id => {
     const field = document.getElementById(id);
     if (field) field.value = '';
   });
   document.getElementById('r-freight-currency').value = '';
+  document.getElementById('r-agent-origin-inland-currency').value = 'USD';
   document.getElementById('r-weight-break').value = '';
   document.getElementById('r-customs-clearance-included').checked = false;
   document.querySelectorAll('#costs-review-grid [id^="conf-"]').forEach(el => el.innerHTML = '');
@@ -3675,6 +3771,10 @@ async function loadPendingQuotationData() {
   // Recupera valores já salvos e prefixa as taxas conhecidas pelo Incoterm/modal.
   document.getElementById('r-agent-origin-services').value = formatReturnFees(parseSavedReturnFees(q.originServices));
   document.getElementById('r-agent-destination-services').value = formatReturnFees(parseSavedReturnFees(q.destinationServices));
+  document.getElementById('r-agent-origin-inland-route').value = q.originInlandRoute || '';
+  document.getElementById('r-agent-origin-inland-value').value = q.originInlandValue ?? '';
+  document.getElementById('r-agent-origin-inland-currency').value = q.originInlandCurrency || 'USD';
+  document.getElementById('r-agent-origin-inland-transit').value = q.originInlandTransitTime || '';
   try {
     const modal = normalizeReturnRuleModal(q);
     const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}`);
@@ -3944,6 +4044,18 @@ function toggleDetail(idx, rowEl) {
     `;
   }
 
+  let originInlandGroup = '';
+  if (q.needsOriginInland || q.originInlandValue != null) {
+    originInlandGroup = `
+      <div class="detail-group">
+        <h4>🚚 Inland de Origem (Coleta)</h4>
+        <div class="dl"><span class="dt">Trecho / Rota</span><span class="dd" style="font-weight:600;">${q.originInlandRoute || '—'}</span></div>
+        <div class="dl"><span class="dt">Custo da Coleta</span><span class="dd">${q.originInlandValue != null ? (q.originInlandCurrency || 'USD') + ' ' + Number(q.originInlandValue).toFixed(2) : '<span style="color:var(--text-muted)">Aguardando cotação</span>'}</span></div>
+        <div class="dl"><span class="dt">Prazo</span><span class="dd">${q.originInlandTransitTime || '—'}</span></div>
+      </div>
+    `;
+  }
+
   const detailTr = document.createElement('tr');
   detailTr.className = 'detail-row';
   detailTr.dataset.idx = idx;
@@ -3968,6 +4080,7 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">Descrição</span><span class="dd">${q.cargoDescription || '—'}</span></div>
       </div>
       ${transportGroup}
+      ${originInlandGroup}
       <div class="detail-group">
         <h4>Custos & Valores</h4>
         <div class="dl"><span class="dt">Frete (${q.freightCurrency || 'USD'})</span><span class="dd" style="color:var(--gold); font-weight:700;">${q.freightCurrency === 'EUR' ? '€' : (q.freightCurrency === 'BRL' ? 'R$' : '$')}${q.freightValue != null ? Number(q.freightValue).toFixed(2) : '—'}</span></div>
@@ -5185,6 +5298,8 @@ async function loadQuotationIntoDraft() {
           destination_country: quotation.destinationCountry,
           destination_airport: quotation.destinationPort,
           connections: quotation.connections,
+          needs_origin_inland: quotation.needsOriginInland,
+          origin_inland_route: quotation.originInlandRoute,
           confidence: 1
         },
         cargo: {

@@ -101,6 +101,8 @@ export const extractData = async (req: Request, res: Response) => {
 - Tipo de Carga: ${quotation.loadType || 'Não informado'}
 - Dimensões/Carga: ${quotation.packages || 'Não informada'}
 - Direção: ${quotation.direction || 'IMPORT'}
+- Inland de Origem solicitado: ${quotation.needsOriginInland ? 'Sim' : 'Não'}
+- Rota do Inland de Origem: ${quotation.originInlandRoute || 'Não informada'}
 `;
           }
         } catch (dbErr) {

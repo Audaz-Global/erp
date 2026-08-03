@@ -109,6 +109,11 @@ model Quotation {
   destinationTaxesCurrency   String?
   originServices             String? // JSON string
   originServicesTotal        Float?
+  needsOriginInland          Boolean @default(false)
+  originInlandRoute          String?
+  originInlandValue          Float?
+  originInlandCurrency       String? @default("USD")
+  originInlandTransitTime    String?
 
   totalBrl    Float?
   totalUsd    Float?

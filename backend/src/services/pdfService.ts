@@ -364,6 +364,19 @@ const defaultTemplate = `
     </tbody>
   </table>
 
+  {{#if hasOriginInland}}
+  <div class="section-banner-sm">Origem</div>
+  <table>
+    <thead><tr><th>Taxas</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Min</th><th class="t-right">Max</th><th class="t-right">Total</th></tr></thead>
+    <tbody><tr>
+      <td>Inland de Origem / Coleta{{#if originInlandRoute}} ({{originInlandRoute}}){{/if}}</td>
+      <td class="t-center">1</td><td>{{originInlandTransitTime}}</td>
+      <td class="t-right">{{originInlandCurrency}} {{originInlandValue}}</td><td class="t-right">0,00</td><td class="t-right">0,00</td>
+      <td class="t-right">{{originInlandCurrency}} {{originInlandValue}}</td>
+    </tr></tbody>
+  </table>
+  {{/if}}
+
   <div class="section-banner-sm">Destino</div>
   <table>
     <thead>
@@ -1180,6 +1193,21 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       }
     }
 
+    if (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) {
+      const inlandValue = parseFloat(quotationData.originInlandValue) || 0;
+      const inlandCurrency = quotationData.originInlandCurrency || 'USD';
+      const inlandRoute = quotationData.originInlandRoute ? ` (${quotationData.originInlandRoute})` : '';
+      detailedFeesOrigem.unshift({
+        name: `Inland de Origem / Coleta${inlandRoute}`,
+        qty: 1,
+        unit: quotationData.originInlandTransitTime || 'Por coleta',
+        valueUnit: inlandValue.toFixed(2),
+        min: '0,00',
+        currency: inlandCurrency,
+        total: `${inlandCurrency} ${inlandValue.toFixed(2)}`
+      });
+    }
+
     // Calcular base proporcional para totais
     let baseProporcional = fVal;
     detailedFeesOrigem.forEach(f => {
@@ -1630,6 +1658,14 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       sumOrigemUsd += parseFloat(quotationData.originServicesTotal) || 0;
     }
 
+    if (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) {
+      const inlandValue = parseFloat(quotationData.originInlandValue) || 0;
+      const inlandCurrency = String(quotationData.originInlandCurrency || 'USD').toUpperCase();
+      if (inlandCurrency === 'EUR') sumOrigemEur += inlandValue;
+      else if (inlandCurrency === 'BRL') sumOrigemBrl += inlandValue;
+      else sumOrigemUsd += inlandValue;
+    }
+
     // Serviços no Destino
     let sumDestinoBrl = 0;
     let sumDestinoUsd = 0;
@@ -1808,6 +1844,11 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       containerQty,
       containerTypeRich,
       hasDetailedFees,
+      hasOriginInland: quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined,
+      originInlandValue: (parseFloat(quotationData.originInlandValue) || 0).toFixed(2),
+      originInlandCurrency: quotationData.originInlandCurrency || 'USD',
+      originInlandRoute: quotationData.originInlandRoute || '',
+      originInlandTransitTime: quotationData.originInlandTransitTime || 'Por coleta',
       detailedFees,
       subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }]),
       subtotalDestino: formatSubtotals(detailedFees),

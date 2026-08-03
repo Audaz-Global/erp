@@ -198,8 +198,18 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       if (c.frequency) updateData.frequency = c.frequency;
       if (c.weight_break) updateData.weightBreak = c.weight_break;
       
+      if (c.origin_inland?.quoted === true) {
+        updateData.needsOriginInland = true;
+        updateData.originInlandRoute = c.origin_inland.route || quotation.originInlandRoute || null;
+        if (c.origin_inland.value != null) updateData.originInlandValue = c.origin_inland.value;
+        updateData.originInlandCurrency = c.origin_inland.currency || 'USD';
+        updateData.originInlandTransitTime = c.origin_inland.transit_time || null;
+      }
       if (Array.isArray(c.origin_fees) && c.origin_fees.length > 0) {
-        updateData.originServices = JSON.stringify(c.origin_fees);
+        const localOriginFees = c.origin_fees.filter((fee: any) =>
+          !/(pick\s*up|pickup|collection|pre[-\s]?carriage|coleta|inland)/i.test(String(fee?.name || ''))
+        );
+        if (localOriginFees.length > 0) updateData.originServices = JSON.stringify(localOriginFees);
       }
       if (Array.isArray(c.destination_fees) && c.destination_fees.length > 0) {
         updateData.destinationServices = JSON.stringify(c.destination_fees);

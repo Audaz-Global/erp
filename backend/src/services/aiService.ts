@@ -244,6 +244,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 destination_country: { type: 'string', description: 'País do porto ou aeroporto de destino' },
                 destination_airport: { type: 'string', description: 'Porto ou Aeroporto de Destino (formato IATA para aeroporto, ex: GRU - Guarulhos)' },
                 connections: { type: 'string', description: 'Conexões do voo (ex: via MIA) ou escalas de porto (ex: transbordo em Algeciras). Retorne string vazia se for direto.' },
+                needs_origin_inland: { type: 'boolean', description: 'Verdadeiro quando é necessário cotar a coleta terrestre na origem, normalmente em EXW ou FCA quando o local inicial é diferente do porto/aeroporto de embarque.' },
+                origin_inland_route: { type: 'string', description: 'Rota da coleta na origem no formato "Local de coleta → Porto/Aeroporto". Retorne string vazia quando needs_origin_inland for false.' },
                 needs_transport: { type: 'boolean', description: 'Defina como true se a operação exigir transporte rodoviário terrestre nacional no Brasil (ex: coleta na origem se for EXW/FCA e a origem for no Brasil, ou entrega no destino se for DAP/DDP/DDU/Door e o destino for no Brasil, ou se houver pedido explícito de frete terrestre nacional no Brasil). Caso contrário, retorne false.' },
                 transport_route: { type: 'string', description: 'O trecho rodoviário nacional do Brasil necessário (ex: "Santos x Itatiba/SP", "Guarulhos x Jacareí/SP"). Retorne string vazia se needs_transport for false.' },
                 confidence: { type: 'number' }
@@ -257,6 +259,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 'destination_country',
                 'destination_airport',
                 'connections',
+                'needs_origin_inland',
+                'origin_inland_route',
                 'needs_transport',
                 'transport_route'
               ]
@@ -313,6 +317,11 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - **Destino Final (Cidade/Estado/País)**: Identifique a cidade, estado e país final de entrega da mercadoria para o importador (ex: "Jacareí, SP, Brasil"). Salve em "destination_city".
     - **País**: Extraia o nome do país de origem e de destino correspondente à origem e destino principais no exterior/Brasil por extenso (ex: "CHINA" e "BRASIL"). Salve em "origin_country" e "destination_country".
     - **Conexões do Voo ou do Porto**: Identifique se há menção a escalas, aeroportos de conexão intermediários (ex: via MIA, via FRA) ou portos de escala/transbordo (ex: transbordo em Algeciras). Salve essa informação em "connections". Caso o embarque seja direto e sem conexões, retorne string vazia "".
+    - **Inland de Origem / Coleta (needs_origin_inland e origin_inland_route)**:
+      1. Sugira needs_origin_inland=true em EXW quando existir endereço de fábrica/coleta diferente do porto ou aeroporto de embarque.
+      2. Em FCA, use true somente quando o local nomeado/endereço de coleta for diferente do terminal, porto ou aeroporto em que o vendedor entrega a carga. FCA, sozinho, não torna a coleta obrigatória.
+      3. Preencha origin_inland_route como "[Local inicial] → [Porto/Aeroporto de origem]". Não invente valor de coleta.
+      4. Esta coleta internacional de origem é diferente do transporte rodoviário nacional no Brasil.
     - **Necessidade de Transporte Rodoviário (needs_transport e transport_route)**:
       1. Defina "needs_transport" como true se a operação necessitar de transporte terrestre rodoviário nacional no Brasil. Isso é obrigatório se o Incoterm indicar que o importador é responsável pela coleta/entrega final no Brasil (ex: se o destino final for no Brasil e o Incoterm for DAP, DDP, DDU, Door-to-door, ou se a origem for no Brasil e o Incoterm for EXW ou FCA, ou se o e-mail do cliente pedir explicitamente "entrega local", "rodoviário nacional", "entrega em Itatiba", "coleta na fábrica Y", etc.).
       2. No campo "transport_route", preencha a rota terrestre nacional necessária no formato "[Origem] x [Destino]" (ex: "Santos x Itatiba/SP" se vier via Porto de Santos, ou "Guarulhos x Jacareí/SP" se vier via Aeroporto de Guarulhos). Se needs_transport for false, retorne string vazia "".
@@ -372,6 +381,8 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - País de Destino: ${data.destinationCountry || 'TBD'}
     - Conexões (Voo/Porto): ${data.connections || 'Sem conexões (direto)'}
     - Incoterm: ${data.incoterm || 'TBD'}
+    - Inland de Origem necessário: ${data.needsOriginInland ? 'SIM' : 'NÃO'}
+    - Rota do Inland de Origem: ${data.needsOriginInland ? (data.originInlandRoute || 'A confirmar') : 'Não aplicável'}
     - Modal: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
     - Modal/Tipo: ${data.loadType || 'TBD'}
     - Peso Bruto: ${data.totalGrossWeightKg || 'TBD'} kg
@@ -429,6 +440,7 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     2. Analise o CONTEÚDO DO E-MAIL ORIGINAL DO CLIENTE (se disponível) juntamente com as REGRAS E DIRETRIZES DE NEGÓCIO IMPORTANTES (que contêm explicações de siglas de e-mails, tipos de container, etc.).
     3. Caso haja siglas no e-mail original explicadas nas regras (por exemplo, siglas indicando container Open Top (OT) e/ou High Cube (HC), como "4 x 40' OT HC" ou "OP e HC"), e o modal for Marítimo, certifique-se de aplicar essa regra e solicitar os tipos corretos de equipamentos (containers) no e-mail (por exemplo, especificando container Open Top High Cube ou OP e HC) no lugar de um contêiner Dry comum.
     4. Analise as Dimensões/CBM nos DADOS EXTRAÍDOS DA CARGA. Se o modal for Marítimo e contiver qualquer menção a tipos especiais de containers (como "OT", "HC", "Open Top", "High Cube", "OP", etc.), incorpore essa exigência no e-mail de cotação.
+    5. Se "Inland de Origem necessário" for SIM, solicite separadamente o valor e o prazo da coleta terrestre na origem para a rota informada. Não misture esse custo com AWB, handling, THC ou outras taxas locais.
     5. **Rota com UN/LOCODE**: Ao citar a rota do embarque (Origem e Destino) no e-mail, identifique e coloque o respectivo código de porto ou aeroporto (UN/LOCODE) correspondente ao lado do nome da cidade (por exemplo: "Shanghai (CNSHA)" e "Santos (BRSSZ)"), caso o local de origem ou destino seja conhecido.
     6. **Prazo de Resposta com Antecedência (12h)**: Se o cliente ou o e-mail original estipular uma data, hora ou prazo limite (deadline) para a entrega da proposta de cotação, calcule um limite de tempo para o retorno do agente que seja exatamente **12 horas antes** desse prazo original e mencione de forma clara no e-mail (por exemplo: se o cliente pediu retorno até dia 28 às 18h, peça ao agente até o dia 28 às 06h).
     7. **Omitir Taxas de Destino Silenciosamente**: Se houver regras sobre taxas de destino (como não pedi-las para agentes da origem), simplesmente **não as peça** no e-mail (solicite apenas o frete e taxas locais de origem, ex: THC, documentação, etc.). **NUNCA escreva frases negativas no e-mail dizendo que não precisa de taxas de destino** (ex: NÃO escreva "não precisamos das taxas de destino" ou "não enviar taxas de destino"). Apenas ignore as taxas de destino silenciosamente no e-mail.
@@ -525,6 +537,17 @@ export const extractAgentCosts = async (
                   },
                   description: 'Lista de taxas locais na origem (EXW local charges) especificadas no e-mail do agente'
                 },
+                origin_inland: {
+                  type: 'object',
+                  properties: {
+                    quoted: { type: 'boolean', description: 'Verdadeiro quando o agente informou custo de coleta/pick up terrestre na origem.' },
+                    route: { type: 'string', description: 'Rota da coleta na origem, quando informada.' },
+                    value: { type: 'number', description: 'Valor total do Pick Up/Inland de origem.' },
+                    currency: { type: 'string', description: 'Moeda do Inland de origem.' },
+                    transit_time: { type: 'string', description: 'Prazo da coleta na origem, quando informado.' }
+                  },
+                  required: ['quoted', 'value']
+                },
                 destination_fees: {
                   type: 'array',
                   items: {
@@ -571,7 +594,10 @@ export const extractAgentCosts = async (
     2. **Frequência (frequency):** Identifique a frequência de saída de voos ou navios no RETORNO DO AGENTE. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc. (sinalizando saídas às terças e sábados no padrão IATA, ou segundas e sextas no informal), formate o resultado final como "2x por semana (D26)" ou similar que represente de forma clara a frequência. Se o agente apenas indicar "diário", "semanal", etc., extraia esse texto. Se não for informada nenhuma frequência, retorne "Semanal".
     3. **Origem (origin_airport):** Identifique o Porto ou Aeroporto de Origem que o agente cotou no RETORNO DO AGENTE (ex: PEK, WNZ, SZX, MXP). Salve o código IATA ou o nome do aeroporto correspondente.
     4. **Conexões (connections):** Identifique as conexões ou escalas informadas pelo agente (ex: "PEK-NRT-USA-GRU" ou "via MIA" ou "via NRT"). Salve a string no campo "connections". Retorne string vazia se for direto ou não houver menção a conexões.
-    5. **Taxas Locais de Origem (origin_fees):** Identifique todas as taxas locais na origem (EXW local charges / Origin charges) informadas no e-mail do agente.
+    5. **Inland de Origem (origin_inland) e Taxas Locais de Origem (origin_fees):**
+       - Classifique Pick Up, Pickup, Collection, Pre-carriage ou coleta da fábrica até o aeroporto/porto como origin_inland. Extraia valor, moeda, rota e prazo separadamente.
+       - NÃO repita o Pick Up dentro de origin_fees.
+       - Em origin_fees, identifique apenas as demais taxas locais na origem (AWB, Handling, THC, XRAY, Customs Clearance etc.).
        - Calcule o valor total de cada taxa:
          - Para taxas cotadas por remessa ("per shpt", "per shipment", "fixed", "Fixo", "per HAWB"), use o valor fixo.
          - Para taxas cotadas por peso ("per kg", "/kg"), multiplique o valor unitário pelo peso da carga (bruto ou taxável correspondente) e respeite o valor mínimo informado (ex: "Min US20.00/shpt" significa que o valor total daquela taxa deve ser no mínimo USD 20.00).

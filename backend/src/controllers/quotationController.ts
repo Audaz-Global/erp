@@ -433,6 +433,17 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       }
     }
 
+    if (quotation.originInlandValue !== null && quotation.originInlandValue !== undefined) {
+      const value = parseFloat(String(quotation.originInlandValue)) || 0;
+      const currency = quotation.originInlandCurrency || 'USD';
+      detailedFeesOrigem.unshift({
+        name: `Inland de Origem / Coleta${quotation.originInlandRoute ? ` (${quotation.originInlandRoute})` : ''}`,
+        val: value,
+        currency,
+        brl: getBrlValue(value, currency)
+      });
+    }
+
     const subtotalOrigemBrl = detailedFeesOrigem.reduce((s, f) => s + f.brl, 0);
 
     if (detailedFeesDestino.length === 0) {
@@ -800,4 +811,3 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     res.status(500).send('Erro ao renderizar visualização web: ' + error.message);
   }
 };
-
