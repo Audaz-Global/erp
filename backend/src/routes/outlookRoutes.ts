@@ -159,4 +159,23 @@ router.get('/search', async (req: Request, res: Response) => {
   }
 });
 
+/** Histórico auditável das respostas processadas para uma cotação. */
+router.get('/responses/:quotationId', async (req: Request, res: Response) => {
+  try {
+    const responses = await prisma.agentResponseVersion.findMany({
+      where: { quotationId: req.params.quotationId },
+      orderBy: [{ receivedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true, messageId: true, subject: true, senderEmail: true, receivedAt: true,
+        matchLayer: true, latestText: true, signature: true, attachmentNames: true,
+        extractedData: true, confidence: true, processingStatus: true, errorMessage: true,
+        attempts: true, processedAt: true
+      }
+    });
+    res.json(responses);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Erro ao consultar histórico de retornos.' });
+  }
+});
+
 export default router;

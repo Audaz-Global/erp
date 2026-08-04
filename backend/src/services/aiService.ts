@@ -569,9 +569,26 @@ export const extractAgentCosts = async (
                 transit_time: { type: 'string', description: 'Tempo de trânsito literal informado pelo agente (ex: "3 days", "9-12 days", "35 dias"). Se não informado, retorne "n/a".' },
                 frequency: { type: 'string', description: 'Frequência de saídas ou voos informada pelo agente. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc., converta para "2x por semana (D26)" ou similar. Se não informado, retorne "Semanal".' },
                 weight_break: { type: 'string', description: 'Faixa tarifária de peso aplicada no frete aéreo pelo agente se houver no texto. Exemplos de retorno: "normal", "+45", "+100", "+300", "+500", "+1000". Se o e-mail do agente contiver termos como "+100kg", "above 100kg", "+100", extraia "+100". Se não aplicável ou não mencionado, retorne "normal".' },
-                confidence: { type: 'number', description: 'Grau de confiança na extração' }
+                confidence: { type: 'number', description: 'Grau de confiança na extração' },
+                present_fields: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Nomes exatos dos campos explicitamente encontrados na resposta atual ou em seus anexos. Não inclua defaults nem dados presentes apenas no histórico.'
+                },
+                field_evidence: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      field: { type: 'string' },
+                      evidence: { type: 'string', description: 'Trecho curto que comprova o valor.' },
+                      source: { type: 'string', description: 'latest_reply ou nome do anexo.' }
+                    },
+                    required: ['field', 'evidence', 'source']
+                  }
+                }
               },
-              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time', 'frequency', 'weight_break']
+              required: ['freight_value', 'freight_currency', 'freight_usd', 'transit_time', 'frequency', 'weight_break', 'present_fields', 'field_evidence']
             }
           },
           required: ['costs']
@@ -595,6 +612,10 @@ export const extractAgentCosts = async (
     ${safeLocalFeesTable ? `${safeLocalFeesTable}` : ''}
 
     Instruções Gerais de Extração:
+    0. **Resposta atual x histórico:** O texto pode conter blocos identificados como RESPOSTA ATUAL, ANEXOS DA RESPOSTA ATUAL e HISTÓRICO DA CONVERSA. Extraia valores somente da RESPOSTA ATUAL e de seus anexos. Use o histórico apenas para entender o contexto e nunca copie dele um preço que não tenha sido confirmado na resposta atual.
+       - Preencha present_fields somente com campos realmente encontrados na resposta atual ou anexos.
+       - Para cada campo presente, registre uma evidência curta em field_evidence.
+       - Valores padrão exigidos pelo schema, como "Semanal", "normal" ou zero, não devem entrar em present_fields quando não estiverem expressos na resposta.
     1. **Tempo de Trânsito (Transit Time):** Identifique o tempo de trânsito (T/T ou Transit Time) mencionado no RETORNO DO AGENTE (ex: "3 days", "9-12 days", "35 dias"). Salve esse texto literal no campo "transit_time". Se não encontrar nenhuma menção ao tempo de trânsito, retorne "n/a".
     2. **Frequência (frequency):** Identifique a frequência de saída de voos ou navios no RETORNO DO AGENTE. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc. (sinalizando saídas às terças e sábados no padrão IATA, ou segundas e sextas no informal), formate o resultado final como "2x por semana (D26)" ou similar que represente de forma clara a frequência. Se o agente apenas indicar "diário", "semanal", etc., extraia esse texto. Se não for informada nenhuma frequência, retorne "Semanal".
     3. **Origem (origin_airport):** Identifique o Porto ou Aeroporto de Origem que o agente cotou no RETORNO DO AGENTE (ex: PEK, WNZ, SZX, MXP). Salve o código IATA ou o nome do aeroporto correspondente.

@@ -119,7 +119,7 @@ export const fetchUnreadEmails = async () => {
   
   const token = await getAccessToken();
   // Inclui conversationId e from no $select para matching multi-estratégia
-  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/mailFolders/inbox/messages?$filter=isRead eq false&$top=20&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId`;
+  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/mailFolders/inbox/messages?$filter=isRead eq false&$top=20&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId,hasAttachments`;
 
   try {
     const res = await axios.get(url, {
@@ -139,7 +139,8 @@ export const fetchEmailsByConversationId = async (conversationId: string) => {
   if (!USER_EMAIL) throw new Error('E-mail do remetente não configurado.');
 
   const token = await getAccessToken();
-  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages?$filter=conversationId eq '${conversationId}'&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId&$orderby=receivedDateTime desc&$top=10`;
+  const safeConversationId = conversationId.replace(/'/g, "''");
+  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages?$filter=conversationId eq '${safeConversationId}'&$select=id,subject,bodyPreview,body,from,receivedDateTime,conversationId,hasAttachments&$orderby=receivedDateTime desc&$top=10`;
 
   try {
     const res = await axios.get(url, {
@@ -149,6 +150,20 @@ export const fetchEmailsByConversationId = async (conversationId: string) => {
   } catch (err: any) {
     console.error('Erro ao buscar por conversationId:', err.response?.data || err.message);
     return [];
+  }
+};
+
+/** Busca anexos binários da mensagem atual. */
+export const fetchEmailAttachments = async (messageId: string) => {
+  if (!USER_EMAIL) throw new Error('E-mail do remetente não configurado.');
+  const token = await getAccessToken();
+  const url = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${encodeURIComponent(messageId)}/attachments?$top=25`;
+  try {
+    const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+    return (res.data.value || []).filter((item: any) => item['@odata.type'] === '#microsoft.graph.fileAttachment' && item.contentBytes);
+  } catch (err: any) {
+    console.error(`Erro ao buscar anexos do e-mail ${messageId}:`, err.response?.data || err.message);
+    throw new Error('Falha ao buscar anexos do retorno no Outlook.');
   }
 };
 

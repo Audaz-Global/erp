@@ -1,6 +1,14 @@
-import { fetchUnreadEmails, markEmailAsRead } from './outlookService';
+import { fetchEmailAttachments, fetchEmailsByConversationId, fetchUnreadEmails, markEmailAsRead } from './outlookService';
 import { prisma } from '../prisma';
 import { extractAgentCosts } from './aiService';
+import { buildThreadContext, extractOutlookAttachments, mergeExtractedCosts, mergeFeeLists, splitAgentReply } from './agentResponseService';
+
+const TRACKED_AGENT_FIELDS = new Set([
+  'freight_value', 'freight_currency', 'freight_usd', 'iof_usd', 'storage_brl', 'services_brl', 'taxes_brl', 'total_brl',
+  'invoice_value', 'insurance_requested', 'carrier', 'vessel_name', 'voyage_number', 'free_time_days', 'rate_valid_until',
+  'transshipments', 'origin_airport', 'connections', 'origin_fees', 'origin_inland', 'destination_fees',
+  'transit_time', 'transit_time_days', 'frequency', 'weight_break'
+]);
 
 /**
  * Camada 1: Busca cotação pelo REF: no assunto do e-mail.
@@ -38,7 +46,7 @@ async function matchByConversationId(conversationId: string | undefined) {
   const quotation = await prisma.quotation.findFirst({
     where: {
       sentEmailConversationId: conversationId,
-      status: 'AGUARDANDO_AGENTE'
+      status: { in: ['AGUARDANDO_AGENTE', 'RETORNO_RECEBIDO'] }
     }
   });
 
@@ -149,8 +157,34 @@ async function findQuotationForEmail(email: any) {
  * Processa um e-mail vinculado a uma cotação:
  * extrai custos via IA e atualiza o banco de dados.
  */
-async function processMatchedEmail(email: any, quotation: any, matchLayer: number) {
+async function processMatchedEmail(email: any, quotation: any, matchLayer: number): Promise<boolean> {
   const bodyContent = email.body?.content || email.bodyPreview || '';
+  const messageId = String(email.id || '');
+  if (!messageId) return false;
+
+  const existingVersion = await prisma.agentResponseVersion.findUnique({ where: { messageId } });
+  if (existingVersion && ['SUCCESS', 'NO_VALUES'].includes(existingVersion.processingStatus)) return true;
+  if (existingVersion && ['FAILED', 'PROCESSING'].includes(existingVersion.processingStatus) && Date.now() - existingVersion.updatedAt.getTime() < 15 * 60 * 1000) return false;
+
+  const receivedAt = email.receivedDateTime && !isNaN(Date.parse(email.receivedDateTime)) ? new Date(email.receivedDateTime) : null;
+  const senderEmail = email.from?.emailAddress?.address || null;
+  const reply = splitAgentReply(bodyContent);
+
+  const version = await prisma.agentResponseVersion.upsert({
+    where: { messageId },
+    create: {
+      quotationId: quotation.id, messageId, conversationId: email.conversationId || null,
+      subject: email.subject || null, senderEmail, receivedAt, matchLayer,
+      latestText: reply.latestText, quotedHistory: reply.quotedHistory, signature: reply.signature,
+      processingStatus: 'PROCESSING', attempts: 1
+    },
+    update: {
+      quotationId: quotation.id, conversationId: email.conversationId || null,
+      subject: email.subject || null, senderEmail, receivedAt, matchLayer,
+      latestText: reply.latestText, quotedHistory: reply.quotedHistory, signature: reply.signature,
+      processingStatus: 'PROCESSING', errorMessage: null, attempts: { increment: 1 }
+    }
+  });
 
   try {
     // Monta o payload mínimo para a IA
@@ -166,34 +200,59 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       }
     };
 
-    const costs = await extractAgentCosts(bodyContent, '', '', JSON.stringify(payload), []);
+    const [threadMessages, rawAttachments] = await Promise.all([
+      email.conversationId ? fetchEmailsByConversationId(email.conversationId) : Promise.resolve([]),
+      email.hasAttachments ? fetchEmailAttachments(messageId) : Promise.resolve([])
+    ]);
+    const threadContext = buildThreadContext(threadMessages, messageId, email.receivedDateTime);
+    const attachments = await extractOutlookAttachments(rawAttachments);
+    const sourceText = [
+      '=== RESPOSTA ATUAL DO AGENTE (FONTE PRIMÁRIA) ===', reply.latestText || email.bodyPreview || '',
+      attachments.text ? `=== ANEXOS DA RESPOSTA ATUAL ===\n${attachments.text}` : '',
+      threadContext ? `=== HISTÓRICO DA CONVERSA (SOMENTE CONTEXTO; NÃO EXTRAIR PREÇOS NÃO CONFIRMADOS) ===\n${threadContext}` : ''
+    ].filter(Boolean).join('\n\n');
+
+    const costs = await extractAgentCosts(sourceText, '', '', JSON.stringify(payload), attachments.mediaParts);
     
     if (costs && costs.costs) {
       const c = costs.costs;
+      const presentFields = new Set<string>((Array.isArray(c.present_fields) ? c.present_fields : [])
+        .map((field: any) => String(field).trim().toLowerCase())
+        .filter((field: string) => TRACKED_AGENT_FIELDS.has(field)));
+      const has = (...fields: string[]) => fields.some(field => presentFields.has(field));
+
+      if (presentFields.size === 0) {
+        await prisma.agentResponseVersion.update({ where: { id: version.id }, data: {
+          attachmentNames: JSON.stringify(attachments.names), extractedData: JSON.stringify(c), confidence: c.confidence ?? null,
+          processingStatus: 'NO_VALUES', processedAt: new Date(), errorMessage: 'Nenhum valor novo foi identificado na resposta atual.'
+        } });
+        console.log(`[Outlook] Resposta sem valores novos | Cotação: ${quotation.id} | Mensagem: ${messageId}`);
+        return true;
+      }
       
       // Mapeia os dados da IA para as colunas do banco
       const updateData: any = {
         status: 'RETORNO_RECEBIDO',
-        costsData: JSON.stringify(c),
+        costsData: JSON.stringify(mergeExtractedCosts(quotation.costsData, c, presentFields)),
         agentResponseRaw: bodyContent.substring(0, 50000), // Limita para não estourar o campo
       };
 
-      if (c.freight_value != null) updateData.freightValue = c.freight_value;
-      if (c.freight_currency) updateData.freightCurrency = c.freight_currency;
-      if (c.freight_usd != null) updateData.totalUsd = c.freight_usd;
-      if (c.iof_usd != null) updateData.iofUsd = c.iof_usd;
-      if (c.storage_brl != null) {
+      if (has('freight_value') && c.freight_value != null) updateData.freightValue = c.freight_value;
+      if ((has('freight_currency') || has('freight_value')) && c.freight_currency) updateData.freightCurrency = c.freight_currency;
+      if (has('freight_usd') && c.freight_usd != null) updateData.totalUsd = c.freight_usd;
+      if (has('iof_usd') && c.iof_usd != null) updateData.iofUsd = c.iof_usd;
+      if (has('storage_brl') && c.storage_brl != null) {
         updateData.destinationStorage = c.storage_brl;
         updateData.destinationStorageCurrency = 'BRL';
       }
-      if (c.services_brl != null) updateData.destinationServicesTotal = c.services_brl;
-      if (c.taxes_brl != null) {
+      if (has('services_brl') && c.services_brl != null) updateData.destinationServicesTotal = c.services_brl;
+      if (has('taxes_brl') && c.taxes_brl != null) {
         updateData.destinationTaxes = c.taxes_brl;
         updateData.destinationTaxesCurrency = 'BRL';
       }
-      if (c.total_brl != null) updateData.totalBrl = c.total_brl;
+      if (has('total_brl') && c.total_brl != null) updateData.totalBrl = c.total_brl;
       
-      if (c.carrier) {
+      if (has('carrier') && c.carrier) {
         updateData.carrier = c.carrier;
         const carrierName = String(c.carrier).toUpperCase();
         const profiles = await prisma.carrierProfile.findMany({ where: { active: true } });
@@ -207,46 +266,56 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
         });
         if (profile) updateData.carrierProfileId = profile.id;
       }
-      if (c.vessel_name) updateData.vesselName = c.vessel_name;
-      if (c.voyage_number) updateData.voyageNumber = c.voyage_number;
-      if (c.free_time_days != null) updateData.freeTimeDays = c.free_time_days;
-      if (c.rate_valid_until && !isNaN(Date.parse(c.rate_valid_until))) updateData.rateValidUntil = new Date(c.rate_valid_until);
-      if (Array.isArray(c.transshipments)) updateData.transshipments = JSON.stringify(c.transshipments);
-      if (c.transit_time_days != null) updateData.transitTimeDays = c.transit_time_days;
-      if (c.frequency) updateData.frequency = c.frequency;
-      if (c.weight_break) updateData.weightBreak = c.weight_break;
+      if (has('vessel_name') && c.vessel_name) updateData.vesselName = c.vessel_name;
+      if (has('voyage_number') && c.voyage_number) updateData.voyageNumber = c.voyage_number;
+      if (has('free_time_days') && c.free_time_days != null) updateData.freeTimeDays = c.free_time_days;
+      if (has('rate_valid_until') && c.rate_valid_until && !isNaN(Date.parse(c.rate_valid_until))) updateData.rateValidUntil = new Date(c.rate_valid_until);
+      if (has('transshipments') && Array.isArray(c.transshipments)) updateData.transshipments = JSON.stringify(c.transshipments);
+      if (has('transit_time', 'transit_time_days') && c.transit_time_days != null) updateData.transitTimeDays = c.transit_time_days;
+      if (has('frequency') && c.frequency) updateData.frequency = c.frequency;
+      if (has('weight_break') && c.weight_break) updateData.weightBreak = c.weight_break;
+      if (has('origin_airport') && c.origin_airport) updateData.originPort = c.origin_airport;
+      if (has('connections') && c.connections !== undefined) updateData.connections = c.connections;
       
-      if (c.origin_inland?.quoted === true) {
+      if (has('origin_inland') && c.origin_inland?.quoted === true) {
         updateData.needsOriginInland = true;
         updateData.originInlandRoute = c.origin_inland.route || quotation.originInlandRoute || null;
         if (c.origin_inland.value != null) updateData.originInlandValue = c.origin_inland.value;
         updateData.originInlandCurrency = c.origin_inland.currency || 'USD';
         updateData.originInlandTransitTime = c.origin_inland.transit_time || null;
       }
-      if (Array.isArray(c.origin_fees) && c.origin_fees.length > 0) {
+      if (has('origin_fees') && Array.isArray(c.origin_fees) && c.origin_fees.length > 0) {
         const localOriginFees = c.origin_fees.filter((fee: any) =>
           !/(pick\s*up|pickup|collection|pre[-\s]?carriage|coleta|inland)/i.test(String(fee?.name || ''))
         );
-        if (localOriginFees.length > 0) updateData.originServices = JSON.stringify(localOriginFees);
+        if (localOriginFees.length > 0) updateData.originServices = JSON.stringify(mergeFeeLists(quotation.originServices, localOriginFees));
       }
-      if (Array.isArray(c.destination_fees) && c.destination_fees.length > 0) {
-        updateData.destinationServices = JSON.stringify(c.destination_fees);
+      if (has('destination_fees') && Array.isArray(c.destination_fees) && c.destination_fees.length > 0) {
+        updateData.destinationServices = JSON.stringify(mergeFeeLists(quotation.destinationServices, c.destination_fees));
       }
-      if (c.insurance_requested === true) {
+      if (has('insurance_requested') && c.insurance_requested === true) {
         updateData.requiresInsurance = true;
       }
-      if (c.invoice_value && c.invoice_value > 0) {
+      if (has('invoice_value') && c.invoice_value && c.invoice_value > 0) {
         updateData.commercialValue = c.invoice_value;
       }
 
-      await prisma.quotation.update({
-        where: { id: quotation.id },
-        data: updateData
-      });
+      await prisma.$transaction([
+        prisma.quotation.update({ where: { id: quotation.id }, data: updateData }),
+        prisma.agentResponseVersion.update({ where: { id: version.id }, data: {
+          attachmentNames: JSON.stringify(attachments.names), extractedData: JSON.stringify(c), confidence: c.confidence ?? null,
+          processingStatus: 'SUCCESS', processedAt: new Date(), errorMessage: null
+        } })
+      ]);
       console.log(`[Outlook] ✅ Retorno processado | Cotação: ${quotation.id} | REF: ${quotation.reference} | Camada: ${matchLayer} | Assunto: "${email.subject}"`);
+      return true;
     }
-  } catch(e) {
+    await prisma.agentResponseVersion.update({ where: { id: version.id }, data: { processingStatus: 'NO_VALUES', processedAt: new Date(), errorMessage: 'A IA não retornou custos estruturados.' } });
+    return true;
+  } catch(e: any) {
+    await prisma.agentResponseVersion.update({ where: { id: version.id }, data: { processingStatus: 'FAILED', errorMessage: String(e?.message || e).slice(0, 2000), processedAt: new Date() } }).catch(() => undefined);
     console.error(`[Outlook] ❌ Erro ao extrair custos via IA para cotação ${quotation.id}:`, e);
+    return false;
   }
 }
 
@@ -271,11 +340,13 @@ export const startOutlookWatcher = () => {
           const { quotation, matchLayer } = result;
           
           // Processar e-mail vinculado
-          await processMatchedEmail(email, quotation, matchLayer);
+          const processed = await processMatchedEmail(email, quotation, matchLayer);
           
-          // Marcar como lido somente após processamento bem-sucedido
-          await markEmailAsRead(email.id);
-          loggedUnmatchedIds.delete(email.id); // Limpar do set se estava lá
+          // Marcar como lido somente após sucesso ou triagem comprovada sem valores.
+          if (processed) {
+            await markEmailAsRead(email.id);
+            loggedUnmatchedIds.delete(email.id); // Limpar do set se estava lá
+          }
         } else {
           // E-mail não vinculado: NÃO marcar como lido (pode ser processado no próximo ciclo)
           if (!loggedUnmatchedIds.has(email.id)) {

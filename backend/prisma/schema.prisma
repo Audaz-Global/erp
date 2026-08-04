@@ -156,7 +156,36 @@ model Quotation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  agentResponses AgentResponseVersion[]
+
   @@index([carrierProfileId])
+}
+
+model AgentResponseVersion {
+  id               String    @id @default(uuid())
+  quotationId      String
+  quotation        Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  messageId        String    @unique
+  conversationId   String?
+  subject          String?
+  senderEmail      String?
+  receivedAt       DateTime?
+  matchLayer       Int?
+  latestText       String?
+  quotedHistory    String?
+  signature        String?
+  attachmentNames  String? // JSON array
+  extractedData    String? // JSON com valores e evidências retornados pela IA
+  confidence       Float?
+  processingStatus String    @default("PROCESSING") // PROCESSING, SUCCESS, NO_VALUES, FAILED
+  errorMessage     String?
+  attempts         Int       @default(0)
+  processedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([quotationId, receivedAt])
+  @@index([processingStatus])
 }
 
 model KnowledgeEntry {
