@@ -10,6 +10,11 @@ const CARRIER_CODES: Record<string, string> = {
 };
 
 const clean = (value: any) => String(value ?? '').trim();
+const uploadFileName = (value: string) => {
+  if (!/[\u00c3\u00c2]/.test(value)) return value;
+  const decoded = Buffer.from(value, 'latin1').toString('utf8');
+  return decoded.includes('\uFFFD') ? value : decoded;
+};
 const canonical = (value: any) => clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 const jsonArray = (value: string | null | undefined) => {
   try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed.map(clean).filter(Boolean) : []; }
@@ -79,7 +84,7 @@ async function upsertCatalog(nameValue: any, acronymValue?: any, descriptionValu
 
 export async function importDanielRates(req: Request, res: Response) {
   if (!req.file) return res.status(400).json({ error: 'Selecione a planilha do Daniel.' });
-  const batch = await prisma.carrierRateImportBatch.create({ data: { fileName: req.file.originalname } });
+  const batch = await prisma.carrierRateImportBatch.create({ data: { fileName: uploadFileName(req.file.originalname) } });
   const warnings: string[] = [];
   let totalRows = 0, importedRows = 0, skippedRows = 0;
   try {
