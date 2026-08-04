@@ -193,7 +193,25 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       }
       if (c.total_brl != null) updateData.totalBrl = c.total_brl;
       
-      if (c.carrier) updateData.carrier = c.carrier;
+      if (c.carrier) {
+        updateData.carrier = c.carrier;
+        const carrierName = String(c.carrier).toUpperCase();
+        const profiles = await prisma.carrierProfile.findMany({ where: { active: true } });
+        const profile = profiles.find(p => {
+          let profileAliases: string[] = [];
+          try { profileAliases = JSON.parse(p.aliases || '[]'); } catch { profileAliases = []; }
+          return [p.name, p.code, ...profileAliases].filter(Boolean).some(value => {
+            const normalized = String(value).toUpperCase();
+            return carrierName === normalized || carrierName.includes(normalized) || normalized.includes(carrierName);
+          });
+        });
+        if (profile) updateData.carrierProfileId = profile.id;
+      }
+      if (c.vessel_name) updateData.vesselName = c.vessel_name;
+      if (c.voyage_number) updateData.voyageNumber = c.voyage_number;
+      if (c.free_time_days != null) updateData.freeTimeDays = c.free_time_days;
+      if (c.rate_valid_until && !isNaN(Date.parse(c.rate_valid_until))) updateData.rateValidUntil = new Date(c.rate_valid_until);
+      if (Array.isArray(c.transshipments)) updateData.transshipments = JSON.stringify(c.transshipments);
       if (c.transit_time_days != null) updateData.transitTimeDays = c.transit_time_days;
       if (c.frequency) updateData.frequency = c.frequency;
       if (c.weight_break) updateData.weightBreak = c.weight_break;

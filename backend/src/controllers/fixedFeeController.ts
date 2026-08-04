@@ -18,11 +18,12 @@ export const getFixedFees = async (req: Request, res: Response) => {
 
 export const createFixedFee = async (req: Request, res: Response) => {
   try {
-    const { name, carrier, containerSize, type, value, currency, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, containerSize, type, value, currency, modal, active } = req.body;
     const fee = await prisma.fixedFee.create({
       data: {
         name,
         carrier,
+        carrierProfileId: carrierProfileId || null,
         containerSize,
         type,
         value: Number(value),
@@ -40,13 +41,14 @@ export const createFixedFee = async (req: Request, res: Response) => {
 export const updateFixedFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, carrier, containerSize, type, value, currency, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, containerSize, type, value, currency, modal, active } = req.body;
     
     const fee = await prisma.fixedFee.update({
       where: { id },
       data: {
         name,
         carrier,
+        carrierProfileId,
         containerSize,
         type,
         value: value !== undefined ? Number(value) : undefined,

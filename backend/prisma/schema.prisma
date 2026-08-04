@@ -101,6 +101,13 @@ model Quotation {
   freightCurrency            String?
   iofUsd                     Float?
   carrier                    String?
+  carrierProfileId           String?
+  carrierProfile             CarrierProfile? @relation(fields: [carrierProfileId], references: [id])
+  vesselName                 String?
+  voyageNumber               String?
+  freeTimeDays               Int?
+  rateValidUntil             DateTime?
+  transshipments             String? // JSON array estruturado
   destinationStorage         Float?
   destinationStorageCurrency String?
   destinationServicesTotal   Float?
@@ -109,10 +116,10 @@ model Quotation {
   destinationTaxesCurrency   String?
   originServices             String? // JSON string
   originServicesTotal        Float?
-  needsOriginInland          Boolean @default(false)
+  needsOriginInland          Boolean         @default(false)
   originInlandRoute          String?
   originInlandValue          Float?
-  originInlandCurrency       String? @default("USD")
+  originInlandCurrency       String?         @default("USD")
   originInlandTransitTime    String?
 
   totalBrl    Float?
@@ -148,6 +155,8 @@ model Quotation {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([carrierProfileId])
 }
 
 model KnowledgeEntry {
@@ -185,17 +194,53 @@ model Agent {
 }
 
 model FixedFee {
-  id            String   @id @default(uuid())
-  name          String
-  carrier       String?
-  containerSize String?
-  type          String // ORIGIN, DESTINATION
-  value         Float
-  currency      String // USD, BRL
-  modal         String // SEA_FCL, SEA_LCL, AIR, ROAD
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String          @id @default(uuid())
+  name             String
+  carrier          String?
+  containerSize    String?
+  type             String // ORIGIN, DESTINATION
+  value            Float
+  currency         String // USD, BRL
+  modal            String // SEA_FCL, SEA_LCL, AIR, ROAD
+  active           Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  carrierProfileId String?
+  carrierProfile   CarrierProfile? @relation(fields: [carrierProfileId], references: [id])
+
+  @@index([carrierProfileId])
+}
+
+model CarrierProfile {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String?
+  aliases   String? // JSON array
+  modal     String   @default("SEA")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotations Quotation[]
+  fieldRules CarrierFieldRule[]
+  fixedFees  FixedFee[]
+}
+
+model CarrierFieldRule {
+  id        String         @id @default(uuid())
+  carrierId String
+  carrier   CarrierProfile @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  modal     String         @default("ALL")
+  stage     String         @default("RETURN")
+  fieldKey  String
+  behavior  String
+  reason    String?
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([carrierId, modal, stage, fieldKey])
+  @@index([carrierId, modal, stage])
 }
 
 model StandardFee {

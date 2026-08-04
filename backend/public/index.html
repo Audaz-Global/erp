@@ -850,6 +850,10 @@
             <div class="form-group">
               <label>Cia Aérea / Armador (do Agente) <span id="conf-agent-carrier"></span></label>
               <input type="text" id="r-agent-carrier" placeholder="Ex: American Airlines">
+              <div id="r-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04);min-width:600px">
+                <div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="r-carrier-profile-name"></span></div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="r-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="r-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="r-free-time-days"></div><div class="form-group" style="margin:0"><label>Validade da tarifa</label><input type="date" id="r-rate-valid-until"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="r-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos — Porto | UN/LOCODE | ETA | ETD | Navio | Viagem | Observação</label><textarea id="r-transshipments" rows="3"></textarea></div></div>
+              </div>
             </div>
             <div class="form-group" style="grid-column: 1 / -1; margin-top:10px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
@@ -1152,6 +1156,7 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Cia Aérea / Armador</label>
           <input type="text" id="rev-carrier" placeholder="Ex: American Airlines, KLM, COSCO">
+          <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Validade da tarifa</label><input type="date" id="rev-rate-valid-until"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
         </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
@@ -1395,6 +1400,7 @@
         <li onclick="switchSettingsTab('incotermRules')">
           <span class="nav-icon">📦</span> Regras por Incoterm
         </li>
+        <li onclick="switchSettingsTab('carrierProfiles')"><span class="nav-icon">🚢</span> Regras por Armador</li>
         <li onclick="switchSettingsTab('template')">
           <span class="nav-icon">📄</span> Template PDF
           <span class="coming-soon">Em breve</span>
@@ -2300,6 +2306,13 @@ function fillReviewForm(d, mode) {
 
       document.getElementById('r-agent-carrier').value = d.costs.carrier || '';
       document.getElementById('conf-agent-carrier').innerHTML = renderConf(d.costs.carrier, d.costs.confidence);
+      document.getElementById('r-vessel-name').value = d.costs.vessel_name || '';
+      document.getElementById('r-voyage-number').value = d.costs.voyage_number || '';
+      document.getElementById('r-free-time-days').value = d.costs.free_time_days ?? '';
+      document.getElementById('r-rate-valid-until').value = /^\d{4}-\d{2}-\d{2}/.test(d.costs.rate_valid_until || '') ? d.costs.rate_valid_until.slice(0,10) : '';
+      document.getElementById('r-transshipments').value = formatTransshipments(d.costs.transshipments);
+      const carrierQuote = allQuotations.find(x => x.id === document.getElementById('pending-quotations').value);
+      applyCarrierProfile('r', d.costs.carrier, 'RETURN', carrierQuote?.modal || '', carrierQuote?.loadType || '', true);
 
       if (d.costs.origin_fees && Array.isArray(d.costs.origin_fees)) {
         const lines = d.costs.origin_fees
@@ -3080,6 +3093,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
     document.getElementById('rev-connections').value = q.connections || '';
     document.getElementById('rev-carrier').value = q.carrier || '';
+    document.getElementById('rev-vessel-name').value = q.vesselName || '';
+    document.getElementById('rev-voyage-number').value = q.voyageNumber || '';
+    document.getElementById('rev-free-time-days').value = q.freeTimeDays ?? '';
+    document.getElementById('rev-rate-valid-until').value = q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '';
+    document.getElementById('rev-contract-number').value = q.contractNumber || '';
+    document.getElementById('rev-transshipments').value = formatTransshipments(q.transshipments);
+    applyCarrierProfile('rev', q.carrier, 'FINAL', q.modal, q.loadType);
     document.getElementById('rev-origin-inland-route').value = q.originInlandRoute || '';
     document.getElementById('rev-origin-inland-value').value = q.originInlandValue ?? '';
     document.getElementById('rev-origin-inland-currency').value = q.originInlandCurrency || 'USD';
@@ -3154,6 +3174,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-origin-port').value = document.getElementById('r-agent-origin-port').value || q.originPort || '';
       document.getElementById('rev-connections').value = document.getElementById('r-agent-connections').value || q.connections || '';
       document.getElementById('rev-carrier').value = document.getElementById('r-agent-carrier').value || q.carrier || '';
+      document.getElementById('rev-vessel-name').value = document.getElementById('r-vessel-name').value || q.vesselName || '';
+      document.getElementById('rev-voyage-number').value = document.getElementById('r-voyage-number').value || q.voyageNumber || '';
+      document.getElementById('rev-free-time-days').value = document.getElementById('r-free-time-days').value || q.freeTimeDays || '';
+      document.getElementById('rev-rate-valid-until').value = document.getElementById('r-rate-valid-until').value || (q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '');
+      document.getElementById('rev-contract-number').value = document.getElementById('r-contract-number').value || q.contractNumber || '';
+      document.getElementById('rev-transshipments').value = document.getElementById('r-transshipments').value || formatTransshipments(q.transshipments);
+      applyCarrierProfile('rev', document.getElementById('rev-carrier').value, 'FINAL', q.modal, q.loadType);
       
       document.getElementById('rev-origin-services').value = document.getElementById('r-agent-origin-services').value || '';
       document.getElementById('rev-origin-inland-route').value = document.getElementById('r-agent-origin-inland-route').value || q.originInlandRoute || '';
@@ -3514,6 +3541,13 @@ async function confirmAndGeneratePDF() {
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
         carrier: document.getElementById('rev-carrier').value || null,
+        carrierProfileId: carrierControlState.rev?.id || null,
+        vesselName: document.getElementById('rev-vessel-name').value || null,
+        voyageNumber: document.getElementById('rev-voyage-number').value || null,
+        freeTimeDays: parseInt(document.getElementById('rev-free-time-days').value) || null,
+        rateValidUntil: document.getElementById('rev-rate-valid-until').value ? new Date(document.getElementById('rev-rate-valid-until').value + 'T12:00:00').toISOString() : null,
+        contractNumber: document.getElementById('rev-contract-number').value || null,
+        transshipments: JSON.stringify(parseTransshipments(document.getElementById('rev-transshipments').value)),
         ruleStage: 'FINAL',
         needsOriginInland: Boolean(originInlandRoute || !Number.isNaN(originInlandValue)),
         originInlandRoute: originInlandRoute || null,
@@ -3740,7 +3774,8 @@ function resetAgentReturnFields() {
   ['r-freight', 'r-iof', 'r-storage', 'r-services', 'r-taxes', 'r-total', 'r-transit-time',
    'r-frequency', 'r-freight-unit', 'r-agent-origin-port', 'r-agent-connections',
    'r-agent-carrier', 'r-agent-origin-services', 'r-agent-destination-services',
-   'r-agent-origin-inland-route', 'r-agent-origin-inland-value', 'r-agent-origin-inland-transit'].forEach(id => {
+   'r-agent-origin-inland-route', 'r-agent-origin-inland-value', 'r-agent-origin-inland-transit',
+   'r-vessel-name','r-voyage-number','r-free-time-days','r-rate-valid-until','r-contract-number','r-transshipments'].forEach(id => {
     const field = document.getElementById(id);
     if (field) field.value = '';
   });
@@ -3748,6 +3783,7 @@ function resetAgentReturnFields() {
   document.getElementById('r-agent-origin-inland-currency').value = 'USD';
   document.getElementById('r-weight-break').value = '';
   document.getElementById('r-customs-clearance-included').checked = false;
+  document.getElementById('r-carrier-controls').style.display = 'none';
   document.querySelectorAll('#costs-review-grid [id^="conf-"]').forEach(el => el.innerHTML = '');
 }
 
@@ -3782,6 +3818,14 @@ async function loadPendingQuotationData() {
   document.getElementById('r-agent-origin-inland-route').value = q.originInlandRoute || '';
   document.getElementById('r-agent-origin-inland-value').value = q.originInlandValue ?? '';
   document.getElementById('r-agent-origin-inland-currency').value = q.originInlandCurrency || 'USD';
+  document.getElementById('r-agent-carrier').value = q.carrier || '';
+  document.getElementById('r-vessel-name').value = q.vesselName || '';
+  document.getElementById('r-voyage-number').value = q.voyageNumber || '';
+  document.getElementById('r-free-time-days').value = q.freeTimeDays ?? '';
+  document.getElementById('r-rate-valid-until').value = q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '';
+  document.getElementById('r-contract-number').value = q.contractNumber || '';
+  document.getElementById('r-transshipments').value = formatTransshipments(q.transshipments);
+  applyCarrierProfile('r', q.carrier, 'RETURN', q.modal, q.loadType);
   document.getElementById('r-agent-origin-inland-transit').value = q.originInlandTransitTime || '';
   try {
     const modal = normalizeReturnRuleModal(q);
@@ -4065,6 +4109,11 @@ function toggleDetail(idx, rowEl) {
     `;
   }
 
+  let carrierControlGroup = '';
+  if (q.carrier && (q.vesselName || q.voyageNumber || q.freeTimeDays != null || q.rateValidUntil || q.transshipments)) {
+    carrierControlGroup = `<div class="detail-group"><h4>🚢 Controles do Armador</h4><div class="dl"><span class="dt">Armador</span><span class="dd">${q.carrier}</span></div><div class="dl"><span class="dt">Navio / Viagem</span><span class="dd">${[q.vesselName,q.voyageNumber].filter(Boolean).join(' / ')||'—'}</span></div><div class="dl"><span class="dt">Free time</span><span class="dd">${q.freeTimeDays!=null?q.freeTimeDays+' dias':'—'}</span></div><div class="dl"><span class="dt">Validade</span><span class="dd">${q.rateValidUntil?new Date(q.rateValidUntil).toLocaleDateString('pt-BR'):'—'}</span></div><div class="dl"><span class="dt">Transbordos</span><span class="dd">${formatTransshipments(q.transshipments).replace(/\n/g,'<br>')||'Direto/não informado'}</span></div></div>`;
+  }
+
   const detailTr = document.createElement('tr');
   detailTr.className = 'detail-row';
   detailTr.dataset.idx = idx;
@@ -4090,6 +4139,7 @@ function toggleDetail(idx, rowEl) {
       </div>
       ${transportGroup}
       ${originInlandGroup}
+      ${carrierControlGroup}
       <div class="detail-group">
         <h4>Custos & Valores</h4>
         <div class="dl"><span class="dt">Frete (${q.freightCurrency || 'USD'})</span><span class="dd" style="color:var(--gold); font-weight:700;">${q.freightCurrency === 'EUR' ? '€' : (q.freightCurrency === 'BRL' ? 'R$' : '$')}${q.freightValue != null ? Number(q.freightValue).toFixed(2) : '—'}</span></div>
@@ -4164,7 +4214,7 @@ function closeSettings() {
 function switchSettingsTab(tab) {
   document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
   const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','incotermRules','template','users'];
+  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','incotermRules','carrierProfiles','template','users'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 
@@ -4440,6 +4490,14 @@ function switchSettingsTab(tab) {
       loadIncotermFeeOptions();
       loadIncotermRulesTable();
       loadIncotermFieldRulesTable();
+      break;
+
+    case 'carrierProfiles':
+      content.innerHTML=`<div class="sc-title">🚢 Regras por Armador</div><p class="sc-desc">Cadastre identidades, aliases, controles operacionais e vincule taxas exclusivas já existentes.</p>
+      <div class="settings-section"><div style="display:flex;justify-content:space-between"><h3>Cadastro do Armador</h3><button class="btn btn-secondary" onclick="seedMaerskProfile()">Criar/atualizar piloto Maersk</button></div><div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px"><div class="form-group"><label>Nome</label><input id="cp-name"></div><div class="form-group"><label>Código SCAC</label><input id="cp-code"></div><div class="form-group"><label>Aliases, separados por vírgula</label><input id="cp-aliases" placeholder="MAERSK LINE, MSK, SEALAND"></div></div><input type="hidden" id="cp-id"><button class="btn btn-primary" onclick="saveCarrierProfile()">Salvar Armador</button><button class="btn btn-secondary" onclick="cancelCarrierProfileEdit()">Limpar</button><div id="carrierProfilesTable" style="margin-top:14px;overflow:auto"></div></div>
+      <div class="settings-section"><h3>Campos e Controles</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"><div class="form-group"><label>Armador</label><select id="cfr-carrier"></select></div><div class="form-group"><label>Modal</label><select id="cfr-modal"><option value="ALL">Todos</option><option value="SEA_FCL">FCL</option><option value="SEA_LCL">LCL</option></select></div><div class="form-group"><label>Etapa</label><select id="cfr-stage"><option value="RETURN">Retorno</option><option value="FINAL">Revisão final</option><option value="ALL">Todas</option></select></div><div class="form-group"><label>Campo</label><select id="cfr-field"><option value="TRANSSHIPMENTS">Transbordos</option><option value="VESSEL_VOYAGE">Navio e viagem</option><option value="FREE_TIME">Free time</option><option value="RATE_VALIDITY">Validade da tarifa</option><option value="CONTRACT_NUMBER">Contrato</option></select></div><div class="form-group"><label>Comportamento</label><select id="cfr-behavior"><option value="EDITABLE">Editável</option><option value="REQUIRED">Obrigatório</option><option value="SUGGESTED">Sugerido</option><option value="LOCKED">Bloqueado</option><option value="HIDDEN">Oculto</option><option value="NOT_APPLICABLE">Não aplicável</option></select></div><div class="form-group"><label>Justificativa</label><input id="cfr-reason"></div></div><input type="hidden" id="cfr-id"><button class="btn btn-primary" onclick="saveCarrierFieldRule()">Salvar Regra</button></div>
+      <div class="settings-section"><h3>Taxas Exclusivas</h3><p style="font-size:12px;color:var(--text-muted)">Vincule uma taxa do cadastro “Taxas Locais Parceiros” ao armador.</p><div style="display:grid;grid-template-columns:1fr 2fr auto;gap:12px;align-items:end"><div class="form-group"><label>Armador</label><select id="cpf-carrier"></select></div><div class="form-group"><label>Taxa</label><select id="cpf-fee"></select></div><button class="btn btn-primary" onclick="linkCarrierFee()">Vincular</button></div><div id="carrierRulesTable" style="margin-top:14px;overflow:auto"></div></div>`;
+      loadCarrierProfilesSettings();
       break;
 
     case 'template':
@@ -5645,6 +5703,23 @@ async function seedIncotermRules() {
 }
 
 const IFR_FIELD_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', ORIGIN_INLAND:'Inland de origem', ORIGIN_FEES:'Taxas locais de origem', INSURANCE:'Seguro', DESTINATION_FEES:'Taxas locais de destino', NATIONAL_INLAND:'Transporte nacional', CUSTOMS_CLEARANCE:'Desembaraço' };
+const CARRIER_FIELD_LABELS={TRANSSHIPMENTS:'Transbordos',VESSEL_VOYAGE:'Navio e viagem',FREE_TIME:'Free time',RATE_VALIDITY:'Validade da tarifa',CONTRACT_NUMBER:'Contrato'};
+const carrierControlState={};
+function formatTransshipments(value){let list=value;if(typeof value==='string'){try{list=JSON.parse(value)}catch{return value}}if(!Array.isArray(list))return'';return list.map(t=>[t.port,t.locode,t.eta,t.etd,t.vessel,t.voyage,t.notes].map(v=>v||'').join(' | ')).join('\n');}
+function parseTransshipments(value){return String(value||'').split('\n').map(l=>l.trim()).filter(Boolean).map(line=>{const p=line.split('|').map(v=>v.trim());return{port:p[0]||'',locode:p[1]||'',eta:p[2]||'',etd:p[3]||'',vessel:p[4]||'',voyage:p[5]||'',notes:p[6]||''};});}
+function carrierTargets(prefix){return prefix==='r'?{TRANSSHIPMENTS:['r-transshipments'],VESSEL_VOYAGE:['r-vessel-name','r-voyage-number'],FREE_TIME:['r-free-time-days'],RATE_VALIDITY:['r-rate-valid-until'],CONTRACT_NUMBER:['r-contract-number']}:{TRANSSHIPMENTS:['rev-transshipments'],VESSEL_VOYAGE:['rev-vessel-name','rev-voyage-number'],FREE_TIME:['rev-free-time-days'],RATE_VALIDITY:['rev-rate-valid-until'],CONTRACT_NUMBER:['rev-contract-number']};}
+async function applyCarrierProfile(prefix,carrierName,stage,modal,loadType,confirmChange=false){const panel=document.getElementById(prefix+'-carrier-controls');if(!panel)return null;const res=await fetch('/api/carrier-profiles/resolve?name='+encodeURIComponent(carrierName||''));const profile=res.ok?await res.json():null;if(!profile){panel.style.display='none';carrierControlState[prefix]=null;return null;}const prior=carrierControlState[prefix];if(confirmChange&&prior&&prior.id!==profile.id){const filled=Object.values(carrierTargets(prefix)).flat().some(id=>{const e=document.getElementById(id);return e&&String(e.value||'').trim()});if(filled&&!confirm(`O armador mudou de ${prior.name} para ${profile.name}. Aplicar as novas regras mantendo os valores atuais como exceção?`))return prior;}carrierControlState[prefix]=profile;panel.style.display='block';document.getElementById(prefix+'-carrier-profile-name').textContent='— '+profile.name;const targets=carrierTargets(prefix);Object.values(targets).flat().forEach(id=>{const e=document.getElementById(id);if(e){e.disabled=false;e.required=false;e.style.outline='';const b=e.closest('.form-group');if(b)b.style.display='';}});const normalized=normalizeFieldRuleModal(modal,loadType);const rules=(profile.fieldRules||[]).filter(r=>r.active!==false&&(r.modal==='ALL'||r.modal===normalized)&&(r.stage==='ALL'||r.stage===stage));rules.sort((a,b)=>((a.modal==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:2)+(b.stage==='ALL'?0:1)));const effective=new Map();rules.forEach(r=>effective.set(r.fieldKey,r));effective.forEach(rule=>(targets[rule.fieldKey]||[]).forEach(id=>{const e=document.getElementById(id);if(!e)return;const b=e.closest('.form-group');if(rule.behavior==='LOCKED')e.disabled=true;if(rule.behavior==='REQUIRED')e.required=true;if(rule.behavior==='SUGGESTED'){e.style.outline='2px solid var(--warning)';e.title=rule.reason||'Campo sugerido';}if(['HIDDEN','NOT_APPLICABLE'].includes(rule.behavior)&&b)b.style.display='none';if(rule.behavior==='NOT_APPLICABLE')e.value='';}));if(prefix==='r'&&profile.fixedFees?.length){['ORIGIN','DESTINATION'].forEach(type=>{const area=document.getElementById(type==='ORIGIN'?'r-agent-origin-services':'r-agent-destination-services');if(!area)return;const lines=profile.fixedFees.filter(f=>f.type===type&&(f.modal==='ALL'||f.modal===normalized)).map(f=>`[${profile.name}] ${f.name}: ${Number(f.value).toFixed(2)} ${f.currency}`);const current=area.value.split('\n').filter(Boolean);lines.forEach(line=>{const key=line.replace(/^\[[^\]]+\]\s*/,'').split(':')[0].toLowerCase();if(!current.some(x=>x.toLowerCase().includes(key)))current.push(line);});area.value=current.join('\n');});}return profile;}
+let carrierProfilesSettingsCache=[];
+function carrierAliasesText(p){try{return JSON.parse(p.aliases||'[]').join(', ')}catch{return p.aliases||''}}
+async function loadCarrierProfilesSettings(){const [pr,fr]=await Promise.all([fetch('/api/carrier-profiles'),fetch('/api/fixed-fees')]);carrierProfilesSettingsCache=pr.ok?await pr.json():[];const fees=fr.ok?await fr.json():[];['cfr-carrier','cpf-carrier'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=carrierProfilesSettingsCache.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('')});const feeSel=document.getElementById('cpf-fee');if(feeSel)feeSel.innerHTML=fees.map(f=>`<option value="${f.id}">${ifrEscape(f.carrier||'Geral')} — ${ifrEscape(f.name)} (${f.currency} ${Number(f.value).toFixed(2)})</option>`).join('');const table=document.getElementById('carrierProfilesTable');if(table)table.innerHTML=carrierProfilesSettingsCache.length?'<table class="k-table"><thead><tr><th>Armador</th><th>SCAC</th><th>Aliases</th><th>Taxas</th><th>Ações</th></tr></thead><tbody>'+carrierProfilesSettingsCache.map(p=>`<tr><td><strong>${ifrEscape(p.name)}</strong></td><td>${ifrEscape(p.code)||'—'}</td><td>${ifrEscape(carrierAliasesText(p))}</td><td>${p.fixedFees?.length||0}</td><td><button class="action-btn" onclick="editCarrierProfile('${p.id}')">✏️</button></td></tr>`).join('')+'</tbody></table>':'<p>Nenhum armador cadastrado.</p>';renderCarrierRulesTable();}
+function renderCarrierRulesTable(){const el=document.getElementById('carrierRulesTable');if(!el)return;const rules=carrierProfilesSettingsCache.flatMap(p=>(p.fieldRules||[]).map(r=>({...r,carrierName:p.name})));const fees=carrierProfilesSettingsCache.flatMap(p=>(p.fixedFees||[]).map(f=>({...f,carrierName:p.name})));el.innerHTML='<h4>Regras de Campos</h4>'+(rules.length?'<table class="k-table"><tbody>'+rules.map(r=>`<tr><td>${ifrEscape(r.carrierName)}</td><td>${CARRIER_FIELD_LABELS[r.fieldKey]||r.fieldKey}</td><td>${r.modal} / ${r.stage}</td><td>${IFR_BEHAVIOR_LABELS[r.behavior]||r.behavior}</td><td>${ifrEscape(r.reason)||'—'}</td><td><button class="action-btn danger" onclick="deleteCarrierRule('${r.carrierId}','${r.id}')">🗑️</button></td></tr>`).join('')+'</tbody></table>':'<p style="color:var(--text-muted)">Nenhuma regra.</p>')+'<h4 style="margin-top:16px">Taxas Vinculadas</h4>'+(fees.length?'<table class="k-table"><tbody>'+fees.map(f=>`<tr><td>${ifrEscape(f.carrierName)}</td><td>${ifrEscape(f.name)}</td><td>${f.currency} ${Number(f.value).toFixed(2)}</td><td>${f.modal}</td></tr>`).join('')+'</tbody></table>':'<p style="color:var(--text-muted)">Nenhuma taxa vinculada.</p>');}
+async function saveCarrierProfile(){const id=document.getElementById('cp-id').value,data={name:document.getElementById('cp-name').value,code:document.getElementById('cp-code').value,aliases:document.getElementById('cp-aliases').value,modal:'SEA',active:true};const res=await fetch('/api/carrier-profiles'+(id?'/'+id:''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Armador salvo!');cancelCarrierProfileEdit();loadCarrierProfilesSettings();}else toast('❌ Erro ao salvar armador.');}
+function editCarrierProfile(id){const p=carrierProfilesSettingsCache.find(x=>x.id===id);if(!p)return;document.getElementById('cp-id').value=p.id;document.getElementById('cp-name').value=p.name;document.getElementById('cp-code').value=p.code||'';document.getElementById('cp-aliases').value=carrierAliasesText(p);}
+function cancelCarrierProfileEdit(){['cp-id','cp-name','cp-code','cp-aliases'].forEach(id=>document.getElementById(id).value='');}
+async function seedMaerskProfile(){await fetch('/api/carrier-profiles/seed-maersk',{method:'POST'});toast('✅ Piloto Maersk atualizado!');loadCarrierProfilesSettings();}
+async function saveCarrierFieldRule(){const carrierId=document.getElementById('cfr-carrier').value,data={id:document.getElementById('cfr-id').value||undefined,modal:document.getElementById('cfr-modal').value,stage:document.getElementById('cfr-stage').value,fieldKey:document.getElementById('cfr-field').value,behavior:document.getElementById('cfr-behavior').value,reason:document.getElementById('cfr-reason').value};const res=await fetch(`/api/carrier-profiles/${carrierId}/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Regra salva!');loadCarrierProfilesSettings();}else{const e=await res.json();toast('❌ '+e.error);}}
+async function deleteCarrierRule(carrierId,id){if(!confirm('Excluir regra?'))return;await fetch(`/api/carrier-profiles/${carrierId}/rules/${id}`,{method:'DELETE'});loadCarrierProfilesSettings();}
+async function linkCarrierFee(){const carrierId=document.getElementById('cpf-carrier').value,feeId=document.getElementById('cpf-fee').value,p=carrierProfilesSettingsCache.find(x=>x.id===carrierId);const res=await fetch('/api/fixed-fees/'+feeId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({carrierProfileId:carrierId,carrier:p?.name})});if(res.ok){toast('✅ Taxa vinculada!');loadCarrierProfilesSettings();}else toast('❌ Erro ao vincular taxa.');}
 const IFR_BEHAVIOR_LABELS = { EDITABLE:'Editável', REQUIRED:'Obrigatório', SUGGESTED:'Sugerido', LOCKED:'Bloqueado', HIDDEN:'Oculto', NOT_APPLICABLE:'Não aplicável', RETURN_ONLY:'Somente no retorno' };
 const IFR_STAGE_LABELS = { ALL:'Todas', REQUEST:'Solicitação', RETURN:'Retorno', FINAL:'Revisão final' };
 let incotermFieldRuleCache = [];
@@ -5884,6 +5959,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true));
   });
+  const returnCarrier=document.getElementById('r-agent-carrier');
+  if(returnCarrier)returnCarrier.addEventListener('change',()=>{const q=allQuotations.find(x=>x.id===document.getElementById('pending-quotations').value);applyCarrierProfile('r',returnCarrier.value,'RETURN',q?.modal||'',q?.loadType||'',true);});
+  const finalCarrier=document.getElementById('rev-carrier');
+  if(finalCarrier)finalCarrier.addEventListener('change',()=>applyCarrierProfile('rev',finalCarrier.value,'FINAL',document.getElementById('rev-modal').value,document.getElementById('rev-load-type').value,true));
 });
 </script>
 </body>

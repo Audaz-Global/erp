@@ -5,6 +5,7 @@ import axios from 'axios';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
 import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/incotermFieldRuleService';
+import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
 
 // 1. Create a new Quotation
 export const createQuotation = async (req: Request, res: Response) => {
@@ -30,6 +31,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     // Extract non-quotation fields
     const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, ...quotationData } = req.body;
     if (ruleStage) await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase());
+    if (ruleStage) await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase());
 
     // Generate ADZ-QIS Reference if not provided
     let reference = quotationData.reference;
@@ -97,7 +99,7 @@ export const createQuotation = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
-    res.status(error instanceof IncotermFieldRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
+    res.status(error instanceof IncotermFieldRuleError || error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
   }
 };
 
@@ -152,6 +154,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     if (ruleStage) {
       const current = await prisma.quotation.findUnique({ where: { id } });
       await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
+      await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
     }
 
     const updateData: any = { ...quotationData };
@@ -199,7 +202,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     res.json(quotation);
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
-    res.status(error instanceof IncotermFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
+    res.status(error instanceof IncotermFieldRuleError || error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
   }
 };
 
@@ -711,6 +714,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <span class="meta-label">Cia Aérea / Armador</span>
         <span class="meta-value">${quotation.carrier || '—'}</span>
       </div>
+      <div class="meta-item"><span class="meta-label">Navio / Viagem</span><span class="meta-value">${[quotation.vesselName, quotation.voyageNumber].filter(Boolean).join(' / ') || '—'}</span></div>
+      <div class="meta-item"><span class="meta-label">Free time</span><span class="meta-value">${quotation.freeTimeDays != null ? quotation.freeTimeDays + ' dias' : '—'}</span></div>
       <div class="meta-item">
         <span class="meta-label">Frequência</span>
         <span class="meta-value">${quotation.frequency || 'Semanal'}</span>

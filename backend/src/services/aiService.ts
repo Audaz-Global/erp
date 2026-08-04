@@ -522,6 +522,11 @@ export const extractAgentCosts = async (
                 invoice_value: { type: 'number', description: 'Valor da mercadoria ou Invoice (em USD) citado no e-mail, se houver' },
                 insurance_requested: { type: 'boolean', description: 'Verdadeiro (true) se o e-mail solicitar cotação ou inclusão de Seguro Internacional (insurance)' },
                 carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
+                vessel_name: { type: 'string', description: 'Nome do navio informado no retorno marítimo.' },
+                voyage_number: { type: 'string', description: 'Número da viagem/voyage do navio.' },
+                free_time_days: { type: 'number', description: 'Quantidade de dias de free time informada.' },
+                rate_valid_until: { type: 'string', description: 'Data limite de validade da tarifa, preferencialmente ISO YYYY-MM-DD.' },
+                transshipments: { type: 'array', items: { type:'object', properties: { port:{type:'string'}, locode:{type:'string'}, eta:{type:'string'}, etd:{type:'string'}, vessel:{type:'string'}, voyage:{type:'string'}, notes:{type:'string'} }, required:['port'] }, description:'Lista estruturada de transbordos da rota marítima.' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem informado pelo agente (sigla IATA ou nome, ex: PEK ou Beijing)' },
                 connections: { type: 'string', description: 'Conexões ou escalas informadas pelo agente. Ex: PEK-NRT-USA-GRU. Retorne string vazia se for direto.' },
                 origin_fees: {
@@ -594,6 +599,8 @@ export const extractAgentCosts = async (
     2. **Frequência (frequency):** Identifique a frequência de saída de voos ou navios no RETORNO DO AGENTE. Se o agente indicar termos como "D26", "D2,6", "D2/6", etc. (sinalizando saídas às terças e sábados no padrão IATA, ou segundas e sextas no informal), formate o resultado final como "2x por semana (D26)" ou similar que represente de forma clara a frequência. Se o agente apenas indicar "diário", "semanal", etc., extraia esse texto. Se não for informada nenhuma frequência, retorne "Semanal".
     3. **Origem (origin_airport):** Identifique o Porto ou Aeroporto de Origem que o agente cotou no RETORNO DO AGENTE (ex: PEK, WNZ, SZX, MXP). Salve o código IATA ou o nome do aeroporto correspondente.
     4. **Conexões (connections):** Identifique as conexões ou escalas informadas pelo agente (ex: "PEK-NRT-USA-GRU" ou "via MIA" ou "via NRT"). Salve a string no campo "connections". Retorne string vazia se for direto ou não houver menção a conexões.
+       - Para modal marítimo, extraia também cada transbordo em "transshipments", separando porto, UN/LOCODE, ETA, ETD, navio e viagem quando informados.
+       - Extraia ainda vessel_name, voyage_number, free_time_days e rate_valid_until quando presentes. Não invente dados ausentes.
     5. **Inland de Origem (origin_inland) e Taxas Locais de Origem (origin_fees):**
        - Classifique Pick Up, Pickup, Collection, Pre-carriage ou coleta da fábrica até o aeroporto/porto como origin_inland. Extraia valor, moeda, rota e prazo separadamente.
        - NÃO repita o Pick Up dentro de origin_fees.
