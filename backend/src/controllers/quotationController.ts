@@ -4,6 +4,7 @@ import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
+import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/incotermFieldRuleService';
 
 // 1. Create a new Quotation
 export const createQuotation = async (req: Request, res: Response) => {
@@ -27,7 +28,8 @@ export const createQuotation = async (req: Request, res: Response) => {
     }
 
     // Extract non-quotation fields
-    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ...quotationData } = req.body;
+    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, ...quotationData } = req.body;
+    if (ruleStage) await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase());
 
     // Generate ADZ-QIS Reference if not provided
     let reference = quotationData.reference;
@@ -95,7 +97,7 @@ export const createQuotation = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
-    res.status(500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
+    res.status(error instanceof IncotermFieldRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
   }
 };
 
@@ -143,8 +145,14 @@ export const updateQuotation = async (req: Request, res: Response) => {
       clientContactEmail, 
       clientContactPhone,
       sourceEmails,
+      ruleStage,
       ...quotationData 
     } = req.body;
+
+    if (ruleStage) {
+      const current = await prisma.quotation.findUnique({ where: { id } });
+      await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
+    }
 
     const updateData: any = { ...quotationData };
     if (updateData.packages && !updateData.totalCbm) {
@@ -189,9 +197,9 @@ export const updateQuotation = async (req: Request, res: Response) => {
       include: { client: true }
     });
     res.json(quotation);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
-    res.status(500).json({ error: 'Erro ao atualizar cotação' });
+    res.status(error instanceof IncotermFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
   }
 };
 

@@ -552,7 +552,10 @@
                   <option value="EXW">EXW</option>
                   <option value="CIF">CIF</option>
                   <option value="CFR">CFR</option>
+                  <option value="CPT">CPT</option>
+                  <option value="CIP">CIP</option>
                   <option value="DAP">DAP</option>
+                  <option value="DPU">DPU</option>
                   <option value="DDP">DDP</option>
                   <option value="FCA">FCA</option>
                 </select>
@@ -1092,7 +1095,7 @@
           <label style="font-size:11px;">Incoterm</label>
           <select id="rev-incoterm">
             <option value="FOB">FOB</option><option value="EXW">EXW</option><option value="CIF">CIF</option>
-            <option value="CFR">CFR</option><option value="DAP">DAP</option><option value="DDP">DDP</option><option value="FCA">FCA</option>
+            <option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option><option value="FCA">FCA</option>
           </select>
         </div>
         <div class="form-group" style="margin:0;">
@@ -2168,6 +2171,7 @@ function fillReviewForm(d, mode) {
       if (window.updateIncotermPreview && d.route.incoterm) {
         window.updateIncotermPreview(d.route.incoterm);
       }
+      applyIncotermFieldRules(d.route.incoterm, normalizeFieldRuleModal(document.getElementById('r-type').value, document.getElementById('r-type').value), 'REQUEST', true);
       
       document.getElementById('r-origin').value = d.route.origin_city || d.route.origin || '';
       document.getElementById('conf-origin').innerHTML = renderConf(d.route.origin_city || d.route.origin, d.route.confidence);
@@ -2621,6 +2625,7 @@ async function generateDraftEmail() {
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
+      ruleStage: 'REQUEST',
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
@@ -2823,6 +2828,7 @@ async function saveAsAwaitingAgent() {
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
+      ruleStage: 'REQUEST',
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
@@ -3318,6 +3324,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-customs-clearance').checked = false;
     document.getElementById('rev-customs-value').value = '900.00';
 
+    await applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true);
     // Exibir o modal
     document.getElementById('pdfReviewOverlay').style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -3507,6 +3514,7 @@ async function confirmAndGeneratePDF() {
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
         carrier: document.getElementById('rev-carrier').value || null,
+        ruleStage: 'FINAL',
         needsOriginInland: Boolean(originInlandRoute || !Number.isNaN(originInlandValue)),
         originInlandRoute: originInlandRoute || null,
         originInlandValue: Number.isNaN(originInlandValue) ? null : originInlandValue,
@@ -3787,6 +3795,7 @@ async function loadPendingQuotationData() {
     const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
     returnIncotermRules = [...specificRules, ...complementaryRules];
     applyReturnIncotermRules(q, true);
+    applyIncotermFieldRules(incoterm, modal, 'RETURN', true);
   } catch (e) {
     console.error('Erro ao prefixar taxas do Incoterm:', e);
   }
@@ -4376,7 +4385,7 @@ function switchSettingsTab(tab) {
             <div class="form-group" style="margin:0;"><label>Incoterm</label>
               <select id="ir-incoterm">
                 <option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
-                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="DAP">DAP</option><option value="DDP">DDP</option>
+                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option>
               </select>
             </div>
             <div class="form-group" style="margin:0;"><label>Modal</label>
@@ -4397,6 +4406,23 @@ function switchSettingsTab(tab) {
           <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
         </div>
 
+        <div class="settings-section" style="margin-bottom:24px; border-color:rgba(245,166,35,.35);">
+          <h3 style="margin:0 0 6px;">Travas de Campos</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Configure o comportamento operacional. Nenhuma trava é inferida automaticamente apenas pelo nome do Incoterm.</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;">
+            <div class="form-group" style="margin:0"><label>Incoterm</label><select id="ifr-incoterm"><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
+            <div class="form-group" style="margin:0"><label>Modal</label><select id="ifr-modal"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div>
+            <div class="form-group" style="margin:0"><label>Etapa</label><select id="ifr-stage"><option value="ALL">Todas</option><option value="REQUEST">Solicitação</option><option value="RETURN">Retorno do parceiro</option><option value="FINAL">Revisão final</option></select></div>
+            <div class="form-group" style="margin:0"><label>Campo / Grupo</label><select id="ifr-field"><option value="INTERNATIONAL_FREIGHT">Frete internacional</option><option value="ORIGIN_INLAND">Inland de origem</option><option value="ORIGIN_FEES">Taxas locais de origem</option><option value="INSURANCE">Seguro</option><option value="DESTINATION_FEES">Taxas locais de destino</option><option value="NATIONAL_INLAND">Transporte nacional</option><option value="CUSTOMS_CLEARANCE">Desembaraço</option></select></div>
+            <div class="form-group" style="margin:0"><label>Comportamento</label><select id="ifr-behavior"><option value="EDITABLE">Editável</option><option value="REQUIRED">Obrigatório</option><option value="SUGGESTED">Sugerido</option><option value="LOCKED">Bloqueado</option><option value="HIDDEN">Oculto</option><option value="NOT_APPLICABLE">Não aplicável</option><option value="RETURN_ONLY">Somente no retorno</option></select></div>
+            <div class="form-group" style="margin:0"><label>Justificativa</label><input id="ifr-reason" placeholder="Motivo comercial da trava"></div>
+          </div>
+          <input type="hidden" id="ifr-id">
+          <button class="btn btn-primary" onclick="saveIncotermFieldRule()">💾 Salvar Trava</button>
+          <button class="btn btn-secondary" id="btnCancelIfr" onclick="cancelEditIfr()" style="display:none">Cancelar</button>
+          <div id="incotermFieldRulesTableContainer" style="overflow-x:auto;margin-top:16px;"></div>
+        </div>
+
         <div class="settings-section">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
             <h3 style="margin:0;">Regras Cadastradas</h3>
@@ -4404,7 +4430,7 @@ function switchSettingsTab(tab) {
               <label style="font-size:12px; color:var(--text-muted);">Filtrar Incoterm:</label>
               <select id="ir-filter" onchange="loadIncotermRulesTable()" style="padding:6px 10px; font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
                 <option value="">Todos</option><option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
-                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="DAP">DAP</option><option value="DDP">DDP</option>
+                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option>
               </select>
             </div>
           </div>
@@ -4413,6 +4439,7 @@ function switchSettingsTab(tab) {
       `;
       loadIncotermFeeOptions();
       loadIncotermRulesTable();
+      loadIncotermFieldRulesTable();
       break;
 
     case 'template':
@@ -5617,6 +5644,89 @@ async function seedIncotermRules() {
   } catch (e) { toast('❌ Erro ao popular regras.'); }
 }
 
+const IFR_FIELD_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', ORIGIN_INLAND:'Inland de origem', ORIGIN_FEES:'Taxas locais de origem', INSURANCE:'Seguro', DESTINATION_FEES:'Taxas locais de destino', NATIONAL_INLAND:'Transporte nacional', CUSTOMS_CLEARANCE:'Desembaraço' };
+const IFR_BEHAVIOR_LABELS = { EDITABLE:'Editável', REQUIRED:'Obrigatório', SUGGESTED:'Sugerido', LOCKED:'Bloqueado', HIDDEN:'Oculto', NOT_APPLICABLE:'Não aplicável', RETURN_ONLY:'Somente no retorno' };
+const IFR_STAGE_LABELS = { ALL:'Todas', REQUEST:'Solicitação', RETURN:'Retorno', FINAL:'Revisão final' };
+let incotermFieldRuleCache = [];
+
+function ifrEscape(value) {
+  return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadIncotermFieldRulesTable() {
+  const container = document.getElementById('incotermFieldRulesTableContainer');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/incoterm-field-rules');
+    const rules = await res.json();
+    incotermFieldRuleCache = Array.isArray(rules) ? rules : [];
+    if (!incotermFieldRuleCache.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">Nenhuma trava cadastrada. Os campos continuam editáveis.</p>';
+      return;
+    }
+    container.innerHTML = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Etapa</th><th>Campo</th><th>Comportamento</th><th>Justificativa</th><th>Ações</th></tr></thead><tbody>' + incotermFieldRuleCache.map(r => `<tr><td><strong style="color:var(--gold)">${ifrEscape(r.incoterm)}</strong></td><td>${ifrEscape(r.modal)}</td><td>${IFR_STAGE_LABELS[r.stage] || r.stage}</td><td>${IFR_FIELD_LABELS[r.fieldKey] || r.fieldKey}</td><td>${IFR_BEHAVIOR_LABELS[r.behavior] || r.behavior}</td><td>${ifrEscape(r.reason) || '—'}</td><td><button class="action-btn" onclick="editIncotermFieldRule('${r.id}')">✏️</button><button class="action-btn danger" onclick="deleteIncotermFieldRule('${r.id}')">🗑️</button></td></tr>`).join('') + '</tbody></table>';
+  } catch (e) {
+    container.innerHTML = '<p style="color:var(--error)">Erro ao carregar travas.</p>';
+  }
+}
+
+async function saveIncotermFieldRule() {
+  const id = document.getElementById('ifr-id').value;
+  const data = { incoterm:document.getElementById('ifr-incoterm').value, modal:document.getElementById('ifr-modal').value, stage:document.getElementById('ifr-stage').value, fieldKey:document.getElementById('ifr-field').value, behavior:document.getElementById('ifr-behavior').value, reason:document.getElementById('ifr-reason').value || null };
+  try {
+    const res = await fetch('/api/incoterm-field-rules' + (id ? '/' + id : ''), { method:id ? 'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Erro ao salvar trava.'); }
+    toast(id ? '✅ Trava atualizada!' : '✅ Trava criada!');
+    cancelEditIfr();
+    loadIncotermFieldRulesTable();
+  } catch (e) { toast('❌ ' + e.message); }
+}
+
+function editIncotermFieldRule(id) {
+  const r = incotermFieldRuleCache.find(item => item.id === id); if (!r) return;
+  document.getElementById('ifr-id').value=r.id; document.getElementById('ifr-incoterm').value=r.incoterm; document.getElementById('ifr-modal').value=r.modal; document.getElementById('ifr-stage').value=r.stage; document.getElementById('ifr-field').value=r.fieldKey; document.getElementById('ifr-behavior').value=r.behavior; document.getElementById('ifr-reason').value=r.reason || ''; document.getElementById('btnCancelIfr').style.display='';
+}
+function cancelEditIfr() { document.getElementById('ifr-id').value=''; document.getElementById('ifr-reason').value=''; document.getElementById('btnCancelIfr').style.display='none'; }
+async function deleteIncotermFieldRule(id) { if (!confirm('Excluir esta trava?')) return; const res=await fetch('/api/incoterm-field-rules/'+id,{method:'DELETE'}); if(res.ok){toast('✅ Trava excluída!');loadIncotermFieldRulesTable();}else toast('❌ Erro ao excluir trava.'); }
+
+const IFR_TARGETS = {
+  REQUEST: { ORIGIN_INLAND:['r-needs-origin-inland','r-origin-inland-route'], INSURANCE:['r-insurance'], NATIONAL_INLAND:['r-needs-transport','r-transport-route','r-trucker-email','r-trucker-send-email'] },
+  RETURN: { INTERNATIONAL_FREIGHT:['r-freight','r-freight-currency','r-freight-unit'], ORIGIN_INLAND:['r-agent-origin-inland-route','r-agent-origin-inland-value','r-agent-origin-inland-currency','r-agent-origin-inland-transit'], ORIGIN_FEES:['r-agent-origin-services'], DESTINATION_FEES:['r-agent-destination-services','r-storage','r-services','r-taxes'], CUSTOMS_CLEARANCE:['r-customs-clearance-included'] },
+  FINAL: { INTERNATIONAL_FREIGHT:['rev-freight','rev-freight-currency','rev-freight-unit'], ORIGIN_INLAND:['rev-origin-inland-route','rev-origin-inland-value','rev-origin-inland-currency','rev-origin-inland-transit'], ORIGIN_FEES:['rev-origin-services'], INSURANCE:['rev-insurance'], DESTINATION_FEES:['rev-destination-services','rev-storage','rev-services','rev-taxes'], CUSTOMS_CLEARANCE:['rev-customs-clearance'] }
+};
+
+function normalizeFieldRuleModal(modal, loadType='') { const m=String(modal||'').toUpperCase(), l=String(loadType||'').toUpperCase(); if(m==='AIR'||l.includes('AIR')) return 'AIR'; return l.includes('LCL')?'SEA_LCL':'SEA_FCL'; }
+function fieldRuleHasValue(el) { return el.type==='checkbox' ? el.checked : String(el.value||'').trim()!=='' && el.value!=='false'; }
+function clearFieldRuleValue(el) { if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; el.dispatchEvent(new Event('change',{bubbles:true})); }
+function resetFieldRuleTargets(stage) {
+  Object.values(IFR_TARGETS[stage]||{}).flat().forEach(id=>{ const el=document.getElementById(id); if(!el)return; if(el.dataset.ifrDisabled!==undefined)el.disabled=el.dataset.ifrDisabled==='true'; if(el.dataset.ifrRequired!==undefined)el.required=el.dataset.ifrRequired==='true'; el.style.outline=''; el.title=''; const box=el.closest('.form-group')||el.parentElement; if(box&&box.dataset.ifrHidden==='true'){box.style.display=box.dataset.ifrDisplay||'';delete box.dataset.ifrHidden;} });
+}
+
+async function applyIncotermFieldRules(incoterm, modal, stage, confirmRemoval=false) {
+  if(!incoterm||!stage) return [];
+  resetFieldRuleTargets(stage);
+  const res=await fetch(`/api/incoterm-field-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&stage=${encodeURIComponent(stage)}`);
+  if(!res.ok)return [];
+  const all=(await res.json()).filter(r=>r.active!==false);
+  const ranked=[...all].sort((a,b)=>((a.modal==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:2)+(b.stage==='ALL'?0:1)));
+  const effective=new Map(); ranked.forEach(r=>effective.set(r.fieldKey,r));
+  for(const rule of effective.values()) {
+    let behavior=rule.behavior; if(behavior==='RETURN_ONLY') behavior=stage==='REQUEST'?'HIDDEN':'EDITABLE';
+    const elements=(IFR_TARGETS[stage]?.[rule.fieldKey]||[]).map(id=>document.getElementById(id)).filter(Boolean);
+    if(behavior==='NOT_APPLICABLE' && elements.some(fieldRuleHasValue) && confirmRemoval && !confirm(`${IFR_FIELD_LABELS[rule.fieldKey]} possui dados preenchidos. Aplicar a trava e remover esses valores?`)) continue;
+    elements.forEach(el=>{
+      if(el.dataset.ifrDisabled===undefined)el.dataset.ifrDisabled=String(el.disabled);
+      if(el.dataset.ifrRequired===undefined)el.dataset.ifrRequired=String(el.required);
+      const box=el.closest('.form-group')||el.parentElement;
+      if(behavior==='LOCKED') el.disabled=true;
+      if(behavior==='REQUIRED') el.required=true;
+      if(behavior==='SUGGESTED'){el.style.outline='2px solid var(--warning)';el.title=rule.reason||'Preenchimento sugerido pela regra do Incoterm';}
+      if(behavior==='HIDDEN'||behavior==='NOT_APPLICABLE'){if(box){box.dataset.ifrDisplay=box.style.display||'';box.dataset.ifrHidden='true';box.style.display='none';} if(behavior==='NOT_APPLICABLE')clearFieldRuleValue(el);}
+    });
+  }
+  return [...effective.values()];
+}
+
 // Auto-aplicação de regras ao mudar o Incoterm na revisão
 window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rules-preview') {
   const preview = document.getElementById(targetId);
@@ -5737,6 +5847,18 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
   } catch (e) {
     console.error('Erro ao buscar regras de incoterm:', e);
   }
+
+  try {
+    const modal = normalizeFieldRuleModal(document.getElementById('r-type')?.value, document.getElementById('r-type')?.value);
+    const fieldStage = targetId === 'incoterm-rules-preview-panel3' ? 'RETURN' : 'REQUEST';
+    const fieldRes = await fetch(`/api/incoterm-field-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&stage=${fieldStage}`);
+    const fieldRules = fieldRes.ok ? (await fieldRes.json()).filter(r => r.active !== false && r.behavior !== 'EDITABLE') : [];
+    if (fieldRules.length) {
+      html += '<div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(245,166,35,.3)"><div style="font-weight:700;color:var(--gold);margin-bottom:6px">Travas de campos configuradas:</div>';
+      fieldRules.forEach(r => { html += `<div style="color:var(--text-muted);margin-bottom:3px">• ${IFR_FIELD_LABELS[r.fieldKey] || r.fieldKey}: <strong>${IFR_BEHAVIOR_LABELS[r.behavior] || r.behavior}</strong>${r.reason ? ' — ' + ifrEscape(r.reason) : ''}</div>`; });
+      html += '</div>';
+    }
+  } catch (e) { console.error('Erro ao buscar travas de campos:', e); }
   
   html += '</div>';
   preview.innerHTML = html;
@@ -5753,8 +5875,15 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.updateIncotermPreview) {
         window.updateIncotermPreview(this.value);
       }
+      applyIncotermFieldRules(this.value, normalizeFieldRuleModal(document.getElementById('r-type').value, document.getElementById('r-type').value), 'REQUEST', true);
     });
   }
+  const requestModal = document.getElementById('r-type');
+  if (requestModal) requestModal.addEventListener('change', () => applyIncotermFieldRules(document.getElementById('r-incoterm').value, normalizeFieldRuleModal(requestModal.value, requestModal.value), 'REQUEST', true));
+  ['rev-incoterm','rev-modal','rev-load-type'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true));
+  });
 });
 </script>
 </body>

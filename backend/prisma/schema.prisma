@@ -239,3 +239,19 @@ model IncotermRule {
 
   @@index([standardFeeId])
 }
+
+model IncotermFieldRule {
+  id        String   @id @default(uuid())
+  incoterm  String
+  modal     String
+  stage     String   @default("ALL")
+  fieldKey  String
+  behavior  String
+  reason    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([incoterm, modal, stage, fieldKey])
+  @@index([incoterm, modal, stage])
+}

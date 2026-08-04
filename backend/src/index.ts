@@ -30,6 +30,7 @@ import fixedFeeRoutes from './routes/fixedFee';
 import standardFeeRoutes from './routes/standardFee';
 import incotermRuleRoutes from './routes/incotermRule';
 import outlookRoutes from './routes/outlookRoutes';
+import incotermFieldRuleRoutes from './routes/incotermFieldRule';
 
 import knowledgeRoutes from './routes/knowledge';
 import smartcomexRoutes from './routes/smartcomex';
@@ -42,6 +43,7 @@ app.use('/api/fixed-fees', fixedFeeRoutes);
 app.use('/api/standard-fees', standardFeeRoutes);
 app.use('/api/incoterm-rules', incotermRuleRoutes);
 app.use('/api/outlook', outlookRoutes);
+app.use('/api/incoterm-field-rules', incotermFieldRuleRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);
