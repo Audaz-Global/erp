@@ -224,6 +224,100 @@ model CarrierProfile {
   quotations Quotation[]
   fieldRules CarrierFieldRule[]
   fixedFees  FixedFee[]
+  rates      CarrierRate[]
+}
+
+model ChargeCatalog {
+  id               String   @id @default(uuid())
+  standardizedName String   @unique
+  acronym          String?
+  description      String?
+  aliases          String? // JSON array com nomes e códigos observados
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  rates         CarrierRate[]
+  applicability ChargeApplicability[]
+}
+
+model ChargeApplicability {
+  id               String        @id @default(uuid())
+  chargeCatalogId  String
+  chargeCatalog    ChargeCatalog @relation(fields: [chargeCatalogId], references: [id], onDelete: Cascade)
+  incoterm         String
+  modal            String        @default("SEA_FCL")
+  operationalStage String?
+  applicability    String // YES, NO, CONDITIONAL
+  classification   String?
+  usualApplication String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@unique([chargeCatalogId, incoterm, modal])
+  @@index([incoterm, modal, applicability])
+}
+
+model CarrierRateImportBatch {
+  id           String    @id @default(uuid())
+  fileName     String
+  status       String    @default("PROCESSING") // PROCESSING, COMPLETED, FAILED
+  totalRows    Int       @default(0)
+  importedRows Int       @default(0)
+  skippedRows  Int       @default(0)
+  warningRows  Int       @default(0)
+  warnings     String? // JSON array
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  rates CarrierRate[]
+}
+
+model CarrierRate {
+  id                  String                  @id @default(uuid())
+  carrierProfileId    String
+  carrierProfile      CarrierProfile          @relation(fields: [carrierProfileId], references: [id], onDelete: Restrict)
+  chargeCatalogId     String
+  chargeCatalog       ChargeCatalog           @relation(fields: [chargeCatalogId], references: [id], onDelete: Restrict)
+  importBatchId       String?
+  importBatch         CarrierRateImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  originalCode        String?
+  originalDescription String?
+  portScope           String?
+  equipment           String?
+  currency            String
+  amount              Float
+  unitBasis           String
+  application         String?
+  modal               String                  @default("SEA_FCL")
+  type                String                  @default("DESTINATION")
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  status              String                  @default("REFERENCE") // REFERENCE, APPROVED, EXPIRED, REJECTED
+  conditional         Boolean                 @default(false)
+  active              Boolean                 @default(true)
+  sourceFingerprint   String                  @unique
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  evidences CarrierRateEvidence[]
+
+  @@index([carrierProfileId, status, active])
+  @@index([portScope, equipment, modal, type])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model CarrierRateEvidence {
+  id            String      @id @default(uuid())
+  carrierRateId String
+  carrierRate   CarrierRate @relation(fields: [carrierRateId], references: [id], onDelete: Cascade)
+  sourceRef     String
+  sourceType    String      @default("INVOICE") // INVOICE, OFFICIAL_TARIFF, OTHER
+  notes         String?
+  observedAt    DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([carrierRateId])
 }
 
 model CarrierFieldRule {
