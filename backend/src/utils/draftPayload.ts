@@ -28,9 +28,14 @@ export interface DraftPayload {
   originInlandRoute: string | null;
   transportRoute: string | null;
   originalEmailText: string;
+  clientName: string | null;
+  clientReferenceNumber: string | null;
+  agentEmailCode: string | null;
 }
 
-export function buildDraftPayload(quotation: Quotation, originalEmailText: string): DraftPayload {
+type QuotationWithClient = Quotation & { client?: { name: string } | null };
+
+export function buildDraftPayload(quotation: QuotationWithClient, originalEmailText: string): DraftPayload {
   return {
     reference: quotation.reference,
     direction: quotation.direction,
@@ -58,6 +63,9 @@ export function buildDraftPayload(quotation: Quotation, originalEmailText: strin
     needsOriginInland: quotation.needsOriginInland,
     originInlandRoute: quotation.originInlandRoute,
     transportRoute: quotation.transportRoute,
-    originalEmailText
+    originalEmailText,
+    clientName: quotation.client?.name || null,
+    clientReferenceNumber: quotation.clientReferenceNumber,
+    agentEmailCode: quotation.agentEmailCode
   };
 }

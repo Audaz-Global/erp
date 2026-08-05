@@ -3,7 +3,7 @@ import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
 import * as XLSX from 'xlsx';
-import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
+import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForPdf } from '../services/incotermRuleService';
 
 function formatSubtotals(fees: any[]): string {
@@ -1486,27 +1486,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     }
 
     // 2. Detectar quantidade e tipo de contêiner
-    let containerQty = 1;
-    let containerType = "40'";
+    const { qty: containerQty, type: containerType } = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
     const pkgsText = String(quotationData.packages || '');
-    
-    // Tenta primeiro termos completos e explícitos
-    let qtyMatch = pkgsText.match(/(\d+)\s*(?:container|cntr|conteiner|unidades)/i);
-    if (!qtyMatch) {
-      // Se não achar, tenta com 'x', mas exigindo que o 'x' não seja parte de um decimal (ex: 5.64x)
-      // Usamos (?:^|\s)(\d+)\s*x para garantir que haja um espaço ou início de linha antes do número
-      qtyMatch = pkgsText.match(/(?:^|\s)(\d+)\s*x/i);
-    }
-
-    if (qtyMatch && qtyMatch[1]) {
-      containerQty = parseInt(qtyMatch[1], 10);
-    } else if (quotationData.totalPackages && quotationData.totalPackages > 1 && String(quotationData.loadType).startsWith('FCL')) {
-      containerQty = quotationData.totalPackages;
-    }
-
-    if (pkgsText.includes("20'") || pkgsText.includes("20 feet") || String(quotationData.loadType).includes('20')) {
-      containerType = "20'";
-    }
 
     // 3. Ler planilha do Excel e gerar as taxas detalhadas se for FCL IMPORT
     let detailedFees: any[] = [];

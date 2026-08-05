@@ -36,6 +36,8 @@ import carrierRateRoutes from './routes/carrierRate';
 
 import knowledgeRoutes from './routes/knowledge';
 import smartcomexRoutes from './routes/smartcomex';
+import agentDraftEmailSettingsRoutes from './routes/agentDraftEmailSettings';
+import draftEmailFieldRuleRoutes from './routes/draftEmailFieldRule';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/extract', extractRoutes);
@@ -48,6 +50,8 @@ app.use('/api/outlook', outlookRoutes);
 app.use('/api/incoterm-field-rules', incotermFieldRuleRoutes);
 app.use('/api/carrier-profiles', carrierProfileRoutes);
 app.use('/api/carrier-rates', carrierRateRoutes);
+app.use('/api/agent-draft-email-settings', agentDraftEmailSettingsRoutes);
+app.use('/api/draft-email-field-rules', draftEmailFieldRuleRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);

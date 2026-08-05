@@ -48,6 +48,9 @@ model Quotation {
   agentEmail              String?
   agentName               String?
   draftEmail              String? // Rascunho do email para o agente
+  draftEmailSubject       String? // Assunto gerado/traduzido do e-mail ao agente
+  clientReferenceNumber   String? // Referência/PO do próprio cliente (extraído por IA ou manual)
+  agentEmailCode          String? // Código gerado 1x: iniciais do operador + data + hora (ex: GDS-050826-1555)
   sentAt                  DateTime? // Horário do envio pelo Outlook
   sentEmailConversationId String? // conversationId do MS Graph para tracking de thread
   agentResponseRaw        String? // Corpo do e-mail de retorno do agente (para auditoria)
@@ -422,4 +425,24 @@ model IncotermFieldRule {
 
   @@unique([incoterm, modal, stage, fieldKey])
   @@index([incoterm, modal, stage])
+}
+
+model AgentDraftEmailSettings {
+  id              String   @id @default(uuid())
+  subjectTemplate String   @default("{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model DraftEmailFieldRule {
+  id         String   @id @default(uuid())
+  modal      String   @default("ALL") // SEA, AIR, ALL
+  direction  String   @default("ALL") // IMPORT, EXPORT, ALL
+  fieldLabel String
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([modal, direction])
 }

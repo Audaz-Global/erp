@@ -782,6 +782,10 @@
               <label>Referência de Cotação (opcional)</label>
               <input type="text" id="r-reference" placeholder="Ex: W08 (20/02)">
             </div>
+            <div class="form-group">
+              <label>Referência do Cliente (PO/Ref) <span id="conf-client-reference"></span></label>
+              <input type="text" id="r-client-reference" placeholder="Ex: PO-12345">
+            </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div class="form-group">
                 <label>Nome do Contato <span id="conf-client-contact"></span></label>
@@ -961,6 +965,16 @@
             <input type="email" id="r-trucker-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)" style="margin: 0;">
           </div>
         </div>
+      </div>
+
+      <div class="form-group" style="max-width: 220px;">
+        <label>Suas Iniciais (Código da Cotação)</label>
+        <input type="text" id="r-operator-initials" maxlength="4" placeholder="Ex: GDS" style="text-transform: uppercase;">
+      </div>
+
+      <div class="form-group">
+        <label>Assunto do E-mail</label>
+        <input type="text" id="r-draft-subject" placeholder="O assunto aparecerá aqui...">
       </div>
 
       <div class="form-group">
@@ -1653,6 +1667,9 @@
         </li>
         <li onclick="switchSettingsTab('incotermRules')">
           <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-package"></use></svg></span> Regras por Incoterm
+        </li>
+        <li onclick="switchSettingsTab('agentDraftEmail')">
+          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-file"></use></svg></span> E-mail para Parceiros
         </li>
         <li onclick="switchSettingsTab('carrierProfiles')"><span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-ship"></use></svg></span> Regras por Armador</li>
         <li onclick="switchSettingsTab('carrierRates')"><span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-database"></use></svg></span> Base de Tarifas</li>
@@ -2425,6 +2442,8 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-client-contact').innerHTML = renderConf(d.client.contact_name || d.client.contactName, d.client.confidence);
       document.getElementById('r-client-phone').value = d.client.contact_phone || d.client.contactPhone || '';
       document.getElementById('conf-client-phone').innerHTML = renderConf(d.client.contact_phone || d.client.contactPhone, d.client.confidence);
+      document.getElementById('r-client-reference').value = d.client.reference || '';
+      document.getElementById('conf-client-reference').innerHTML = renderConf(d.client.reference, d.client.confidence);
     }
     if(d.route) {
       document.getElementById('r-incoterm').value = d.route.incoterm || '';
@@ -2891,6 +2910,7 @@ async function generateDraftEmail() {
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
+      clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
       ruleStage: 'REQUEST',
@@ -2922,16 +2942,20 @@ async function generateDraftEmail() {
     const selectedOption = selectEl.options[selectEl.selectedIndex];
     const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
 
-    const resDraft = await fetch(API + `/extract/draft/${currentQuotationId}`, { 
+    const operatorInitials = document.getElementById('r-operator-initials').value.trim();
+
+    const resDraft = await fetch(API + `/extract/draft/${currentQuotationId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        contactName 
+      body: JSON.stringify({
+        contactName,
+        operatorInitials
       })
     });
     const draftData = await readApiJson(resDraft, 'A geração do rascunho');
-    
+
     document.getElementById('r-draft-text').value = draftData.draft || '';
+    document.getElementById('r-draft-subject').value = draftData.draftSubject || '';
     if (draftData.truckerDraft) {
       document.getElementById('r-trucker-draft-text').value = draftData.truckerDraft;
     } else {
@@ -2947,25 +2971,42 @@ async function generateDraftEmail() {
 async function translateDraft() {
   const btn = document.getElementById('translate-btn');
   const text = document.getElementById('r-draft-text').value;
+  const subjectText = document.getElementById('r-draft-subject').value;
   if (!text) return alert('Gere o rascunho primeiro.');
-  
+
   const targetLanguage = document.getElementById('r-translate-language').value;
   const originCountry = document.getElementById('r-origin-country').value;
-  
+
   const oldText = btn.innerHTML;
   btn.innerHTML = 'Traduzindo... ⏳';
   btn.disabled = true;
 
   try {
-    const res = await fetch(API + '/extract/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, targetLanguage, originCountry })
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    
-    document.getElementById('r-draft-text').value = data.translatedText || '';
+    const requests = [
+      fetch(API + '/extract/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, targetLanguage, originCountry })
+      })
+    ];
+    if (subjectText) {
+      requests.push(fetch(API + '/extract/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: subjectText, targetLanguage, originCountry })
+      }));
+    }
+    const [bodyRes, subjectRes] = await Promise.all(requests);
+    const bodyData = await bodyRes.json();
+    if (bodyData.error) throw new Error(bodyData.error);
+    document.getElementById('r-draft-text').value = bodyData.translatedText || '';
+
+    if (subjectRes) {
+      const subjectData = await subjectRes.json();
+      if (!subjectData.error) {
+        document.getElementById('r-draft-subject').value = subjectData.translatedText || '';
+      }
+    }
     toast('✅ Tradução concluída!');
   } catch(e) {
     alert('Erro ao traduzir: ' + e.message);
@@ -3026,6 +3067,8 @@ async function sendOutlookEmail() {
       truckerCcEmail = document.getElementById('r-trucker-cc-email').value.trim();
     }
 
+    const draftSubject = document.getElementById('r-draft-subject').value.trim();
+
     const res = await fetch(API + '/outlook/send-draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3033,6 +3076,7 @@ async function sendOutlookEmail() {
         quotationId: currentQuotationId,
         agentEmail: agentEmail,
         agentName: finalAgentName,
+        subject: draftSubject || undefined,
         htmlBody: draftText,
         ccEmail: ccEmail || null,
         needsTransport,
@@ -3094,6 +3138,7 @@ async function saveAsAwaitingAgent() {
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
+      clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
       ruleStage: 'REQUEST',
@@ -4473,7 +4518,7 @@ function closeSettings() {
 function switchSettingsTab(tab) {
   document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
   const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','incotermRules','carrierProfiles','carrierRates','template','users'];
+  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','incotermRules','agentDraftEmail','carrierProfiles','carrierRates','template','users'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 
@@ -4749,6 +4794,50 @@ function switchSettingsTab(tab) {
       loadIncotermFeeOptions();
       loadIncotermRulesTable();
       loadIncotermFieldRulesTable();
+      break;
+
+    case 'agentDraftEmail':
+      content.innerHTML = `
+        <div class="sc-title">✉️ E-mail para Parceiros (Solicitar Cotação)</div>
+        <p class="sc-desc">Configure o assunto padrão e os itens que a IA deve sempre garantir no corpo do e-mail enviado a agentes/coloaders internacionais.</p>
+
+        <div class="settings-section" style="margin-bottom: 24px;">
+          <h3 style="margin:0 0 6px;">Assunto Padrão</h3>
+          <div class="form-group">
+            <label>Template do Assunto</label>
+            <input type="text" id="ades-subject" placeholder="{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}">
+            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Tokens disponíveis: {quotationCode}, {direction}, {modal}, {incoterm}, {origin}, {destination}, {client}, {clientReference}</p>
+          </div>
+          <button class="btn btn-primary" onclick="saveAgentDraftEmailSettings()">💾 Salvar Assunto</button>
+        </div>
+
+        <div class="settings-section">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">Itens Obrigatórios no E-mail (por Modal/Direção)</h3>
+            <button class="btn btn-secondary" onclick="seedDraftEmailFieldRules()" style="padding: 8px 12px; font-size: 12px;">🌱 Carregar Padrões</button>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin:0;"><label>Modal</label>
+              <select id="defr-modal">
+                <option value="ALL">Todos</option><option value="SEA">Marítimo (SEA)</option><option value="AIR">Aéreo (AIR)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Direção</label>
+              <select id="defr-direction">
+                <option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Item / Rótulo</label><input type="text" id="defr-label" placeholder="Ex: Dimensões e Peso"></div>
+            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="defr-sortOrder" value="0" placeholder="0"></div>
+          </div>
+          <input type="hidden" id="defr-id">
+          <button class="btn btn-primary" id="btnSaveDefr" onclick="saveDraftEmailFieldRule()">💾 Salvar Item</button>
+          <button class="btn btn-secondary" id="btnCancelDefr" onclick="cancelEditDefr()" style="display:none;">Cancelar Edição</button>
+          <div id="draftEmailFieldRulesTableContainer" style="overflow-x:auto;margin-top:16px;"></div>
+        </div>
+      `;
+      loadAgentDraftEmailSettings();
+      loadDraftEmailFieldRulesTable();
       break;
 
     case 'carrierProfiles':
@@ -5967,6 +6056,137 @@ async function seedIncotermRules() {
     toast('✅ ' + data.message);
     loadIncotermRulesTable();
   } catch (e) { toast('❌ Erro ao popular regras.'); }
+}
+
+async function loadAgentDraftEmailSettings() {
+  try {
+    const res = await fetch(API + '/agent-draft-email-settings');
+    const data = await res.json();
+    document.getElementById('ades-subject').value = data.subjectTemplate || '';
+  } catch (e) { toast('❌ Erro ao carregar configurações de e-mail.'); }
+}
+
+async function saveAgentDraftEmailSettings() {
+  const subjectTemplate = document.getElementById('ades-subject').value;
+  try {
+    const res = await fetch(API + '/agent-draft-email-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subjectTemplate })
+    });
+    if (!res.ok) throw new Error('Falha ao salvar.');
+    toast('✅ Assunto padrão salvo!');
+  } catch (e) { toast('❌ ' + e.message); }
+}
+
+const DEFR_MODAL_LABELS = { ALL: 'Todos', SEA: 'Marítimo (SEA)', AIR: 'Aéreo (AIR)' };
+const DEFR_DIRECTION_LABELS = { ALL: 'Todas', IMPORT: 'Importação', EXPORT: 'Exportação' };
+
+async function loadDraftEmailFieldRulesTable() {
+  try {
+    const res = await fetch(API + '/draft-email-field-rules');
+    const rules = await res.json();
+    const container = document.getElementById('draftEmailFieldRulesTableContainer');
+    if (!container) return;
+    if (!rules.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhum item cadastrado. Clique em "Carregar Padrões" para começar.</p>';
+      return;
+    }
+    let html = '<table class="k-table"><thead><tr><th>Modal</th><th>Direção</th><th>Item</th><th>Ordem</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
+    for (const r of rules) {
+      html += `<tr>
+        <td>${DEFR_MODAL_LABELS[r.modal] || r.modal}</td>
+        <td>${DEFR_DIRECTION_LABELS[r.direction] || r.direction}</td>
+        <td>${r.fieldLabel}</td>
+        <td>${r.sortOrder}</td>
+        <td>${r.active ? 'Sim' : 'Não'}</td>
+        <td style="white-space:nowrap;">
+          <button class="action-btn" onclick="editDraftEmailFieldRule('${r.id}')" title="Editar">✏️</button>
+          <button onclick="deleteDraftEmailFieldRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;" title="Excluir">🗑️</button>
+        </td></tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('Erro ao carregar itens obrigatórios do e-mail:', e);
+  }
+}
+
+async function saveDraftEmailFieldRule() {
+  const id = document.getElementById('defr-id').value;
+  const data = {
+    modal: document.getElementById('defr-modal').value,
+    direction: document.getElementById('defr-direction').value,
+    fieldLabel: document.getElementById('defr-label').value.trim(),
+    sortOrder: parseInt(document.getElementById('defr-sortOrder').value) || 0
+  };
+  if (!data.fieldLabel) {
+    toast('Informe o rótulo do item.');
+    return;
+  }
+  try {
+    let res;
+    if (id) {
+      res = await fetch(`${API}/draft-email-field-rules/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    } else {
+      res = await fetch(`${API}/draft-email-field-rules`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    }
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || 'Erro ao salvar item.');
+    }
+    toast(id ? '✅ Item atualizado!' : '✅ Item criado!');
+    cancelEditDefr();
+    loadDraftEmailFieldRulesTable();
+  } catch (e) {
+    toast('❌ ' + e.message);
+  }
+}
+
+async function editDraftEmailFieldRule(id) {
+  try {
+    const res = await fetch(API + '/draft-email-field-rules');
+    const rules = await res.json();
+    const rule = rules.find(r => r.id === id);
+    if (!rule) return;
+    document.getElementById('defr-id').value = rule.id;
+    document.getElementById('defr-modal').value = rule.modal;
+    document.getElementById('defr-direction').value = rule.direction;
+    document.getElementById('defr-label').value = rule.fieldLabel;
+    document.getElementById('defr-sortOrder').value = rule.sortOrder || 0;
+    document.getElementById('btnSaveDefr').innerText = '💾 Atualizar Item';
+    document.getElementById('btnCancelDefr').style.display = '';
+    document.getElementById('defr-label').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) { toast('❌ Erro ao carregar item.'); }
+}
+
+function cancelEditDefr() {
+  document.getElementById('defr-id').value = '';
+  document.getElementById('defr-modal').value = 'ALL';
+  document.getElementById('defr-direction').value = 'ALL';
+  document.getElementById('defr-label').value = '';
+  document.getElementById('defr-sortOrder').value = '0';
+  document.getElementById('btnSaveDefr').innerText = '💾 Salvar Item';
+  document.getElementById('btnCancelDefr').style.display = 'none';
+}
+
+async function deleteDraftEmailFieldRule(id) {
+  if (!confirm('Excluir este item?')) return;
+  try {
+    await fetch(`${API}/draft-email-field-rules/${id}`, { method: 'DELETE' });
+    toast('✅ Item excluído!');
+    loadDraftEmailFieldRulesTable();
+  } catch (e) { toast('❌ Erro ao excluir.'); }
+}
+
+async function seedDraftEmailFieldRules() {
+  if (!confirm('Carregar itens padrão? (só funciona se ainda não houver nenhum item cadastrado)')) return;
+  try {
+    const res = await fetch(API + '/draft-email-field-rules/seed', { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao carregar padrões.');
+    toast('✅ Itens padrão carregados!');
+    loadDraftEmailFieldRulesTable();
+  } catch (e) { toast('❌ ' + e.message); }
 }
 
 const IFR_FIELD_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', ORIGIN_INLAND:'Inland de origem', ORIGIN_FEES:'Taxas locais de origem', INSURANCE:'Seguro', DESTINATION_FEES:'Taxas locais de destino', NATIONAL_INLAND:'Transporte nacional', CUSTOMS_CLEARANCE:'Desembaraço' };

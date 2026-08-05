@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as XLSX from 'xlsx';
-import { parsePackages } from '../utils/cargoUtils';
+import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -229,6 +229,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 cnpj: { type: 'string' },
                 contact_name: { type: 'string', description: 'Nome do contato do cliente' },
                 contact_phone: { type: 'string', description: 'Telefone do contato do cliente' },
+                reference: { type: 'string', description: 'Referência/número de PO/pedido que o PRÓPRIO CLIENTE usa para identificar este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order"). Não confundir com a referência interna da Audaz.' },
                 confidence: { type: 'number' }
               },
               required: ['name']
@@ -308,6 +309,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
     DOCUMENTO(S) / SOLICITAÇÃO:
     ${safeSourceText}
 
+    - **Referência do Cliente (client.reference)**: Identifique se o cliente menciona uma referência/PO/número de pedido PRÓPRIO dele para este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order", "PO#"). Essa é diferente de qualquer referência interna da Audaz. Se não houver, retorne string vazia.
+
     Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
     - **Incoterm — PRIORIDADE CRÍTICA**: Identifique e extraia OBRIGATORIAMENTE o Incoterm (ex: EXW, FCA, FOB, CIF, DAP, etc) de qualquer lugar dos documentos, seja do texto corrido do e-mail, de imagens coladas, de tabelas de informações básicas, Invoices ou formulários anexados (ex: "FCA Planta do Fornecedor"). Se as palavras FCA, EXW, FOB ou similar aparecerem, capture-as imediatamente.
     - **Incoterm — Regra geral**: Analise se há um endereço de coleta detalhado (fábrica/fornecedor) no exterior. Em caso afirmativo (especialmente se o modal for Aéreo), defina o Incoterm como **EXW** ou **FCA** — nunca use "FOB" genérico de planilha de valor comercial.
@@ -373,6 +376,9 @@ export const extractClientData = async (text: string, contextRules: string = '',
 };
 
 export function buildAgentDraftDataContext(data: DraftPayload): string {
+  const isSeaFcl = data.modal === 'SEA' && String(data.loadType).startsWith('FCL');
+  const containerInfo = isSeaFcl ? extractContainerInfo(data.packages, data.totalPackages, data.loadType) : null;
+
   return `- Origem (Porto/Aeroporto): ${data.originPort || data.originCity || 'TBD'}
     - Destino (Porto/Aeroporto): ${data.destinationPort || data.destinationCity || 'TBD'}
     - Local Inicial (Coleta): ${data.originCity || 'TBD'}
@@ -385,6 +391,7 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - Rota do Inland de Origem: ${data.needsOriginInland ? (data.originInlandRoute || 'A confirmar') : 'Não aplicável'}
     - Modal: ${data.modal === 'AIR' ? 'Aéreo (AIR)' : data.modal === 'SEA' ? 'Marítimo (SEA)' : data.modal || 'TBD'}
     - Modal/Tipo: ${data.loadType || 'TBD'}
+    ${containerInfo ? `- Quantidade/Tipo de Container: ${containerInfo.qty}x ${containerInfo.type}` : ''}
     - Peso Bruto: ${data.totalGrossWeightKg || 'TBD'} kg
     - Peso Líquido: ${data.totalNetWeightKg || 'Não informado'} kg
     - Volumes: ${data.totalPackages || 'TBD'}
@@ -413,7 +420,7 @@ export function buildTruckerDraftDataContext(data: DraftPayload): string {
     ${data.reference ? `- Referência do Processo: ${data.reference}` : ''}`;
 }
 
-export const generateAgentDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string) => {
+export const generateAgentDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string, requiredFieldLabels: string[] = []) => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezado(a) Agente,`;
@@ -447,7 +454,9 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
     9. **Conexões**: Se houver conexões do voo ou do porto especificadas nos DADOS EXTRAÍDOS DA CARGA (diferente de "Sem conexões"), mencione-as de forma clara no e-mail (ex: "via MIA" ou "com transbordo em Algeciras") para que o coloader/agente faça a cotação exatamente na rota solicitada.
     10. **Remoção de Telefones e Contatos da Assinatura**: Ao assinar o e-mail (ou finalizar o corpo do e-mail), **NUNCA** inclua informações de contato pessoal extraídas do e-mail do cliente (como nomes de pessoas de contato, ex: "Magda", "Talitha", etc., endereços de e-mail específicos, números de telefone comercial, ramal ou telefones celulares). A assinatura do e-mail deve ser estritamente genérica e neutra (ex: apenas "Atenciosamente," ou "Best regards,"), sem listar quaisquer nomes, telefones ou e-mails adicionais.
-    
+    11. **Itens obrigatórios no e-mail**: Garanta que o e-mail mencione claramente, ou solicite explicitamente ao agente, cada um dos itens a seguir (informe se já for um dado conhecido, ou peça ao agente se for algo a cotar):
+    ${requiredFieldLabels.length ? requiredFieldLabels.map(l => `- ${l}`).join('\n    ') : 'Nenhum item adicional configurado.'}
+
     Retorne APENAS o corpo do e-mail.`;
 
     const result = await model.generateContent(prompt);

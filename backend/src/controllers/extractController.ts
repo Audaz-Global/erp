@@ -3,6 +3,19 @@ import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../
 import { extractClientData, extractAgentCosts, generateAgentDraft, generateTruckerDraft, readLocalFeesTable } from '../services/aiService';
 import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
+import { renderDraftSubject } from '../utils/emailTemplate';
+import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService';
+
+const SINGLETON_ID = 'default';
+const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
+
+function buildQuotationCode(initials: string): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const datePart = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${String(now.getFullYear()).slice(-2)}`;
+  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${initials.toUpperCase()}-${datePart}-${timePart}`;
+}
 
 export const extractData = async (req: Request, res: Response) => {
   try {
@@ -169,10 +182,20 @@ export const extractData = async (req: Request, res: Response) => {
 export const generateDraft = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { contactName } = req.body || {};
-    
-    const quotation = await prisma.quotation.findUnique({ where: { id } });
+    const { contactName, operatorInitials } = req.body || {};
+
+    const quotation = await prisma.quotation.findUnique({ where: { id }, include: { client: true } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
+
+    // Gera o Código da Cotação (iniciais do operador + data + hora) uma única vez
+    let agentEmailCode = quotation.agentEmailCode;
+    if (!agentEmailCode) {
+      const initials = String(operatorInitials || '').trim();
+      if (!/^[A-Za-z]{2,4}$/.test(initials)) {
+        return res.status(400).json({ error: 'Informe as iniciais do operador (2 a 4 letras) para gerar o Código da Cotação.' });
+      }
+      agentEmailCode = buildQuotationCode(initials);
+    }
 
     // Buscar regras de conhecimento ativas do banco de dados
     let contextRules = '';
@@ -199,10 +222,28 @@ export const generateDraft = async (req: Request, res: Response) => {
     }
 
     // Um único formato tipado alimenta os rascunhos do agente e da transportadora.
-    const payload = buildDraftPayload(quotation, originalEmailText);
+    const payload = buildDraftPayload({ ...quotation, agentEmailCode }, originalEmailText);
 
-    const draftText = await generateAgentDraft(payload, contextRules, contactName);
-    
+    const requiredFieldLabels = await getDraftEmailFieldLabels(quotation.modal, quotation.direction);
+
+    const draftText = await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
+
+    const emailSettings = await prisma.agentDraftEmailSettings.upsert({
+      where: { id: SINGLETON_ID },
+      update: {},
+      create: { id: SINGLETON_ID, subjectTemplate: DEFAULT_SUBJECT_TEMPLATE }
+    });
+    const draftSubject = renderDraftSubject(emailSettings.subjectTemplate, {
+      quotationCode: agentEmailCode,
+      direction: quotation.direction === 'EXPORT' ? 'EXP' : 'IMP',
+      modal: payload.modal || '',
+      incoterm: payload.incoterm || '',
+      origin: payload.originPort || payload.originCity || '',
+      destination: payload.destinationPort || payload.destinationCity || '',
+      client: payload.clientName || '',
+      clientReference: payload.clientReferenceNumber || ''
+    });
+
     let truckerDraftText = null;
     if (quotation.needsTransport) {
       try {
@@ -212,17 +253,19 @@ export const generateDraft = async (req: Request, res: Response) => {
         console.error('Erro ao gerar rascunho de transportadora:', err);
       }
     }
-    
+
     // Atualizar no banco
     const updated = await prisma.quotation.update({
       where: { id },
-      data: { 
+      data: {
         draftEmail: draftText,
-        truckerDraftEmail: truckerDraftText
+        draftEmailSubject: draftSubject,
+        truckerDraftEmail: truckerDraftText,
+        agentEmailCode
       }
     });
 
-    res.json({ draft: draftText, truckerDraft: truckerDraftText, quotation: updated });
+    res.json({ draft: draftText, draftSubject, truckerDraft: truckerDraftText, quotation: updated });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

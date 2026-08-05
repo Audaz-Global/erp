@@ -162,6 +162,40 @@ export function calculateCbmFromDimensions(dimensionsStr: string, packagesCount:
     const vol = (pkg.length / 100) * (pkg.width / 100) * (pkg.height / 100) * pkg.qty;
     totalCbm += vol;
   }
-  
+
   return parseFloat(totalCbm.toFixed(3));
+}
+
+export interface ContainerInfo {
+  qty: number;
+  type: string; // "20'" | "40'"
+}
+
+/**
+ * Detecta quantidade e tipo de contêiner a partir do texto de embalagens/pacotes
+ */
+export function extractContainerInfo(packagesStr: string | null | undefined, totalPackages: number | null | undefined, loadType: string | null | undefined): ContainerInfo {
+  let containerQty = 1;
+  let containerType = "40'";
+  const pkgsText = String(packagesStr || '');
+
+  // Tenta primeiro termos completos e explícitos
+  let qtyMatch = pkgsText.match(/(\d+)\s*(?:container|cntr|conteiner|unidades)/i);
+  if (!qtyMatch) {
+    // Se não achar, tenta com 'x', mas exigindo que o 'x' não seja parte de um decimal (ex: 5.64x)
+    // Usamos (?:^|\s)(\d+)\s*x para garantir que haja um espaço ou início de linha antes do número
+    qtyMatch = pkgsText.match(/(?:^|\s)(\d+)\s*x/i);
+  }
+
+  if (qtyMatch && qtyMatch[1]) {
+    containerQty = parseInt(qtyMatch[1], 10);
+  } else if (totalPackages && totalPackages > 1 && String(loadType).startsWith('FCL')) {
+    containerQty = totalPackages;
+  }
+
+  if (pkgsText.includes("20'") || pkgsText.includes('20 feet') || String(loadType).includes('20')) {
+    containerType = "20'";
+  }
+
+  return { qty: containerQty, type: containerType };
 }
