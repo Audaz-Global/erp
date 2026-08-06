@@ -6,6 +6,12 @@ import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForPdf } from '../services/incotermRuleService';
 
+function safeToFixed(num: any, digits: number = 2): string {
+  const n = parseFloat(num);
+  if (isNaN(n) || !isFinite(n)) return (0).toFixed(digits);
+  return n.toFixed(digits);
+}
+
 function formatSubtotals(fees: any[]): string {
   if (!fees || !Array.isArray(fees)) return '';
   const totalsByCurrency: Record<string, number> = {};
@@ -32,7 +38,7 @@ function formatSubtotals(fees: any[]): string {
   if (keys.length === 0) return '';
   return keys.map(curr => {
     const val = totalsByCurrency[curr] || 0;
-    return `${curr} ${val.toFixed(2)}`;
+    return `${curr} ${safeToFixed(val, 2)}`;
   }).join('<br>');
 }
 
@@ -1639,6 +1645,35 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       else sumOrigemUsd += inlandValue;
     }
 
+    // Fazer parse universal de destinationServices (incluindo Spread / Profit)
+    if (quotationData.destinationServices) {
+      try {
+        const parsed = JSON.parse(quotationData.destinationServices);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingNames = new Set(detailedFees.map(f => String(f.name || '').toLowerCase().trim()));
+          parsed.forEach(f => {
+            const nameLower = String(f.name || '').toLowerCase().trim();
+            if (!existingNames.has(nameLower)) {
+              const val = parseFloat(f.value) || 0;
+              const curr = (f.currency || 'USD').toUpperCase();
+              detailedFees.push({
+                name: f.name || 'Taxa de Destino',
+                qty: 1,
+                unit: 'Fixo',
+                valueUnit: safeToFixed(val, 2),
+                currency: curr,
+                total: `${curr} ${safeToFixed(val, 2)}`
+              });
+              existingNames.add(nameLower);
+              hasDetailedFees = true;
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao fazer parse de destinationServices no PDF:', err);
+      }
+    }
+
     // Serviços no Destino
     let sumDestinoBrl = 0;
     let sumDestinoUsd = 0;
@@ -1764,20 +1799,21 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       }
       if (taxavel <= 0) taxavel = 1;
       
-      freightQtyRich = taxavel.toFixed(2).replace('.', ',') + ' kg';
+      freightQtyRich = safeToFixed(taxavel, 2).replace('.', ',') + ' kg';
       freightCalculationType = 'Por kg';
-      freightUnitValueRich = (fV / taxavel).toFixed(2).replace('.', ',');
+      freightUnitValueRich = safeToFixed(taxavel > 0 ? fV / taxavel : 0, 2).replace('.', ',');
     } else if (isLcl) {
       let taxavel = totalCbm;
       if (taxavel <= 0) taxavel = 1;
       
-      freightQtyRich = taxavel.toFixed(3).replace('.', ',') + ' M³';
+      freightQtyRich = safeToFixed(taxavel, 3).replace('.', ',') + ' M³';
       freightCalculationType = 'Por t/m3';
-      freightUnitValueRich = (fV / taxavel).toFixed(2).replace('.', ',');
+      freightUnitValueRich = safeToFixed(taxavel > 0 ? fV / taxavel : 0, 2).replace('.', ',');
     } else {
-      freightQtyRich = String(containerQty);
+      freightQtyRich = String(containerQty || 1);
       freightCalculationType = `Por CNTR ${containerType}`;
-      freightUnitValueRich = (fV / containerQty).toFixed(2).replace('.', ',');
+      const validQty = (containerQty && containerQty > 0) ? containerQty : 1;
+      freightUnitValueRich = safeToFixed(fV / validQty, 2).replace('.', ',');
     }
 
     const logoPath = path.join(__dirname, '../../../Logo Audaz Fundo Transparente.png');
