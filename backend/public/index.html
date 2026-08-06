@@ -1482,7 +1482,31 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Seguro Incluso?</label>
-          <select id="rev-insurance"><option value="false">Não</option><option value="true">Sim</option></select>
+          <select id="rev-insurance" onchange="toggleInsuranceConfigBox()"><option value="false">Não</option><option value="true">Sim</option></select>
+        </div>
+        
+        <!-- PAINEL DE CONFIGURAÇÃO E CÁLCULO DE SEGURO -->
+        <div id="rev-insurance-config-box" style="display:none; grid-column:1/-1; grid-template-columns:repeat(4,1fr); gap:12px; background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.25); border-radius:12px; padding:14px; margin-top:4px; margin-bottom:4px;">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px; color:#60A5FA; font-weight:700;">Base de Cálculo</label>
+            <select id="rev-insurance-base" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
+              <option value="FOB_FREIGHT">FOB + Frete (Padrão)</option>
+              <option value="FOB">FOB (Apenas Mercadoria)</option>
+              <option value="CIF_TOTAL">CIF Total (FOB + Frete + Origem)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px; color:#60A5FA; font-weight:700;">Alíquota (%)</label>
+            <input type="number" id="rev-insurance-rate" step="0.01" value="0.15" placeholder="0.15" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px; color:#60A5FA; font-weight:700;">Mínimo (USD)</label>
+            <input type="number" id="rev-insurance-min" step="1.00" value="40.00" placeholder="40.00" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px; color:#60A5FA; font-weight:700;">Valor Seguro (USD Editável)</label>
+            <input type="number" id="rev-insurance-val" step="0.01" placeholder="0.00" style="border-color:#60A5FA; font-weight:bold; color:#60A5FA; font-size:12px;">
+          </div>
         </div>
         <div class="form-group" style="margin:0;grid-column:span 1;">
           <label style="font-size:11px;">Dimensões</label>
@@ -1589,12 +1613,48 @@
       </div>
     </div>
 
-    <!-- SMART PROFIT -->
+    <!-- SMART PROFIT (COMPRA VS VENDA) -->
     <div style="background:linear-gradient(to right, rgba(16,185,129,0.08), rgba(16,185,129,0.02)); border:1.5px solid rgba(16,185,129,0.3); border-radius:14px; padding:20px; margin-bottom:24px;">
-      <div style="font-size:13px; font-weight:700; color:#10B981; margin-bottom:14px; display:flex; align-items:center; gap:8px;">💎 Gestão Financeira (Smart Profit)</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div style="font-size:13px; font-weight:700; color:#10B981; display:flex; align-items:center; gap:8px;">
+          💎 Gestão Financeira (Smart Profit — Compra vs. Venda)
+        </div>
+        <div id="bvs-summary-badge" style="font-size:12px; background:rgba(16,185,129,0.2); color:#10B981; padding:4px 12px; border-radius:12px; font-weight:700;">
+          Margem Total: 0.0% (+USD 0.00)
+        </div>
+      </div>
+
+      <!-- TABELA COMPRA VS VENDA -->
+      <div style="overflow-x:auto; margin-bottom:16px; border:1px solid rgba(16,185,129,0.25); border-radius:10px; background:rgba(0,0,0,0.2);">
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+          <thead>
+            <tr style="border-bottom:1px solid rgba(16,185,129,0.3); text-align:left; color:#10B981; font-weight:700; background:rgba(16,185,129,0.06);">
+              <th style="padding:8px 12px;">Item / Categoria</th>
+              <th style="padding:8px 12px; text-align:right;">Compra (Custo Agente USD)</th>
+              <th style="padding:8px 12px; text-align:right;">Venda (Preço Cliente USD)</th>
+              <th style="padding:8px 12px; text-align:right;">Profit ($ USD)</th>
+              <th style="padding:8px 12px; text-align:right;">Margem (%)</th>
+            </tr>
+          </thead>
+          <tbody id="bvs-table-body">
+            <!-- Gerado dinamicamente por updateBuyVsSellTable() -->
+          </tbody>
+          <tfoot>
+            <tr style="border-top:2px solid rgba(16,185,129,0.4); font-weight:800; font-size:13px; background:rgba(16,185,129,0.1); color:var(--text);">
+              <td style="padding:10px 12px;">TOTAL DO PROCESSO</td>
+              <td style="padding:10px 12px; text-align:right;" id="bvs-foot-cost">USD 0.00</td>
+              <td style="padding:10px 12px; text-align:right;" id="bvs-foot-sell">USD 0.00</td>
+              <td style="padding:10px 12px; text-align:right; color:#10B981;" id="bvs-foot-profit">+USD 0.00</td>
+              <td style="padding:10px 12px; text-align:right; color:#10B981;" id="bvs-foot-margin">0.0%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- PAINEL DE ALOCAÇÃO DE PROFIT -->
       <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; align-items:end;">
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">Custo do Agente (USD Estimado)</label>
+          <label style="font-size:11px;">Custo do Agente (USD Total)</label>
           <input type="number" id="rev-cost-total" disabled placeholder="0.00" style="background:rgba(0,0,0,0.1); border:1px solid rgba(16,185,129,0.3); font-weight:600;">
         </div>
         <div class="form-group" style="margin:0;">
@@ -1613,7 +1673,7 @@
         </div>
       </div>
       <div style="font-size:11px; color:var(--text-muted); margin-top:8px;">
-        * O histórico salvará as taxas originais da I.A. como <strong>Custos</strong> e os valores atuais da tela como <strong>Venda</strong>.
+        * O histórico salvará as taxas originais do agente como <strong>Compra</strong> e os valores atuais da tela como <strong>Venda</strong>.
       </div>
     </div>
 
@@ -2834,8 +2894,10 @@ document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof,
 document.getElementById('r-freight').addEventListener('input', function() {
   const freight = parseFloat(this.value) || 0;
   const iofField = document.getElementById('r-iof');
+  const currency = document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : 'USD';
+  const originFeesUsd = parseFloat(document.getElementById('r-agent-origin-services-total')?.value) || 0;
   if (!returnIncotermRules.length && freight > 0 && (!iofField.value || parseFloat(iofField.value) === 0)) {
-    iofField.value = (freight * 0.035).toFixed(2);
+    iofField.value = calculateIOFValue(freight, originFeesUsd, currency);
   }
   
   const qId = document.getElementById('pending-quotations').value;
@@ -2881,8 +2943,10 @@ document.getElementById('r-freight-unit').addEventListener('input', function() {
   document.getElementById('r-freight').value = totalFreight.toFixed(2);
   
   const iofField = document.getElementById('r-iof');
+  const currency = document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : 'USD';
+  const originFeesUsd = parseFloat(document.getElementById('r-agent-origin-services-total')?.value) || 0;
   if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
-  else iofField.value = (totalFreight * 0.035).toFixed(2);
+  else iofField.value = calculateIOFValue(totalFreight, originFeesUsd, currency);
   checkValidation();
 });
 
@@ -2908,8 +2972,10 @@ document.getElementById('r-weight-break').addEventListener('change', function() 
   document.getElementById('r-freight').value = totalFreight.toFixed(2);
   
   const iofField = document.getElementById('r-iof');
+  const currency = document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : 'USD';
+  const originFeesUsd = parseFloat(document.getElementById('r-agent-origin-services-total')?.value) || 0;
   if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
-  else iofField.value = (totalFreight * 0.035).toFixed(2);
+  else iofField.value = calculateIOFValue(totalFreight, originFeesUsd, currency);
   checkValidation();
 });
 
@@ -3324,7 +3390,28 @@ function recalculateModalDestinationServicesTotal() {
   document.getElementById('r-total').value = finalTotal.toFixed(2);
 }
 
-function calculateAndInjectInsurance() {
+function toggleInsuranceConfigBox() {
+  const requiresIns = document.getElementById('rev-insurance').value === 'true';
+  const box = document.getElementById('rev-insurance-config-box');
+  if (box) {
+    box.style.display = requiresIns ? 'grid' : 'none';
+  }
+  calculateAndInjectInsurance();
+}
+
+function calculateIOFValue(freightVal, originFeesUsd = 0, currency = 'USD') {
+  const usdRate = 5.05;
+  const eurRate = 5.50;
+  let freightUsd = parseFloat(freightVal) || 0;
+  if (currency === 'EUR') freightUsd = freightUsd * (eurRate / usdRate);
+  else if (currency === 'BRL') freightUsd = freightUsd / usdRate;
+
+  const totalBase = freightUsd + (parseFloat(originFeesUsd) || 0);
+  const rate = (window.settingsData && window.settingsData.iofRate) ? (parseFloat(window.settingsData.iofRate) / 100) : 0.035;
+  return (totalBase * rate).toFixed(2);
+}
+
+function calculateAndInjectInsurance(isUserManualInsurance = false) {
   const requiresIns = document.getElementById('rev-insurance').value === 'true';
   const destFeesTextarea = document.getElementById('rev-destination-services');
   let currentText = destFeesTextarea.value || '';
@@ -3371,15 +3458,185 @@ function calculateAndInjectInsurance() {
     else if (originInlandCurrency === 'BRL') originServicesTotalUsd += originInlandValue / usdRate;
     else originServicesTotalUsd += originInlandValue;
 
-    // Calcular Base e Taxa
-    const baseSeguroUsd = valMercadoria + valFreteUsd + originServicesTotalUsd;
-    const seguroValUsd = Math.max(baseSeguroUsd * 0.002, 40.00);
+    let seguroValUsd = 0;
+
+    if (isUserManualInsurance) {
+      seguroValUsd = parseFloat(document.getElementById('rev-insurance-val').value) || 0;
+    } else {
+      // Usar base de cálculo, alíquota e piso configurados
+      const baseType = document.getElementById('rev-insurance-base') ? document.getElementById('rev-insurance-base').value : 'FOB_FREIGHT';
+      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.15) : 0.15;
+      const minUsd = document.getElementById('rev-insurance-min') ? (parseFloat(document.getElementById('rev-insurance-min').value) || 40.00) : 40.00;
+
+      let baseSeguroUsd = valMercadoria;
+      if (baseType === 'FOB_FREIGHT') baseSeguroUsd = valMercadoria + valFreteUsd;
+      else if (baseType === 'CIF_TOTAL') baseSeguroUsd = valMercadoria + valFreteUsd + originServicesTotalUsd;
+
+      seguroValUsd = Math.max(baseSeguroUsd * (ratePercent / 100), minUsd);
+      if (document.getElementById('rev-insurance-val')) {
+        document.getElementById('rev-insurance-val').value = seguroValUsd.toFixed(2);
+      }
+    }
 
     lines.push(`Seguro Internacional: ${seguroValUsd.toFixed(2)} USD`);
   }
 
   destFeesTextarea.value = lines.join('\n');
   recalculateModalDestinationServicesTotal();
+  updateBuyVsSellTable();
+}
+
+function updateBuyVsSellTable() {
+  const tbody = document.getElementById('bvs-table-body');
+  if (!tbody) return;
+
+  const usdRate = 5.05;
+  const eurRate = 5.50;
+
+  // Extrair Custos (Compra) da IA se disponíveis
+  const agentCosts = window.lastExtractedAgentData?.costs || {};
+
+  // 1. FRETE INTERNACIONAL
+  const sellFreightRaw = parseFloat(document.getElementById('rev-freight').value) || 0;
+  const sellFreightCurr = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
+  let sellFreightUsd = sellFreightRaw;
+  if (sellFreightCurr === 'EUR') sellFreightUsd = sellFreightRaw * (eurRate / usdRate);
+  else if (sellFreightCurr === 'BRL') sellFreightUsd = sellFreightRaw / usdRate;
+
+  let costFreightUsd = agentCosts.freight_usd != null ? parseFloat(agentCosts.freight_usd) : sellFreightUsd;
+
+  // 2. INLAND ORIGEM
+  const sellInlandRaw = parseFloat(document.getElementById('rev-origin-inland-value').value) || 0;
+  const sellInlandCurr = document.getElementById('rev-origin-inland-currency') ? document.getElementById('rev-origin-inland-currency').value : 'USD';
+  let sellInlandUsd = sellInlandRaw;
+  if (sellInlandCurr === 'EUR') sellInlandUsd = sellInlandRaw * 1.08;
+  else if (sellInlandCurr === 'BRL') sellInlandUsd = sellInlandRaw / usdRate;
+
+  let costInlandUsd = agentCosts.origin_inland_usd != null ? parseFloat(agentCosts.origin_inland_usd) : sellInlandUsd;
+
+  // 3. TAXAS ORIGEM
+  let sellOriginFeesUsd = 0;
+  const originServicesRaw = document.getElementById('rev-origin-services').value || '';
+  if (originServicesRaw.trim()) {
+    originServicesRaw.split('\n').forEach(line => {
+      const parts = line.split(':');
+      if (parts.length >= 2) {
+        const valAndCurr = parts[1].trim().split(/\s+/);
+        const val = parseFloat(valAndCurr[0]) || 0;
+        const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+        if (curr === 'USD') sellOriginFeesUsd += val;
+        else if (curr === 'EUR') sellOriginFeesUsd += val * 1.08;
+        else if (curr === 'BRL') sellOriginFeesUsd += val / usdRate;
+      }
+    });
+  }
+  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesUsd;
+
+  // 4. SEGURO INTERNACIONAL
+  const requiresIns = document.getElementById('rev-insurance').value === 'true';
+  const sellInsuranceUsd = requiresIns ? (parseFloat(document.getElementById('rev-insurance-val')?.value) || 0) : 0;
+  let costInsuranceUsd = agentCosts.insurance_cost_usd != null ? parseFloat(agentCosts.insurance_cost_usd) : 0;
+
+  // 5. TAXAS DESTINO & SERVIÇOS
+  const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
+  const servicesBrl = parseFloat(document.getElementById('rev-services').value) || 0;
+  const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
+  let sellDestFeesUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
+
+  // Somar também linhas avulsas de destino (exceto Seguro e Spread)
+  const destText = document.getElementById('rev-destination-services').value || '';
+  destText.split('\n').forEach(line => {
+    const l = line.trim().toLowerCase();
+    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional') && !l.includes('spread / profit')) {
+      const parts = line.split(':');
+      if (parts.length >= 2) {
+        const valAndCurr = parts[1].trim().split(/\s+/);
+        const val = parseFloat(valAndCurr[0]) || 0;
+        const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+        if (curr === 'USD') sellDestFeesUsd += val;
+        else if (curr === 'EUR') sellDestFeesUsd += val * 1.08;
+        else if (curr === 'BRL') sellDestFeesUsd += val / usdRate;
+      }
+    }
+  });
+
+  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesUsd;
+
+  // 6. DESEMBARAÇO ADUANEIRO
+  const customsIncluded = document.getElementById('rev-customs-clearance').checked;
+  const customsValBrl = customsIncluded ? (parseFloat(document.getElementById('rev-customs-value').value) || 0) : 0;
+  const sellCustomsUsd = customsValBrl / usdRate;
+  let costCustomsUsd = 0; // Desembaraço próprio/interno sem custo direto de agente
+
+  // ITENS DA TABELA
+  const items = [
+    { label: 'Frete Internacional', cost: costFreightUsd, sell: sellFreightUsd },
+    { label: 'Inland / Transporte Origem', cost: costInlandUsd, sell: sellInlandUsd },
+    { label: 'Taxas Locais Origem', cost: costOriginFeesUsd, sell: sellOriginFeesUsd },
+    { label: 'Seguro Internacional', cost: costInsuranceUsd, sell: sellInsuranceUsd },
+    { label: 'Taxas Destino / Serviços', cost: costDestFeesUsd, sell: sellDestFeesUsd },
+    { label: 'Desembaraço Aduaneiro', cost: costCustomsUsd, sell: sellCustomsUsd }
+  ];
+
+  let totalCostSum = 0;
+  let totalSellSum = 0;
+
+  let rowsHtml = '';
+  items.forEach(item => {
+    totalCostSum += item.cost;
+    totalSellSum += item.sell;
+
+    const profit = item.sell - item.cost;
+    const margin = item.sell > 0 ? (profit / item.sell) * 100 : 0;
+
+    const profitColor = profit > 0.01 ? '#10B981' : (profit < -0.01 ? '#EF4444' : 'var(--text-muted)');
+    const profitText = profit >= 0 ? `+$${profit.toFixed(2)}` : `-$${Math.abs(profit).toFixed(2)}`;
+
+    rowsHtml += `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:6px 12px; font-weight:600;">${item.label}</td>
+        <td style="padding:6px 12px; text-align:right; font-family:monospace; color:var(--text-muted);">$${item.cost.toFixed(2)}</td>
+        <td style="padding:6px 12px; text-align:right; font-family:monospace; font-weight:700;">$${item.sell.toFixed(2)}</td>
+        <td style="padding:6px 12px; text-align:right; font-family:monospace; font-weight:700; color:${profitColor};">${profitText}</td>
+        <td style="padding:6px 12px; text-align:right; font-family:monospace; color:${profitColor};">${margin.toFixed(1)}%</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = rowsHtml;
+
+  const totalProfitSum = totalSellSum - totalCostSum;
+  const totalMarginSum = totalSellSum > 0 ? (totalProfitSum / totalSellSum) * 100 : 0;
+
+  document.getElementById('bvs-foot-cost').textContent = `$${totalCostSum.toFixed(2)}`;
+  document.getElementById('bvs-foot-sell').textContent = `$${totalSellSum.toFixed(2)}`;
+  
+  const totalProfitEl = document.getElementById('bvs-foot-profit');
+  const totalMarginEl = document.getElementById('bvs-foot-margin');
+  const summaryBadge = document.getElementById('bvs-summary-badge');
+
+  const mainColor = totalProfitSum >= 0 ? '#10B981' : '#EF4444';
+  const mainSign = totalProfitSum >= 0 ? '+' : '-';
+
+  totalProfitEl.style.color = mainColor;
+  totalProfitEl.textContent = `${mainSign}$${Math.abs(totalProfitSum).toFixed(2)}`;
+  
+  totalMarginEl.style.color = mainColor;
+  totalMarginEl.textContent = `${totalMarginSum.toFixed(1)}%`;
+
+  if (summaryBadge) {
+    summaryBadge.style.color = mainColor;
+    summaryBadge.style.background = totalProfitSum >= 0 ? 'rgba(16,185,129,0.18)' : 'rgba(239,68,68,0.18)';
+    summaryBadge.textContent = `Margem Total: ${totalMarginSum.toFixed(1)}% (${mainSign}USD ${Math.abs(totalProfitSum).toFixed(2)})`;
+  }
+
+  // Atualizar inputs de profit e custo total
+  if (document.getElementById('rev-profit')) {
+    document.getElementById('rev-profit').value = totalProfitSum.toFixed(2);
+  }
+  if (document.getElementById('rev-cost-total')) {
+    document.getElementById('rev-cost-total').value = totalCostSum.toFixed(2);
+  }
 }
 
 function applySmartProfit() {
@@ -3418,6 +3675,7 @@ function applySmartProfit() {
     recalculateModalDestinationServicesTotal();
     alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado nas Taxas de Destino!`);
   }
+  updateBuyVsSellTable();
 }
 
 async function validateAndGeneratePDF(qIdParam = null) {
@@ -3688,11 +3946,32 @@ async function validateAndGeneratePDF(qIdParam = null) {
 
     // Eventos reativos para recálculo do seguro e das taxas de destino
     const onInsuranceTriggerFieldsChange = function() {
-      calculateAndInjectInsurance();
+      calculateAndInjectInsurance(false);
     };
 
-    document.getElementById('rev-insurance').removeEventListener('change', onInsuranceTriggerFieldsChange);
-    document.getElementById('rev-insurance').addEventListener('change', onInsuranceTriggerFieldsChange);
+    const onInsuranceManualValueChange = function() {
+      calculateAndInjectInsurance(true);
+    };
+
+    toggleInsuranceConfigBox();
+
+    document.getElementById('rev-insurance').removeEventListener('change', toggleInsuranceConfigBox);
+    document.getElementById('rev-insurance').addEventListener('change', toggleInsuranceConfigBox);
+
+    ['rev-insurance-base', 'rev-insurance-rate', 'rev-insurance-min'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.removeEventListener('change', onInsuranceTriggerFieldsChange);
+        el.addEventListener('change', onInsuranceTriggerFieldsChange);
+        el.removeEventListener('input', onInsuranceTriggerFieldsChange);
+        el.addEventListener('input', onInsuranceTriggerFieldsChange);
+      }
+    });
+
+    if (document.getElementById('rev-insurance-val')) {
+      document.getElementById('rev-insurance-val').removeEventListener('input', onInsuranceManualValueChange);
+      document.getElementById('rev-insurance-val').addEventListener('input', onInsuranceManualValueChange);
+    }
 
     document.getElementById('rev-commercial-value').removeEventListener('input', onInsuranceTriggerFieldsChange);
     document.getElementById('rev-commercial-value').addEventListener('input', onInsuranceTriggerFieldsChange);
@@ -3710,15 +3989,37 @@ async function validateAndGeneratePDF(qIdParam = null) {
 
     ['rev-origin-inland-value', 'rev-origin-inland-currency'].forEach(id => {
       const field = document.getElementById(id);
-      field.removeEventListener(id.endsWith('currency') ? 'change' : 'input', onInsuranceTriggerFieldsChange);
-      field.addEventListener(id.endsWith('currency') ? 'change' : 'input', onInsuranceTriggerFieldsChange);
+      if (field) {
+        field.removeEventListener(id.endsWith('currency') ? 'change' : 'input', onInsuranceTriggerFieldsChange);
+        field.addEventListener(id.endsWith('currency') ? 'change' : 'input', onInsuranceTriggerFieldsChange);
+      }
     });
 
-    document.getElementById('rev-destination-services').removeEventListener('input', recalculateModalDestinationServicesTotal);
-    document.getElementById('rev-destination-services').addEventListener('input', recalculateModalDestinationServicesTotal);
+    document.getElementById('rev-destination-services').removeEventListener('input', function() {
+      recalculateModalDestinationServicesTotal();
+      updateBuyVsSellTable();
+    });
+    document.getElementById('rev-destination-services').addEventListener('input', function() {
+      recalculateModalDestinationServicesTotal();
+      updateBuyVsSellTable();
+    });
+
+    // Listeners gerais para atualizar a Tabela Compra vs Venda
+    ['rev-storage', 'rev-services', 'rev-taxes', 'rev-customs-value'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.removeEventListener('input', updateBuyVsSellTable);
+        el.addEventListener('input', updateBuyVsSellTable);
+      }
+    });
+    if (document.getElementById('rev-customs-clearance')) {
+      document.getElementById('rev-customs-clearance').removeEventListener('change', updateBuyVsSellTable);
+      document.getElementById('rev-customs-clearance').addEventListener('change', updateBuyVsSellTable);
+    }
 
     // Calcular o seguro e injetar inicialmente
-    calculateAndInjectInsurance();
+    calculateAndInjectInsurance(false);
+    updateBuyVsSellTable();
 
     // Desembaraço: sempre desmarcado por padrão, valor pré-fixado R$ 900,00
     document.getElementById('rev-customs-clearance').checked = false;
