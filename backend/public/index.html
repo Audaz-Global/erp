@@ -366,7 +366,7 @@
 
   .settings-nav { list-style: none; flex: 1; overflow-y: auto; }
   .settings-nav li {
-    padding: 12px 24px; font-size: 13px; font-weight: 600; color: var(--text-muted);
+    padding: 10px 24px; font-size: 13px; font-weight: 600; color: var(--text-muted);
     cursor: pointer; display: flex; align-items: center; gap: 10px;
     transition: all 0.2s; border-left: 3px solid transparent;
   }
@@ -375,11 +375,31 @@
     color: var(--gold); background: rgba(245,166,35,0.06);
     border-left-color: var(--gold);
   }
-  .settings-nav li .nav-icon { font-size: 16px; width: 22px; text-align: center; }
   .settings-nav li .coming-soon {
     margin-left: auto; font-size: 9px; background: rgba(255,255,255,0.08);
     padding: 2px 8px; border-radius: 10px; color: var(--text-muted); font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .settings-nav .nav-section-title {
+    font-size: 10px; font-weight: 800; color: var(--gold);
+    text-transform: uppercase; letter-spacing: 1px;
+    padding: 16px 24px 4px; cursor: default; border-left: none !important;
+    background: transparent !important;
+  }
+  .settings-nav .nav-section-title:hover {
+    background: transparent !important; color: var(--gold) !important;
+  }
+  .settings-nav .nav-sub-header {
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px 24px 2px; cursor: default; border-left: none !important;
+    background: transparent !important;
+  }
+  .settings-nav .nav-sub-header:hover {
+    background: transparent !important; color: var(--text-muted) !important;
+  }
+  .settings-nav li.nav-sub-item {
+    padding-left: 38px; font-size: 12px;
   }
 
   .settings-sidebar .ss-footer {
@@ -1717,47 +1737,27 @@
         <p>Gerencie seu sistema</p>
       </div>
       <ul class="settings-nav" id="settingsNav">
-        <li class="active" onclick="switchSettingsTab('company')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-building"></use></svg></span> Dados da Empresa
-        </li>
-        <li onclick="switchSettingsTab('logo')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-image"></use></svg></span> Logo & Identidade
-        </li>
-        <li onclick="switchSettingsTab('knowledge')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-brain"></use></svg></span> IA / Regras
-        </li>
-        <li onclick="switchSettingsTab('taxes')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Taxas Padrão
-        </li>
-        <li onclick="switchSettingsTab('fixedFeesSea')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-ship"></use></svg></span> Taxas Locais - Marítimo
-        </li>
-        <li onclick="switchSettingsTab('fixedFeesAir')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Taxas Locais - Aéreo
-        </li>
-        <li onclick="switchSettingsTab('standardFees')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-building"></use></svg></span> Taxas Locais
-        </li>
-        <li onclick="switchSettingsTab('deconsolidators')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-package"></use></svg></span> Desconsolidadores
-        </li>
-        <li onclick="switchSettingsTab('pricingSettings')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Câmbio & Armazenagem
-        </li>
-        <li onclick="switchSettingsTab('incotermRules')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-package"></use></svg></span> Regras por Incoterm
-        </li>
-        <li onclick="switchSettingsTab('agentDraftEmail')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-file"></use></svg></span> E-mail para Parceiros
-        </li>
-        <li onclick="switchSettingsTab('carrierProfiles')"><span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-ship"></use></svg></span> Regras por Armador</li>
-        <li onclick="switchSettingsTab('carrierRates')"><span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-database"></use></svg></span> Base de Tarifas</li>
-        <li onclick="switchSettingsTab('template')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-file"></use></svg></span> Template PDF
-          <span class="coming-soon">Em breve</span>
-        </li>
-        <li onclick="switchSettingsTab('users')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-users"></use></svg></span> Usuários
+        <li class="nav-section-title">EMPRESA</li>
+        <li class="active" data-tab="company" onclick="switchSettingsTab('company')">Dados da Empresa & Logo</li>
+
+        <li class="nav-section-title">REGRAS</li>
+        <li data-tab="knowledge" onclick="switchSettingsTab('knowledge')">IA</li>
+        <li data-tab="incotermRules" onclick="switchSettingsTab('incotermRules')">Incoterm</li>
+        <li data-tab="carrierProfiles" onclick="switchSettingsTab('carrierProfiles')">Armador</li>
+
+        <li class="nav-section-title">TAXAS</li>
+        <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Padrão</li>
+        <li class="nav-sub-header">Taxas Locais</li>
+        <li class="nav-sub-item" data-tab="fixedFeesSea" onclick="switchSettingsTab('fixedFeesSea')">Marítimo</li>
+        <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Aéreo</li>
+        <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
+        <li data-tab="carrierRates" onclick="switchSettingsTab('carrierRates')">Armadores (Base de Tarifas)</li>
+
+        <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
+        <li data-tab="deconsolidators" onclick="switchSettingsTab('deconsolidators')">Desconsolidadores</li>
+        <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
+        <li data-tab="users" onclick="switchSettingsTab('users')" style="opacity:0.6; cursor:not-allowed;">
+          Usuários
           <span class="coming-soon">Em breve</span>
         </li>
       </ul>
@@ -4901,11 +4901,16 @@ function closeSettings() {
 }
 
 function switchSettingsTab(tab) {
-  document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
-  const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','fixedFeesSea','fixedFeesAir','standardFees','deconsolidators','pricingSettings','incotermRules','agentDraftEmail','carrierProfiles','carrierRates','template','users'];
-  const idx = tabMap.indexOf(tab);
-  if (idx >= 0 && items[idx]) items[idx].classList.add('active');
+  if (tab === 'logo') tab = 'company';
+  if (tab === 'template') tab = 'company';
+
+  document.querySelectorAll('#settingsNav li[data-tab]').forEach(li => {
+    if (li.getAttribute('data-tab') === tab) {
+      li.classList.add('active');
+    } else {
+      li.classList.remove('active');
+    }
+  });
 
   const content = document.getElementById('settingsContent');
   const settingsData = JSON.parse(localStorage.getItem('audaz_settings') || '{}');
@@ -4913,9 +4918,10 @@ function switchSettingsTab(tab) {
   switch(tab) {
     case 'company':
       content.innerHTML = `
-        <div class="sc-title">🏢 Dados da Empresa</div>
-        <p class="sc-desc">Informações que serão usadas no cabeçalho das propostas PDF.</p>
-        <div class="settings-section">
+        <div class="sc-title">🏢 Dados da Empresa & Logo</div>
+        <p class="sc-desc">Informações e identidade visual usadas no cabeçalho de todas as propostas PDF geradas.</p>
+        
+        <div class="settings-section" style="margin-bottom:24px;">
           <h3>Informações Gerais</h3>
           <div class="sg-row">
             <div class="form-group"><label>Nome da Empresa</label>
@@ -4936,16 +4942,11 @@ function switchSettingsTab(tab) {
           <div class="form-group"><label>Endereço</label>
             <input type="text" id="s-company-address" value="${settingsData.companyAddress || ''}" placeholder="Rua, número, cidade - UF">
           </div>
+          <button class="btn btn-primary" onclick="saveCompanySettings()" style="margin-top:8px;">💾 Salvar Dados</button>
         </div>
-        <button class="btn btn-primary" onclick="saveCompanySettings()">💾 Salvar Dados</button>`;
-      break;
 
-    case 'logo':
-      content.innerHTML = `
-        <div class="sc-title">🖼️ Logo & Identidade Visual</div>
-        <p class="sc-desc">O logo será inserido automaticamente no cabeçalho de todas as propostas PDF geradas.</p>
         <div class="settings-section">
-          <h3>Logo Atual</h3>
+          <h3>Logo & Identidade Visual</h3>
           <div class="logo-preview" id="logoPreview">
             <img src="/logo-preview" onerror="this.parentElement.innerHTML='<span style=color:var(--text-muted);font-size:13px>Nenhum logo carregado</span>'">
           </div>
