@@ -4,12 +4,15 @@ import { prisma } from '../prisma';
 const DEFAULT_RULES: Array<{ modal: string; direction: string; fieldLabel: string; sortOrder: number }> = [
   { modal: 'ALL', direction: 'ALL', fieldLabel: 'Incoterm', sortOrder: 0 },
   { modal: 'ALL', direction: 'ALL', fieldLabel: 'Porto/Aeroporto de Origem e Destino', sortOrder: 1 },
-  { modal: 'SEA', direction: 'ALL', fieldLabel: 'Quantidade e tipo de container', sortOrder: 2 },
+  { modal: 'SEA', direction: 'ALL', fieldLabel: 'Quantidade e tipo de container (FCL) ou Dimensões/CBM (LCL)', sortOrder: 2 },
   { modal: 'AIR', direction: 'ALL', fieldLabel: 'Dimensões e Peso', sortOrder: 2 },
   { modal: 'ALL', direction: 'ALL', fieldLabel: 'Valor do frete', sortOrder: 3 },
   { modal: 'ALL', direction: 'ALL', fieldLabel: 'Validade da cotação', sortOrder: 4 },
   { modal: 'ALL', direction: 'ALL', fieldLabel: 'Transit time', sortOrder: 5 },
-  { modal: 'ALL', direction: 'ALL', fieldLabel: 'Free time', sortOrder: 6 }
+  { modal: 'ALL', direction: 'ALL', fieldLabel: 'Free time', sortOrder: 6 },
+  { modal: 'SEA', direction: 'IMPORT', fieldLabel: 'CNPJ do Cliente (para estimativa de armazenagem no destino pelo Co-Loader)', sortOrder: 7 },
+  { modal: 'ALL', direction: 'ALL', fieldLabel: 'Valor Comercial da Carga', sortOrder: 8 },
+  { modal: 'ALL', direction: 'ALL', fieldLabel: 'Coleta Terrestre na Origem (Apenas se Incoterm for EXW)', sortOrder: 9 }
 ];
 
 // Lista todas as regras, com filtro opcional por modal e direção

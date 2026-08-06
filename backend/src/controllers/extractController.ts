@@ -249,6 +249,7 @@ export const generateDraft = async (req: Request, res: Response) => {
       origin: payload.originPort || payload.originCity || '',
       destination: payload.destinationPort || payload.destinationCity || '',
       client: payload.clientName || '',
+      clientCnpj: payload.clientCnpj || '',
       clientReference: payload.clientReferenceNumber || ''
     });
 

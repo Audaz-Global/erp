@@ -29,11 +29,12 @@ export interface DraftPayload {
   transportRoute: string | null;
   originalEmailText: string;
   clientName: string | null;
+  clientCnpj: string | null;
   clientReferenceNumber: string | null;
   agentEmailCode: string | null;
 }
 
-type QuotationWithClient = Quotation & { client?: { name: string } | null };
+type QuotationWithClient = Quotation & { client?: { name?: string; cnpj?: string | null } | null };
 
 export function buildDraftPayload(quotation: QuotationWithClient, originalEmailText: string): DraftPayload {
   return {
@@ -65,6 +66,7 @@ export function buildDraftPayload(quotation: QuotationWithClient, originalEmailT
     transportRoute: quotation.transportRoute,
     originalEmailText,
     clientName: quotation.client?.name || null,
+    clientCnpj: quotation.client?.cnpj || null,
     clientReferenceNumber: quotation.clientReferenceNumber,
     agentEmailCode: quotation.agentEmailCode
   };

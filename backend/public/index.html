@@ -5213,8 +5213,8 @@ function switchSettingsTab(tab) {
           <h3 style="margin:0 0 6px;">Assunto Padrão</h3>
           <div class="form-group">
             <label>Template do Assunto</label>
-            <input type="text" id="ades-subject" placeholder="{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}">
-            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Tokens disponíveis: {quotationCode}, {direction}, {modal}, {incoterm}, {origin}, {destination}, {client}, {clientReference}</p>
+            <input type="text" id="ades-subject" placeholder="{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} ({clientCnpj}) | {clientReference}">
+            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Tokens disponíveis: {quotationCode}, {direction}, {modal}, {incoterm}, {origin}, {destination}, {client}, {clientCnpj}, {clientReference}</p>
           </div>
           <button class="btn btn-primary" onclick="saveAgentDraftEmailSettings()">💾 Salvar Assunto</button>
         </div>

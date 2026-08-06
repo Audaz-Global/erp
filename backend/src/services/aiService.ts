@@ -339,6 +339,8 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - CBM Total: ${data.totalCbm || 'Não informado'}
     - Descrição da Carga: ${data.cargoDescription || 'Não informada'}
     - NCM: ${data.ncmCodes || 'Não informado'}
+    - Nome do Cliente: ${data.clientName || 'Não informado'}
+    - CNPJ do Cliente: ${data.clientCnpj || 'Não informado'}
     - Valor da Carga: ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'Não informado'}
     - IMO: ${data.isImo ? 'SIM' : 'NÃO'}
     - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
@@ -394,7 +396,11 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
     9. **Conexões**: Se houver conexões do voo ou do porto especificadas nos DADOS EXTRAÍDOS DA CARGA (diferente de "Sem conexões"), mencione-as de forma clara no e-mail (ex: "via MIA" ou "com transbordo em Algeciras") para que o coloader/agente faça a cotação exatamente na rota solicitada.
     10. **Remoção de Telefones e Contatos da Assinatura**: Ao assinar o e-mail (ou finalizar o corpo do e-mail), **NUNCA** inclua informações de contato pessoal extraídas do e-mail do cliente (como nomes de pessoas de contato, ex: "Magda", "Talitha", etc., endereços de e-mail específicos, números de telefone comercial, ramal ou telefones celulares). A assinatura do e-mail deve ser estritamente genérica e neutra (ex: apenas "Atenciosamente," ou "Best regards,"), sem listar quaisquer nomes, telefones ou e-mails adicionais.
-    11. **Itens obrigatórios no e-mail**: Garanta que o e-mail mencione claramente, ou solicite explicitamente ao agente, cada um dos itens a seguir (informe se já for um dado conhecido, ou peça ao agente se for algo a cotar):
+    11. **Cotações Consolidadas LCL / Co-Loader**: Se o modal for Marítimo LCL ou envolver múltiplos shippers/locais de coleta:
+        - Mencione o Nome do Cliente e o **CNPJ do Cliente** para que o Co-Loader calcule a estimativa de armazenagem no destino no Brasil.
+        - Informe o Valor Comercial da Carga (USD), Dimensões e Peso Bruto Total.
+        - Se o Incoterm for **EXW**, solicite obrigatoriamente a coleta terrestre na origem (*origin inland/pick-up*). Se o Incoterm for **FOB**, dispense a coleta na origem.
+    12. **Itens obrigatórios no e-mail**: Garanta que o e-mail mencione claramente, ou solicite explicitamente ao agente, cada um dos itens a seguir (informe se já for um dado conhecido, ou peça ao agente se for algo a cotar):
     ${requiredFieldLabels.length ? requiredFieldLabels.map(l => `- ${l}`).join('\n    ') : 'Nenhum item adicional configurado.'}
 
     Retorne APENAS o corpo do e-mail.`;
