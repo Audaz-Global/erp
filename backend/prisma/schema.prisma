@@ -110,6 +110,10 @@ model Quotation {
   voyageNumber               String?
   freeTimeDays               Int?
   rateValidUntil             DateTime?
+  rateValiditySource         String?  // AGENT_EMAIL, TARIFF, CONTINGENCY, MANUAL
+  rateValidityEvidence       String?  // trecho de e-mail/tarifário que comprovou a vigência
+  rateValidityConfidence     Float?
+  rateValidityNeedsReview    Boolean  @default(false)
   transshipments             String? // JSON array estruturado
   destinationStorage         Float?
   destinationStorageCurrency String?
@@ -249,6 +253,7 @@ model CarrierProfile {
   code      String?
   aliases   String? // JSON array
   modal     String   @default("SEA")
+  equipmentScopes String? @default("[\"20GP\",\"40GP\",\"40HC\"]") // JSON array de equipamentos habilitados
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -379,6 +384,7 @@ model StandardFee {
   currency    String
   percentBase String? // FREIGHT, FREIGHT_PLUS_ORIGIN
   description String?
+  modalScope  String   @default("ALL") // ALL ou lista CSV: AIR,SEA_FCL,SEA_LCL
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -390,6 +396,8 @@ model IncotermRule {
   id          String   @id @default(uuid())
   incoterm    String // EXW, FCA, FOB, CIF, CFR, DAP, DDP
   modal       String // AIR, SEA_FCL, SEA_LCL, ALL
+  direction   String   @default("ALL") // IMPORT, EXPORT, ALL
+  required    Boolean  @default(false)
   feeType     String // ORIGIN, DESTINATION
   feeName     String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
   chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
@@ -409,12 +417,14 @@ model IncotermRule {
   standardFee   StandardFee? @relation(fields: [standardFeeId], references: [id], onDelete: Restrict)
 
   @@index([standardFeeId])
+  @@index([incoterm, modal, direction])
 }
 
 model IncotermFieldRule {
   id        String   @id @default(uuid())
   incoterm  String
   modal     String
+  direction String   @default("ALL")
   stage     String   @default("ALL")
   fieldKey  String
   behavior  String
@@ -423,8 +433,8 @@ model IncotermFieldRule {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([incoterm, modal, stage, fieldKey])
-  @@index([incoterm, modal, stage])
+  @@unique([incoterm, modal, direction, stage, fieldKey])
+  @@index([incoterm, modal, direction, stage])
 }
 
 model AgentDraftEmailSettings {

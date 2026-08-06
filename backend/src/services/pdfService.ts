@@ -1186,7 +1186,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
     if (detailedFeesOrigem.length === 0) {
       try {
-        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr);
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction);
         if (originFees.length > 0) {
           detailedFeesOrigem = formatFeesForPdf(originFees);
         }
@@ -1259,7 +1259,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     // Aplicar regras de Incoterm para destino se não há taxas salvas
     if (detailedFeesDestino.length === 0) {
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction);
         if (destinationFees.length > 0) {
           detailedFeesDestino = formatFeesForPdf(destinationFees);
         }
@@ -1269,7 +1269,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     } else {
       // Complementar taxas faltantes do banco
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction);
         const existingNames = new Set(detailedFeesDestino.map(f => f.name.toLowerCase()));
         for (const ruleFee of destinationFees) {
           const nameMatch = existingNames.has(ruleFee.name.toLowerCase()) ||
@@ -1722,15 +1722,9 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       carrierRich = 'COSCO - São Paulo';
     }
 
-    let loadTypeLabel = String(quotationData.loadType || '').trim();
-    let containerTypeRich = '40\'';
-    if (loadTypeLabel.includes('FCL_40')) {
-      loadTypeLabel = '40 OPEN TOP (OT OH)';
-      containerTypeRich = '40 OPEN TOP (OT OH)';
-    } else if (loadTypeLabel.includes('FCL_20')) {
-      loadTypeLabel = '20 OPEN TOP (OT OH)';
-      containerTypeRich = '20 OPEN TOP (OT OH)';
-    }
+    const equipmentLabels: Record<string, string> = { FCL_20: "20' DRY", FCL_40: "40' DRY", FCL_40HC: "40' HIGH CUBE", FCL_20RH: "20' REEFER", FCL_40RH: "40' REEFER", FCL_20OT: "20' OPEN TOP", FCL_40OT: "40' OPEN TOP" };
+    let loadTypeLabel = equipmentLabels[String(quotationData.loadType || '').trim().toUpperCase()] || String(quotationData.loadType || '').trim();
+    let containerTypeRich = loadTypeLabel || "40'";
 
     // Garantir dados de contato para a Gestamp
     if (quotationData.client && quotationData.client.name && quotationData.client.name.toUpperCase().includes('GESTAMP')) {

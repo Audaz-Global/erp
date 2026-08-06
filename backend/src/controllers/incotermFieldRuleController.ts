@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const VALID_MODALS = new Set(['AIR', 'SEA_FCL', 'SEA_LCL', 'ALL']);
+const VALID_DIRECTIONS = new Set(['IMPORT', 'EXPORT', 'ALL']);
 const VALID_STAGES = new Set(['REQUEST', 'RETURN', 'FINAL', 'ALL']);
 const VALID_FIELDS = new Set(['INTERNATIONAL_FREIGHT', 'ORIGIN_INLAND', 'ORIGIN_FEES', 'INSURANCE', 'DESTINATION_FEES', 'NATIONAL_INLAND', 'CUSTOMS_CLEARANCE']);
 const VALID_BEHAVIORS = new Set(['EDITABLE', 'REQUIRED', 'SUGGESTED', 'LOCKED', 'HIDDEN', 'NOT_APPLICABLE', 'RETURN_ONLY']);
@@ -11,6 +12,7 @@ function normalized(body: any) {
   return {
     incoterm: String(body.incoterm || '').toUpperCase(),
     modal: String(body.modal || 'ALL').toUpperCase(),
+    direction: String(body.direction || 'ALL').toUpperCase(),
     stage: String(body.stage || 'ALL').toUpperCase(),
     fieldKey: String(body.fieldKey || '').toUpperCase(),
     behavior: String(body.behavior || 'EDITABLE').toUpperCase(),
@@ -21,6 +23,7 @@ function normalized(body: any) {
 
 function validate(data: ReturnType<typeof normalized>) {
   if (!data.incoterm) return 'Informe o Incoterm.';
+  if (!VALID_DIRECTIONS.has(data.direction)) return 'Direção inválida.';
   if (!VALID_MODALS.has(data.modal)) return 'Modal inválido.';
   if (!VALID_STAGES.has(data.stage)) return 'Etapa inválida.';
   if (!VALID_FIELDS.has(data.fieldKey)) return 'Campo inválido.';
@@ -33,6 +36,7 @@ export async function getIncotermFieldRules(req: Request, res: Response) {
     const where: any = {};
     if (req.query.incoterm) where.incoterm = String(req.query.incoterm).toUpperCase();
     if (req.query.modal) where.modal = { in: [String(req.query.modal).toUpperCase(), 'ALL'] };
+    if (req.query.direction) where.direction = { in: [String(req.query.direction).toUpperCase(), 'ALL'] };
     if (req.query.stage) where.stage = { in: [String(req.query.stage).toUpperCase(), 'ALL'] };
     const rules = await prisma.incotermFieldRule.findMany({ where, orderBy: [{ incoterm: 'asc' }, { fieldKey: 'asc' }] });
     res.json(rules);

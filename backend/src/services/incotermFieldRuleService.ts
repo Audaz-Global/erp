@@ -24,8 +24,9 @@ export async function enforceIncotermFieldRules(input: any, stage: string, curre
   const incoterm = String(input.incoterm || current?.incoterm || '').toUpperCase();
   if (!incoterm || !stage) return input;
   const modal = modalOf({ ...(current || {}), ...input });
-  const rules = await prisma.incotermFieldRule.findMany({ where: { incoterm, modal: { in: [modal, 'ALL'] }, stage: { in: [stage, 'ALL'] }, active: true } });
-  rules.sort((a, b) => ((a.modal === 'ALL' ? 0 : 2) + (a.stage === 'ALL' ? 0 : 1)) - ((b.modal === 'ALL' ? 0 : 2) + (b.stage === 'ALL' ? 0 : 1)));
+  const direction = String(input.direction || current?.direction || 'ALL').toUpperCase();
+  const rules = await prisma.incotermFieldRule.findMany({ where: { incoterm, modal: { in: [modal, 'ALL'] }, direction: { in: [direction, 'ALL'] }, stage: { in: [stage, 'ALL'] }, active: true } });
+  rules.sort((a, b) => ((a.modal === 'ALL' ? 0 : 4) + (a.direction === 'ALL' ? 0 : 2) + (a.stage === 'ALL' ? 0 : 1)) - ((b.modal === 'ALL' ? 0 : 4) + (b.direction === 'ALL' ? 0 : 2) + (b.stage === 'ALL' ? 0 : 1)));
   const effective = new Map<string, typeof rules[number]>(); rules.forEach(rule => effective.set(rule.fieldKey, rule));
   const merged = { ...(current || {}), ...input };
   for (const rule of effective.values()) {

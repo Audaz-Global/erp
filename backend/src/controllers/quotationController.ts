@@ -7,6 +7,7 @@ import { getFeesForIncoterm, formatFeesForController } from '../services/incoter
 import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/incotermFieldRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
 import { getPtaxRate } from '../services/ptaxService';
+import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -246,12 +247,21 @@ const generateReference = async () => {
 export const generateQuotationPdf = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const quotation = await prisma.quotation.findUnique({
+    let quotation = await prisma.quotation.findUnique({
       where: { id },
       include: { client: true, createdBy: true }
     });
 
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
+
+    if (!quotation.rateValidUntil) {
+      const validity = applyRateValidityPolicy({}, new Date());
+      const updatedValidity = await prisma.quotation.update({
+        where: { id: quotation.id },
+        data: rateValidityFields(validity)
+      });
+      quotation = { ...quotation, ...updatedValidity };
+    }
 
     const host = req.get('host');
     const protocol = req.protocol;
@@ -446,7 +456,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     
     if (detailedFeesOrigem.length === 0) {
       try {
-        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr);
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction);
         if (originFees.length > 0) {
           detailedFeesOrigem = formatFeesForController(originFees, getBrlValue);
         }
@@ -470,7 +480,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     if (detailedFeesDestino.length === 0) {
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction);
         if (destinationFees.length > 0) {
           detailedFeesDestino = formatFeesForController(destinationFees, getBrlValue);
         }
@@ -480,7 +490,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     } else {
       // Complementar taxas faltantes com regras do banco
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction);
         const existingNames = new Set(detailedFeesDestino.map(f => f.name.toLowerCase()));
         for (const ruleFee of destinationFees) {
           const nameMatch = existingNames.has(ruleFee.name.toLowerCase()) ||

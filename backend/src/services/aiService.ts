@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
+import { applyRateValidityPolicy } from './rateValidityService';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -208,7 +209,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
               type: 'object',
               properties: {
                 type: { 
-                  type: 'string', 
+                  type: 'string',
+                  enum: ['AIR_GENERAL','LCL','FCL_20','FCL_40','FCL_40HC','FCL_20RH','FCL_40RH','FCL_20OT','FCL_40OT'],
                   description: 'Modal/tipo de carga. Retorne OBRIGATORIAMENTE um destes valores: "AIR_GENERAL" (se o embarque for Aéreo/Air), "LCL" (se marítimo consolidado), "FCL_20" (se marítimo container de 20 pés), "FCL_40" (se marítimo container de 40 pés). Nunca retorne o nome do produto ou mercadoria neste campo.' 
                 },
                 gross_weight_kg: { type: 'number' },
@@ -473,6 +475,9 @@ export const extractAgentCosts = async (
                 voyage_number: { type: 'string', description: 'Número da viagem/voyage do navio.' },
                 free_time_days: { type: 'number', description: 'Quantidade de dias de free time informada.' },
                 rate_valid_until: { type: 'string', description: 'Data limite de validade da tarifa, preferencialmente ISO YYYY-MM-DD.' },
+                rate_validity_source: { type: 'string', description: 'AGENT_EMAIL quando a validade estiver no corpo da resposta atual; TARIFF quando estiver em anexo/tarifário da resposta atual.' },
+                rate_validity_evidence: { type: 'string', description: 'Trecho curto e literal que comprova a validade identificada.' },
+                rate_validity_confidence: { type: 'number', description: 'Confiança de 0 a 1 especificamente para a leitura da validade.' },
                 transshipments: { type: 'array', items: { type:'object', properties: { port:{type:'string'}, locode:{type:'string'}, eta:{type:'string'}, etd:{type:'string'}, vessel:{type:'string'}, voyage:{type:'string'}, notes:{type:'string'} }, required:['port'] }, description:'Lista estruturada de transbordos da rota marítima.' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem informado pelo agente (sigla IATA ou nome, ex: PEK ou Beijing)' },
                 connections: { type: 'string', description: 'Conexões ou escalas informadas pelo agente. Ex: PEK-NRT-USA-GRU. Retorne string vazia se for direto.' },
@@ -569,6 +574,8 @@ export const extractAgentCosts = async (
     4. **Conexões (connections):** Identifique as conexões ou escalas informadas pelo agente (ex: "PEK-NRT-USA-GRU" ou "via MIA" ou "via NRT"). Salve a string no campo "connections". Retorne string vazia se for direto ou não houver menção a conexões.
        - Para modal marítimo, extraia também cada transbordo em "transshipments", separando porto, UN/LOCODE, ETA, ETD, navio e viagem quando informados.
        - Extraia ainda vessel_name, voyage_number, free_time_days e rate_valid_until quando presentes. Não invente dados ausentes.
+       - **Validade da tarifa:** procure explicitamente por "valid until", "validity", "valid thru", "effective until", "validade até", "vigência" e intervalos de vigência. Retorne rate_valid_until em YYYY-MM-DD, rate_validity_evidence com o trecho literal e rate_validity_confidence entre 0 e 1.
+       - Use rate_validity_source=AGENT_EMAIL quando estiver no corpo da RESPOSTA ATUAL; use TARIFF somente quando a evidência estiver em anexo/tarifário da resposta atual. Não use o histórico como fonte e não invente datas.
     5. **Inland de Origem (origin_inland) e Taxas Locais de Origem (origin_fees):**
        - Classifique Pick Up, Pickup, Collection, Pre-carriage ou coleta da fábrica até o aeroporto/porto como origin_inland. Extraia valor, moeda, rota e prazo separadamente.
        - NÃO repita o Pick Up dentro de origin_fees.
@@ -630,6 +637,7 @@ export const extractAgentCosts = async (
         }
       }
       parsed.costs.transit_time_days = ttDays;
+      applyRateValidityPolicy(parsed.costs);
     }
     return parsed;
   } catch (error: any) {

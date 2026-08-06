@@ -2,6 +2,15 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const VALID_MODAL_SCOPES = new Set(['ALL', 'AIR', 'SEA_FCL', 'SEA_LCL']);
+
+function normalizeModalScope(value: unknown) {
+  const parts = String(value || 'ALL').toUpperCase().split(',').map(v => v.trim()).filter(Boolean);
+  const unique = [...new Set(parts.length ? parts : ['ALL'])];
+  if (unique.includes('ALL')) return 'ALL';
+  if (!unique.every(scope => VALID_MODAL_SCOPES.has(scope))) throw new Error('Modal de compatibilidade inválido.');
+  return unique.join(',');
+}
 
 export const getAllStandardFees = async (req: Request, res: Response) => {
   try {
@@ -17,7 +26,7 @@ export const getAllStandardFees = async (req: Request, res: Response) => {
 
 export const createStandardFee = async (req: Request, res: Response) => {
   try {
-    const { name, type, chargeType, value, minValue, currency, percentBase, description, active } = req.body;
+    const { name, type, chargeType, value, minValue, currency, percentBase, description, modalScope, active } = req.body;
     const fee = await prisma.standardFee.create({
       data: {
         name,
@@ -28,6 +37,7 @@ export const createStandardFee = async (req: Request, res: Response) => {
         currency: currency || 'USD',
         percentBase: chargeType === 'PERCENTAGE' ? (percentBase || 'FREIGHT') : null,
         description: description || null,
+        modalScope: normalizeModalScope(modalScope),
         active: active !== undefined ? active : true
       }
     });
@@ -40,7 +50,7 @@ export const createStandardFee = async (req: Request, res: Response) => {
 export const updateStandardFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, type, chargeType, value, minValue, currency, percentBase, description, active } = req.body;
+    const { name, type, chargeType, value, minValue, currency, percentBase, description, modalScope, active } = req.body;
     const current = await prisma.standardFee.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Taxa local não encontrada.' });
     const effectiveChargeType = chargeType || current.chargeType;
@@ -58,6 +68,7 @@ export const updateStandardFee = async (req: Request, res: Response) => {
           ? (effectiveChargeType === 'PERCENTAGE' ? (percentBase || current.percentBase || 'FREIGHT') : null)
           : undefined,
         description: description !== undefined ? (description || null) : undefined,
+        modalScope: modalScope !== undefined ? normalizeModalScope(modalScope) : undefined,
         active
       }
     });

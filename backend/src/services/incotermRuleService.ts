@@ -23,7 +23,7 @@ export interface CalculatedFee {
  * Busca as regras de Incoterm ativas para um dado incoterm + modal.
  * Primeiro busca regras específicas para o modal, depois complementa com regras "ALL".
  */
-export async function getRulesForIncoterm(incoterm: string, modal: string): Promise<EffectiveIncotermRule[]> {
+export async function getRulesForIncoterm(incoterm: string, modal: string, direction: string = 'ALL'): Promise<EffectiveIncotermRule[]> {
   const normalizedIncoterm = incoterm.toUpperCase().trim();
   
   // Normalizar modal para o formato do banco
@@ -31,11 +31,13 @@ export async function getRulesForIncoterm(incoterm: string, modal: string): Prom
   if (dbModal === 'AIR' || dbModal.includes('AIR')) dbModal = 'AIR';
   else if (dbModal.includes('FCL')) dbModal = 'SEA_FCL';
   else if (dbModal.includes('LCL')) dbModal = 'SEA_LCL';
+  const dbDirection = ['IMPORT', 'EXPORT'].includes(String(direction).toUpperCase()) ? String(direction).toUpperCase() : 'ALL';
 
   const rules = await prisma.incotermRule.findMany({
     where: {
-      incoterm: normalizedIncoterm,
+      incoterm: { in: [normalizedIncoterm, 'ALL'] },
       modal: { in: [dbModal, 'ALL'] },
+      direction: { in: [dbDirection, 'ALL'] },
       active: true
     },
     include: { standardFee: true },
@@ -48,13 +50,14 @@ export async function getRulesForIncoterm(incoterm: string, modal: string): Prom
   // Se há regras específicas para o modal, elas têm prioridade.
   // Regras "ALL" só entram se não existir regra com mesmo feeName no modal específico.
   const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active);
-  const specificRules = effectiveRules.filter(r => r.modal === dbModal);
-  const allRules = effectiveRules.filter(r => r.modal === 'ALL');
-  
-  const specificNames = new Set(specificRules.map(r => `${r.feeType}:${r.feeName}`));
-  const complementary = allRules.filter(r => !specificNames.has(`${r.feeType}:${r.feeName}`));
+  const ranked = effectiveRules.sort((a, b) => {
+    const score = (rule: any) => (rule.incoterm === 'ALL' ? 0 : 4) + (rule.modal === 'ALL' ? 0 : 2) + (rule.direction === 'ALL' ? 0 : 1);
+    return score(a) - score(b);
+  });
+  const selected = new Map<string, EffectiveIncotermRule>();
+  ranked.forEach(rule => selected.set(`${rule.feeType}:${rule.feeName}`, rule));
 
-  return [...specificRules, ...complementary].sort((a, b) => {
+  return [...selected.values()].sort((a, b) => {
     if (a.feeType !== b.feeType) return a.feeType === 'ORIGIN' ? -1 : 1;
     return a.sortOrder - b.sortOrder;
   });
@@ -74,10 +77,11 @@ export async function getFeesForIncoterm(
   modal: string,
   chargableWeight: number,
   freightValue: number,
-  freightCurrency: string = 'USD'
+  freightCurrency: string = 'USD',
+  direction: string = 'ALL'
 ): Promise<{ originFees: CalculatedFee[]; destinationFees: CalculatedFee[] }> {
   
-  const rules = await getRulesForIncoterm(incoterm, modal);
+  const rules = await getRulesForIncoterm(incoterm, modal, direction);
   
   const originFees: CalculatedFee[] = [];
   const destinationFees: CalculatedFee[] = [];

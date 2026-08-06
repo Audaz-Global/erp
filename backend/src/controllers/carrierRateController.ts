@@ -39,7 +39,10 @@ const normalizeEquipment = (value: any) => {
   if (v === 'ALL') return 'ALL';
   if (v === 'DRY') return 'DRY';
   if (v.includes('40') && (v.includes('HC') || v.includes('HIGHCUBE'))) return '40HC';
-  if (v.includes('40') && (v.includes('RH') || v.includes('REEFER'))) return '40RH';
+  if (v.includes('40') && (v.includes('RH') || v.includes('REEFER') || v.includes('RIF') || v.includes('RF'))) return '40RH';
+  if (v.includes('20') && (v.includes('RH') || v.includes('REEFER') || v.includes('RIF') || v.includes('RF'))) return '20RH';
+  if (v.includes('40') && (v.includes('OPENTOP') || v.includes('TOR') || v.endsWith('OT'))) return '40OT';
+  if (v.includes('20') && (v.includes('OPENTOP') || v.includes('TOR') || v.endsWith('OT'))) return '20OT';
   if (v.includes('40')) return '40GP';
   if (v.includes('20')) return '20GP';
   return clean(value).toUpperCase();
@@ -195,6 +198,34 @@ export async function updateCarrierRate(req: Request, res: Response) {
     }, include: { carrierProfile: true, chargeCatalog: true, evidences: true } });
     res.json(rate);
   } catch (error) { res.status(500).json({ error: 'Erro ao atualizar tarifa.' }); }
+}
+
+export async function createCarrierRate(req: Request, res: Response) {
+  try {
+    const carrierProfileId = clean(req.body.carrierProfileId);
+    const carrier = await prisma.carrierProfile.findUnique({ where: { id: carrierProfileId } });
+    const chargeName = clean(req.body.chargeName), portScope = clean(req.body.portScope) || 'ALL';
+    const equipment = normalizeEquipment(req.body.equipment), amount = parseAmount(req.body.amount);
+    const currency = clean(req.body.currency || 'USD').toUpperCase(), unitBasis = clean(req.body.unitBasis || 'PER CONTAINER');
+    if (!carrier || !chargeName || !Number.isFinite(amount) || amount < 0 || equipment === 'NOT STATED') return res.status(400).json({ error: 'Informe armador, taxa, equipamento e valor válidos.' });
+    const enabled = jsonArray((carrier as any).equipmentScopes);
+    if (enabled.length && !enabled.includes(equipment)) return res.status(400).json({ error: `Habilite o equipamento ${equipment} no cadastro do armador antes de registrar a taxa.` });
+    const effectiveFrom = req.body.effectiveFrom ? new Date(req.body.effectiveFrom) : null;
+    const effectiveTo = req.body.effectiveTo ? new Date(req.body.effectiveTo) : null;
+    if (effectiveFrom && effectiveTo && effectiveTo < effectiveFrom) return res.status(400).json({ error: 'A vigência final deve ser posterior à inicial.' });
+    const status = clean(req.body.status || 'REFERENCE').toUpperCase();
+    if (status === 'APPROVED' && (!effectiveFrom || !effectiveTo)) return res.status(400).json({ error: 'Informe a vigência antes de aprovar a tarifa.' });
+    const catalog = await upsertCatalog(chargeName, req.body.originalCode, req.body.description);
+    const fingerprint = crypto.createHash('sha256').update(['MANUAL', carrier.id, catalog.id, portScope, equipment, currency, amount, unitBasis, Date.now(), Math.random()].join('|')).digest('hex');
+    const rate = await prisma.carrierRate.create({ data: {
+      carrierProfileId: carrier.id, chargeCatalogId: catalog.id, originalCode: clean(req.body.originalCode) || null,
+      originalDescription: clean(req.body.description) || null, portScope, equipment, currency, amount, unitBasis,
+      application: clean(req.body.application) || null, modal: clean(req.body.modal || 'SEA_FCL').toUpperCase(), type: clean(req.body.type || 'DESTINATION').toUpperCase(),
+      effectiveFrom, effectiveTo, status, conditional: Boolean(req.body.conditional), sourceFingerprint: fingerprint,
+      evidences: { create: { sourceRef: 'Cadastro manual', sourceType: 'OTHER', notes: clean(req.body.notes) || 'Taxa cadastrada manualmente.' } }
+    }, include: { carrierProfile: true, chargeCatalog: true, evidences: true } });
+    res.status(201).json(rate);
+  } catch { res.status(500).json({ error: 'Erro ao cadastrar tarifa do armador.' }); }
 }
 
 const genericPort = (value: any) => ['ALL', 'BRAZIL PORTS', 'BRASIL', 'BRAZIL'].includes(canonical(value));

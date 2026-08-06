@@ -2,6 +2,7 @@ import { fetchEmailAttachments, fetchEmailsByConversationId, fetchUnreadEmails, 
 import { prisma } from '../prisma';
 import { extractAgentCosts } from './aiService';
 import { buildThreadContext, extractOutlookAttachments, mergeExtractedCosts, mergeFeeLists, splitAgentReply } from './agentResponseService';
+import { applyRateValidityPolicy, rateValidityFields } from './rateValidityService';
 import { applyMinLclStorage } from '../utils/cargoUtils';
 
 const TRACKED_AGENT_FIELDS = new Set([
@@ -217,6 +218,7 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
     
     if (costs && costs.costs) {
       const c = costs.costs;
+      applyRateValidityPolicy(c, receivedAt || new Date());
       const presentFields = new Set<string>((Array.isArray(c.present_fields) ? c.present_fields : [])
         .map((field: any) => String(field).trim().toLowerCase())
         .filter((field: string) => TRACKED_AGENT_FIELDS.has(field)));
@@ -275,7 +277,7 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       if (has('vessel_name') && c.vessel_name) updateData.vesselName = c.vessel_name;
       if (has('voyage_number') && c.voyage_number) updateData.voyageNumber = c.voyage_number;
       if (has('free_time_days') && c.free_time_days != null) updateData.freeTimeDays = c.free_time_days;
-      if (has('rate_valid_until') && c.rate_valid_until && !isNaN(Date.parse(c.rate_valid_until))) updateData.rateValidUntil = new Date(c.rate_valid_until);
+      Object.assign(updateData, rateValidityFields(c));
       if (has('transshipments') && Array.isArray(c.transshipments)) updateData.transshipments = JSON.stringify(c.transshipments);
       if (has('transit_time', 'transit_time_days') && c.transit_time_days != null) updateData.transitTimeDays = c.transit_time_days;
       if (has('frequency') && c.frequency) updateData.frequency = c.frequency;

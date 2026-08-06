@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
 import { renderDraftSubject } from '../utils/emailTemplate';
 import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService';
+import { applyRateValidityPolicy } from '../services/rateValidityService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -148,6 +149,7 @@ export const extractData = async (req: Request, res: Response) => {
       }
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
+      if (aiResult?.costs) applyRateValidityPolicy(aiResult.costs);
       
       // Regra de Negócio: Calcular Seguro Automático
       if (aiResult && aiResult.costs && aiResult.costs.insurance_requested) {

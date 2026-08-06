@@ -862,6 +862,11 @@
                   <option value="LCL">LCL</option>
                   <option value="FCL_20">FCL 20'</option>
                   <option value="FCL_40">FCL 40'</option>
+                  <option value="FCL_40HC">FCL 40' High Cube</option>
+                  <option value="FCL_20RH">FCL 20' Reefer</option>
+                  <option value="FCL_40RH">FCL 40' Reefer</option>
+                  <option value="FCL_20OT">FCL 20' Open Top</option>
+                  <option value="FCL_40OT">FCL 40' Open Top</option>
                   <option value="AIR_GENERAL">Aéreo Geral</option>
                 </select>
               </div>
@@ -1384,6 +1389,11 @@
             <option value="LCL">🚢 LCL (Marítimo Consolidado)</option>
             <option value="FCL_20">📦 FCL 20' (Container)</option>
             <option value="FCL_40">📦 FCL 40' (Container)</option>
+            <option value="FCL_40HC">FCL 40' High Cube</option>
+            <option value="FCL_20RH">FCL 20' Reefer</option>
+            <option value="FCL_40RH">FCL 40' Reefer</option>
+            <option value="FCL_20OT">FCL 20' Open Top</option>
+            <option value="FCL_40OT">FCL 40' Open Top</option>
           </select>
         </div>
         <div class="form-group" style="margin:0;">
@@ -2219,6 +2229,44 @@ function renderConf(val, confStr) {
   return `<div class="conf-wrapper"><div class="conf-dot ${color}"></div> ${pct}%</div>`;
 }
 
+const RATE_VALIDITY_LABELS = { AGENT_EMAIL: 'Lida do e-mail do agente', TARIFF: 'Lida do tarifário', CONTINGENCY: 'Contingência de até 15 dias — revisar', MANUAL: 'Definida manualmente' };
+
+function setRateValidityStatus(prefix, metadata = {}) {
+  const input = document.getElementById(`${prefix}-rate-valid-until`);
+  if (!input) return;
+  const source = metadata.source || metadata.rateValiditySource || metadata.rate_validity_source || (input.value ? 'MANUAL' : 'CONTINGENCY');
+  const evidence = metadata.evidence || metadata.rateValidityEvidence || metadata.rate_validity_evidence || '';
+  const confidence = metadata.confidence ?? metadata.rateValidityConfidence ?? metadata.rate_validity_confidence ?? null;
+  const needsReview = Boolean(metadata.needsReview ?? metadata.rateValidityNeedsReview ?? metadata.rate_validity_needs_review ?? source === 'CONTINGENCY');
+  input.dataset.validitySource = source;
+  input.dataset.validityEvidence = evidence;
+  input.dataset.validityConfidence = confidence == null ? '' : String(confidence);
+  input.dataset.validityNeedsReview = String(needsReview);
+  let status = input.parentElement.querySelector('.rate-validity-status');
+  if (!status) { status = document.createElement('small'); status.className = 'rate-validity-status'; input.insertAdjacentElement('afterend', status); }
+  const confidenceText = confidence != null && confidence !== '' ? ` · ${Math.round(Number(confidence) * 100)}%` : '';
+  status.textContent = `${RATE_VALIDITY_LABELS[source] || 'Validade informada'}${confidenceText}${needsReview ? ' · confirmação necessária' : ''}`;
+  status.style.cssText = `display:block;margin-top:5px;font-size:10px;color:${needsReview ? 'var(--warning)' : 'var(--success)'};line-height:1.35`;
+  status.title = evidence || status.textContent;
+}
+
+function rateValidityPayload(prefix) {
+  const input = document.getElementById(`${prefix}-rate-valid-until`);
+  if (!input?.value) return { rateValiditySource: null, rateValidityEvidence: null, rateValidityConfidence: null, rateValidityNeedsReview: false };
+  return {
+    rateValiditySource: input.dataset.validitySource || 'MANUAL',
+    rateValidityEvidence: input.dataset.validityEvidence || 'Data confirmada manualmente na revisão.',
+    rateValidityConfidence: input.dataset.validityConfidence === '' ? null : Number(input.dataset.validityConfidence),
+    rateValidityNeedsReview: input.dataset.validityNeedsReview === 'true'
+  };
+}
+
+function markRateValidityManual(prefix) {
+  const input = document.getElementById(`${prefix}-rate-valid-until`);
+  if (!input?.value) return;
+  setRateValidityStatus(prefix, { source: 'MANUAL', evidence: 'Data alterada manualmente pela equipe.', confidence: 1, needsReview: false });
+}
+
 let currentPartnerType = 'AGENTE';
 
 function setPartnerType(type) {
@@ -2490,7 +2538,7 @@ function fillReviewForm(d, mode) {
       }
     }
     if(d.cargo) {
-      const typeMap = {"LCL":"LCL", "FCL_20":"FCL_20", "FCL_40":"FCL_40", "AIR_GENERAL":"AIR_GENERAL"};
+      const typeMap = {"LCL":"LCL", "FCL_20":"FCL_20", "FCL_40":"FCL_40", "FCL_40HC":"FCL_40HC", "FCL_20RH":"FCL_20RH", "FCL_40RH":"FCL_40RH", "FCL_20OT":"FCL_20OT", "FCL_40OT":"FCL_40OT", "AIR_GENERAL":"AIR_GENERAL"};
       const typeVal = (d.cargo.type || '').toUpperCase();
       if (typeVal.includes('AIR') || typeVal.includes('AER') || typeVal.includes('AÉR')) {
         document.getElementById('r-type').value = 'AIR_GENERAL';
@@ -2498,6 +2546,14 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-type').value = typeMap[d.cargo.type];
       } else if (typeVal.includes('LCL')) {
         document.getElementById('r-type').value = 'LCL';
+      } else if (typeVal.includes('40') && (typeVal.includes('REEFER') || typeVal.includes('RIF') || typeVal.includes('RH'))) {
+        document.getElementById('r-type').value = 'FCL_40RH';
+      } else if (typeVal.includes('20') && (typeVal.includes('REEFER') || typeVal.includes('RIF') || typeVal.includes('RH'))) {
+        document.getElementById('r-type').value = 'FCL_20RH';
+      } else if (typeVal.includes('40') && (typeVal.includes('OPEN TOP') || typeVal.includes('TOR') || typeVal.includes('OT'))) {
+        document.getElementById('r-type').value = 'FCL_40OT';
+      } else if (typeVal.includes('20') && (typeVal.includes('OPEN TOP') || typeVal.includes('TOR') || typeVal.includes('OT'))) {
+        document.getElementById('r-type').value = 'FCL_20OT';
       } else if (typeVal.includes('20')) {
         document.getElementById('r-type').value = 'FCL_20';
       } else if (typeVal.includes('40')) {
@@ -2593,6 +2649,7 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-voyage-number').value = d.costs.voyage_number || '';
       document.getElementById('r-free-time-days').value = d.costs.free_time_days ?? '';
       document.getElementById('r-rate-valid-until').value = /^\d{4}-\d{2}-\d{2}/.test(d.costs.rate_valid_until || '') ? d.costs.rate_valid_until.slice(0,10) : '';
+      setRateValidityStatus('r', d.costs);
       document.getElementById('r-transshipments').value = formatTransshipments(d.costs.transshipments);
       const carrierQuote = allQuotations.find(x => x.id === document.getElementById('pending-quotations').value);
       applyCarrierProfile('r', d.costs.carrier, 'RETURN', carrierQuote?.modal || '', carrierQuote?.loadType || '', true);
@@ -3406,6 +3463,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-voyage-number').value = q.voyageNumber || '';
     document.getElementById('rev-free-time-days').value = q.freeTimeDays ?? '';
     document.getElementById('rev-rate-valid-until').value = q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '';
+    setRateValidityStatus('rev', q);
     document.getElementById('rev-contract-number').value = q.contractNumber || '';
     document.getElementById('rev-transshipments').value = formatTransshipments(q.transshipments);
     applyCarrierProfile('rev', q.carrier, 'FINAL', q.modal, q.loadType);
@@ -3487,6 +3545,12 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-voyage-number').value = document.getElementById('r-voyage-number').value || q.voyageNumber || '';
       document.getElementById('rev-free-time-days').value = document.getElementById('r-free-time-days').value || q.freeTimeDays || '';
       document.getElementById('rev-rate-valid-until').value = document.getElementById('r-rate-valid-until').value || (q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '');
+      setRateValidityStatus('rev', {
+        source: document.getElementById('r-rate-valid-until').dataset.validitySource || q.rateValiditySource,
+        evidence: document.getElementById('r-rate-valid-until').dataset.validityEvidence || q.rateValidityEvidence,
+        confidence: document.getElementById('r-rate-valid-until').dataset.validityConfidence || q.rateValidityConfidence,
+        needsReview: document.getElementById('r-rate-valid-until').dataset.validityNeedsReview === 'true' || q.rateValidityNeedsReview
+      });
       document.getElementById('rev-contract-number').value = document.getElementById('r-contract-number').value || q.contractNumber || '';
       document.getElementById('rev-transshipments').value = document.getElementById('r-transshipments').value || formatTransshipments(q.transshipments);
       applyCarrierProfile('rev', document.getElementById('rev-carrier').value, 'FINAL', q.modal, q.loadType);
@@ -3660,7 +3724,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-customs-clearance').checked = false;
     document.getElementById('rev-customs-value').value = '900.00';
 
-    await applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true);
+    await applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true, document.getElementById('rev-direction').value || 'IMPORT');
     // Exibir o modal
     document.getElementById('pdfReviewOverlay').style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -3677,6 +3741,14 @@ function closePdfReviewModal() {
 async function confirmAndGeneratePDF() {
   const qId = currentPdfQuotationId;
   if (!qId) return;
+
+  const validityInput = document.getElementById('rev-rate-valid-until');
+  if (!validityInput.value) {
+    alert('Informe a validade da tarifa antes de gerar o PDF.');
+    validityInput.focus();
+    return;
+  }
+  if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
 
   const confirmBtn = document.querySelector('#pdfReviewOverlay .btn-primary');
   confirmBtn.disabled = true;
@@ -3855,6 +3927,7 @@ async function confirmAndGeneratePDF() {
         voyageNumber: document.getElementById('rev-voyage-number').value || null,
         freeTimeDays: parseInt(document.getElementById('rev-free-time-days').value) || null,
         rateValidUntil: document.getElementById('rev-rate-valid-until').value ? new Date(document.getElementById('rev-rate-valid-until').value + 'T12:00:00').toISOString() : null,
+        ...rateValidityPayload('rev'),
         contractNumber: document.getElementById('rev-contract-number').value || null,
         transshipments: JSON.stringify(parseTransshipments(document.getElementById('rev-transshipments').value)),
         ruleStage: 'FINAL',
@@ -4092,6 +4165,7 @@ function resetAgentReturnFields() {
   document.getElementById('r-agent-origin-inland-currency').value = 'USD';
   document.getElementById('r-weight-break').value = '';
   document.getElementById('r-customs-clearance-included').checked = false;
+  setRateValidityStatus('r', { source: 'CONTINGENCY', needsReview: true, evidence: 'Aguardando leitura do retorno do agente.' });
   document.getElementById('r-carrier-controls').style.display = 'none';
   document.querySelectorAll('#costs-review-grid [id^="conf-"]').forEach(el => el.innerHTML = '');
 }
@@ -4132,15 +4206,16 @@ async function loadPendingQuotationData() {
   document.getElementById('r-agent-carrier').value = q.carrier || '';
   document.getElementById('r-vessel-name').value = q.vesselName || '';
   document.getElementById('r-voyage-number').value = q.voyageNumber || '';
-  document.getElementById('r-free-time-days').value = q.freeTimeDays ?? '';
-  document.getElementById('r-rate-valid-until').value = q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '';
-  document.getElementById('r-contract-number').value = q.contractNumber || '';
+    document.getElementById('r-free-time-days').value = q.freeTimeDays ?? '';
+    document.getElementById('r-rate-valid-until').value = q.rateValidUntil ? String(q.rateValidUntil).slice(0,10) : '';
+    setRateValidityStatus('r', q);
+    document.getElementById('r-contract-number').value = q.contractNumber || '';
   document.getElementById('r-transshipments').value = formatTransshipments(q.transshipments);
   applyCarrierProfile('r', q.carrier, 'RETURN', q.modal, q.loadType);
   document.getElementById('r-agent-origin-inland-transit').value = q.originInlandTransitTime || '';
   try {
     const modal = normalizeReturnRuleModal(q);
-    const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}`);
+    const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&direction=${encodeURIComponent(q.direction || 'IMPORT')}`);
     if (!rulesResponse.ok) throw new Error('Falha ao carregar regras de Incoterm.');
     const loadedRules = await rulesResponse.json();
     if (select.value !== q.id) return;
@@ -4150,7 +4225,7 @@ async function loadPendingQuotationData() {
     const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
     returnIncotermRules = [...specificRules, ...complementaryRules];
     applyReturnIncotermRules(q, true);
-    applyIncotermFieldRules(incoterm, modal, 'RETURN', true);
+    applyIncotermFieldRules(incoterm, modal, 'RETURN', true, q.direction || 'IMPORT');
   } catch (e) {
     console.error('Erro ao prefixar taxas do Incoterm:', e);
   }
@@ -5851,7 +5926,15 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSettings();
 });
 // ════════════ GESTÃO DE TAXAS LOCAIS (STANDARD) ════════════
+function ensureStandardFeeModalScope() {
+  const description = document.getElementById('sf-description');
+  if (description && !document.getElementById('sf-modalScope')) {
+    description.closest('.form-group').insertAdjacentHTML('beforebegin', '<div class="form-group" style="margin:0"><label>Compatível com</label><select id="sf-modalScope"><option value="ALL">Todos os modais</option><option value="AIR">Aéreo</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="AIR,SEA_FCL">Aéreo + Marítimo FCL</option><option value="AIR,SEA_LCL">Aéreo + Marítimo LCL</option><option value="SEA_FCL,SEA_LCL">Marítimo FCL + LCL</option></select></div>');
+  }
+}
+
 async function loadStandardFeesTable() {
+  ensureStandardFeeModalScope();
   try {
     const res = await fetch(API + '/standard-fees');
     const fees = await res.json();
@@ -5985,6 +6068,7 @@ async function loadQuotationIntoDraft() {
 }
 
 function editStandardFee(fee) {
+  ensureStandardFeeModalScope();
   document.getElementById('sf-id').value = fee.id;
   document.getElementById('sf-name').value = fee.name;
   document.getElementById('sf-chargeType').value = fee.chargeType;
@@ -5994,6 +6078,7 @@ function editStandardFee(fee) {
   document.getElementById('sf-minValue').value = fee.minValue ?? '';
   document.getElementById('sf-percentBase').value = fee.percentBase || 'FREIGHT';
   document.getElementById('sf-description').value = fee.description || '';
+  document.getElementById('sf-modalScope').value = fee.modalScope || 'ALL';
   toggleSfPercentBase();
   
   document.getElementById('btnSaveStandardFee').innerText = '💾 Atualizar Taxa';
@@ -6001,6 +6086,7 @@ function editStandardFee(fee) {
 }
 
 function cancelEditStandardFee() {
+  ensureStandardFeeModalScope();
   document.getElementById('sf-id').value = '';
   document.getElementById('sf-name').value = '';
   document.getElementById('sf-chargeType').value = 'FIXED';
@@ -6010,6 +6096,7 @@ function cancelEditStandardFee() {
   document.getElementById('sf-minValue').value = '';
   document.getElementById('sf-percentBase').value = 'FREIGHT';
   document.getElementById('sf-description').value = '';
+  document.getElementById('sf-modalScope').value = 'ALL';
   toggleSfPercentBase();
   
   document.getElementById('btnSaveStandardFee').innerText = '💾 Salvar Taxa';
@@ -6036,6 +6123,7 @@ async function saveStandardFee() {
     minValue: document.getElementById('sf-minValue').value ? parseFloat(document.getElementById('sf-minValue').value) : null,
     percentBase: chargeType === 'PERCENTAGE' ? document.getElementById('sf-percentBase').value : null,
     description: document.getElementById('sf-description').value.trim() || null,
+    modalScope: document.getElementById('sf-modalScope').value,
     active: true
   };
   
@@ -6129,7 +6217,11 @@ async function loadIncotermFeeOptions(selectedId = '') {
     const res = await fetch(API + '/standard-fees');
     if (!res.ok) throw new Error('Falha ao carregar taxas locais.');
     const fees = await res.json();
-    const activeFees = fees.filter(f => f.active || f.id === selectedId);
+    const ruleModal = document.getElementById('ir-modal')?.value || 'ALL';
+    const activeFees = fees.filter(f => {
+      const scopes = String(f.modalScope || 'ALL').split(',');
+      return (f.active || f.id === selectedId) && (ruleModal === 'ALL' || scopes.includes('ALL') || scopes.includes(ruleModal) || f.id === selectedId);
+    });
     select.innerHTML = '<option value="">-- Selecione a taxa local --</option>' + activeFees.map(f => {
       const side = f.type === 'ORIGIN' ? 'Origem' : 'Destino';
       const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
@@ -6141,7 +6233,15 @@ async function loadIncotermFeeOptions(selectedId = '') {
   }
 }
 
+function ensureIncotermRuleDirectionControl() {
+  const modal = document.getElementById('ir-modal');
+  if (modal && !document.getElementById('ir-direction')) {
+    modal.closest('.form-group').insertAdjacentHTML('afterend', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ir-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div><div class="form-group" style="margin:0"><label><input type="checkbox" id="ir-required"> Taxa obrigatória</label></div>');
+  }
+}
+
 async function loadIncotermRulesTable() {
+  ensureIncotermRuleDirectionControl();
   try {
     const filter = document.getElementById('ir-filter');
     const incotermParam = filter ? filter.value : '';
@@ -6162,6 +6262,8 @@ async function loadIncotermRulesTable() {
       html += `<tr>
         <td><strong style="color:var(--gold)">${r.incoterm}</strong></td>
         <td>${modalLabel}</td>
+        <td>${r.direction === 'IMPORT' ? 'Importação' : r.direction === 'EXPORT' ? 'Exportação' : 'Todas'}</td>
+        <td>${r.required ? 'Sim' : 'Não'}</td>
         <td>${typeLabel}</td>
         <td>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:210px;">
@@ -6190,6 +6292,8 @@ async function saveIncotermRule() {
   const data = {
     incoterm: document.getElementById('ir-incoterm').value,
     modal: document.getElementById('ir-modal').value,
+    direction: document.getElementById('ir-direction').value,
+    required: document.getElementById('ir-required').checked,
     standardFeeId: document.getElementById('ir-standardFeeId').value,
     sortOrder: parseInt(document.getElementById('ir-linkSortOrder').value) || 0
   };
@@ -6225,6 +6329,9 @@ async function editIncotermRule(id) {
     document.getElementById('ir-id').value = rule.id;
     document.getElementById('ir-incoterm').value = rule.incoterm;
     document.getElementById('ir-modal').value = rule.modal;
+    ensureIncotermRuleDirectionControl();
+    document.getElementById('ir-direction').value = rule.direction || 'ALL';
+    document.getElementById('ir-required').checked = Boolean(rule.required);
     await loadIncotermFeeOptions(rule.standardFeeId);
     document.getElementById('ir-linkSortOrder').value = rule.sortOrder || 0;
     document.getElementById('btnSaveIr').innerText = '💾 Atualizar Regra';
@@ -6421,16 +6528,25 @@ let carrierProfilesSettingsCache=[];
 function carrierAliasesText(p){try{return JSON.parse(p.aliases||'[]').join(', ')}catch{return p.aliases||''}}
 async function loadCarrierProfilesSettings(){const [pr,fr]=await Promise.all([fetch('/api/carrier-profiles'),fetch('/api/fixed-fees')]);carrierProfilesSettingsCache=pr.ok?await pr.json():[];const fees=fr.ok?await fr.json():[];['cfr-carrier','cpf-carrier'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=carrierProfilesSettingsCache.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('')});const feeSel=document.getElementById('cpf-fee');if(feeSel)feeSel.innerHTML=fees.map(f=>`<option value="${f.id}">${ifrEscape(f.carrier||'Geral')} — ${ifrEscape(f.name)} (${f.currency} ${Number(f.value).toFixed(2)})</option>`).join('');const table=document.getElementById('carrierProfilesTable');if(table)table.innerHTML=carrierProfilesSettingsCache.length?'<table class="k-table"><thead><tr><th>Armador</th><th>SCAC</th><th>Aliases</th><th>Taxas</th><th>Ações</th></tr></thead><tbody>'+carrierProfilesSettingsCache.map(p=>`<tr><td><strong>${ifrEscape(p.name)}</strong></td><td>${ifrEscape(p.code)||'—'}</td><td>${ifrEscape(carrierAliasesText(p))}</td><td>${p.fixedFees?.length||0}</td><td><button class="action-btn" onclick="editCarrierProfile('${p.id}')">✏️</button></td></tr>`).join('')+'</tbody></table>':'<p>Nenhum armador cadastrado.</p>';renderCarrierRulesTable();}
 function renderCarrierRulesTable(){const el=document.getElementById('carrierRulesTable');if(!el)return;const rules=carrierProfilesSettingsCache.flatMap(p=>(p.fieldRules||[]).map(r=>({...r,carrierName:p.name})));const fees=carrierProfilesSettingsCache.flatMap(p=>(p.fixedFees||[]).map(f=>({...f,carrierName:p.name})));el.innerHTML='<h4>Regras de Campos</h4>'+(rules.length?'<table class="k-table"><tbody>'+rules.map(r=>`<tr><td>${ifrEscape(r.carrierName)}</td><td>${CARRIER_FIELD_LABELS[r.fieldKey]||r.fieldKey}</td><td>${r.modal} / ${r.stage}</td><td>${IFR_BEHAVIOR_LABELS[r.behavior]||r.behavior}</td><td>${ifrEscape(r.reason)||'—'}</td><td><button class="action-btn danger" onclick="deleteCarrierRule('${r.carrierId}','${r.id}')">🗑️</button></td></tr>`).join('')+'</tbody></table>':'<p style="color:var(--text-muted)">Nenhuma regra.</p>')+'<h4 style="margin-top:16px">Taxas Vinculadas</h4>'+(fees.length?'<table class="k-table"><tbody>'+fees.map(f=>`<tr><td>${ifrEscape(f.carrierName)}</td><td>${ifrEscape(f.name)}</td><td>${f.currency} ${Number(f.value).toFixed(2)}</td><td>${f.modal}</td></tr>`).join('')+'</tbody></table>':'<p style="color:var(--text-muted)">Nenhuma taxa vinculada.</p>');}
-async function saveCarrierProfile(){const id=document.getElementById('cp-id').value,data={name:document.getElementById('cp-name').value,code:document.getElementById('cp-code').value,aliases:document.getElementById('cp-aliases').value,modal:'SEA',active:true};const res=await fetch('/api/carrier-profiles'+(id?'/'+id:''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Armador salvo!');cancelCarrierProfileEdit();loadCarrierProfilesSettings();}else toast('❌ Erro ao salvar armador.');}
-function editCarrierProfile(id){const p=carrierProfilesSettingsCache.find(x=>x.id===id);if(!p)return;document.getElementById('cp-id').value=p.id;document.getElementById('cp-name').value=p.name;document.getElementById('cp-code').value=p.code||'';document.getElementById('cp-aliases').value=carrierAliasesText(p);}
-function cancelCarrierProfileEdit(){['cp-id','cp-name','cp-code','cp-aliases'].forEach(id=>document.getElementById(id).value='');}
+async function saveCarrierProfile(){const id=document.getElementById('cp-id').value,data={name:document.getElementById('cp-name').value,code:document.getElementById('cp-code').value,aliases:document.getElementById('cp-aliases').value,equipmentScopes:[...document.getElementById('cp-equipment').selectedOptions].map(o=>o.value),modal:'SEA',active:true};const res=await fetch('/api/carrier-profiles'+(id?'/'+id:''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Armador salvo!');cancelCarrierProfileEdit();loadCarrierProfilesSettings();}else toast('❌ Erro ao salvar armador.');}
+function editCarrierProfile(id){const p=carrierProfilesSettingsCache.find(x=>x.id===id);if(!p)return;document.getElementById('cp-id').value=p.id;document.getElementById('cp-name').value=p.name;document.getElementById('cp-code').value=p.code||'';document.getElementById('cp-aliases').value=carrierAliasesText(p);const scopes=carrierEquipmentScopes(p.equipmentScopes);[...document.getElementById('cp-equipment').options].forEach(o=>o.selected=scopes.includes(o.value));}
+function cancelCarrierProfileEdit(){['cp-id','cp-name','cp-code','cp-aliases'].forEach(id=>document.getElementById(id).value='');const e=document.getElementById('cp-equipment');if(e)[...e.options].forEach(o=>o.selected=['20GP','40GP','40HC'].includes(o.value));}
 async function seedMaerskProfile(){await fetch('/api/carrier-profiles/seed-maersk',{method:'POST'});toast('✅ Piloto Maersk atualizado!');loadCarrierProfilesSettings();}
 async function saveCarrierFieldRule(){const carrierId=document.getElementById('cfr-carrier').value,data={id:document.getElementById('cfr-id').value||undefined,modal:document.getElementById('cfr-modal').value,stage:document.getElementById('cfr-stage').value,fieldKey:document.getElementById('cfr-field').value,behavior:document.getElementById('cfr-behavior').value,reason:document.getElementById('cfr-reason').value};const res=await fetch(`/api/carrier-profiles/${carrierId}/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Regra salva!');loadCarrierProfilesSettings();}else{const e=await res.json();toast('❌ '+e.error);}}
 async function deleteCarrierRule(carrierId,id){if(!confirm('Excluir regra?'))return;await fetch(`/api/carrier-profiles/${carrierId}/rules/${id}`,{method:'DELETE'});loadCarrierProfilesSettings();}
 async function linkCarrierFee(){const carrierId=document.getElementById('cpf-carrier').value,feeId=document.getElementById('cpf-fee').value,p=carrierProfilesSettingsCache.find(x=>x.id===carrierId);const res=await fetch('/api/fixed-fees/'+feeId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({carrierProfileId:carrierId,carrier:p?.name})});if(res.ok){toast('✅ Taxa vinculada!');loadCarrierProfilesSettings();}else toast('❌ Erro ao vincular taxa.');}
 const CARRIER_RATE_STATUS={REFERENCE:'Somente referência',APPROVED:'Aprovado',EXPIRED:'Expirado',REJECTED:'Rejeitado'};
+function ensureCarrierEquipmentProfileForm(){const aliases=document.getElementById('cp-aliases');if(!aliases||document.getElementById('cp-equipment'))return;aliases.closest('.form-group').insertAdjacentHTML('afterend',`<div class="form-group"><label>Equipamentos habilitados</label><select id="cp-equipment" multiple size="4"><option value="20GP" selected>20' Dry (20GP)</option><option value="40GP" selected>40' Dry (40GP)</option><option value="40HC" selected>40' High Cube (40HC)</option><option value="20RH">20' Reefer / RIF</option><option value="40RH">40' Reefer / RIF</option><option value="20OT">20' Open Top / TOR</option><option value="40OT">40' Open Top / TOR</option></select><small>Use Ctrl/Cmd para selecionar mais de um.</small></div>`);}
+async function ensureCarrierRateManualForm(){const stats=document.getElementById('carrierRateStats');if(!stats||document.getElementById('cr-new-carrier'))return;const res=await fetch('/api/carrier-profiles');if(!res.ok)return;const profiles=await res.json();stats.insertAdjacentHTML('afterend',`<div class="settings-section" id="carrierRateManualForm"><h3>Nova taxa por equipamento</h3><div style="display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px"><div class="form-group"><label>Armador</label><select id="cr-new-carrier" onchange="refreshNewCarrierEquipment()">${profiles.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('')}</select></div><div class="form-group"><label>Taxa</label><input id="cr-new-name" placeholder="Ex.: THC"></div><div class="form-group"><label>Porto</label><input id="cr-new-port" placeholder="Ex.: Santos ou ALL"></div><div class="form-group"><label>Equipamento</label><select id="cr-new-equipment"></select></div><div class="form-group"><label>Valor</label><input id="cr-new-amount" type="number" step="0.01"></div><div class="form-group"><label>Moeda</label><input id="cr-new-currency" value="USD"></div><div class="form-group"><label>Base</label><input id="cr-new-unit" value="PER CONTAINER"></div><div class="form-group"><label>Vigência inicial</label><input id="cr-new-from" type="date"></div><div class="form-group"><label>Vigência final</label><input id="cr-new-to" type="date"></div><div class="form-group"><label>Status</label><select id="cr-new-status"><option value="REFERENCE">Referência</option><option value="APPROVED">Aprovada</option></select></div></div><button class="btn btn-primary" onclick="createCarrierRate()">Salvar taxa</button></div>`);window.carrierRateProfiles=profiles;refreshNewCarrierEquipment();}
+function refreshNewCarrierEquipment(){const profile=(window.carrierRateProfiles||[]).find(p=>p.id===document.getElementById('cr-new-carrier')?.value);const enabled=carrierEquipmentScopes(profile?.equipmentScopes);const select=document.getElementById('cr-new-equipment');if(select)select.innerHTML=carrierEquipmentOptions(enabled[0]||'20GP',false).replace(/<option value="([^"]+)"[^>]*>[^<]+<\/option>/g,(option,code)=>enabled.includes(code)?option:'');}
+async function createCarrierRate(){const val=id=>document.getElementById(id)?.value||'';const data={carrierProfileId:val('cr-new-carrier'),chargeName:val('cr-new-name'),portScope:val('cr-new-port'),equipment:val('cr-new-equipment'),amount:val('cr-new-amount'),currency:val('cr-new-currency'),unitBasis:val('cr-new-unit'),effectiveFrom:val('cr-new-from')||undefined,effectiveTo:val('cr-new-to')||undefined,status:val('cr-new-status')};const res=await fetch('/api/carrier-rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),body=await res.json().catch(()=>({}));if(!res.ok){toast('Erro: '+(body.error||'não foi possível salvar a taxa.'));return;}toast('Taxa cadastrada.');loadCarrierRatesSettings();}
+function scheduleCarrierRateManualForm(){const stats=document.getElementById('carrierRateStats');if(!stats||document.getElementById('cr-new-carrier')||stats.dataset.manualLoading)return;stats.dataset.manualLoading='1';ensureCarrierRateManualForm().finally(()=>{delete stats.dataset.manualLoading;});}
+const carrierEquipmentObserver=new MutationObserver(()=>{ensureCarrierEquipmentProfileForm();scheduleCarrierRateManualForm();});carrierEquipmentObserver.observe(document.documentElement,{childList:true,subtree:true});
 function carrierRateDate(value){return value?String(value).slice(0,10):'';}
-function carrierRateEquipment(loadType){const v=String(loadType||'').toUpperCase();if(v.includes('40HC'))return'40HC';if(v.includes('40'))return'40GP';if(v.includes('20'))return'20GP';return v||'ALL';}
+const CARRIER_EQUIPMENT=[['20GP',"20' Dry (20GP)"],['40GP',"40' Dry (40GP)"],['40HC',"40' High Cube (40HC)"],['20RH',"20' Reefer / RIF (20RH)"],['40RH',"40' Reefer / RIF (40RH)"],['20OT',"20' Open Top / TOR (20OT)"],['40OT',"40' Open Top / TOR (40OT)"]];
+function carrierEquipmentOptions(value,allowBlank=true){const selected=String(value||'').toUpperCase();return (allowBlank?'<option value="">Selecione...</option>':'')+CARRIER_EQUIPMENT.map(([code,label])=>`<option value="${code}" ${code===selected?'selected':''}>${label}</option>`).join('');}
+function carrierEquipmentScopes(value){try{return Array.isArray(value)?value:JSON.parse(value||'[]');}catch{return String(value||'').split(',').filter(Boolean);}}
+function carrierRateEquipment(loadType){const v=String(loadType||'').toUpperCase();if(v.includes('40HC'))return'40HC';if(v.includes('40RH')||v.includes('40RF')||v.includes('40RIF'))return'40RH';if(v.includes('20RH')||v.includes('20RF')||v.includes('20RIF'))return'20RH';if(v.includes('40OT')||v.includes('40TOR'))return'40OT';if(v.includes('20OT')||v.includes('20TOR'))return'20OT';if(v.includes('40'))return'40GP';if(v.includes('20'))return'20GP';return v||'ALL';}
 async function applyApprovedCarrierRates(profile,modal,loadType){const area=document.getElementById('r-agent-destination-services');if(!area)return;const port=document.getElementById('r-destination-port')?.value||document.getElementById('r-destination')?.value||'';const equipment=carrierRateEquipment(loadType);const qs=new URLSearchParams({carrier:profile.name,port,equipment,modal,type:'DESTINATION'});const res=await fetch('/api/carrier-rates/match?'+qs);if(!res.ok)return;const rates=await res.json();if(!rates.length)return;const current=area.value.split('\n').filter(Boolean);rates.forEach(rate=>{const name=rate.chargeCatalog?.standardizedName||rate.originalDescription;const key=String(name||'').toLowerCase();if(!current.some(line=>line.toLowerCase().includes(key)))current.push(`[Banco ${profile.name}] ${name}: ${Number(rate.amount).toFixed(2)} ${rate.currency} (${rate.unitBasis})`);});area.value=current.join('\n');area.dispatchEvent(new Event('input'));}
 async function loadCarrierRatesSettings(){const [profilesRes,statsRes]=await Promise.all([fetch('/api/carrier-profiles'),fetch('/api/carrier-rates/stats')]);const profiles=profilesRes.ok?await profilesRes.json():[];const select=document.getElementById('cr-filter-carrier');if(select)select.innerHTML='<option value="">Todos</option>'+profiles.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('');if(statsRes.ok){const s=await statsRes.json(),el=document.getElementById('carrierRateStats');if(el)el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px"><div class="summary-card"><strong>${s.totalRates}</strong><small>Tarifas observadas</small></div><div class="summary-card"><strong>${s.catalogs}</strong><small>Conceitos catalogados</small></div><div class="summary-card"><strong>${s.carriers}</strong><small>Armadores</small></div><div class="summary-card"><strong>${s.byStatus?.APPROVED||0}</strong><small>Aprovadas</small></div><div class="summary-card"><strong>${s.conditional||0}</strong><small>Condicionais</small></div></div>${s.batches?.[0]?`<p style="font-size:12px;color:var(--text-muted);margin:12px 0 0">Última importação: ${ifrEscape(s.batches[0].fileName)} — ${s.batches[0].importedRows} novas, ${s.batches[0].skippedRows} ignoradas, ${s.batches[0].warningRows} alertas.</p>`:''}`;}loadCarrierRatesTable();}
 async function loadCarrierRatesTable(){const el=document.getElementById('carrierRatesTable');if(!el)return;el.innerHTML='<p>Carregando...</p>';const qs=new URLSearchParams(),carrier=document.getElementById('cr-filter-carrier')?.value,status=document.getElementById('cr-filter-status')?.value;if(carrier)qs.set('carrierProfileId',carrier);if(status)qs.set('status',status);const res=await fetch('/api/carrier-rates?'+qs);if(!res.ok){el.innerHTML='<p>Erro ao carregar tarifas.</p>';return;}const rates=await res.json();if(!rates.length){el.innerHTML='<p style="color:var(--text-muted)">Nenhuma tarifa encontrada.</p>';return;}el.innerHTML=`<table class="k-table" style="min-width:1450px"><thead><tr><th>Armador / Taxa</th><th>Porto</th><th>Equipamento</th><th>Valor</th><th>Base</th><th>Vigência</th><th>Condição</th><th>Status / Evidência</th><th>Ações</th></tr></thead><tbody>${rates.map(rate=>{const ev=rate.evidences?.[0];return`<tr><td><strong>${ifrEscape(rate.carrierProfile.name)}</strong><br>${ifrEscape(rate.chargeCatalog.standardizedName)}<br><small>${ifrEscape(rate.originalCode||'')}</small></td><td><input id="cr-port-${rate.id}" value="${ifrEscape(rate.portScope||'')}" style="min-width:115px"></td><td><input id="cr-equipment-${rate.id}" value="${ifrEscape(rate.equipment||'')}" style="width:90px"></td><td><div style="display:flex;gap:4px"><input id="cr-amount-${rate.id}" type="number" step="0.01" value="${Number(rate.amount)}" style="width:95px"><input id="cr-currency-${rate.id}" value="${ifrEscape(rate.currency)}" style="width:55px"></div></td><td><input id="cr-unit-${rate.id}" value="${ifrEscape(rate.unitBasis)}" style="min-width:120px"></td><td><input id="cr-from-${rate.id}" type="date" value="${carrierRateDate(rate.effectiveFrom)}" style="width:130px"><br><input id="cr-to-${rate.id}" type="date" value="${carrierRateDate(rate.effectiveTo)}" style="width:130px;margin-top:4px"></td><td><label style="font-size:11px"><input id="cr-conditional-${rate.id}" type="checkbox" ${rate.conditional?'checked':''}> Condicional</label></td><td><span class="status-badge">${CARRIER_RATE_STATUS[rate.status]||rate.status}</span><br><small title="${ifrEscape(ev?.notes||'')}">${ifrEscape(ev?.sourceRef||'—')}</small></td><td><button class="action-btn" onclick="saveCarrierRate('${rate.id}','${rate.status}')">💾</button>${rate.status!=='APPROVED'?`<button class="action-btn" title="Aprovar" onclick="saveCarrierRate('${rate.id}','APPROVED')">✅</button>`:''}${rate.status!=='REJECTED'?`<button class="action-btn danger" title="Rejeitar" onclick="saveCarrierRate('${rate.id}','REJECTED')">✖</button>`:''}</td></tr>`}).join('')}</tbody></table>`;}
@@ -6444,7 +6560,15 @@ function ifrEscape(value) {
   return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function ensureIncotermFieldRuleDirectionControl() {
+  const stage = document.getElementById('ifr-stage');
+  if (stage && !document.getElementById('ifr-direction')) {
+    stage.closest('.form-group').insertAdjacentHTML('beforebegin', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ifr-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div>');
+  }
+}
+
 async function loadIncotermFieldRulesTable() {
+  ensureIncotermFieldRuleDirectionControl();
   const container = document.getElementById('incotermFieldRulesTableContainer');
   if (!container) return;
   try {
@@ -6463,7 +6587,7 @@ async function loadIncotermFieldRulesTable() {
 
 async function saveIncotermFieldRule() {
   const id = document.getElementById('ifr-id').value;
-  const data = { incoterm:document.getElementById('ifr-incoterm').value, modal:document.getElementById('ifr-modal').value, stage:document.getElementById('ifr-stage').value, fieldKey:document.getElementById('ifr-field').value, behavior:document.getElementById('ifr-behavior').value, reason:document.getElementById('ifr-reason').value || null };
+  const data = { incoterm:document.getElementById('ifr-incoterm').value, modal:document.getElementById('ifr-modal').value, direction:document.getElementById('ifr-direction').value, stage:document.getElementById('ifr-stage').value, fieldKey:document.getElementById('ifr-field').value, behavior:document.getElementById('ifr-behavior').value, reason:document.getElementById('ifr-reason').value || null };
   try {
     const res = await fetch('/api/incoterm-field-rules' + (id ? '/' + id : ''), { method:id ? 'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
     if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Erro ao salvar trava.'); }
@@ -6475,6 +6599,8 @@ async function saveIncotermFieldRule() {
 
 function editIncotermFieldRule(id) {
   const r = incotermFieldRuleCache.find(item => item.id === id); if (!r) return;
+  ensureIncotermFieldRuleDirectionControl();
+  document.getElementById('ifr-direction').value=r.direction || 'ALL';
   document.getElementById('ifr-id').value=r.id; document.getElementById('ifr-incoterm').value=r.incoterm; document.getElementById('ifr-modal').value=r.modal; document.getElementById('ifr-stage').value=r.stage; document.getElementById('ifr-field').value=r.fieldKey; document.getElementById('ifr-behavior').value=r.behavior; document.getElementById('ifr-reason').value=r.reason || ''; document.getElementById('btnCancelIfr').style.display='';
 }
 function cancelEditIfr() { document.getElementById('ifr-id').value=''; document.getElementById('ifr-reason').value=''; document.getElementById('btnCancelIfr').style.display='none'; }
@@ -6493,13 +6619,13 @@ function resetFieldRuleTargets(stage) {
   Object.values(IFR_TARGETS[stage]||{}).flat().forEach(id=>{ const el=document.getElementById(id); if(!el)return; if(el.dataset.ifrDisabled!==undefined)el.disabled=el.dataset.ifrDisabled==='true'; if(el.dataset.ifrRequired!==undefined)el.required=el.dataset.ifrRequired==='true'; el.style.outline=''; el.title=''; const box=el.closest('.form-group')||el.parentElement; if(box&&box.dataset.ifrHidden==='true'){box.style.display=box.dataset.ifrDisplay||'';delete box.dataset.ifrHidden;} });
 }
 
-async function applyIncotermFieldRules(incoterm, modal, stage, confirmRemoval=false) {
+async function applyIncotermFieldRules(incoterm, modal, stage, confirmRemoval=false, direction='ALL') {
   if(!incoterm||!stage) return [];
   resetFieldRuleTargets(stage);
-  const res=await fetch(`/api/incoterm-field-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&stage=${encodeURIComponent(stage)}`);
+  const res=await fetch(`/api/incoterm-field-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&stage=${encodeURIComponent(stage)}&direction=${encodeURIComponent(direction)}`);
   if(!res.ok)return [];
   const all=(await res.json()).filter(r=>r.active!==false);
-  const ranked=[...all].sort((a,b)=>((a.modal==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:2)+(b.stage==='ALL'?0:1)));
+  const ranked=[...all].sort((a,b)=>((a.modal==='ALL'?0:4)+(a.direction==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:4)+(b.direction==='ALL'?0:2)+(b.stage==='ALL'?0:1)));
   const effective=new Map(); ranked.forEach(r=>effective.set(r.fieldKey,r));
   for(const rule of effective.values()) {
     let behavior=rule.behavior; if(behavior==='RETURN_ONLY') behavior=stage==='REQUEST'?'HIDDEN':'EDITABLE';
@@ -6600,7 +6726,9 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
   }
 
   try {
-    const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}`);
+    const activeQuote = allQuotations.find(q => q.id === document.getElementById('pending-quotations')?.value);
+    const direction = targetId === 'incoterm-rules-preview-panel3' ? (activeQuote?.direction || 'IMPORT') : (document.getElementById('rev-direction')?.value || 'IMPORT');
+    const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}&direction=${encodeURIComponent(direction)}`);
     const rules = await res.json();
     if (rules && rules.length > 0) {
       const originRules = rules.filter(r => r.feeType === 'ORIGIN');
@@ -6705,6 +6833,10 @@ function modernizeLegacyUI(root = document.body) {
 
 document.addEventListener('DOMContentLoaded', function() {
   modernizeLegacyUI(document.body);
+  ['r', 'rev'].forEach(prefix => {
+    const field = document.getElementById(`${prefix}-rate-valid-until`);
+    if (field) field.addEventListener('change', () => markRateValidityManual(prefix));
+  });
   const visualObserver = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
       if (mutation.type === 'characterData') modernizeLegacyUI(mutation.target.parentElement);
