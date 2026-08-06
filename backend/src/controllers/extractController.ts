@@ -262,10 +262,11 @@ export const generateDraft = async (req: Request, res: Response) => {
       }
     }
 
-    // Atualizar no banco
+    // Atualizar no banco (sincronizando o código gerado com a referência oficial da cotação)
     const updated = await prisma.quotation.update({
       where: { id },
       data: {
+        reference: agentEmailCode,
         draftEmail: draftText,
         draftEmailSubject: draftSubject,
         truckerDraftEmail: truckerDraftText,

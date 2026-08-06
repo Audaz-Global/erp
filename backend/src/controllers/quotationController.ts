@@ -33,11 +33,11 @@ export const createQuotation = async (req: Request, res: Response) => {
     }
 
     // Extract non-quotation fields
-    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, ...quotationData } = req.body;
+    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
     if (ruleStage) await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase());
     if (ruleStage) await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase());
 
-    // Generate ADZ-QIS Reference if not provided
+    // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided
     let reference = quotationData.reference;
     if (reference) {
       const existing = await prisma.quotation.findUnique({ where: { reference } });
@@ -45,7 +45,7 @@ export const createQuotation = async (req: Request, res: Response) => {
         reference = `${reference}-${Math.floor(Math.random() * 1000)}`;
       }
     } else {
-      reference = await generateReference();
+      reference = await generateReference(operatorInitials || 'ADZ');
     }
 
     // Handle Client
@@ -221,26 +221,14 @@ export const deleteQuotation = async (req: Request, res: Response) => {
   }
 };
 
-// Helper: Auto-generate Reference "ADZ-QIS26050094" format
-const generateReference = async () => {
-  const date = new Date();
-  const year = date.getFullYear().toString().substring(2);
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  
-  // Find latest quotation to increment number
-  const latest = await prisma.quotation.findFirst({
-    where: { reference: { startsWith: `ADZ-QIS${year}${month}` } },
-    orderBy: { createdAt: 'desc' }
-  });
-
-  let nextSequence = 1;
-  if (latest && latest.reference) {
-    const seqStr = latest.reference.substring(latest.reference.length - 4);
-    const seq = parseInt(seqStr, 10);
-    if (!isNaN(seq)) nextSequence = seq + 1;
-  }
-
-  return `ADZ-QIS${year}${month}${nextSequence.toString().padStart(4, '0')}`;
+// Helper: Auto-generate Reference "INITIALS-DDMMYY-HHMM" format
+const generateReference = async (initials: string = 'ADZ') => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const datePart = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${String(now.getFullYear()).slice(-2)}`;
+  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const prefix = (initials || 'ADZ').trim().toUpperCase();
+  return `${prefix}-${datePart}-${timePart}`;
 };
 
 // 6. Generate PDF for Quotation

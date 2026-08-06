@@ -3086,6 +3086,14 @@ async function generateDraftEmail() {
     });
     const draftData = await readApiJson(resDraft, 'A geração do rascunho');
 
+    if (draftData.quotation && draftData.quotation.id) {
+      const itemIndex = allQuotations.findIndex(x => x.id === draftData.quotation.id);
+      if (itemIndex >= 0) {
+        allQuotations[itemIndex] = { ...allQuotations[itemIndex], ...draftData.quotation };
+      }
+      loadQuotations();
+    }
+
     document.getElementById('r-draft-text').value = draftData.draft || '';
     document.getElementById('r-draft-subject').value = draftData.draftSubject || '';
     if (draftData.truckerDraft) {

@@ -92,8 +92,9 @@ async function matchBySenderEmail(senderEmail: string | undefined) {
 async function matchByBodyReference(subject: string, bodyContent: string) {
   const fullText = `${subject} ${bodyContent}`;
 
-  // Padrões de referência conhecidos: ADZ-QIA/QIS/QIR + 8 dígitos ou variações
+  // Padrões de referência conhecidos: GDS-060826-1806, ADZ-QIA/QIS/QIR + 8 dígitos ou variações
   const patterns = [
+    /[A-Z]{2,4}-\d{6}-\d{4}/gi,          // GDS-060826-1806, ADZ-060826-1806
     /(?:ADZ-)?Q[IA][ASIR]\d{8}/gi,       // QIA26060010, QIS26060117, ADZ-QIA26060021
     /NWCNC\d{2}[A-Z]{2}\d{3}-\d+/gi,     // NWCNC26LA061-648
     /IMP-?\d{3,}/gi,                       // IMP049, IMP-077

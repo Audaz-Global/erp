@@ -1019,14 +1019,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     
     let ref = quotationData.reference || '';
     if (ref) {
-      if (ref.startsWith('ADZ-QIA') || ref.startsWith('ADZ-QIS')) {
-        referenceNumber = ref.endsWith('-AA') ? ref : `${ref}-AA`;
-      } else {
-        const prefix = 'ADZ-QIA';
-        referenceNumber = `${prefix}${ref}-AA`;
-      }
+      referenceNumber = ref.endsWith('-AA') ? ref : `${ref}-AA`;
     } else {
-      referenceNumber = 'ADZ-QIA26050101-AA';
+      referenceNumber = 'ADZ-060826-0001-AA';
     }
     loadTypeLabel = String(quotationData.loadType || 'AIR_GENERAL');
     
@@ -1089,14 +1084,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     
     let ref = quotationData.reference || '';
     if (ref) {
-      if (ref.startsWith('ADZ-QIA') || ref.startsWith('ADZ-QIS')) {
-        referenceNumber = ref.endsWith('-AA') ? ref : `${ref}-AA`;
-      } else {
-        const prefix = 'ADZ-QIA';
-        referenceNumber = `${prefix}${ref}-AA`;
-      }
+      referenceNumber = ref.endsWith('-AA') ? ref : `${ref}-AA`;
     } else {
-      referenceNumber = 'ADZ-QIA-TBD';
+      referenceNumber = 'ADZ-060826-0001-AA';
     }
     loadTypeLabel = String(quotationData.loadType || 'AIR_GENERAL');
     
