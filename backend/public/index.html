@@ -1659,11 +1659,20 @@
         <li onclick="switchSettingsTab('taxes')">
           <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Taxas Padrão
         </li>
-        <li onclick="switchSettingsTab('fixedFees')">
-          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Taxas Locais Parceiros
+        <li onclick="switchSettingsTab('fixedFeesSea')">
+          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-ship"></use></svg></span> Taxas Locais - Marítimo
+        </li>
+        <li onclick="switchSettingsTab('fixedFeesAir')">
+          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Taxas Locais - Aéreo
         </li>
         <li onclick="switchSettingsTab('standardFees')">
           <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-building"></use></svg></span> Taxas Locais
+        </li>
+        <li onclick="switchSettingsTab('deconsolidators')">
+          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-package"></use></svg></span> Desconsolidadores
+        </li>
+        <li onclick="switchSettingsTab('pricingSettings')">
+          <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-coins"></use></svg></span> Câmbio & Armazenagem
         </li>
         <li onclick="switchSettingsTab('incotermRules')">
           <span class="nav-icon"><svg class="ui-icon sm"><use href="#icon-package"></use></svg></span> Regras por Incoterm
@@ -4518,7 +4527,7 @@ function closeSettings() {
 function switchSettingsTab(tab) {
   document.querySelectorAll('#settingsNav li').forEach(li => li.classList.remove('active'));
   const items = document.querySelectorAll('#settingsNav li');
-  const tabMap = ['company','logo','knowledge','taxes','fixedFees','standardFees','incotermRules','agentDraftEmail','carrierProfiles','carrierRates','template','users'];
+  const tabMap = ['company','logo','knowledge','taxes','fixedFeesSea','fixedFeesAir','standardFees','deconsolidators','pricingSettings','incotermRules','agentDraftEmail','carrierProfiles','carrierRates','template','users'];
   const idx = tabMap.indexOf(tab);
   if (idx >= 0 && items[idx]) items[idx].classList.add('active');
 
@@ -4599,78 +4608,92 @@ function switchSettingsTab(tab) {
             <div class="form-group"><label>IOF Padrão (%)</label>
               <input type="number" id="s-iof-rate" step="0.1" value="${settingsData.iofRate || 3.5}" placeholder="3.5">
             </div>
-            <div class="form-group"><label>Câmbio USD → BRL (referência)</label>
-              <input type="number" id="s-exchange-rate" step="0.01" value="${settingsData.exchangeRate || ''}" placeholder="Ex: 5.15">
-            </div>
-          </div>
-          <div class="sg-row">
-            <div class="form-group"><label>Armazenagem Mínima (BRL)</label>
-              <input type="number" id="s-min-storage" step="0.01" value="${settingsData.minStorage || ''}" placeholder="Ex: 150.00">
-            </div>
             <div class="form-group"><label>Validade Padrão da Cotação (dias)</label>
               <input type="number" id="s-validity-days" value="${settingsData.validityDays || 15}" placeholder="15">
             </div>
           </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:-4px;">Câmbio (PTAX) e Armazenagem Mínima LCL agora ficam em Configurações → "Câmbio & Armazenagem".</p>
         </div>
         <button class="btn btn-primary" onclick="saveTaxSettings()">💾 Salvar Taxas</button>`;
       break;
 
-    case 'fixedFees':
+    case 'fixedFeesSea':
+      currentFixedFeeScope = 'SEA';
+      content.innerHTML = buildFixedFeesTabHtml('SEA');
+      loadFixedFeesTable();
+      break;
+
+    case 'fixedFeesAir':
+      currentFixedFeeScope = 'AIR';
+      content.innerHTML = buildFixedFeesTabHtml('AIR');
+      loadFixedFeesTable();
+      break;
+
+    case 'pricingSettings':
       content.innerHTML = `
-        <div class="sc-title">💰 Taxas Locais de Parceiros</div>
-        <p class="sc-desc">Gerencie taxas locais fixas de Armadores e Companhias Aéreas para o cálculo automático de cotações.</p>
-        
+        <div class="sc-title">💱 Câmbio & Armazenagem</div>
+        <p class="sc-desc">Configure a taxa de câmbio oficial (PTAX/BACEN) usada na visão do cliente e o piso mínimo de armazenagem para cargas marítimas LCL.</p>
+
         <div class="settings-section" style="margin-bottom: 24px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 style="margin:0;">Gerenciar Taxas</h3>
-            <div style="display:flex; gap:10px;">
-              <input type="file" id="ffCsvInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importFixedFeesXlsx(event)">
-              <button class="btn btn-secondary" onclick="document.getElementById('ffCsvInput').click()" style="padding: 8px 12px; font-size: 12px;">📥 Importar Planilha</button>
-            </div>
+          <h3 style="margin:0 0 14px;">Câmbio PTAX (Dólar)</h3>
+          <div class="form-group">
+            <label>Modo de Cotação</label>
+            <select id="ps-ptax-mode">
+              <option value="D1_CLOSE">Fechamento do dia anterior (D-1)</option>
+              <option value="D0_OPEN">Abertura do dia atual (D0)</option>
+            </select>
           </div>
-          
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: Capatazia, AWB Fee, BL Fee..."></div>
-            <div class="form-group" style="margin:0;"><label>Armador / Cia Aérea</label><input type="text" id="ff-carrier" placeholder="Ex: COSCO, LATAM, Azul (Opcional)"></div>
-            <div class="form-group" style="margin:0;"><label>Equipamento / Carga</label>
-              <select id="ff-container">
-                <option value="">Nenhum/Opcional</option>
-                <option value="20'">20'</option>
-                <option value="40'">40'</option>
-                <option value="LCL">LCL</option>
-              </select>
-            </div>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
-            <div class="form-group" style="margin:0;"><label>Valor Numérico</label><input type="number" id="ff-value" step="0.01" placeholder="Ex: 50.00"></div>
-            <div class="form-group" style="margin:0;"><label>Moeda</label>
-              <select id="ff-currency">
-                <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
-              </select>
-            </div>
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
-            <div class="form-group" style="margin:0;"><label>Tipo</label>
-              <select id="ff-type">
-                <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Modal Aplicável</label>
-              <select id="ff-modal">
-                <option value="ALL">Todos os Modais</option><option value="AIR">Aéreo (AIR)</option><option value="SEA_LCL">Marítimo LCL</option><option value="SEA_FCL">Marítimo FCL</option>
-              </select>
-            </div>
-          </div>
-          <input type="hidden" id="ff-id">
-          <button class="btn btn-primary" id="btnSaveFixedFee" onclick="saveFixedFee()">💾 Salvar Taxa</button>
-          <button class="btn btn-secondary" id="btnCancelFixedFee" onclick="cancelEditFixedFee()" style="display:none;">Cancelar Edição</button>
+          <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Taxa PTAX vigente agora: <strong id="ps-current-ptax" style="color:var(--gold);">Carregando...</strong></p>
         </div>
 
         <div class="settings-section">
-          <h3>Taxas Cadastradas</h3>
-          <div id="fixedFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+          <h3 style="margin:0 0 14px;">Armazenagem Mínima LCL</h3>
+          <div class="form-group" style="max-width:260px;">
+            <label>Valor Mínimo (BRL)</label>
+            <input type="number" id="ps-min-lcl-storage" step="0.01" placeholder="Ex: 5700.00">
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Aplicado automaticamente como piso quando a armazenagem informada (manual ou extraída pela IA) para uma cotação Marítima LCL vier abaixo deste valor.</p>
+        </div>
+
+        <button class="btn btn-primary" onclick="savePricingSettings()" style="margin-top:20px;">💾 Salvar Configurações</button>
+      `;
+      loadPricingSettings();
+      break;
+
+    case 'deconsolidators':
+      content.innerHTML = `
+        <div class="sc-title">📦 Desconsolidadores</div>
+        <p class="sc-desc">Cadastre os agentes de desconsolidação (destino) por modal, usados como referência pela IA na conferência de custos.</p>
+
+        <div class="settings-section" style="margin-bottom: 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">Gerenciar Desconsolidador</h3>
+            <button class="btn btn-secondary" onclick="seedDeconsolidators()" style="padding: 8px 12px; font-size: 12px;">🌱 Carregar Padrões</button>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin:0;"><label>Nome</label><input type="text" id="dz-name" placeholder="Ex: Ohpers, Richard, Cadu"></div>
+            <div class="form-group" style="margin:0;"><label>Local (Aeroporto/Porto)</label><input type="text" id="dz-location" placeholder="Ex: GRU, VCP (opcional)"></div>
+            <div class="form-group" style="margin:0;"><label>Modal</label>
+              <select id="dz-modal">
+                <option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="AIR">Aéreo</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;"><label>Valor</label><input type="number" id="dz-value" step="0.01" placeholder="Ex: 146.76"></div>
+          </div>
+          <div class="form-group" style="max-width:160px;"><label>Moeda</label>
+            <select id="dz-currency"><option value="BRL">BRL</option><option value="USD">USD</option></select>
+          </div>
+          <input type="hidden" id="dz-id">
+          <button class="btn btn-primary" id="btnSaveDz" onclick="saveDeconsolidator()">💾 Salvar</button>
+          <button class="btn btn-secondary" id="btnCancelDz" onclick="cancelEditDeconsolidator()" style="display:none;">Cancelar Edição</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Desconsolidadores Cadastrados</h3>
+          <div id="deconsolidatorsTableContainer" style="overflow-x:auto;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
-      loadFixedFeesTable();
+      loadDeconsolidatorsTable();
       break;
 
     case 'standardFees':
@@ -4900,8 +4923,6 @@ function saveCompanySettings() {
 function saveTaxSettings() {
   const data = JSON.parse(localStorage.getItem('audaz_settings') || '{}');
   data.iofRate = parseFloat(document.getElementById('s-iof-rate').value) || 3.5;
-  data.exchangeRate = parseFloat(document.getElementById('s-exchange-rate').value) || null;
-  data.minStorage = parseFloat(document.getElementById('s-min-storage').value) || null;
   data.validityDays = parseInt(document.getElementById('s-validity-days').value) || 15;
   localStorage.setItem('audaz_settings', JSON.stringify(data));
   toast('✅ Taxas padrão salvas com sucesso!');
@@ -5410,13 +5431,81 @@ async function importAgentCsv(event) {
 }
 
 // ════════════ GESTÃO DE TAXAS FIXAS ════════════
+let currentFixedFeeScope = 'SEA';
+
+function buildFixedFeesTabHtml(scope) {
+  const isSea = scope === 'SEA';
+  const title = isSea ? '🚢 Taxas Locais - Companhia Marítima' : '✈️ Taxas Locais - Companhia Aérea';
+  const desc = isSea
+    ? 'Gerencie taxas locais fixas de Armadores (FCL/LCL) para o cálculo automático de cotações e conferência dos custos retornados pelo agente.'
+    : 'Gerencie taxas locais fixas de Companhias Aéreas para o cálculo automático de cotações e conferência dos custos retornados pelo agente.';
+  const modalField = isSea
+    ? `<div class="form-group" style="margin:0;"><label>Modal Aplicável</label>
+        <select id="ff-modal">
+          <option value="ALL">FCL e LCL</option><option value="SEA_FCL">Somente FCL</option><option value="SEA_LCL">Somente LCL</option>
+        </select>
+      </div>`
+    : `<input type="hidden" id="ff-modal" value="AIR">`;
+
+  return `
+    <div class="sc-title">${title}</div>
+    <p class="sc-desc">${desc}</p>
+
+    <div class="settings-section" style="margin-bottom: 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="margin:0;">Gerenciar Taxas</h3>
+        <div style="display:flex; gap:10px;">
+          <input type="file" id="ffCsvInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importFixedFeesXlsx(event)">
+          <button class="btn btn-secondary" onclick="document.getElementById('ffCsvInput').click()" style="padding: 8px 12px; font-size: 12px;">📥 Importar Planilha</button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
+        <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: Capatazia, AWB Fee, BL Fee..."></div>
+        <div class="form-group" style="margin:0;"><label>${isSea ? 'Armador' : 'Cia Aérea'}</label><input type="text" id="ff-carrier" placeholder="${isSea ? 'Ex: COSCO, MSC (Opcional)' : 'Ex: LATAM, Azul (Opcional)'}"></div>
+        <div class="form-group" style="margin:0;"><label>Equipamento / Carga</label>
+          <select id="ff-container">
+            <option value="">Nenhum/Opcional</option>
+            <option value="20'">20'</option>
+            <option value="40'">40'</option>
+            <option value="LCL">LCL</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+        <div class="form-group" style="margin:0;"><label>Valor Numérico</label><input type="number" id="ff-value" step="0.01" placeholder="Ex: 50.00"></div>
+        <div class="form-group" style="margin:0;"><label>Moeda</label>
+          <select id="ff-currency">
+            <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;"><label>Tipo</label>
+          <select id="ff-type">
+            <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
+          </select>
+        </div>
+      </div>
+      ${modalField}
+      <input type="hidden" id="ff-id">
+      <button class="btn btn-primary" id="btnSaveFixedFee" onclick="saveFixedFee()" style="margin-top:16px;">💾 Salvar Taxa</button>
+      <button class="btn btn-secondary" id="btnCancelFixedFee" onclick="cancelEditFixedFee()" style="display:none;">Cancelar Edição</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Taxas Cadastradas</h3>
+      <div id="fixedFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+    </div>
+  `;
+}
+
 async function loadFixedFeesTable() {
   try {
     const res = await fetch(API + '/fixed-fees');
-    const fees = await res.json();
+    const allFees = await res.json();
+    const fees = allFees.filter(f => currentFixedFeeScope === 'SEA' ? f.modal !== 'AIR' : (f.modal === 'AIR' || f.modal === 'ALL'));
     const container = document.getElementById('fixedFeesTableContainer');
     if (!container) return;
-    
+
     if (fees.length === 0) {
       container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma taxa cadastrada. Crie uma nova ou importe uma planilha.</p>';
       return;
@@ -5473,8 +5562,8 @@ function cancelEditFixedFee() {
   document.getElementById('ff-value').value = '';
   document.getElementById('ff-currency').value = 'USD';
   document.getElementById('ff-type').value = 'ORIGIN';
-  document.getElementById('ff-modal').value = 'ALL';
-  
+  document.getElementById('ff-modal').value = currentFixedFeeScope === 'AIR' ? 'AIR' : 'ALL';
+
   document.getElementById('btnSaveFixedFee').innerText = '💾 Salvar Taxa';
   document.getElementById('btnCancelFixedFee').style.display = 'none';
 }
@@ -5551,6 +5640,138 @@ async function importFixedFeesXlsx(event) {
     toast('❌ Erro na importação da planilha.');
   }
   event.target.value = ''; // clear input
+}
+
+async function loadPricingSettings() {
+  try {
+    const res = await fetch(API + '/pricing-settings');
+    const data = await res.json();
+    document.getElementById('ps-ptax-mode').value = data.ptaxMode || 'D1_CLOSE';
+    document.getElementById('ps-min-lcl-storage').value = data.minLclStorageBrl ?? '';
+    document.getElementById('ps-current-ptax').innerText = data.currentPtaxRate ? `R$ ${Number(data.currentPtaxRate).toFixed(4)}` : 'Indisponível';
+  } catch (e) {
+    toast('❌ Erro ao carregar configurações de câmbio/armazenagem.');
+  }
+}
+
+async function savePricingSettings() {
+  const ptaxMode = document.getElementById('ps-ptax-mode').value;
+  const minLclStorageBrl = parseFloat(document.getElementById('ps-min-lcl-storage').value) || 0;
+  try {
+    const res = await fetch(API + '/pricing-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ptaxMode, minLclStorageBrl })
+    });
+    if (!res.ok) throw new Error('Falha ao salvar.');
+    toast('✅ Configurações salvas!');
+    loadPricingSettings();
+  } catch (e) {
+    toast('❌ ' + e.message);
+  }
+}
+
+async function loadDeconsolidatorsTable() {
+  try {
+    const res = await fetch(API + '/deconsolidators');
+    const rows = await res.json();
+    const container = document.getElementById('deconsolidatorsTableContainer');
+    if (!container) return;
+    if (!rows.length) {
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhum desconsolidador cadastrado. Clique em "Carregar Padrões" para começar.</p>';
+      return;
+    }
+    const modalLabels = { SEA_FCL: 'Marítimo FCL', SEA_LCL: 'Marítimo LCL', AIR: 'Aéreo' };
+    let html = '<table class="k-table"><thead><tr><th>Nome</th><th>Local</th><th>Modal</th><th>Valor</th><th>Moeda</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>';
+    for (const r of rows) {
+      html += `<tr>
+        <td style="font-weight:600;">${r.name}</td>
+        <td>${r.location || '-'}</td>
+        <td>${modalLabels[r.modal] || r.modal}</td>
+        <td>${Number(r.value).toFixed(2)}</td>
+        <td>${r.currency}</td>
+        <td>${r.active ? 'Sim' : 'Não'}</td>
+        <td style="white-space:nowrap;">
+          <button class="action-btn" onclick='editDeconsolidator(${JSON.stringify(r).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+          <button onclick="deleteDeconsolidator('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;" title="Excluir">🗑️</button>
+        </td></tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('Erro ao carregar desconsolidadores:', e);
+  }
+}
+
+async function saveDeconsolidator() {
+  const id = document.getElementById('dz-id').value;
+  const data = {
+    name: document.getElementById('dz-name').value.trim(),
+    location: document.getElementById('dz-location').value.trim() || null,
+    modal: document.getElementById('dz-modal').value,
+    value: parseFloat(document.getElementById('dz-value').value) || 0,
+    currency: document.getElementById('dz-currency').value
+  };
+  if (!data.name || !data.value) {
+    toast('Informe nome e valor.');
+    return;
+  }
+  try {
+    const url = id ? `${API}/deconsolidators/${id}` : `${API}/deconsolidators`;
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || 'Erro ao salvar.');
+    }
+    toast(id ? '✅ Desconsolidador atualizado!' : '✅ Desconsolidador criado!');
+    cancelEditDeconsolidator();
+    loadDeconsolidatorsTable();
+  } catch (e) {
+    toast('❌ ' + e.message);
+  }
+}
+
+function editDeconsolidator(row) {
+  document.getElementById('dz-id').value = row.id;
+  document.getElementById('dz-name').value = row.name;
+  document.getElementById('dz-location').value = row.location || '';
+  document.getElementById('dz-modal').value = row.modal;
+  document.getElementById('dz-value').value = row.value;
+  document.getElementById('dz-currency').value = row.currency;
+  document.getElementById('btnSaveDz').innerText = '💾 Atualizar';
+  document.getElementById('btnCancelDz').style.display = '';
+  document.getElementById('dz-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelEditDeconsolidator() {
+  document.getElementById('dz-id').value = '';
+  document.getElementById('dz-name').value = '';
+  document.getElementById('dz-location').value = '';
+  document.getElementById('dz-modal').value = 'SEA_FCL';
+  document.getElementById('dz-value').value = '';
+  document.getElementById('dz-currency').value = 'BRL';
+  document.getElementById('btnSaveDz').innerText = '💾 Salvar';
+  document.getElementById('btnCancelDz').style.display = 'none';
+}
+
+async function deleteDeconsolidator(id) {
+  if (!confirm('Excluir este desconsolidador?')) return;
+  try {
+    await fetch(`${API}/deconsolidators/${id}`, { method: 'DELETE' });
+    toast('✅ Excluído!');
+    loadDeconsolidatorsTable();
+  } catch (e) { toast('❌ Erro ao excluir.'); }
+}
+
+async function seedDeconsolidators() {
+  if (!confirm('Carregar desconsolidadores padrão? (só funciona se ainda não houver nenhum cadastrado)')) return;
+  try {
+    const res = await fetch(`${API}/deconsolidators/seed`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro ao carregar padrões.');
+    toast('✅ Padrões carregados!');
+    loadDeconsolidatorsTable();
+  } catch (e) { toast('❌ ' + e.message); }
 }
 
 async function applyFixedFees(type, targetId) {

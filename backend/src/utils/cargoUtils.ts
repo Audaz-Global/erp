@@ -199,3 +199,12 @@ export function extractContainerInfo(packagesStr: string | null | undefined, tot
 
   return { qty: containerQty, type: containerType };
 }
+
+/**
+ * Aplica o piso mínimo de armazenagem para cargas marítimas LCL
+ */
+export function applyMinLclStorage(storageBrl: number | null | undefined, modal: string | null | undefined, loadType: string | null | undefined, minValue: number): number | null | undefined {
+  if (modal !== 'SEA' || loadType !== 'LCL') return storageBrl;
+  if (storageBrl == null || storageBrl < minValue) return minValue;
+  return storageBrl;
+}

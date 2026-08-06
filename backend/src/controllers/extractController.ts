@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
-import { extractClientData, extractAgentCosts, generateAgentDraft, generateTruckerDraft, readLocalFeesTable } from '../services/aiService';
+import { extractClientData, extractAgentCosts, generateAgentDraft, generateTruckerDraft } from '../services/aiService';
 import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
 import { renderDraftSubject } from '../utils/emailTemplate';
@@ -123,22 +123,28 @@ export const extractData = async (req: Request, res: Response) => {
         }
       }
 
-      // Ler planilha de taxas locais de armador ou carregar taxas aéreas do banco
+      // Carregar taxas locais cadastradas no banco (Companhia Marítima ou Aérea, conforme o modal da cotação)
       let localFeesTable = '';
-      if (quotation && quotation.modal === 'AIR') {
+      if (quotation) {
         try {
-          const airFees = await prisma.fixedFee.findMany({
-            where: { active: true, modal: 'AIR' }
+          const feeModal = quotation.modal === 'AIR' ? 'AIR' : (quotation.loadType === 'LCL' ? 'SEA_LCL' : 'SEA_FCL');
+          const modalLabel = quotation.modal === 'AIR' ? 'Companhia Aérea' : 'Companhia Marítima';
+          const fees = await prisma.fixedFee.findMany({
+            where: { active: true, modal: { in: [feeModal, 'ALL'] } }
           });
-          localFeesTable = 'TABELA DE TAXAS LOCAIS DE DESTINO POR COMPANHIA AÉREA (CADASTRADAS NO BANCO):\n\n';
-          airFees.forEach(f => {
+          const deconsolidators = await prisma.deconsolidator.findMany({
+            where: { active: true, modal: feeModal }
+          });
+          localFeesTable = `TABELA DE TAXAS LOCAIS DE DESTINO POR ${modalLabel.toUpperCase()} (CADASTRADAS NO BANCO):\n\n`;
+          fees.forEach(f => {
             localFeesTable += `- Cia: ${f.carrier || 'Geral'} | Taxa: ${f.name} | Valor: ${f.value} ${f.currency} (${f.type === 'ORIGIN' ? 'Origem' : 'Destino'})\n`;
           });
+          deconsolidators.forEach(d => {
+            localFeesTable += `- Desconsolidação (${d.name}${d.location ? ' - ' + d.location : ''}): ${d.value} ${d.currency}\n`;
+          });
         } catch (dbErr) {
-          console.error('Erro ao carregar taxas de Cia Aérea no banco:', dbErr);
+          console.error('Erro ao carregar taxas locais no banco:', dbErr);
         }
-      } else {
-        localFeesTable = readLocalFeesTable();
       }
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);

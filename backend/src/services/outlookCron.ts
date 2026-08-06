@@ -2,6 +2,7 @@ import { fetchEmailAttachments, fetchEmailsByConversationId, fetchUnreadEmails, 
 import { prisma } from '../prisma';
 import { extractAgentCosts } from './aiService';
 import { buildThreadContext, extractOutlookAttachments, mergeExtractedCosts, mergeFeeLists, splitAgentReply } from './agentResponseService';
+import { applyMinLclStorage } from '../utils/cargoUtils';
 
 const TRACKED_AGENT_FIELDS = new Set([
   'freight_value', 'freight_currency', 'freight_usd', 'iof_usd', 'storage_brl', 'services_brl', 'taxes_brl', 'total_brl',
@@ -242,7 +243,12 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       if (has('freight_usd') && c.freight_usd != null) updateData.totalUsd = c.freight_usd;
       if (has('iof_usd') && c.iof_usd != null) updateData.iofUsd = c.iof_usd;
       if (has('storage_brl') && c.storage_brl != null) {
-        updateData.destinationStorage = c.storage_brl;
+        const pricingSettings = await prisma.pricingSettings.upsert({
+          where: { id: 'default' },
+          update: {},
+          create: { id: 'default' }
+        });
+        updateData.destinationStorage = applyMinLclStorage(c.storage_brl, quotation.modal, quotation.loadType, pricingSettings.minLclStorageBrl);
         updateData.destinationStorageCurrency = 'BRL';
       }
       if (has('services_brl') && c.services_brl != null) updateData.destinationServicesTotal = c.services_brl;

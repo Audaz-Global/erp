@@ -446,3 +446,25 @@ model DraftEmailFieldRule {
 
   @@index([modal, direction])
 }
+
+model PricingSettings {
+  id               String   @id @default(uuid())
+  ptaxMode         String   @default("D1_CLOSE") // D1_CLOSE (fechamento anterior) | D0_OPEN (abertura do dia)
+  minLclStorageBrl Float    @default(5700)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Deconsolidator {
+  id        String   @id @default(uuid())
+  name      String // "Ohpers", "Richard", "Cadu"
+  location  String? // "GRU", "VCP", nome do porto, etc
+  modal     String // SEA_FCL, SEA_LCL, AIR
+  value     Float
+  currency  String   @default("BRL")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([modal])
+}

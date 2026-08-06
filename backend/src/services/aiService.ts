@@ -1,7 +1,4 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as XLSX from 'xlsx';
 import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
 
@@ -67,65 +64,6 @@ export async function buildTokenSafeContent(
   return selectedContent;
 }
 
-
-function getExcelPath() {
-  const paths = [
-    path.join(__dirname, '..', '..', 'Taxas locais Armadores 2026.xlsx'),
-    path.join(process.cwd(), '..', 'Taxas locais Armadores 2026.xlsx'),
-    path.join(process.cwd(), 'Taxas locais Armadores 2026.xlsx'),
-  ];
-  for (const p of paths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
-export function readLocalFeesTable(): string {
-  try {
-    const excelPath = getExcelPath();
-    if (!excelPath) return 'Planilha de Taxas Locais de Armadores não encontrada.';
-
-    const workbook = XLSX.readFile(excelPath);
-    let text = 'TABELA DE TAXAS LOCAIS DE DESTINO POR ARMADOR (2026):\n\n';
-
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      if (!sheet) continue;
-      
-      const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
-      text += `Armador: ${sheetName.trim()}\n`;
-      
-      for (let i = 2; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
-        
-        const taxName = String(row[0] || '').trim();
-        if (!taxName) continue;
-        
-        const nameUpper = taxName.toUpperCase();
-        if (
-          nameUpper.includes('ADICIONAL') || 
-          nameUpper.includes('ADICIONAIS') || 
-          nameUpper.includes('ADICONAIS') ||
-          nameUpper.includes('ADICIONA')
-        ) {
-          break;
-        }
-        
-        const val20 = row[1];
-        const val40 = row[3];
-        const unit = String(row[2] || '').trim();
-        
-        text += `- ${taxName}: 20' = R$ ${val20 || 0}, 40' = R$ ${val40 || 0} (${unit})\n`;
-      }
-      text += '\n';
-    }
-    return text;
-  } catch (error) {
-    console.error('Erro ao ler a tabela de taxas locais do Excel:', error);
-    return 'Não foi possível ler as taxas locais do Excel.';
-  }
-}
 
 function calculateCbmFromDimensions(dimensionsStr: string | string[], packagesCount: number = 1): number {
   if (!dimensionsStr) return 0;

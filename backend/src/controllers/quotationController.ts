@@ -2,10 +2,13 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
-import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions } from '../utils/cargoUtils';
+import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, applyMinLclStorage } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
 import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/incotermFieldRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
+import { getPtaxRate } from '../services/ptaxService';
+
+const PRICING_SETTINGS_ID = 'default';
 
 // 1. Create a new Quotation
 export const createQuotation = async (req: Request, res: Response) => {
@@ -306,7 +309,13 @@ export const updatePhase = async (req: Request, res: Response) => {
         updateData.freightCurrency = 'USD';
       }
       updateData.iofUsd = costs.iof_usd;
-      updateData.destinationStorage = costs.storage_brl;
+      const quotationForStorage = await prisma.quotation.findUnique({ where: { id }, select: { modal: true, loadType: true } });
+      const pricingSettingsForStorage = await prisma.pricingSettings.upsert({
+        where: { id: PRICING_SETTINGS_ID },
+        update: {},
+        create: { id: PRICING_SETTINGS_ID }
+      });
+      updateData.destinationStorage = applyMinLclStorage(costs.storage_brl, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
       updateData.destinationServicesTotal = costs.services_brl;
       updateData.destinationTaxes = costs.taxes_brl;
       updateData.totalBrl = costs.total_brl;
@@ -342,18 +351,20 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       return res.status(404).send('<h1>Cotação não encontrada</h1>');
     }
 
-    // Buscar taxas de câmbio
-    let usdRate = 5.05;
+    // Buscar taxas de câmbio (dólar via PTAX/BACEN, euro via AwesomeAPI)
     let eurRate = 5.50;
     try {
-      const response = await axios.get('https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL', { timeout: 3000 });
-      if (response.data) {
-        if (response.data.USDBRL) usdRate = parseFloat(response.data.USDBRL.bid) || usdRate;
-        if (response.data.EURBRL) eurRate = parseFloat(response.data.EURBRL.bid) || eurRate;
-      }
+      const response = await axios.get('https://economia.awesomeapi.com.br/last/EUR-BRL', { timeout: 3000 });
+      if (response.data?.EURBRL) eurRate = parseFloat(response.data.EURBRL.bid) || eurRate;
     } catch (err: any) {
-      console.error('Erro ao buscar câmbio, usando fallbacks:', err.message);
+      console.error('Erro ao buscar câmbio EUR, usando fallback:', err.message);
     }
+    const pricingSettings = await prisma.pricingSettings.upsert({
+      where: { id: PRICING_SETTINGS_ID },
+      update: {},
+      create: { id: PRICING_SETTINGS_ID }
+    });
+    const usdRate = await getPtaxRate(pricingSettings.ptaxMode === 'D0_OPEN' ? 'D0_OPEN' : 'D1_CLOSE');
 
     // Lógica de conversão
     const getBrlValue = (val: number, currency: string): number => {
