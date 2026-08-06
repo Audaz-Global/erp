@@ -396,10 +396,16 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
     9. **Conexões**: Se houver conexões do voo ou do porto especificadas nos DADOS EXTRAÍDOS DA CARGA (diferente de "Sem conexões"), mencione-as de forma clara no e-mail (ex: "via MIA" ou "com transbordo em Algeciras") para que o coloader/agente faça a cotação exatamente na rota solicitada.
     10. **Remoção de Telefones e Contatos da Assinatura**: Ao assinar o e-mail (ou finalizar o corpo do e-mail), **NUNCA** inclua informações de contato pessoal extraídas do e-mail do cliente (como nomes de pessoas de contato, ex: "Magda", "Talitha", etc., endereços de e-mail específicos, números de telefone comercial, ramal ou telefones celulares). A assinatura do e-mail deve ser estritamente genérica e neutra (ex: apenas "Atenciosamente," ou "Best regards,"), sem listar quaisquer nomes, telefones ou e-mails adicionais.
-    11. **Cotações Consolidadas LCL / Co-Loader**: Se o modal for Marítimo LCL ou envolver múltiplos shippers/locais de coleta:
-        - Mencione o Nome do Cliente e o **CNPJ do Cliente** para que o Co-Loader calcule a estimativa de armazenagem no destino no Brasil.
-        - Informe o Valor Comercial da Carga (USD), Dimensões e Peso Bruto Total.
-        - Se o Incoterm for **EXW**, solicite obrigatoriamente a coleta terrestre na origem (*origin inland/pick-up*). Se o Incoterm for **FOB**, dispense a coleta na origem.
+    11. **Cotações Consolidadas LCL / Co-Loader com Múltiplos Shippers/Fornecedores**:
+        - Se o CONTEÚDO DO E-MAIL ORIGINAL DO CLIENTE contiver múltiplos fornecedores/shippers (com Incoterms mistos EXW e FOB, ou diferentes endereços de origem):
+          - **Estruturação por Fornecedor**: Destaque primeiro o Nome e o **CNPJ do Cliente** para que o Co-Loader calcule a estimativa de armazenagem no destino no Brasil.
+          - Monte uma lista numerada separada para CADA SHIPPER / FORNECEDOR identificado no e-mail do cliente, contendo:
+            * Nome do Shipper / Fornecedor;
+            * Incoterm específico daquele fornecedor (EXW ou FOB);
+            * Se o Incoterm do fornecedor for **EXW / EX WORKS**: inclua o Endereço Exato de Coleta na Origem acompanhado obrigatoriamente do destaque **"(REQUER COLETA NA ORIGEM)"** (NUNCA escreva sem coleta para EXW);
+            * Se o Incoterm do fornecedor for **FOB**: inclua o destaque **"(SEM COLETA NA ORIGEM - Entrega direta no armazém/CFS pelo fornecedor)"**;
+            * Dimensões/medidas, peso bruto e valor comercial (USD) correspondentes àquele fornecedor específico.
+          - Inclua um RESUMO CONSOLIDADO no final com o total de fornecedores, peso bruto total, CBM total e valor comercial total.
     12. **Itens obrigatórios no e-mail**: Garanta que o e-mail mencione claramente, ou solicite explicitamente ao agente, cada um dos itens a seguir (informe se já for um dado conhecido, ou peça ao agente se for algo a cotar):
     ${requiredFieldLabels.length ? requiredFieldLabels.map(l => `- ${l}`).join('\n    ') : 'Nenhum item adicional configurado.'}
 
