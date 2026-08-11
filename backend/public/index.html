@@ -5878,6 +5878,17 @@ function buildFixedFeesTabHtml(scope) {
 
     <div class="settings-section">
       <h3>Taxas Cadastradas</h3>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin:14px 0;align-items:end">
+        <div class="form-group" style="margin:0"><label>Buscar taxa</label><input id="fff-search" placeholder="ISPS, DG, THC..." oninput="loadFixedFeesTable()"></div>
+        <div class="form-group" style="margin:0"><label>Incoterm</label><select id="fff-incoterm" onchange="loadFixedFeesTable()"><option value="">Todos</option><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
+        <div class="form-group" style="margin:0"><label>Direção</label><select id="fff-direction" onchange="loadFixedFeesTable()"><option value="">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div>
+        <div class="form-group" style="margin:0"><label>Tipo</label><select id="fff-type" onchange="loadFixedFeesTable()"><option value="">Todos</option><option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option></select></div>
+        <div class="form-group" style="margin:0"><label>Armador</label><input id="fff-carrier" placeholder="Maersk, HMM..." oninput="loadFixedFeesTable()"></div>
+        <div class="form-group" style="margin:0"><label>Equipamento</label><select id="fff-equipment" onchange="loadFixedFeesTable()"><option value="">Todos</option><option value="20'">20'</option><option value="40'">40'</option><option value="40HC">40HC</option><option value="20RH">20' Reefer</option><option value="40RH">40' Reefer</option><option value="20OT">20' Open Top</option><option value="40OT">40' Open Top</option></select></div>
+        <div class="form-group" style="margin:0"><label>Status</label><select id="fff-status" onchange="loadFixedFeesTable()"><option value="">Todos</option><option value="ACTIVE">Ativas</option><option value="INACTIVE">Inativas</option></select></div>
+        <button class="btn btn-secondary" onclick="clearFixedFeeFilters()">Limpar filtros</button>
+      </div>
+      <div id="fixedFeesFilterSummary" style="font-size:12px;color:var(--text-muted);margin:-4px 0 10px"></div>
       <div id="fixedFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
     </div>
   `;
@@ -5887,12 +5898,54 @@ async function loadFixedFeesTable() {
   try {
     const res = await fetch(API + '/fixed-fees');
     const allFees = await res.json();
-    const fees = allFees.filter(f => currentFixedFeeScope === 'SEA' ? f.modal !== 'AIR' : (f.modal === 'AIR' || f.modal === 'ALL'));
     const container = document.getElementById('fixedFeesTableContainer');
     if (!container) return;
 
+    const valueOf = (id) => document.getElementById(id)?.value || '';
+    const normalize = (value) => String(value || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const search = normalize(valueOf('fff-search'));
+    const incoterm = normalize(valueOf('fff-incoterm'));
+    const direction = valueOf('fff-direction');
+    const type = valueOf('fff-type');
+    const carrier = normalize(valueOf('fff-carrier'));
+    const equipment = normalize(valueOf('fff-equipment'));
+    const status = valueOf('fff-status');
+
+    const fees = allFees.filter(f => {
+      const isInScope = currentFixedFeeScope === 'SEA'
+        ? f.modal !== 'AIR'
+        : (f.modal === 'AIR' || f.modal === 'ALL');
+      if (!isInScope) return false;
+
+      const feeText = normalize([f.name, f.carrier, f.containerSize, f.currency, f.modal].join(' '));
+      const feeDirection = String(f.direction || f.type || '').toUpperCase();
+      const feeIncoterm = normalize(f.incoterm || f.incoterms || '');
+      const equipmentMatches = !equipment || !f.containerSize
+        ? !equipment || !f.containerSize
+        : normalize(f.containerSize).includes(equipment) || equipment.includes(normalize(f.containerSize));
+
+      return (!search || feeText.includes(search))
+        && (!incoterm || feeIncoterm.includes(incoterm) || normalize(f.name).includes(incoterm))
+        && (!direction || !f.direction || feeDirection === direction)
+        && (!type || f.type === type)
+        && (!carrier || normalize(f.carrier).includes(carrier))
+        && equipmentMatches
+        && (!status || (status === 'ACTIVE' ? f.active : !f.active));
+    });
+
+    const summary = document.getElementById('fixedFeesFilterSummary');
+    if (summary) {
+      const criteria = [];
+      if (incoterm) criteria.push(`Incoterm: ${incoterm}`);
+      if (direction) criteria.push(direction === 'IMPORT' ? 'Importação' : 'Exportação');
+      if (type) criteria.push(type === 'ORIGIN' ? 'Origem' : 'Destino');
+      summary.textContent = `${fees.length} taxa(s) encontrada(s)${criteria.length ? ` • ${criteria.join(' • ')}` : ''}`;
+    }
+
     if (fees.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma taxa cadastrada. Crie uma nova ou importe uma planilha.</p>';
+      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma taxa encontrada com os filtros selecionados.</p>';
       return;
     }
     
@@ -5923,6 +5976,15 @@ async function loadFixedFeesTable() {
   } catch(e) {
     console.error('Erro ao carregar taxas', e);
   }
+}
+
+function clearFixedFeeFilters() {
+  ['fff-search', 'fff-incoterm', 'fff-direction', 'fff-type', 'fff-carrier', 'fff-equipment', 'fff-status']
+    .forEach(id => {
+      const field = document.getElementById(id);
+      if (field) field.value = '';
+    });
+  loadFixedFeesTable();
 }
 
 function editFixedFee(fee) {
@@ -6989,8 +7051,8 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
     },
     'FOB': {
       name: 'Free on Board (Livre a Bordo)',
-      seller: ['Embalar a mercadoria', 'Transporte até o porto de origem', 'Despacho aduaneiro de exportação', 'Carregamento a bordo do navio'],
-      buyer: ['Frete marítimo internacional e seguro', 'Despacho de importação', 'Entrega no destino final'],
+      seller: ['Preparação e acondicionamento da carga para exportação', 'Coleta e transporte terrestre na origem', 'Desembaraço aduaneiro de exportação', 'Movimentação e despesas portuárias na origem', 'Carregamento da carga a bordo do navio', 'Pagamento das despesas locais de origem', 'Cumprimento das formalidades e exigências de exportação'],
+      buyer: ['Frete marítimo internacional', 'Despesas acessórias ao frete internacional'],
       risk: 'Transferido ao comprador quando a mercadoria cruza a amurada do navio.',
       cost: 'Vendedor paga custos até a mercadoria estar a bordo.'
     },

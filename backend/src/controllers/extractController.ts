@@ -12,10 +12,11 @@ const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
 
 function buildQuotationCode(initials: string): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const datePart = `${pad(now.getDate())}${pad(now.getMonth() + 1)}${String(now.getFullYear()).slice(-2)}`;
-  const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date()).reduce<Record<string, string>>((acc, part) => ({ ...acc, [part.type]: part.value }), {});
+  const datePart = `${parts.day || '01'}${parts.month || '01'}${(parts.year || '2000').slice(-2)}`;
+  const timePart = `${parts.hour || '00'}${parts.minute || '00'}`;
   return `${initials.toUpperCase()}-${datePart}-${timePart}`;
 }
 

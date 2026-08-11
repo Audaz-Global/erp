@@ -383,16 +383,23 @@ const defaultTemplate = `
     </tbody>
   </table>
 
-  {{#if hasOriginInland}}
+  {{#if hasOriginSection}}
   <div class="section-banner-sm">Origem</div>
   <table>
     <thead><tr><th>Taxas</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Min</th><th class="t-right">Max</th><th class="t-right">Total</th></tr></thead>
-    <tbody><tr>
+    <tbody>{{#if hasOriginInland}}<tr>
       <td>Inland de Origem / Coleta{{#if originInlandRoute}} ({{originInlandRoute}}){{/if}}</td>
       <td class="t-center">1</td><td>{{originInlandTransitTime}}</td>
       <td class="t-right">{{originInlandCurrency}} {{originInlandValue}}</td><td class="t-right">0,00</td><td class="t-right">0,00</td>
       <td class="t-right">{{originInlandCurrency}} {{originInlandValue}}</td>
-    </tr></tbody>
+    </tr>{{/if}}
+    {{#each originServiceRows}}
+    <tr>
+      <td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td>
+      <td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">0,00</td><td class="t-right">0,00</td>
+      <td class="t-right">{{this.total}}</td>
+    </tr>
+    {{/each}}</tbody>
   </table>
   {{/if}}
 
@@ -1685,10 +1692,15 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       }
     }
 
-    // DG/IMO e ISPS são acessórios do frete marítimo. O Profit continua incorporado no frete.
+    // Mantém a etapa explícita quando há ISPS tanto na origem quanto no destino.
+    detailedFees.forEach((fee: any) => {
+      if (String(fee.name || '').toUpperCase().includes('ISPS') && !String(fee.name).toUpperCase().includes('DESTINO')) fee.name = 'ISPS - Destino';
+    });
+
+    // DG/IMO é acessório do frete marítimo. O Profit continua incorporado no frete.
     const isFreightAccessory = (fee: any) => {
       const name = String(fee.name || '').toUpperCase();
-      return name.includes('ISPS') || /(^|\s)(DG|IMO)(\s|$|\/)/.test(name) || name.includes('DANGEROUS GOODS');
+      return /(^|\s)(DG|IMO)(\s|$|\/)/.test(name) || name.includes('DANGEROUS GOODS');
     };
     const freightAccessories = detailedFees.filter(isFreightAccessory);
     detailedFees = detailedFees.filter((fee: any) => !isFreightAccessory(fee));
@@ -1856,6 +1868,19 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       referenceNumber = 'ADZ-QIS26050141-AA';
     }
 
+    const originServiceRows: any[] = [];
+    if (quotationData.originServices) {
+      try {
+        const services = JSON.parse(quotationData.originServices);
+        if (Array.isArray(services)) services.forEach((fee: any) => {
+          const value = parseFloat(fee.value) || 0;
+          const currency = String(fee.currency || 'USD').toUpperCase();
+          const name = String(fee.name || 'Taxa de Origem');
+          originServiceRows.push({ name: name.toUpperCase().includes('ISPS') && !name.toUpperCase().includes('ORIGEM') ? 'ISPS - Origem' : name, qty: fee.qty || 1, unit: fee.unit || 'Fixo', valueUnit: safeToFixed(value, 2), currency, total: `${currency} ${safeToFixed(value * (Number(fee.qty) || 1), 2)}` });
+        });
+      } catch (err) { console.error('Erro ao detalhar taxas de origem no PDF:', err); }
+    }
+
     const currentDateTime = new Date().toLocaleString('pt-BR');
 
     const templateData = {
@@ -1879,12 +1904,14 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       containerQty,
       containerTypeRich,
       hasDetailedFees,
+      hasOriginSection: (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) || originServiceRows.length > 0,
       hasOriginInland: quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined,
       originInlandValue: (parseFloat(quotationData.originInlandValue) || 0).toFixed(2),
       originInlandCurrency: quotationData.originInlandCurrency || 'USD',
       originInlandRoute: quotationData.originInlandRoute || '',
       originInlandTransitTime: quotationData.originInlandTransitTime || 'Por coleta',
       detailedFees,
+      originServiceRows,
       freightAccessories,
       subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }]),
       subtotalDestino: formatSubtotals(detailedFees),
