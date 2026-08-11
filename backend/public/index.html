@@ -785,6 +785,7 @@
       <h2><span class="emoji">✉️</span> Rascunho para o Agente</h2>
       <p class="desc">Revise e complete os dados extraídos, e a IA gerará um e-mail para você solicitar os custos ao agente.</p>
 
+      <div id="email-extraction-audit" style="display:none;margin:0 0 18px;padding:14px;border:1px solid rgba(60,160,110,.4);border-radius:10px;background:rgba(60,160,110,.06);"></div>
       <div class="review-grid">
         <!-- CLIENTE & ROTA -->
         <div class="review-col">
@@ -1742,14 +1743,16 @@
 
         <li class="nav-section-title">REGRAS</li>
         <li data-tab="knowledge" onclick="switchSettingsTab('knowledge')">IA</li>
-        <li data-tab="incotermRules" onclick="switchSettingsTab('incotermRules')">Incoterm</li>
+        <li data-tab="incotermRules" onclick="switchSettingsTab('incotermRules')">Aplicação por Incoterm</li>
+        <li class="nav-sub-item" data-tab="incotermRules" onclick="switchSettingsTab('incotermRules'); setTimeout(()=>document.getElementById('incotermFieldRulesTableContainer')?.scrollIntoView({behavior:'smooth'}), 120)">Comportamento de Campos</li>
         <li data-tab="carrierProfiles" onclick="switchSettingsTab('carrierProfiles')">Armador</li>
 
         <li class="nav-section-title">TAXAS</li>
-        <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Padrão</li>
-        <li class="nav-sub-header">Taxas Locais</li>
-        <li class="nav-sub-item" data-tab="fixedFeesSea" onclick="switchSettingsTab('fixedFeesSea')">Marítimo</li>
-        <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Aéreo</li>
+        <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Catálogo Central</li>
+        <li class="nav-sub-header">Tarifas Específicas</li>
+        <li class="nav-sub-item" data-tab="fixedFeesSea" onclick="switchSettingsTab('fixedFeesSea')">Armadores — Marítimo</li>
+        <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Companhias Aéreas</li>
+        <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
         <li data-tab="carrierRates" onclick="switchSettingsTab('carrierRates')">Armadores (Base de Tarifas)</li>
 
@@ -2078,6 +2081,7 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 
 let selectedFiles = [];
 let currentQuotationId = null;
+window.lastEmailExtraction = null;
 
 // TABS
 function switchTab(name) {
@@ -2252,8 +2256,10 @@ async function runExtract(mode = 'CLIENT') {
       if (mode === 'CLIENT') {
         currentQuotationId = null; // Limpa o ID se for uma cotação 100% nova
         window.lastExtractedRawText = json.rawText; // Armazena o texto original da extração
+        window.lastEmailExtraction = json.emailExtraction || null;
         toast('🎉 Dados do cliente extraídos! Complete e gere o rascunho.');
         fillReviewForm(json.data, 'CLIENT');
+        renderEmailExtractionAudit(window.lastEmailExtraction);
         switchTab('draft');
       } else {
         window.lastExtractedAgentData = json.data;
@@ -2277,6 +2283,26 @@ function clearExtract() {
   document.getElementById('emailTextAgent').value=''; 
   currentQuotationId = null;
   window.lastExtractedRawText = null;
+  window.lastEmailExtraction = null;
+  renderEmailExtractionAudit(null);
+}
+
+function renderEmailExtractionAudit(audit) {
+  const panel = document.getElementById('email-extraction-audit');
+  if (!panel) return;
+  if (!audit) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const labels = { SIGNATURE_TEXT: 'Assinatura do e-mail', SENDER_HEADER: 'Cabeçalho do remetente', EMAIL_BODY_OR_DOCUMENT: 'Corpo do e-mail ou documento', NOT_FOUND: 'Não identificado' };
+  const contacts = (audit.emails || []).map(item => item.extractedContact).filter(Boolean);
+  const fields = (audit.fields || []).filter(item => item.value).slice(0, 12);
+  const ocr = (audit.signatureOcr || []).filter(item => item.isSignature);
+  panel.style.display = 'block';
+  panel.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:8px;">Dados lidos do e-mail</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${audit.emails?.length || 0} e-mail(ns) preservado(s) no histórico. Confira as sugestões antes de enviar.</div>
+    ${contacts.length ? `<div style="font-size:12px;margin-bottom:8px;">${contacts.map(c => `<strong>${escape(c.name || 'Contato')}</strong>${c.phone ? ` · ${escape(c.phone)}` : ''} <span style="color:var(--text-muted)">(${labels[c.source] || c.source})</span>`).join('<br>')}</div>` : ''}
+    ${ocr.length ? `<div style="margin:10px 0;padding:10px;border-left:3px solid var(--gold);background:rgba(245,166,35,.06);font-size:12px"><strong>Leitura de assinatura gráfica — revisar antes de usar</strong>${ocr.map(item => `<div style="margin-top:5px">${escape(item.name || 'Nome não identificado')}${item.phone ? ` · ${escape(item.phone)}` : ''}${item.email ? ` · ${escape(item.email)}` : ''} <span style="color:var(--text-muted)">(${Math.round(Number(item.confidence || 0) * 100)}%)</span></div>`).join('')}</div>` : ''}
+    <details><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver fonte das informações extraídas</summary><ul style="margin:8px 0 0;padding-left:18px;font-size:11px;color:var(--text-muted);">${fields.map(item => `<li><strong>${escape(item.field)}:</strong> ${escape(item.value)} — ${escape(labels[item.source] || item.source)}${item.confidence ? ` (${Math.round(Number(item.confidence) * 100)}%)` : ''}</li>`).join('')}</ul></details>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver e-mail original preservado</summary>${(audit.emails || []).map(item => `<div style="margin-top:8px"><strong style="font-size:11px">${escape(item.subject || item.fileName || 'E-mail importado')}</strong><pre style="white-space:pre-wrap;max-height:220px;overflow:auto;font-size:11px;color:var(--text-muted)">${escape(item.originalBody || '')}</pre></div>`).join('')}</details>`;
 }
 
 // 2. REVISÃO DA COTAÇÃO
@@ -3044,6 +3070,8 @@ async function generateDraftEmail() {
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
+      sourceEmailRecords: window.lastEmailExtraction?.emails ? JSON.stringify(window.lastEmailExtraction.emails) : null,
+      extractionAudit: window.lastEmailExtraction ? JSON.stringify(window.lastEmailExtraction) : null,
       needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
       ruleStage: 'REQUEST',
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
@@ -3280,6 +3308,8 @@ async function saveAsAwaitingAgent() {
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
+      sourceEmailRecords: window.lastEmailExtraction?.emails ? JSON.stringify(window.lastEmailExtraction.emails) : null,
+      extractionAudit: window.lastEmailExtraction ? JSON.stringify(window.lastEmailExtraction) : null,
       needsOriginInland: document.getElementById('r-needs-origin-inland').checked,
       ruleStage: 'REQUEST',
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
@@ -5083,11 +5113,11 @@ function switchSettingsTab(tab) {
 
     case 'standardFees':
       content.innerHTML = `
-        <div class="sc-title">🏢 Taxas Locais / Standard</div>
-        <p class="sc-desc">Gerencie as taxas locais (Delivery Fee, CCT Fee, IOF, etc) independentes de armador, fixas ou em porcentagem.</p>
+        <div class="sc-title">Catálogo Central de Taxas</div>
+        <p class="sc-desc">Cadastre cada taxa uma única vez: nome, valor, cobrança, lado da operação e modais compatíveis. O Incoterm não é definido aqui; ele apenas vincula taxas já cadastradas nas Regras de Aplicação.</p>
         
         <div class="settings-section" style="margin-bottom: 24px;">
-          <h3 style="margin-bottom:14px;">Gerenciar Taxa Local</h3>
+          <h3 style="margin-bottom:14px;">Cadastrar ou editar taxa</h3>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="sf-name" placeholder="Ex: Delivery Fee"></div>
             <div class="form-group" style="margin:0;"><label>Tipo de Cobrança</label>
@@ -5125,7 +5155,7 @@ function switchSettingsTab(tab) {
         </div>
 
         <div class="settings-section">
-          <h3>Taxas Locais Cadastradas</h3>
+          <h3>Taxas do catálogo</h3>
           <div id="standardFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
@@ -5134,12 +5164,12 @@ function switchSettingsTab(tab) {
 
     case 'incotermRules':
       content.innerHTML = `
-        <div class="sc-title">📦 Regras por Incoterm</div>
-        <p class="sc-desc">Gerencie as taxas que são aplicadas automaticamente conforme o Incoterm da cotação (EXW, FCA, FOB, CIF, etc).</p>
+        <div class="sc-title">Regras de Aplicação por Incoterm</div>
+        <p class="sc-desc">Defina em quais cenários as taxas do Catálogo Central devem entrar automaticamente. Esta tela não cadastra valores: ela apenas vincula uma taxa existente ao Incoterm, modal e direção.</p>
         
         <div class="settings-section" style="margin-bottom: 24px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 style="margin:0;">Gerenciar Regra</h3>
+            <h3 style="margin:0;">Vincular taxa a um contexto</h3>
             <button class="btn btn-secondary" onclick="seedIncotermRules()" style="padding: 8px 12px; font-size: 12px;">🌱 Popular Regras Padrão</button>
           </div>
           
@@ -5162,14 +5192,14 @@ function switchSettingsTab(tab) {
             </div>
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">Nome, tipo, cobrança e valor são definidos no cadastro da Taxa Local. Alterar a taxa atualiza todos os Incoterms vinculados.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. Alterar valor, moeda ou cobrança deve ser feito no catálogo e refletirá em todos os vínculos.</p>
           <input type="hidden" id="ir-id">
-          <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">💾 Salvar Regra</button>
+          <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">Salvar vínculo</button>
           <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
         </div>
 
         <div class="settings-section" style="margin-bottom:24px; border-color:rgba(245,166,35,.35);">
-          <h3 style="margin:0 0 6px;">Travas de Campos</h3>
+          <h3 style="margin:0 0 6px;">Comportamento de Campos</h3>
           <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Configure o comportamento operacional. Nenhuma trava é inferida automaticamente apenas pelo nome do Incoterm.</p>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;">
             <div class="form-group" style="margin:0"><label>Incoterm</label><select id="ifr-incoterm"><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
@@ -5820,10 +5850,10 @@ let currentFixedFeeScope = 'SEA';
 
 function buildFixedFeesTabHtml(scope) {
   const isSea = scope === 'SEA';
-  const title = isSea ? '🚢 Taxas Locais - Companhia Marítima' : '✈️ Taxas Locais - Companhia Aérea';
+  const title = isSea ? 'Tarifas Específicas — Armadores' : 'Tarifas Específicas — Companhias Aéreas';
   const desc = isSea
-    ? 'Gerencie taxas locais fixas de Armadores (FCL/LCL) para o cálculo automático de cotações e conferência dos custos retornados pelo agente.'
-    : 'Gerencie taxas locais fixas de Companhias Aéreas para o cálculo automático de cotações e conferência dos custos retornados pelo agente.';
+    ? 'Cadastre exceções e tabelas próprias de armadores por equipamento. Estas tarifas não definem Incoterm; quando uma taxa for comum a vários cenários, cadastre-a no Catálogo Central e vincule-a nas Regras de Aplicação.'
+    : 'Cadastre exceções e tabelas próprias de companhias aéreas. Estas tarifas não definem Incoterm; quando uma taxa for comum a vários cenários, cadastre-a no Catálogo Central e vincule-a nas Regras de Aplicação.';
   const modalField = isSea
     ? `<div class="form-group" style="margin:0;"><label>Modal Aplicável</label>
         <select id="ff-modal">
@@ -5835,6 +5865,9 @@ function buildFixedFeesTabHtml(scope) {
   return `
     <div class="sc-title">${title}</div>
     <p class="sc-desc">${desc}</p>
+    <div class="settings-section" style="padding:14px 18px;border-color:rgba(245,166,35,.35);font-size:12px;color:var(--text-muted)">
+      <strong style="color:var(--gold)">Quando usar esta tela:</strong> tarifa negociada ou exclusiva de uma companhia/armador, inclusive por equipamento. Para criar uma taxa aplicada por Incoterm, use <strong>Catálogo Central</strong> e depois <strong>Regras de Aplicação por Incoterm</strong>.
+    </div>
 
     <div class="settings-section" style="margin-bottom: 24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -5878,10 +5911,8 @@ function buildFixedFeesTabHtml(scope) {
 
     <div class="settings-section">
       <h3>Taxas Cadastradas</h3>
-      <div style="display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin:14px 0;align-items:end">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin:14px 0;align-items:end">
         <div class="form-group" style="margin:0"><label>Buscar taxa</label><input id="fff-search" placeholder="ISPS, DG, THC..." oninput="loadFixedFeesTable()"></div>
-        <div class="form-group" style="margin:0"><label>Incoterm</label><select id="fff-incoterm" onchange="loadFixedFeesTable()"><option value="">Todos</option><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
-        <div class="form-group" style="margin:0"><label>Direção</label><select id="fff-direction" onchange="loadFixedFeesTable()"><option value="">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div>
         <div class="form-group" style="margin:0"><label>Tipo</label><select id="fff-type" onchange="loadFixedFeesTable()"><option value="">Todos</option><option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option></select></div>
         <div class="form-group" style="margin:0"><label>Armador</label><input id="fff-carrier" placeholder="Maersk, HMM..." oninput="loadFixedFeesTable()"></div>
         <div class="form-group" style="margin:0"><label>Equipamento</label><select id="fff-equipment" onchange="loadFixedFeesTable()"><option value="">Todos</option><option value="20'">20'</option><option value="40'">40'</option><option value="40HC">40HC</option><option value="20RH">20' Reefer</option><option value="40RH">40' Reefer</option><option value="20OT">20' Open Top</option><option value="40OT">40' Open Top</option></select></div>
@@ -5906,8 +5937,6 @@ async function loadFixedFeesTable() {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toUpperCase().replace(/[^A-Z0-9]/g, '');
     const search = normalize(valueOf('fff-search'));
-    const incoterm = normalize(valueOf('fff-incoterm'));
-    const direction = valueOf('fff-direction');
     const type = valueOf('fff-type');
     const carrier = normalize(valueOf('fff-carrier'));
     const equipment = normalize(valueOf('fff-equipment'));
@@ -5920,15 +5949,11 @@ async function loadFixedFeesTable() {
       if (!isInScope) return false;
 
       const feeText = normalize([f.name, f.carrier, f.containerSize, f.currency, f.modal].join(' '));
-      const feeDirection = String(f.direction || f.type || '').toUpperCase();
-      const feeIncoterm = normalize(f.incoterm || f.incoterms || '');
       const equipmentMatches = !equipment || !f.containerSize
         ? !equipment || !f.containerSize
         : normalize(f.containerSize).includes(equipment) || equipment.includes(normalize(f.containerSize));
 
       return (!search || feeText.includes(search))
-        && (!incoterm || feeIncoterm.includes(incoterm) || normalize(f.name).includes(incoterm))
-        && (!direction || !f.direction || feeDirection === direction)
         && (!type || f.type === type)
         && (!carrier || normalize(f.carrier).includes(carrier))
         && equipmentMatches
@@ -5938,8 +5963,6 @@ async function loadFixedFeesTable() {
     const summary = document.getElementById('fixedFeesFilterSummary');
     if (summary) {
       const criteria = [];
-      if (incoterm) criteria.push(`Incoterm: ${incoterm}`);
-      if (direction) criteria.push(direction === 'IMPORT' ? 'Importação' : 'Exportação');
       if (type) criteria.push(type === 'ORIGIN' ? 'Origem' : 'Destino');
       summary.textContent = `${fees.length} taxa(s) encontrada(s)${criteria.length ? ` • ${criteria.join(' • ')}` : ''}`;
     }
@@ -5979,7 +6002,7 @@ async function loadFixedFeesTable() {
 }
 
 function clearFixedFeeFilters() {
-  ['fff-search', 'fff-incoterm', 'fff-direction', 'fff-type', 'fff-carrier', 'fff-equipment', 'fff-status']
+  ['fff-search', 'fff-type', 'fff-carrier', 'fff-equipment', 'fff-status']
     .forEach(id => {
       const field = document.getElementById(id);
       if (field) field.value = '';
@@ -6319,7 +6342,7 @@ async function loadStandardFeesTable() {
     }
     
     let html = `<table class="k-table"><thead><tr>
-      <th>Nome</th><th>Formato</th><th>Valor</th><th>Moeda</th><th>Tipo</th><th>Ativo</th><th>Ações</th>
+      <th>Nome</th><th>Formato</th><th>Valor</th><th>Moeda</th><th>Lado</th><th>Modal</th><th>Aplicação</th><th>Ativo</th><th>Ações</th>
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
@@ -6330,6 +6353,8 @@ async function loadStandardFeesTable() {
         <td>${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ''}</td>
         <td>${f.currency}</td>
         <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
+        <td>${ifrEscape((f.modalScope || 'ALL').replace('SEA_FCL', 'Mar. FCL').replace('SEA_LCL', 'Mar. LCL').replace('AIR', 'Aéreo').replace('ALL', 'Todos'))}</td>
+        <td>${f._count?.incotermRules ? `<button class="action-btn" onclick="openFeeApplicationRules('${f.id}')" title="Ver regras de aplicação">${f._count.incotermRules} vínculo(s)</button>` : '<span style="color:var(--text-muted)">Não vinculada</span>'}</td>
         <td><span class="status-badge ${f.active ? 'approved' : 'expired'}">${f.active ? 'Ativo' : 'Inativo'}</span></td>
         <td>
           <div class="action-btns">
@@ -6344,6 +6369,16 @@ async function loadStandardFeesTable() {
   } catch(e) {
     console.error('Erro ao carregar taxas locais', e);
   }
+}
+
+async function openFeeApplicationRules(feeId) {
+  window.incotermRuleFeeFocus = feeId;
+  switchSettingsTab('incotermRules');
+  setTimeout(() => {
+    const select = document.getElementById('ir-standardFeeId');
+    if (select) select.value = feeId;
+    document.getElementById('ir-incoterm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 180);
 }
 
 // ════════════ REAPROVEITAR COTAÇÕES (TELA DE RASCUNHO) ════════════
@@ -6386,6 +6421,10 @@ async function loadQuotationIntoDraft() {
     if (quotation) {
       currentQuotationId = quotation.id;
       window.lastExtractedRawText = null;
+      window.lastEmailExtraction = null;
+      if (quotation.extractionAudit) {
+        try { window.lastEmailExtraction = JSON.parse(quotation.extractionAudit); } catch (e) {}
+      }
       if (quotation.sourceEmails) {
         try {
           const arr = JSON.parse(quotation.sourceEmails);
@@ -6432,6 +6471,7 @@ async function loadQuotationIntoDraft() {
       };
       
       fillReviewForm(mappedData, 'CLIENT');
+      renderEmailExtractionAudit(window.lastEmailExtraction);
       toast('✅ Dados da cotação carregados!');
     }
   } catch (error) {
@@ -6619,11 +6659,13 @@ async function loadIncotermRulesTable() {
     const incotermParam = filter ? filter.value : '';
     const url = incotermParam ? `/api/incoterm-rules?incoterm=${incotermParam}` : '/api/incoterm-rules';
     const res = await fetch(url);
-    const rules = await res.json();
+    const allRules = await res.json();
+    const focusedFeeId = window.incotermRuleFeeFocus || '';
+    const rules = focusedFeeId ? allRules.filter(rule => rule.standardFeeId === focusedFeeId) : allRules;
     const container = document.getElementById('incotermRulesTableContainer');
     if (!container) return;
     if (!rules.length) {
-      container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.</p>';
+      container.innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${focusedFeeId ? 'Esta taxa ainda não possui vínculo de aplicação. Selecione o contexto acima e salve o vínculo.' : 'Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.'}</p>`;
       return;
     }
     let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Tipo</th><th>Taxa</th><th>Cobrança</th><th>Valor</th><th>Mín</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
@@ -6653,7 +6695,7 @@ async function loadIncotermRulesTable() {
         </td></tr>`;
     }
     html += '</tbody></table>';
-    container.innerHTML = html;
+    container.innerHTML = (focusedFeeId ? '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Exibindo somente os vínculos desta taxa. <button class="action-btn" onclick="window.incotermRuleFeeFocus=\'\';loadIncotermRulesTable()">Ver todos</button></div>' : '') + html;
   } catch (e) {
     console.error('Erro ao carregar regras de incoterm:', e);
   }

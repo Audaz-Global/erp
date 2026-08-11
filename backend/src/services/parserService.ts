@@ -7,6 +7,22 @@ const MsgReader = require('@kenjiuno/msgreader').default || require('@kenjiuno/m
 
 export interface ParsedEmlResult {
   text: string;
+  emailRecord?: {
+    format: 'EML' | 'MSG';
+    senderName?: string;
+    senderEmail?: string;
+    subject?: string;
+    receivedAt?: string;
+    originalBody: string;
+    extractedContact?: {
+      name?: string;
+      phone?: string;
+      email?: string;
+      source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'NOT_FOUND';
+      confidence: number;
+      evidence?: string;
+    };
+  };
   mediaParts: Array<{
     inlineData: {
       data: string;
@@ -14,6 +30,42 @@ export interface ParsedEmlResult {
     };
     filename?: string;
   }>;
+  signatureMediaParts?: Array<{
+    inlineData: { data: string; mimeType: string };
+    filename?: string;
+  }>;
+}
+
+function normalizePhone(value: string): string {
+  const cleaned = String(value || '').replace(/[^\d+()\- .xX]/g, '').replace(/\s+/g, ' ').trim();
+  return cleaned.replace(/\s*(?:ext\.?|ramal|x)\s*/i, ' x');
+}
+
+function safeIsoDate(value: any): string | undefined {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+export function extractContactFromSignature(body: string, senderName = '', senderEmail = '') {
+  const lines = String(body || '').replace(/\r/g, '').split('\n').map(line => line.trim()).filter(Boolean);
+  const signatureStart = lines.findIndex(line => /^(atenciosamente|cordialmente|obrigad[oa]|best regards|kind regards|regards|sincerely|thanks(?: and regards)?|many thanks)[,!]?$/i.test(line));
+  const signatureLines = (signatureStart >= 0 ? lines.slice(signatureStart + 1) : lines.slice(-12)).slice(0, 12);
+  const evidence = signatureLines.join(' | ');
+  const phoneMatch = evidence.match(/(?:tel(?:ephone)?|phone|mobile|cell|whatsapp|fone|cel(?:ular)?)?\s*[:.]?\s*(\+?\d[\d() .-]{6,}\d)(?:\s*(?:ext\.?|ramal|x)\s*\d+)?/i);
+  const emailMatch = evidence.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const nameLine = signatureLines.find(line => {
+    const compact = line.replace(/[|•·]/g, ' ').trim();
+    return compact.length >= 3 && compact.length <= 80
+      && !/@/.test(compact)
+      && !/(tel|phone|mobile|cell|whatsapp|www\.|http|ltd|inc\.|logistics|cargo|freight|comercial|sales)/i.test(compact)
+      && /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' .-]+$/.test(compact);
+  });
+  const name = nameLine || senderName || '';
+  const phone = phoneMatch?.[1] ? normalizePhone(phoneMatch[1]) : '';
+  const email = emailMatch?.[0] || senderEmail || '';
+  const source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'NOT_FOUND' = signatureLines.length && (nameLine || phoneMatch || emailMatch) ? 'SIGNATURE_TEXT' : (senderName || senderEmail ? 'SENDER_HEADER' : 'NOT_FOUND');
+  const confidence = source === 'SIGNATURE_TEXT' ? (name && phone ? 0.9 : 0.75) : (name || email ? 0.55 : 0);
+  return { name, phone, email, source, confidence, evidence: evidence.slice(0, 600) };
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -116,6 +168,7 @@ ${htmlContent}
     `;
 
     const mediaParts: Array<{ inlineData: { data: string; mimeType: string }; filename?: string }> = [];
+    const signatureMediaParts: Array<{ inlineData: { data: string; mimeType: string }; filename?: string }> = [];
 
     // Extrai imagens inline codificadas em Base64 do corpo HTML
     if (parsed.html) {
@@ -188,9 +241,24 @@ ${htmlContent}
                 : imageSize < 4_000
             );
             const isSignatureAsset = isKnownSignatureName || isSmallRelatedAsset;
+            const isSignatureCandidate = Boolean((attachment as any).related) && imageSize >= 4_000 && imageSize <= 1_500_000 && (
+              !dimensions || (dimensions.width <= 1_200 && dimensions.height <= 600)
+            );
             if (isSignatureAsset) {
               extractedText += `\n[Imagem inline/assinatura ignorada: ${attachment.filename}]\n`;
+              if (imageSize >= 4_000 && imageSize <= 1_500_000 && signatureMediaParts.length < 2) {
+                signatureMediaParts.push({
+                  inlineData: { data: attachment.content.toString('base64'), mimeType: attachment.contentType },
+                  filename: attachment.filename
+                });
+              }
               continue;
+            }
+            if (isSignatureCandidate && signatureMediaParts.length < 2) {
+              signatureMediaParts.push({
+                inlineData: { data: attachment.content.toString('base64'), mimeType: attachment.contentType },
+                filename: attachment.filename
+              });
             }
             mediaParts.push({
               inlineData: {
@@ -210,7 +278,18 @@ ${htmlContent}
       }
     }
 
-    return { text: extractedText, mediaParts };
+    const fromValue = (parsed.from as any)?.value?.[0] || {};
+    return {
+      text: extractedText,
+      mediaParts,
+      signatureMediaParts,
+      emailRecord: {
+        format: 'EML', senderName: fromValue.name || '', senderEmail: fromValue.address || '',
+        subject: parsed.subject || '', receivedAt: parsed.date ? safeIsoDate(parsed.date) : undefined,
+        originalBody: String(parsed.text || ''),
+        extractedContact: extractContactFromSignature(String(parsed.text || ''), fromValue.name || '', fromValue.address || '')
+      }
+    };
   } catch (error) {
     console.error('Erro ao fazer parse do .eml:', error);
     throw new Error('Falha ao processar arquivo .eml');
@@ -275,7 +354,14 @@ ${testMsg.body || ''}
 
     return {
       text: extractedText,
-      mediaParts: []
+      mediaParts: [],
+      signatureMediaParts: [],
+      emailRecord: {
+        format: 'MSG', senderName: fromName, senderEmail: fromEmail, subject: testMsg.subject || '',
+        receivedAt: testMsg.messageDeliveryTime ? safeIsoDate(testMsg.messageDeliveryTime) : undefined,
+        originalBody: String(testMsg.body || ''),
+        extractedContact: extractContactFromSignature(String(testMsg.body || ''), fromName, fromEmail)
+      }
     };
   } catch (error) {
     console.error('Erro ao fazer parse do .msg:', error);

@@ -162,6 +162,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     }
 
     const updateData: any = { ...quotationData };
+    if (sourceEmails !== undefined) updateData.sourceEmails = sourceEmails;
     if (updateData.packages && !updateData.totalCbm) {
       updateData.totalCbm = calculateCbmFromDimensions(updateData.packages, updateData.totalPackages || 1);
     }

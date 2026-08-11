@@ -143,6 +143,8 @@ model Quotation {
   notes String? // JSON string array
 
   sourceEmails             String? // JSON string array
+  sourceEmailRecords       String? // JSON com metadados, corpo original e contato identificado em cada e-mail
+  extractionAudit          String? // JSON com fonte e confiança de cada informação extraída
   sourceDocuments          String? // JSON string array
   aiConfidence             Float?
   smartcomexSynced         Boolean @default(false)

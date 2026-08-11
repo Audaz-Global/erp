@@ -126,6 +126,37 @@ export function extractPackagingFacts(sourceText: string): {
   };
 }
 
+export async function extractSignatureOcr(mediaParts: any[] = []) {
+  if (!mediaParts.length) return [];
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'object', properties: {
+          readings: {
+            type: 'array', items: { type: 'object', properties: {
+              filename: { type: 'string' }, isSignature: { type: 'boolean' }, rawText: { type: 'string' },
+              name: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' },
+              company: { type: 'string' }, confidence: { type: 'number' }
+            }, required: ['isSignature', 'rawText', 'confidence'] }
+          }
+        }, required: ['readings']
+      } as any
+    }
+  });
+  const prompt = `Analise somente as imagens fornecidas. Elas podem ser assinaturas gráficas de e-mail, logos ou ícones.
+Para cada imagem, transcreva apenas texto legível e extraia nome, telefone, e-mail e empresa quando existirem.
+Marque isSignature=false quando for apenas logo/ícone. Não invente dados. Retorne confiança entre 0 e 1.`;
+  const content = await buildTokenSafeContent(model, prompt, mediaParts.slice(0, 2));
+  const result = await model.generateContent(content);
+  const parsed = JSON.parse(result.response.text().trim());
+  return Array.isArray(parsed?.readings) ? parsed.readings.map((item: any, index: number) => ({
+    ...item, filename: item.filename || mediaParts[index]?.filename || `signature_${index + 1}`,
+    source: 'SIGNATURE_IMAGE_OCR'
+  })).filter((item: any) => item.isSignature && Number(item.confidence || 0) >= 0.45) : [];
+}
+
 // Retry com backoff exponencial para lidar com 429 temporários da API Gemini
 async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   const delays = [5000, 10000, 20000];
