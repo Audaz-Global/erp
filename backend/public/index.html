@@ -5238,11 +5238,10 @@ function switchSettingsTab(tab) {
             </div>
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
             <div class="form-group" style="margin:0"><label><input type="checkbox" id="ir-required"> Taxa obrigatória</label></div>
-            <div class="form-group" style="margin:0"><label>Origem aplicável (opcional)</label><input id="ir-origin-scope" placeholder="Ex: CNSHA, Shanghai, China"></div>
-            <div class="form-group" style="margin:0"><label>Destino aplicável (opcional)</label><input id="ir-destination-scope" placeholder="Ex: BRSSZ, Santos, Brasil"></div>
+            <div class="form-group" style="margin:0"><label>Aplicação da taxa</label><select id="ir-feeType"><option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option></select></div>
           </div>
           <input type="hidden" id="ir-direction" value="ALL">
-          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. Alterar valor, moeda ou cobrança deve ser feito no catálogo e refletirá em todos os vínculos.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. 3. Defina se ela entra na origem ou no destino. Alterações de valor, moeda ou cobrança são feitas no catálogo e refletidas em todos os vínculos.</p>
           <input type="hidden" id="ir-id">
           <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">Salvar vínculo</button>
           <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
@@ -6764,7 +6763,7 @@ async function loadIncotermRulesTable() {
       container.innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${focusedFeeId ? 'Esta taxa ainda não possui vínculo de aplicação. Selecione o contexto acima e salve o vínculo.' : 'Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.'}</p>`;
       return;
     }
-    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Taxa</th><th>Aplicação geográfica</th><th>Cobrança</th><th>Valor</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
+    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Aplicação</th><th>Taxa</th><th>Cobrança</th><th>Valor</th><th>Mínimo</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
     for (const r of rules) {
       const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_TON:'Por tonelada', PER_WM:'Por tonelada-metro (W/M)', PER_CBM:'Por m³', PER_CONTAINER:'Por contêiner', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
       const modalLabel = {AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos'}[r.modal] || r.modal;
@@ -6781,7 +6780,6 @@ async function loadIncotermRulesTable() {
             <button class="action-btn" onclick="editIncotermLinkedFee('${r.standardFeeId}')" title="Editar taxa local" aria-label="Editar taxa ${r.feeName}">✏️</button>
           </div>
         </td>
-        <td>${r.originScope || r.destinationScope ? `${ifrEscape(r.originScope || 'Todas as origens')} → ${ifrEscape(r.destinationScope || 'Todos os destinos')}` : '<span style="color:var(--text-muted)">Qualquer rota</span>'}</td>
         <td>${chargeLabel}</td>
         <td>${r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.value.toFixed(2)}</td>
         <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
@@ -6804,8 +6802,7 @@ async function saveIncotermRule() {
     incoterm: document.getElementById('ir-incoterm').value,
     modal: document.getElementById('ir-modal').value,
     direction: document.getElementById('ir-direction').value,
-    originScope: document.getElementById('ir-origin-scope').value.trim() || null,
-    destinationScope: document.getElementById('ir-destination-scope').value.trim() || null,
+    feeType: document.getElementById('ir-feeType').value,
     required: document.getElementById('ir-required').checked,
     standardFeeId: document.getElementById('ir-standardFeeId').value,
     sortOrder: parseInt(document.getElementById('ir-linkSortOrder').value) || 0
@@ -6849,8 +6846,7 @@ async function editIncotermRule(id) {
     ensureIncotermRuleDirectionControl();
     document.getElementById('ir-direction').value = rule.direction || 'ALL';
     document.getElementById('ir-required').checked = Boolean(rule.required);
-    document.getElementById('ir-origin-scope').value = rule.originScope || '';
-    document.getElementById('ir-destination-scope').value = rule.destinationScope || '';
+    document.getElementById('ir-feeType').value = rule.feeType || 'ORIGIN';
     await loadIncotermFeeOptions(rule.standardFeeId);
     document.getElementById('ir-linkSortOrder').value = rule.sortOrder || 0;
     document.getElementById('btnSaveIr').innerText = '💾 Atualizar Regra';
@@ -6891,8 +6887,7 @@ function cancelEditIr() {
   document.getElementById('ir-id').value = '';
   document.getElementById('ir-standardFeeId').value = '';
   document.getElementById('ir-linkSortOrder').value = '0';
-  document.getElementById('ir-origin-scope').value = '';
-  document.getElementById('ir-destination-scope').value = '';
+  document.getElementById('ir-feeType').value = 'ORIGIN';
   document.getElementById('btnSaveIr').innerText = '💾 Salvar Regra';
   document.getElementById('btnCancelIr').style.display = 'none';
 }

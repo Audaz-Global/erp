@@ -23,19 +23,6 @@ export interface FeeCalculationContext {
   totalCbm?: number;
   containerCount?: number;
   grossWeightKg?: number;
-  origin?: string;
-  destination?: string;
-}
-
-function normalizedScope(value: unknown) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-function scopeMatches(scope: unknown, actual: unknown) {
-  const expected = normalizedScope(scope);
-  if (!expected || expected === 'ALL') return true;
-  const candidate = normalizedScope(actual);
-  return Boolean(candidate) && (candidate.includes(expected) || expected.includes(candidate));
 }
 
 /**
@@ -68,7 +55,7 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
 
   // Se há regras específicas para o modal, elas têm prioridade.
   // Regras "ALL" só entram se não existir regra com mesmo feeName no modal específico.
-  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active && scopeMatches((r as any).originScope, context.origin) && scopeMatches((r as any).destinationScope, context.destination));
+  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active);
   const ranked = effectiveRules.sort((a, b) => {
     const score = (rule: any) => (rule.incoterm === 'ALL' ? 0 : 4) + (rule.modal === 'ALL' ? 0 : 2) + (rule.direction === 'ALL' ? 0 : 1);
     return score(a) - score(b);
