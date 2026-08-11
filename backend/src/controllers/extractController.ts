@@ -3,8 +3,9 @@ import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../
 import { extractClientData, extractAgentCosts, generateAgentDraft, generateTruckerDraft } from '../services/aiService';
 import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
-import { renderDraftSubject } from '../utils/emailTemplate';
+import { renderDraftBody, renderDraftSubject } from '../utils/emailTemplate';
 import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService';
+import { findAgentDraftEmailTemplate } from '../services/agentDraftEmailTemplateService';
 import { applyRateValidityPolicy } from '../services/rateValidityService';
 
 const SINGLETON_ID = 'default';
@@ -234,14 +235,21 @@ export const generateDraft = async (req: Request, res: Response) => {
 
     const requiredFieldLabels = await getDraftEmailFieldLabels(quotation.modal, quotation.direction);
 
-    const draftText = await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
+    const selectedTemplate = await findAgentDraftEmailTemplate(quotation);
+    const bodyTokens: Record<string, string> = {
+      quotationCode: agentEmailCode, direction: quotation.direction === 'EXPORT' ? 'Exportação' : 'Importação', modal: payload.modal || '', incoterm: payload.incoterm || '',
+      origin: payload.originPort || payload.originCity || 'Não informado', destination: payload.destinationPort || payload.destinationCity || 'Não informado', equipment: payload.loadType || 'Não informado',
+      grossWeight: payload.totalGrossWeightKg != null ? String(payload.totalGrossWeightKg) : 'Não informado', cargoValue: payload.commercialValue != null ? `${payload.commercialCurrency || ''} ${payload.commercialValue}`.trim() : 'Não informado',
+      imoStatus: payload.isImo ? 'Sim' : 'Não', directService: payload.connections ? 'Conforme rota informada' : 'Quando aplicável', freeTime: 'Quando aplicável', client: payload.clientName || '', clientReference: payload.clientReferenceNumber || ''
+    };
+    const draftText = selectedTemplate ? renderDraftBody(selectedTemplate.bodyTemplate, bodyTokens) : await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
 
     const emailSettings = await prisma.agentDraftEmailSettings.upsert({
       where: { id: SINGLETON_ID },
       update: {},
       create: { id: SINGLETON_ID, subjectTemplate: DEFAULT_SUBJECT_TEMPLATE }
     });
-    const draftSubject = renderDraftSubject(emailSettings.subjectTemplate, {
+    const draftSubject = renderDraftSubject(selectedTemplate?.subjectTemplate || emailSettings.subjectTemplate, {
       quotationCode: agentEmailCode,
       direction: quotation.direction === 'EXPORT' ? 'EXP' : 'IMP',
       modal: payload.modal || '',
@@ -275,7 +283,7 @@ export const generateDraft = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({ draft: draftText, draftSubject, truckerDraft: truckerDraftText, quotation: updated });
+    res.json({ draft: draftText, draftSubject, template: selectedTemplate ? { id: selectedTemplate.id, name: selectedTemplate.name } : null, truckerDraft: truckerDraftText, quotation: updated });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

@@ -84,4 +84,4 @@ ENV PORT=3001
 EXPOSE 3001
 
 # Executa push no banco SQLite local e inicia o servidor
-CMD npx prisma db push && npm start
+CMD npx prisma db push --accept-data-loss && npm start

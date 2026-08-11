@@ -444,6 +444,22 @@ model AgentDraftEmailSettings {
   updatedAt       DateTime @updatedAt
 }
 
+model AgentDraftEmailTemplate {
+  id              String   @id @default(uuid())
+  name            String
+  incoterm        String   @default("ALL")
+  modal           String   @default("ALL") // AIR, SEA_FCL, SEA_LCL, ALL
+  direction       String   @default("ALL") // IMPORT, EXPORT, ALL
+  equipment       String   @default("ALL") // 20GP, 40GP, 40HC, 20RH, 40RH, 20OT, 40OT, ALL
+  subjectTemplate String?
+  bodyTemplate    String
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([incoterm, modal, direction, equipment, active])
+}
+
 model DraftEmailFieldRule {
   id         String   @id @default(uuid())
   modal      String   @default("ALL") // SEA, AIR, ALL
