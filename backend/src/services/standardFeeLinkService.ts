@@ -25,9 +25,6 @@ export function effectiveIncotermRule(rule: RuleWithStandardFee) {
   return {
     ...rule,
     ...(fee ? standardFeeSnapshot(fee) : {}),
-    // A aplicação (origem/destino) pertence ao vínculo com o Incoterm.
-    // Assim, a mesma taxa do catálogo pode ser usada em contextos diferentes.
-    feeType: rule.feeType,
     standardFeeId: fee?.id || rule.standardFeeId || null,
     standardFee: fee || null,
     active: rule.active && (fee ? fee.active : true)

@@ -5238,10 +5238,10 @@ function switchSettingsTab(tab) {
             </div>
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
             <div class="form-group" style="margin:0"><label><input type="checkbox" id="ir-required"> Taxa obrigatória</label></div>
-            <div class="form-group" style="margin:0"><label>Aplicação da taxa</label><select id="ir-feeType"><option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option></select></div>
+            <div class="form-group" style="margin:0"><label>Aplicação cadastrada na taxa</label><div id="ir-feeTypeInfo" style="min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;">Selecione uma taxa</div></div>
           </div>
           <input type="hidden" id="ir-direction" value="ALL">
-          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. 3. Defina se ela entra na origem ou no destino. Alterações de valor, moeda ou cobrança são feitas no catálogo e refletidas em todos os vínculos.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. A origem ou o destino são definidos exclusivamente no cadastro da taxa; a regra informa apenas quando ela se aplica.</p>
           <input type="hidden" id="ir-id">
           <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">Salvar vínculo</button>
           <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
@@ -6726,12 +6726,23 @@ async function loadIncotermFeeOptions(selectedId = '') {
     select.innerHTML = '<option value="">-- Selecione a taxa local --</option>' + activeFees.map(f => {
       const side = f.type === 'ORIGIN' ? 'Origem' : 'Destino';
       const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
-      return `<option value="${f.id}">${side} - ${f.name} (${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : format})</option>`;
+      return `<option value="${f.id}" data-fee-type="${f.type}">${side} - ${f.name} (${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : format})</option>`;
     }).join('');
     if (selectedId) select.value = selectedId;
+    select.onchange = updateIncotermFeeTypeInfo;
+    updateIncotermFeeTypeInfo();
   } catch (e) {
     select.innerHTML = '<option value="">Erro ao carregar taxas</option>';
   }
+}
+
+function updateIncotermFeeTypeInfo() {
+  const selected = document.getElementById('ir-standardFeeId')?.selectedOptions?.[0];
+  const info = document.getElementById('ir-feeTypeInfo');
+  if (!info) return;
+  const type = selected?.dataset?.feeType;
+  info.textContent = type === 'DESTINATION' ? 'Destino' : type === 'ORIGIN' ? 'Origem' : 'Selecione uma taxa';
+  info.style.color = type ? 'var(--text-primary)' : 'var(--text-muted)';
 }
 
 function ensureIncotermRuleDirectionControl() {
@@ -6802,7 +6813,6 @@ async function saveIncotermRule() {
     incoterm: document.getElementById('ir-incoterm').value,
     modal: document.getElementById('ir-modal').value,
     direction: document.getElementById('ir-direction').value,
-    feeType: document.getElementById('ir-feeType').value,
     required: document.getElementById('ir-required').checked,
     standardFeeId: document.getElementById('ir-standardFeeId').value,
     sortOrder: parseInt(document.getElementById('ir-linkSortOrder').value) || 0
@@ -6846,7 +6856,6 @@ async function editIncotermRule(id) {
     ensureIncotermRuleDirectionControl();
     document.getElementById('ir-direction').value = rule.direction || 'ALL';
     document.getElementById('ir-required').checked = Boolean(rule.required);
-    document.getElementById('ir-feeType').value = rule.feeType || 'ORIGIN';
     await loadIncotermFeeOptions(rule.standardFeeId);
     document.getElementById('ir-linkSortOrder').value = rule.sortOrder || 0;
     document.getElementById('btnSaveIr').innerText = '💾 Atualizar Regra';
@@ -6887,7 +6896,7 @@ function cancelEditIr() {
   document.getElementById('ir-id').value = '';
   document.getElementById('ir-standardFeeId').value = '';
   document.getElementById('ir-linkSortOrder').value = '0';
-  document.getElementById('ir-feeType').value = 'ORIGIN';
+  updateIncotermFeeTypeInfo();
   document.getElementById('btnSaveIr').innerText = '💾 Salvar Regra';
   document.getElementById('btnCancelIr').style.display = 'none';
 }

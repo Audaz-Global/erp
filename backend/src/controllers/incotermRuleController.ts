@@ -82,7 +82,6 @@ export const createIncotermRule = async (req: Request, res: Response) => {
         required: Boolean(required),
         standardFeeId: fee.id,
         ...standardFeeSnapshot(fee),
-        feeType: feeType === 'DESTINATION' ? 'DESTINATION' : 'ORIGIN',
         sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
         active: active !== undefined ? active : true,
       } as any,
@@ -99,7 +98,7 @@ export const createIncotermRule = async (req: Request, res: Response) => {
 export const updateIncotermRule = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { incoterm, modal, direction, feeType, required, standardFeeId, sortOrder, active } = req.body;
+    const { incoterm, modal, direction, required, standardFeeId, sortOrder, active } = req.body;
     const current = await prisma.incotermRule.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Regra de Incoterm não encontrada.' });
 
@@ -131,7 +130,6 @@ export const updateIncotermRule = async (req: Request, res: Response) => {
         ...(required !== undefined && { required: Boolean(required) }),
         standardFeeId: fee.id,
         ...standardFeeSnapshot(fee),
-        ...(feeType !== undefined && { feeType: feeType === 'DESTINATION' ? 'DESTINATION' : 'ORIGIN' }),
         ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
         ...(active !== undefined && { active })
       },
