@@ -382,6 +382,7 @@ model StandardFee {
   type        String // ORIGIN, DESTINATION
   chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
   value       Float
+  pricingStatus String @default("PRICED") // PRICED, ON_REQUEST
   minValue    Float?
   currency    String
   percentBase String? // FREIGHT, FREIGHT_PLUS_ORIGIN
@@ -404,6 +405,7 @@ model IncotermRule {
   feeName     String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
   chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
   value       Float // Valor unitário ou percentual
+  pricingStatus String @default("PRICED") // snapshot da taxa: PRICED, ON_REQUEST
   minValue    Float? // Valor mínimo (ex: Airport Fee mín USD 45)
   currency    String   @default("USD")
   percentBase String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"

@@ -4402,7 +4402,7 @@ function mergeReturnFees(existingFees, presetFees) {
 function formatReturnFees(fees) {
   return fees.map(f => {
     const label = f.source === 'INCOTERM' ? RETURN_ESTIMATE_LABEL : '';
-    return `${stripReturnEstimateLabel(f.name)}${label}: ${Number(f.value).toFixed(2)} ${f.currency || 'USD'}`;
+    return `${stripReturnEstimateLabel(f.name)}${label}: ${f.pending ? 'A COTAR' : `${Number(f.value).toFixed(2)} ${f.currency || 'USD'}`}`;
   }).join('\n');
 }
 
@@ -4433,6 +4433,10 @@ function calculateReturnRuleFees(q) {
   };
 
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
+    if (rule.pricingStatus === 'ON_REQUEST') {
+      calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
+      return;
+    }
     const value = calculateRule(rule);
     if (value != null) {
       calculated.push({ name: rule.feeName, value, currency: rule.currency || 'USD', feeType: 'ORIGIN' });
@@ -4440,6 +4444,10 @@ function calculateReturnRuleFees(q) {
     }
   });
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'DESTINATION').forEach(rule => {
+    if (rule.pricingStatus === 'ON_REQUEST') {
+      calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
+      return;
+    }
     const value = calculateRule(rule);
     if (value != null) calculated.push({ name: rule.feeName, value, currency: rule.currency || 'USD', feeType: 'DESTINATION' });
   });
@@ -5143,6 +5151,9 @@ function switchSettingsTab(tab) {
                 <option value="PERCENTAGE">% de Taxas Selecionadas</option>
               </select>
             </div>
+            <div class="form-group" style="margin:0;"><label>Situação do preço</label>
+              <select id="sf-pricingStatus" onchange="toggleStandardFeePricing()"><option value="PRICED">Valor padrão definido</option><option value="ON_REQUEST">A cotar com agente</option></select>
+            </div>
             <div class="form-group" style="margin:0;"><label>Tipo (Origem/Destino)</label>
               <select id="sf-type">
                 <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
@@ -5150,7 +5161,7 @@ function switchSettingsTab(tab) {
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;"><label>Valor / Porcentagem</label><input type="number" id="sf-value" step="0.01" placeholder="Ex: 55.00 ou 3.5"></div>
+            <div class="form-group" style="margin:0;" id="sf-value-group"><label>Valor / Porcentagem</label><input type="number" id="sf-value" step="0.01" placeholder="Ex: 55.00 ou 3.5"></div>
             <div class="form-group" style="margin:0;"><label>Moeda (se aplicável)</label>
               <select id="sf-currency">
                 <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
@@ -6375,7 +6386,7 @@ async function loadStandardFeesTable() {
       html += `<tr>
         <td style="font-weight:600;">${f.name}</td>
         <td>${chargeTypeStr}</td>
-        <td>${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ''}</td>
+        <td>${f.pricingStatus === 'ON_REQUEST' ? '<span class="badge-pending">A cotar</span>' : `${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ''}`}</td>
         <td>${f.currency}</td>
         <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
         <td>${ifrEscape((f.modalScope || 'ALL').replace('SEA_FCL', 'Mar. FCL').replace('SEA_LCL', 'Mar. LCL').replace('AIR', 'Aéreo').replace('ALL', 'Todos'))}</td>
@@ -6509,6 +6520,7 @@ function editStandardFee(fee) {
   document.getElementById('sf-id').value = fee.id;
   document.getElementById('sf-name').value = fee.name;
   document.getElementById('sf-chargeType').value = fee.chargeType;
+  document.getElementById('sf-pricingStatus').value = fee.pricingStatus || 'PRICED';
   document.getElementById('sf-value').value = fee.value;
   document.getElementById('sf-currency').value = fee.currency;
   document.getElementById('sf-type').value = fee.type;
@@ -6517,6 +6529,7 @@ function editStandardFee(fee) {
   document.getElementById('sf-description').value = fee.description || '';
   document.getElementById('sf-modalScope').value = fee.modalScope || 'ALL';
   toggleSfPercentBase();
+  toggleStandardFeePricing();
   
   document.getElementById('btnSaveStandardFee').innerText = '💾 Atualizar Taxa';
   document.getElementById('btnCancelStandardFee').style.display = 'inline-block';
@@ -6527,6 +6540,7 @@ function cancelEditStandardFee() {
   document.getElementById('sf-id').value = '';
   document.getElementById('sf-name').value = '';
   document.getElementById('sf-chargeType').value = 'FIXED';
+  document.getElementById('sf-pricingStatus').value = 'PRICED';
   document.getElementById('sf-value').value = '';
   document.getElementById('sf-currency').value = 'USD';
   document.getElementById('sf-type').value = 'ORIGIN';
@@ -6535,6 +6549,7 @@ function cancelEditStandardFee() {
   document.getElementById('sf-description').value = '';
   document.getElementById('sf-modalScope').value = 'ALL';
   toggleSfPercentBase();
+  toggleStandardFeePricing();
   
   document.getElementById('btnSaveStandardFee').innerText = '💾 Salvar Taxa';
   document.getElementById('btnCancelStandardFee').style.display = 'none';
@@ -6544,9 +6559,10 @@ async function saveStandardFee() {
   const id = document.getElementById('sf-id').value;
   const name = document.getElementById('sf-name').value;
   const value = document.getElementById('sf-value').value;
+  const pricingStatus = document.getElementById('sf-pricingStatus').value;
   
-  if (!name || !value) {
-    toast('Preencha o Nome e o Valor.');
+  if (!name || (pricingStatus === 'PRICED' && !value)) {
+    toast('Preencha o Nome e o Valor, ou selecione “A cotar com agente”.');
     return;
   }
   
@@ -6554,7 +6570,8 @@ async function saveStandardFee() {
   const payload = {
     name,
     chargeType,
-    value: parseFloat(value),
+    value: pricingStatus === 'ON_REQUEST' ? null : parseFloat(value),
+    pricingStatus,
     currency: document.getElementById('sf-currency').value,
     type: document.getElementById('sf-type').value,
     minValue: document.getElementById('sf-minValue').value ? parseFloat(document.getElementById('sf-minValue').value) : null,
@@ -6605,6 +6622,19 @@ function toggleSfPercentBase() {
   const chargeType = document.getElementById('sf-chargeType');
   const group = document.getElementById('sf-percentBase-group');
   if (chargeType && group) group.style.display = chargeType.value === 'PERCENTAGE' ? '' : 'none';
+}
+
+function toggleStandardFeePricing() {
+  const pricingStatus = document.getElementById('sf-pricingStatus')?.value;
+  const input = document.getElementById('sf-value');
+  const group = document.getElementById('sf-value-group');
+  if (!input || !group) return;
+  const pending = pricingStatus === 'ON_REQUEST';
+  input.disabled = pending;
+  input.required = !pending;
+  input.placeholder = pending ? 'Valor será informado pelo agente' : 'Ex: 55.00 ou 3.5';
+  if (pending) input.value = '';
+  group.style.opacity = pending ? '0.55' : '1';
 }
 
 async function applyStandardFees(type, targetId) {
@@ -6662,7 +6692,7 @@ async function loadIncotermFeeOptions(selectedId = '') {
     select.innerHTML = '<option value="">-- Selecione a taxa local --</option>' + activeFees.map(f => {
       const side = f.type === 'ORIGIN' ? 'Origem' : 'Destino';
       const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
-      return `<option value="${f.id}">${side} - ${f.name} (${format})</option>`;
+      return `<option value="${f.id}">${side} - ${f.name} (${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : format})</option>`;
     }).join('');
     if (selectedId) select.value = selectedId;
   } catch (e) {

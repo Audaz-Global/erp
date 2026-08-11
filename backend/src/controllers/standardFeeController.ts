@@ -26,20 +26,23 @@ export const getAllStandardFees = async (req: Request, res: Response) => {
 
 export const createStandardFee = async (req: Request, res: Response) => {
   try {
-    const { name, type, chargeType, value, minValue, currency, percentBase, description, modalScope, active } = req.body;
+    const { name, type, chargeType, value, pricingStatus, minValue, currency, percentBase, description, modalScope, active } = req.body;
+    const effectivePricingStatus = pricingStatus === 'ON_REQUEST' ? 'ON_REQUEST' : 'PRICED';
+    if (effectivePricingStatus === 'PRICED' && (value === undefined || value === null || value === '')) return res.status(400).json({ error: 'Informe o valor ou selecione “A cotar”.' });
     const fee = await prisma.standardFee.create({
       data: {
         name,
         type,
         chargeType,
-        value: Number(value),
+        value: effectivePricingStatus === 'ON_REQUEST' ? 0 : Number(value),
+        pricingStatus: effectivePricingStatus,
         minValue: minValue !== undefined && minValue !== null && minValue !== '' ? Number(minValue) : null,
         currency: currency || 'USD',
         percentBase: chargeType === 'PERCENTAGE' ? (percentBase || 'FREIGHT') : null,
         description: description || null,
         modalScope: normalizeModalScope(modalScope),
         active: active !== undefined ? active : true
-      }
+      } as any
     });
     res.status(201).json(fee);
   } catch (error) {
@@ -50,10 +53,12 @@ export const createStandardFee = async (req: Request, res: Response) => {
 export const updateStandardFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, type, chargeType, value, minValue, currency, percentBase, description, modalScope, active } = req.body;
+    const { name, type, chargeType, value, pricingStatus, minValue, currency, percentBase, description, modalScope, active } = req.body;
     const current = await prisma.standardFee.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Taxa local não encontrada.' });
     const effectiveChargeType = chargeType || current.chargeType;
+    const effectivePricingStatus = pricingStatus === 'ON_REQUEST' ? 'ON_REQUEST' : (pricingStatus === 'PRICED' ? 'PRICED' : (current as any).pricingStatus || 'PRICED');
+    if (effectivePricingStatus === 'PRICED' && value !== undefined && (value === null || value === '')) return res.status(400).json({ error: 'Informe o valor ou selecione “A cotar”.' });
 
     const fee = await prisma.standardFee.update({
       where: { id },
@@ -61,7 +66,8 @@ export const updateStandardFee = async (req: Request, res: Response) => {
         name,
         type,
         chargeType,
-        value: value !== undefined ? Number(value) : undefined,
+        value: effectivePricingStatus === 'ON_REQUEST' ? 0 : (value !== undefined ? Number(value) : undefined),
+        pricingStatus: effectivePricingStatus,
         minValue: minValue !== undefined ? (minValue !== null && minValue !== '' ? Number(minValue) : null) : undefined,
         currency,
         percentBase: percentBase !== undefined || chargeType !== undefined
@@ -70,7 +76,7 @@ export const updateStandardFee = async (req: Request, res: Response) => {
         description: description !== undefined ? (description || null) : undefined,
         modalScope: modalScope !== undefined ? normalizeModalScope(modalScope) : undefined,
         active
-      }
+      } as any
     });
     res.json(fee);
   } catch (error) {
