@@ -5204,6 +5204,14 @@ function switchSettingsTab(tab) {
       content.innerHTML = `
         <div class="sc-title">Regras de Aplicação por Incoterm</div>
         <p class="sc-desc">Defina em quais cenários as taxas do Catálogo Central devem entrar automaticamente. Esta tela não cadastra valores: ela apenas vincula uma taxa existente ao Incoterm, modal e direção.</p>
+        <div class="settings-section" style="border-color:rgba(245,166,35,.5);margin-bottom:20px;">
+          <h3 style="margin:0 0 12px">Contexto operacional</h3>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div class="form-group" style="margin:0"><label>Incoterm</label><select id="ctx-incoterm" onchange="syncIncotermConfigurationContext()"><option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB" selected>FOB</option><option value="CFR">CFR</option><option value="CIF">CIF</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option></select></div>
+            <div class="form-group" style="margin:0"><label>Modal</label><select id="ctx-modal" onchange="syncIncotermConfigurationContext()"><option value="AIR">Aéreo</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="ALL">Todos</option></select></div>
+            <div class="form-group" style="margin:0"><label>Direção</label><select id="ctx-direction" onchange="syncIncotermConfigurationContext()"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div>
+          </div>
+        </div>
         
         <div class="settings-section" style="margin-bottom: 24px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -5212,13 +5220,13 @@ function switchSettingsTab(tab) {
           </div>
           
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;"><label>Incoterm</label>
+            <div class="form-group" style="margin:0;display:none"><label>Incoterm</label>
               <select id="ir-incoterm">
                 <option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
                 <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option>
               </select>
             </div>
-            <div class="form-group" style="margin:0;"><label>Modal</label>
+            <div class="form-group" style="margin:0;display:none"><label>Modal</label>
               <select id="ir-modal">
                 <option value="AIR">Aéreo (AIR)</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="ALL">Todos</option>
               </select>
@@ -5229,7 +5237,9 @@ function switchSettingsTab(tab) {
               </select>
             </div>
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
+            <div class="form-group" style="margin:0"><label><input type="checkbox" id="ir-required"> Taxa obrigatória</label></div>
           </div>
+          <input type="hidden" id="ir-direction" value="ALL">
           <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. Alterar valor, moeda ou cobrança deve ser feito no catálogo e refletirá em todos os vínculos.</p>
           <input type="hidden" id="ir-id">
           <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">Salvar vínculo</button>
@@ -5240,13 +5250,14 @@ function switchSettingsTab(tab) {
           <h3 style="margin:0 0 6px;">Comportamento de Campos</h3>
           <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Configure o comportamento operacional. Nenhuma trava é inferida automaticamente apenas pelo nome do Incoterm.</p>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;">
-            <div class="form-group" style="margin:0"><label>Incoterm</label><select id="ifr-incoterm"><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
-            <div class="form-group" style="margin:0"><label>Modal</label><select id="ifr-modal"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div>
+            <div class="form-group" style="margin:0;display:none"><label>Incoterm</label><select id="ifr-incoterm"><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
+            <div class="form-group" style="margin:0;display:none"><label>Modal</label><select id="ifr-modal"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div>
             <div class="form-group" style="margin:0"><label>Etapa</label><select id="ifr-stage"><option value="ALL">Todas</option><option value="REQUEST">Solicitação</option><option value="RETURN">Retorno do parceiro</option><option value="FINAL">Revisão final</option></select></div>
             <div class="form-group" style="margin:0"><label>Campo / Grupo</label><select id="ifr-field"><option value="INTERNATIONAL_FREIGHT">Frete internacional</option><option value="ORIGIN_INLAND">Inland de origem</option><option value="ORIGIN_FEES">Taxas locais de origem</option><option value="INSURANCE">Seguro</option><option value="DESTINATION_FEES">Taxas locais de destino</option><option value="NATIONAL_INLAND">Transporte nacional</option><option value="CUSTOMS_CLEARANCE">Desembaraço</option></select></div>
             <div class="form-group" style="margin:0"><label>Comportamento</label><select id="ifr-behavior"><option value="EDITABLE">Editável</option><option value="REQUIRED">Obrigatório</option><option value="SUGGESTED">Sugerido</option><option value="LOCKED">Bloqueado</option><option value="HIDDEN">Oculto</option><option value="NOT_APPLICABLE">Não aplicável</option><option value="RETURN_ONLY">Somente no retorno</option></select></div>
             <div class="form-group" style="margin:0"><label>Justificativa</label><input id="ifr-reason" placeholder="Motivo comercial da trava"></div>
           </div>
+          <input type="hidden" id="ifr-direction" value="ALL">
           <input type="hidden" id="ifr-id">
           <button class="btn btn-primary" onclick="saveIncotermFieldRule()">💾 Salvar Trava</button>
           <button class="btn btn-secondary" id="btnCancelIfr" onclick="cancelEditIfr()" style="display:none">Cancelar</button>
@@ -5254,20 +5265,13 @@ function switchSettingsTab(tab) {
         </div>
 
         <div class="settings-section">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 style="margin:0;">Regras Cadastradas</h3>
-            <div style="display:flex; gap:8px; align-items:center;">
-              <label style="font-size:12px; color:var(--text-muted);">Filtrar Incoterm:</label>
-              <select id="ir-filter" onchange="loadIncotermRulesTable()" style="padding:6px 10px; font-size:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
-                <option value="">Todos</option><option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
-                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option>
-              </select>
-            </div>
-          </div>
+          <h3 style="margin:0 0 14px;">Configuração deste contexto</h3>
+          <input type="hidden" id="ir-filter" value="FOB">
           <div id="incotermRulesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
       loadIncotermFeeOptions();
+      syncIncotermConfigurationContext();
       loadIncotermRulesTable();
       loadIncotermFieldRulesTable();
       break;
@@ -6689,6 +6693,18 @@ async function applyStandardFees(type, targetId) {
 }
 
 // ═══ REGRAS POR INCOTERM ═══
+function syncIncotermConfigurationContext() {
+  const incoterm = document.getElementById('ctx-incoterm')?.value || 'FOB';
+  const modal = document.getElementById('ctx-modal')?.value || 'SEA_FCL';
+  const direction = document.getElementById('ctx-direction')?.value || 'IMPORT';
+  ['ir-incoterm', 'ifr-incoterm', 'ir-filter'].forEach(id => { const field = document.getElementById(id); if (field) field.value = incoterm; });
+  ['ir-modal', 'ifr-modal'].forEach(id => { const field = document.getElementById(id); if (field) field.value = modal; });
+  ['ir-direction', 'ifr-direction'].forEach(id => { const field = document.getElementById(id); if (field) field.value = direction; });
+  loadIncotermFeeOptions();
+  loadIncotermRulesTable();
+  loadIncotermFieldRulesTable();
+}
+
 async function loadIncotermFeeOptions(selectedId = '') {
   const select = document.getElementById('ir-standardFeeId');
   if (!select) return;
@@ -6724,7 +6740,13 @@ async function loadIncotermRulesTable() {
   try {
     const filter = document.getElementById('ir-filter');
     const incotermParam = filter ? filter.value : '';
-    const url = incotermParam ? `/api/incoterm-rules?incoterm=${incotermParam}` : '/api/incoterm-rules';
+    const contextModal = document.getElementById('ctx-modal')?.value || '';
+    const contextDirection = document.getElementById('ctx-direction')?.value || '';
+    const params = new URLSearchParams();
+    if (incotermParam) params.set('incoterm', incotermParam);
+    if (contextModal) params.set('modal', contextModal);
+    if (contextDirection) params.set('direction', contextDirection);
+    const url = params.toString() ? `/api/incoterm-rules?${params}` : '/api/incoterm-rules';
     const res = await fetch(url);
     const allRules = await res.json();
     const focusedFeeId = window.incotermRuleFeeFocus || '';
@@ -6807,6 +6829,10 @@ async function editIncotermRule(id) {
     const rules = await res.json();
     const rule = rules.find(r => r.id === id);
     if (!rule) return;
+    document.getElementById('ctx-incoterm').value = rule.incoterm;
+    document.getElementById('ctx-modal').value = rule.modal;
+    document.getElementById('ctx-direction').value = rule.direction || 'ALL';
+    syncIncotermConfigurationContext();
     document.getElementById('ir-id').value = rule.id;
     document.getElementById('ir-incoterm').value = rule.incoterm;
     document.getElementById('ir-modal').value = rule.modal;
@@ -7065,7 +7091,14 @@ async function loadIncotermFieldRulesTable() {
   try {
     const res = await fetch('/api/incoterm-field-rules');
     const rules = await res.json();
-    incotermFieldRuleCache = Array.isArray(rules) ? rules : [];
+    const contextIncoterm = document.getElementById('ctx-incoterm')?.value || '';
+    const contextModal = document.getElementById('ctx-modal')?.value || '';
+    const contextDirection = document.getElementById('ctx-direction')?.value || '';
+    incotermFieldRuleCache = (Array.isArray(rules) ? rules : []).filter(rule =>
+      (!contextIncoterm || rule.incoterm === contextIncoterm) &&
+      (!contextModal || rule.modal === contextModal || rule.modal === 'ALL') &&
+      (!contextDirection || rule.direction === contextDirection || rule.direction === 'ALL')
+    );
     if (!incotermFieldRuleCache.length) {
       container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">Nenhuma trava cadastrada. Os campos continuam editáveis.</p>';
       return;
@@ -7090,6 +7123,10 @@ async function saveIncotermFieldRule() {
 
 function editIncotermFieldRule(id) {
   const r = incotermFieldRuleCache.find(item => item.id === id); if (!r) return;
+  document.getElementById('ctx-incoterm').value=r.incoterm;
+  document.getElementById('ctx-modal').value=r.modal;
+  document.getElementById('ctx-direction').value=r.direction || 'ALL';
+  syncIncotermConfigurationContext();
   ensureIncotermFieldRuleDirectionControl();
   document.getElementById('ifr-direction').value=r.direction || 'ALL';
   document.getElementById('ifr-id').value=r.id; document.getElementById('ifr-incoterm').value=r.incoterm; document.getElementById('ifr-modal').value=r.modal; document.getElementById('ifr-stage').value=r.stage; document.getElementById('ifr-field').value=r.fieldKey; document.getElementById('ifr-behavior').value=r.behavior; document.getElementById('ifr-reason').value=r.reason || ''; document.getElementById('btnCancelIfr').style.display='';
