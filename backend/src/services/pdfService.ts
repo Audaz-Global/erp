@@ -1197,10 +1197,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const incotermStr = String(incoterm || 'FCA').toUpperCase();
     const modalStr = String(quotationData.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
+    const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
+    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0) };
 
     if (detailedFeesOrigem.length === 0) {
       try {
-        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction);
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         if (originFees.length > 0) {
           detailedFeesOrigem = formatFeesForPdf(originFees);
         }
@@ -1273,7 +1275,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     // Aplicar regras de Incoterm para destino se não há taxas salvas
     if (detailedFeesDestino.length === 0) {
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         if (destinationFees.length > 0) {
           detailedFeesDestino = formatFeesForPdf(destinationFees);
         }
@@ -1283,7 +1285,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     } else {
       // Complementar taxas faltantes do banco
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         const existingNames = new Set(detailedFeesDestino.map(f => f.name.toLowerCase()));
         for (const ruleFee of destinationFees) {
           const nameMatch = existingNames.has(ruleFee.name.toLowerCase()) ||

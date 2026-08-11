@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
-import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, applyMinLclStorage } from '../utils/cargoUtils';
+import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, applyMinLclStorage, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
 import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/incotermFieldRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
@@ -443,10 +443,12 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const incotermStr = String(quotation.incoterm || 'FCA').toUpperCase();
     const modalStr = String(quotation.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
+    const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
+    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto };
     
     if (detailedFeesOrigem.length === 0) {
       try {
-        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction);
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         if (originFees.length > 0) {
           detailedFeesOrigem = formatFeesForController(originFees, getBrlValue);
         }
@@ -470,7 +472,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     if (detailedFeesDestino.length === 0) {
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction);
+        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         if (destinationFees.length > 0) {
           detailedFeesDestino = formatFeesForController(destinationFees, getBrlValue);
         }
@@ -480,7 +482,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     } else {
       // Complementar taxas faltantes com regras do banco
       try {
-        const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction);
+          const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         const existingNames = new Set(detailedFeesDestino.map(f => f.name.toLowerCase()));
         for (const ruleFee of destinationFees) {
           const nameMatch = existingNames.has(ruleFee.name.toLowerCase()) ||

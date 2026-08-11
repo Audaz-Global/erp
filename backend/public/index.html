@@ -4417,6 +4417,10 @@ function calculateReturnRuleFees(q) {
   const freight = parseFloat(document.getElementById('r-freight').value) || 0;
   const weightBreak = document.getElementById('r-weight-break').value || q.weightBreak || 'normal';
   const taxable = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, q.loadType, q.totalCbm, weightBreak);
+  const grossTons = (Number(q.totalGrossWeightKg) || 0) / 1000;
+  const cbm = Number(q.totalCbm) || 0;
+  const containerMatch = String(q.packages || '').match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i);
+  const containerQty = containerMatch ? Number(containerMatch[1]) : (String(q.loadType || '').startsWith('FCL') ? 1 : 0);
   const calculated = [];
   let originTotal = 0;
 
@@ -4424,6 +4428,10 @@ function calculateReturnRuleFees(q) {
     let value = null;
     if (rule.chargeType === 'FIXED' || rule.chargeType === 'PER_DOCUMENT') value = Number(rule.value) || 0;
     if (rule.chargeType === 'PER_KG') value = (Number(rule.value) || 0) * taxable;
+    if (rule.chargeType === 'PER_TON') value = grossTons > 0 ? (Number(rule.value) || 0) * grossTons : null;
+    if (rule.chargeType === 'PER_CBM') value = cbm > 0 ? (Number(rule.value) || 0) * cbm : null;
+    if (rule.chargeType === 'PER_WM') { const wm = Math.max(grossTons, cbm); value = wm > 0 ? (Number(rule.value) || 0) * wm : null; }
+    if (rule.chargeType === 'PER_CONTAINER') value = containerQty > 0 ? (Number(rule.value) || 0) * containerQty : null;
     if (rule.chargeType === 'PERCENTAGE' && freight > 0) {
       const base = rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freight + originTotal : freight;
       value = base * ((Number(rule.value) || 0) / 100);
@@ -5147,6 +5155,10 @@ function switchSettingsTab(tab) {
               <select id="sf-chargeType" onchange="toggleSfPercentBase()">
                 <option value="FIXED">Fixo</option>
                 <option value="PER_KG">Por Kg</option>
+                <option value="PER_TON">Por tonelada</option>
+                <option value="PER_WM">Por tonelada-metro (W/M)</option>
+                <option value="PER_CBM">Por m³</option>
+                <option value="PER_CONTAINER">Por contêiner</option>
                 <option value="PER_DOCUMENT">Por documento</option>
                 <option value="PERCENTAGE">% de Taxas Selecionadas</option>
               </select>
@@ -6382,7 +6394,7 @@ async function loadStandardFeesTable() {
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
-      let chargeTypeStr = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_DOCUMENT: 'Por doc', PERCENTAGE: '% Taxas' })[f.chargeType] || f.chargeType;
+      let chargeTypeStr = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DOCUMENT: 'Por doc', PERCENTAGE: '% Taxas' })[f.chargeType] || f.chargeType;
       html += `<tr>
         <td style="font-weight:600;">${f.name}</td>
         <td>${chargeTypeStr}</td>
@@ -6691,7 +6703,7 @@ async function loadIncotermFeeOptions(selectedId = '') {
     });
     select.innerHTML = '<option value="">-- Selecione a taxa local --</option>' + activeFees.map(f => {
       const side = f.type === 'ORIGIN' ? 'Origem' : 'Destino';
-      const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
+      const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
       return `<option value="${f.id}">${side} - ${f.name} (${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : format})</option>`;
     }).join('');
     if (selectedId) select.value = selectedId;
@@ -6725,7 +6737,7 @@ async function loadIncotermRulesTable() {
     }
     let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Tipo</th><th>Taxa</th><th>Cobrança</th><th>Valor</th><th>Mín</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
     for (const r of rules) {
-      const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
+      const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_TON:'Por tonelada', PER_WM:'Por tonelada-metro (W/M)', PER_CBM:'Por m³', PER_CONTAINER:'Por contêiner', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
       const modalLabel = {AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos'}[r.modal] || r.modal;
       const typeLabel = r.feeType === 'ORIGIN' ? '<span style="color:var(--info)">Origem</span>' : '<span style="color:var(--warning)">Destino</span>';
       html += `<tr>

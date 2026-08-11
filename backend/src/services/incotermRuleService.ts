@@ -19,6 +19,12 @@ export interface CalculatedFee {
   total?: string;
 }
 
+export interface FeeCalculationContext {
+  totalCbm?: number;
+  containerCount?: number;
+  grossWeightKg?: number;
+}
+
 /**
  * Busca as regras de Incoterm ativas para um dado incoterm + modal.
  * Primeiro busca regras específicas para o modal, depois complementa com regras "ALL".
@@ -78,7 +84,8 @@ export async function getFeesForIncoterm(
   chargableWeight: number,
   freightValue: number,
   freightCurrency: string = 'USD',
-  direction: string = 'ALL'
+  direction: string = 'ALL',
+  context: FeeCalculationContext = {}
 ): Promise<{ originFees: CalculatedFee[]; destinationFees: CalculatedFee[] }> {
   
   const rules = await getRulesForIncoterm(incoterm, modal, direction);
@@ -91,7 +98,7 @@ export async function getFeesForIncoterm(
   const destinationRules = rules.filter(r => r.feeType === 'DESTINATION');
 
   for (const rule of originRules) {
-    const fee = calculateFee(rule, chargableWeight, freightValue, 0);
+    const fee = calculateFee(rule, chargableWeight, freightValue, 0, context);
     originFees.push(fee);
   }
 
@@ -102,7 +109,7 @@ export async function getFeesForIncoterm(
   }, 0);
 
   for (const rule of destinationRules) {
-    const fee = calculateFee(rule, chargableWeight, freightValue, totalOrigin);
+    const fee = calculateFee(rule, chargableWeight, freightValue, totalOrigin, context);
     destinationFees.push(fee);
   }
 
@@ -116,7 +123,8 @@ function calculateFee(
   rule: EffectiveIncotermRule,
   chargableWeight: number,
   freightValue: number,
-  totalOrigin: number
+  totalOrigin: number,
+  context: FeeCalculationContext = {}
 ): CalculatedFee {
   let value = 0;
   let qty: number | string = 1;
@@ -138,6 +146,36 @@ function calculateFee(
       }
       qty = chargableWeight;
       unit = 'Por Kg/cm3 (6000)';
+      valueUnit = rule.value.toFixed(2);
+      break;
+
+    case 'PER_TON':
+      qty = Number(context.grossWeightKg ?? chargableWeight) / 1000;
+      value = rule.value * qty;
+      unit = 'Por tonelada';
+      valueUnit = rule.value.toFixed(2);
+      break;
+
+    case 'PER_CBM':
+      qty = Number(context.totalCbm || 0);
+      value = rule.value * Number(qty);
+      unit = 'Por m³';
+      valueUnit = rule.value.toFixed(2);
+      break;
+
+    case 'PER_WM': {
+      const tons = chargableWeight / 1000;
+      qty = Math.max(tons, Number(context.totalCbm || 0));
+      value = rule.value * Number(qty);
+      unit = 'Por tonelada-metro (W/M)';
+      valueUnit = rule.value.toFixed(2);
+      break;
+    }
+
+    case 'PER_CONTAINER':
+      qty = Number(context.containerCount || 1);
+      value = rule.value * Number(qty);
+      unit = 'Por contêiner';
       valueUnit = rule.value.toFixed(2);
       break;
 
