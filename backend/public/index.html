@@ -1745,12 +1745,11 @@
         <li data-tab="knowledge" onclick="switchSettingsTab('knowledge')">IA</li>
         <li data-tab="incotermRules" onclick="switchSettingsTab('incotermRules')">Aplicação por Incoterm</li>
         <li class="nav-sub-item" data-tab="incotermRules" onclick="switchSettingsTab('incotermRules'); setTimeout(()=>document.getElementById('incotermFieldRulesTableContainer')?.scrollIntoView({behavior:'smooth'}), 120)">Comportamento de Campos</li>
-        <li data-tab="carrierProfiles" onclick="switchSettingsTab('carrierProfiles')">Cadastro de Armadores</li>
+        <li data-tab="carrierProfiles" onclick="window.marineCommercialSection='';switchSettingsTab('carrierProfiles')">Cadastro de Armadores</li>
 
         <li class="nav-section-title">TAXAS</li>
         <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Catálogo Central</li>
         <li class="nav-sub-header">Tarifas Específicas</li>
-        <li class="nav-sub-item" data-tab="fixedFeesSea" onclick="switchSettingsTab('fixedFeesSea')">Armadores — Marítimo</li>
         <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Companhias Aéreas</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
@@ -4938,6 +4937,22 @@ function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('active');
 }
 
+function marineCommercialNavigation(active) {
+  const items = [
+    ['freight', 'Frete Internacional'],
+    ['accessories', 'Taxas Acessórias'],
+    ['operations', 'Regras Operacionais']
+  ];
+  return `<div class="settings-section" style="padding:14px 18px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><strong style="margin-right:6px">Base Comercial Marítima</strong>${items.map(([key,label]) => `<button class="btn ${active === key ? 'btn-primary' : 'btn-secondary'}" style="padding:8px 12px;font-size:12px" onclick="openMarineCommercialSection('${key}')">${label}</button>`).join('')}<span style="font-size:12px;color:var(--text-muted);margin-left:auto">Selecione o armador e gerencie frete, taxas e regras no mesmo fluxo.</span></div>`;
+}
+
+function openMarineCommercialSection(section) {
+  window.marineCommercialSection = section;
+  if (section === 'accessories') return switchSettingsTab('fixedFeesSea');
+  if (section === 'operations') return switchSettingsTab('carrierProfiles');
+  return switchSettingsTab('carrierRates');
+}
+
 function switchSettingsTab(tab) {
   if (tab === 'logo') tab = 'company';
   if (tab === 'template') tab = 'company';
@@ -5034,7 +5049,7 @@ function switchSettingsTab(tab) {
 
     case 'fixedFeesSea':
       currentFixedFeeScope = 'SEA';
-      content.innerHTML = buildFixedFeesTabHtml('SEA');
+      content.innerHTML = marineCommercialNavigation('accessories') + buildFixedFeesTabHtml('SEA');
       loadFixedFeesTable();
       break;
 
@@ -5279,7 +5294,7 @@ function switchSettingsTab(tab) {
       break;
 
     case 'carrierProfiles':
-      content.innerHTML=`<div class="sc-title">Cadastro de Armadores</div><p class="sc-desc">Cadastre a identidade operacional do armador: nome, SCAC e aliases. Valores financeiros ficam em Taxas Locais por Armador ou na Base de Fretes Marítimos.</p>
+      content.innerHTML=`${window.marineCommercialSection === 'operations' ? marineCommercialNavigation('operations') : ''}<div class="sc-title">Cadastro de Armadores</div><p class="sc-desc">Cadastre a identidade operacional do armador: nome, SCAC e aliases. Valores financeiros ficam em Taxas Locais por Armador ou na Base de Fretes Marítimos.</p>
       <div class="settings-section"><div style="display:flex;justify-content:space-between"><h3>Cadastro do Armador</h3><button class="btn btn-secondary" onclick="seedMaerskProfile()">Criar/atualizar piloto Maersk</button></div><div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px"><div class="form-group"><label>Nome</label><input id="cp-name"></div><div class="form-group"><label>Código SCAC</label><input id="cp-code"></div><div class="form-group"><label>Aliases, separados por vírgula</label><input id="cp-aliases" placeholder="MAERSK LINE, MSK, SEALAND"></div></div><input type="hidden" id="cp-id"><button class="btn btn-primary" onclick="saveCarrierProfile()">Salvar Armador</button><button class="btn btn-secondary" onclick="cancelCarrierProfileEdit()">Limpar</button><div id="carrierProfilesTable" style="margin-top:14px;overflow:auto"></div></div>
       <div class="settings-section"><h3>Campos e Controles</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"><div class="form-group"><label>Armador</label><select id="cfr-carrier"></select></div><div class="form-group"><label>Modal</label><select id="cfr-modal"><option value="ALL">Todos</option><option value="SEA_FCL">FCL</option><option value="SEA_LCL">LCL</option></select></div><div class="form-group"><label>Etapa</label><select id="cfr-stage"><option value="RETURN">Retorno</option><option value="FINAL">Revisão final</option><option value="ALL">Todas</option></select></div><div class="form-group"><label>Campo</label><select id="cfr-field"><option value="TRANSSHIPMENTS">Transbordos</option><option value="VESSEL_VOYAGE">Navio e viagem</option><option value="FREE_TIME">Free time</option><option value="RATE_VALIDITY">Validade da tarifa</option><option value="CONTRACT_NUMBER">Contrato</option></select></div><div class="form-group"><label>Comportamento</label><select id="cfr-behavior"><option value="EDITABLE">Editável</option><option value="REQUIRED">Obrigatório</option><option value="SUGGESTED">Sugerido</option><option value="LOCKED">Bloqueado</option><option value="HIDDEN">Oculto</option><option value="NOT_APPLICABLE">Não aplicável</option></select></div><div class="form-group"><label>Justificativa</label><input id="cfr-reason"></div></div><input type="hidden" id="cfr-id"><button class="btn btn-primary" onclick="saveCarrierFieldRule()">Salvar Regra</button></div>
       <div class="settings-section"><h3>Taxas Exclusivas</h3><p style="font-size:12px;color:var(--text-muted)">Vincule uma taxa do cadastro “Taxas Locais Parceiros” ao armador.</p><div style="display:grid;grid-template-columns:1fr 2fr auto;gap:12px;align-items:end"><div class="form-group"><label>Armador</label><select id="cpf-carrier"></select></div><div class="form-group"><label>Taxa</label><select id="cpf-fee"></select></div><button class="btn btn-primary" onclick="linkCarrierFee()">Vincular</button></div><div id="carrierRulesTable" style="margin-top:14px;overflow:auto"></div></div>`;
@@ -5297,7 +5312,7 @@ function switchSettingsTab(tab) {
       break;
 
     case 'carrierRates':
-      content.innerHTML=`<div class="sc-title">Base de Fretes Marítimos</div>
+      content.innerHTML=`${marineCommercialNavigation('freight')}<div class="sc-title">Frete Internacional Marítimo</div>
       <p class="sc-desc">Importe e controle valores de frete internacional por rota e equipamento. Taxas locais como ISPS, THC ou DG devem ser cadastradas em Taxas Locais por Armador. Registros de referência nunca entram automaticamente na cotação.</p>
       <div class="settings-section"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0 0 4px">Importação controlada</h3><small style="color:var(--text-muted)">Compatível com a planilha Taxas_Maritimas do Daniel.</small></div><div><input type="file" id="carrierRateFile" accept=".xlsx,.xls" style="display:none" onchange="importDanielCarrierRates(event)"><button class="btn btn-primary" onclick="document.getElementById('carrierRateFile').click()">📥 Importar base do Daniel</button></div></div><div id="carrierRateStats" style="margin-top:16px"></div></div>
       <div class="settings-section"><div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap"><div class="form-group" style="margin:0;min-width:220px"><label>Armador</label><select id="cr-filter-carrier" onchange="loadCarrierRatesTable()"><option value="">Todos</option></select></div><div class="form-group" style="margin:0;min-width:180px"><label>Status</label><select id="cr-filter-status" onchange="loadCarrierRatesTable()"><option value="">Todos</option><option value="REFERENCE">Somente referência</option><option value="APPROVED">Aprovado</option><option value="EXPIRED">Expirado</option><option value="REJECTED">Rejeitado</option></select></div><button class="btn btn-secondary" onclick="loadCarrierRatesTable()">🔄 Atualizar</button></div><div id="carrierRatesTable" style="margin-top:16px;overflow:auto"><p>Carregando...</p></div></div>`;
