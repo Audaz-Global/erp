@@ -444,7 +444,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const modalStr = String(quotation.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
-    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto };
+    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, origin: quotation.originPort || quotation.originCity || undefined, destination: quotation.destinationPort || quotation.destinationCity || undefined };
     
     if (detailedFeesOrigem.length === 0) {
       try {

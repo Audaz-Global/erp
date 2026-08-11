@@ -400,6 +400,8 @@ model IncotermRule {
   incoterm    String // EXW, FCA, FOB, CIF, CFR, DAP, DDP
   modal       String // AIR, SEA_FCL, SEA_LCL, ALL
   direction   String   @default("ALL") // IMPORT, EXPORT, ALL
+  originScope String?  // Porto/cidade/país de origem; nulo = qualquer origem
+  destinationScope String? // Porto/cidade/país de destino; nulo = qualquer destino
   required    Boolean  @default(false)
   feeType     String // ORIGIN, DESTINATION
   feeName     String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"

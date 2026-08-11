@@ -1198,7 +1198,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const modalStr = String(quotationData.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
-    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0) };
+    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), origin: quotationData.originPort || quotationData.originCity, destination: quotationData.destinationPort || quotationData.destinationCity };
 
     if (detailedFeesOrigem.length === 0) {
       try {

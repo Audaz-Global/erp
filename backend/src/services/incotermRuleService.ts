@@ -23,13 +23,26 @@ export interface FeeCalculationContext {
   totalCbm?: number;
   containerCount?: number;
   grossWeightKg?: number;
+  origin?: string;
+  destination?: string;
+}
+
+function normalizedScope(value: unknown) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function scopeMatches(scope: unknown, actual: unknown) {
+  const expected = normalizedScope(scope);
+  if (!expected || expected === 'ALL') return true;
+  const candidate = normalizedScope(actual);
+  return Boolean(candidate) && (candidate.includes(expected) || expected.includes(candidate));
 }
 
 /**
  * Busca as regras de Incoterm ativas para um dado incoterm + modal.
  * Primeiro busca regras específicas para o modal, depois complementa com regras "ALL".
  */
-export async function getRulesForIncoterm(incoterm: string, modal: string, direction: string = 'ALL'): Promise<EffectiveIncotermRule[]> {
+export async function getRulesForIncoterm(incoterm: string, modal: string, direction: string = 'ALL', context: FeeCalculationContext = {}): Promise<EffectiveIncotermRule[]> {
   const normalizedIncoterm = incoterm.toUpperCase().trim();
   
   // Normalizar modal para o formato do banco
@@ -55,7 +68,7 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
 
   // Se há regras específicas para o modal, elas têm prioridade.
   // Regras "ALL" só entram se não existir regra com mesmo feeName no modal específico.
-  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active);
+  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active && scopeMatches((r as any).originScope, context.origin) && scopeMatches((r as any).destinationScope, context.destination));
   const ranked = effectiveRules.sort((a, b) => {
     const score = (rule: any) => (rule.incoterm === 'ALL' ? 0 : 4) + (rule.modal === 'ALL' ? 0 : 2) + (rule.direction === 'ALL' ? 0 : 1);
     return score(a) - score(b);
@@ -88,7 +101,7 @@ export async function getFeesForIncoterm(
   context: FeeCalculationContext = {}
 ): Promise<{ originFees: CalculatedFee[]; destinationFees: CalculatedFee[] }> {
   
-  const rules = await getRulesForIncoterm(incoterm, modal, direction);
+  const rules = await getRulesForIncoterm(incoterm, modal, direction, context);
   
   const originFees: CalculatedFee[] = [];
   const destinationFees: CalculatedFee[] = [];
