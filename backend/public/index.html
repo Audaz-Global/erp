@@ -723,6 +723,153 @@
     *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; }
   }
 </style>
+<style id="audaz-pierre-shell">
+  body.settings-open { overflow:hidden; }
+  .settings-overlay {
+    inset:0; padding:0; background:#060708; backdrop-filter:none;
+  }
+  .settings-overlay.active { align-items:stretch; justify-content:stretch; }
+  .settings-modal {
+    width:100vw; max-width:none; height:100vh; max-height:none; border:0; border-radius:0;
+    background:#08090b; box-shadow:none; animation:settingsPageIn .2s ease-out;
+  }
+  @keyframes settingsPageIn { from { opacity:.4 } to { opacity:1 } }
+  .settings-sidebar {
+    width:224px; padding:14px 10px 12px; background:#050607; border-right:1px solid rgba(255,255,255,.075);
+  }
+  .settings-sidebar .ss-header {
+    min-height:58px; padding:4px 8px 14px; margin:0 0 10px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid rgba(255,255,255,.075);
+  }
+  .settings-sidebar .ss-header h2 { font-size:14px; letter-spacing:-.02em; }
+  .settings-sidebar .ss-header h2::before {
+    content:'A'; width:30px; height:30px; margin-right:9px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid rgba(245,166,35,.4); border-radius:9px; color:var(--gold); font-size:13px;
+  }
+  .settings-sidebar .ss-header p { display:none; }
+  .settings-close-icon {
+    width:32px; height:32px; border:1px solid rgba(255,255,255,.09); border-radius:10px; background:#111315;
+    color:#aeb5c2; cursor:pointer; font-size:17px;
+  }
+  .settings-close-icon:hover { color:#fff; border-color:rgba(245,166,35,.45); }
+  .settings-nav { overflow-y:auto; scrollbar-width:none; padding-right:0; }
+  .settings-nav::-webkit-scrollbar { display:none; }
+  .settings-nav .nav-section-title {
+    min-height:auto; padding:12px 10px 5px; color:#626b79; font-size:9px; letter-spacing:.12em;
+  }
+  .settings-nav li, .settings-nav li.nav-sub-item {
+    min-height:34px; padding:7px 10px; margin:2px 0; border:1px solid transparent; border-radius:8px;
+    color:#9ba3b0; font-size:11px; font-weight:600;
+  }
+  .settings-nav li:not(.nav-section-title):not(.nav-sub-header)::before {
+    content:''; width:5px; height:5px; flex:0 0 5px; border-radius:50%; background:#454b55;
+  }
+  .settings-nav li:hover { color:#f2f4f7; background:#0e1013; }
+  .settings-nav li.active {
+    color:#f7f8fa; background:#121512; border-color:rgba(245,166,35,.22); border-right-color:rgba(245,166,35,.22);
+  }
+  .settings-nav li.active::before { background:var(--gold) !important; box-shadow:0 0 10px rgba(245,166,35,.45); }
+  .settings-nav .nav-sub-header { min-height:auto; padding:8px 10px 3px; font-size:9px; color:#626b79; }
+  .settings-sidebar .ss-footer { padding:10px 0 0; border-top:1px solid rgba(255,255,255,.075); }
+  .settings-sidebar .ss-footer .btn { min-height:36px; padding:7px 10px; border:0; background:transparent; justify-content:flex-start; color:#959daa; }
+  .settings-workspace { min-width:0; flex:1; display:flex; flex-direction:column; background:#090a0c; }
+  .settings-topbar {
+    height:68px; flex:0 0 68px; padding:0 clamp(22px,3vw,48px); display:flex; align-items:center; gap:18px;
+    border-bottom:1px solid rgba(255,255,255,.07); background:rgba(8,9,11,.94);
+  }
+  .settings-topbar-title { margin-right:auto; }
+  .settings-topbar-title small { display:block; color:#707987; font-size:9px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
+  .settings-topbar-title strong { display:block; margin-top:2px; color:#eef0f4; font-size:14px; }
+  .settings-quick-nav { display:flex; gap:7px; }
+  .settings-quick-nav button {
+    min-height:34px; padding:0 13px; border:1px solid rgba(255,255,255,.09); border-radius:999px;
+    background:#0c0e11; color:#929aa7; font:600 11px 'Inter',sans-serif; cursor:pointer;
+  }
+  .settings-quick-nav button:hover, .settings-quick-nav button.active {
+    color:#fff; border-color:rgba(245,166,35,.42); background:rgba(245,166,35,.09);
+  }
+  .settings-content {
+    flex:1; padding:38px clamp(24px,5vw,76px) 72px; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;
+  }
+  .settings-content > * { width:100%; max-width:1380px; margin-left:auto; margin-right:auto; }
+  .settings-content .sc-title { font-size:26px; font-weight:600; letter-spacing:-.04em; }
+  .settings-content .sc-desc { max-width:820px; margin-bottom:28px; color:#858e9d; }
+  .settings-section {
+    background:#0c0e11; border-color:rgba(255,255,255,.085); border-radius:11px; box-shadow:none;
+  }
+  .settings-section:hover { border-color:rgba(255,255,255,.13); }
+  #standardFeesTableContainer { overflow:visible !important; }
+  #standardFeesTableContainer .k-table { min-width:0; table-layout:fixed; }
+  #standardFeesTableContainer .k-table th:nth-child(1) { width:17%; }
+  #standardFeesTableContainer .k-table th:nth-child(2) { width:13%; }
+  #standardFeesTableContainer .k-table th:nth-child(3) { width:10%; }
+  #standardFeesTableContainer .k-table th:nth-child(4) { width:auto; }
+  #standardFeesTableContainer .k-table th:nth-child(5) { width:9%; }
+  #standardFeesTableContainer .k-table th:nth-child(6) { width:110px; }
+  #standardFeesTableContainer .k-table td { white-space:normal; }
+  .copilot-launcher {
+    position:fixed; z-index:9500; right:24px; bottom:20px; min-height:44px; padding:0 17px; display:flex; align-items:center; gap:9px;
+    border:1px solid rgba(245,166,35,.38); border-radius:999px; background:#121411; color:#f5f6f8;
+    box-shadow:0 12px 34px rgba(0,0,0,.45); font:650 12px 'Inter',sans-serif; cursor:pointer;
+  }
+  .copilot-launcher::before { content:'\2726'; color:var(--gold); font-size:16px; }
+  .copilot-launcher:hover { background:#181b16; border-color:var(--gold); }
+  .copilot-panel {
+    position:fixed; z-index:9600; right:16px; bottom:16px; width:min(390px,calc(100vw - 32px)); height:min(570px,calc(100vh - 32px));
+    display:none; flex-direction:column; border:1px solid rgba(255,255,255,.12); border-radius:16px; overflow:hidden;
+    background:#0b0d10; box-shadow:0 28px 80px rgba(0,0,0,.62);
+  }
+  .copilot-panel.active { display:flex; animation:modernFade .2s ease-out; }
+  .copilot-head { padding:15px 16px; display:flex; align-items:center; gap:10px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .copilot-mark { width:31px; height:31px; display:grid; place-items:center; border-radius:10px; color:var(--gold); background:rgba(245,166,35,.1); }
+  .copilot-head strong { font-size:13px; }
+  .copilot-head small { display:block; color:#767f8d; font-size:10px; margin-top:2px; }
+  .copilot-close { margin-left:auto; border:0; background:transparent; color:#8f97a3; font-size:19px; cursor:pointer; }
+  .copilot-body { flex:1; padding:20px 16px; overflow:auto; }
+  .copilot-message { padding:13px 14px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:#101318; color:#cbd0d8; font-size:12px; line-height:1.55; }
+  .copilot-suggestions { margin-top:14px; display:grid; gap:8px; }
+  .copilot-suggestions button { padding:10px 12px; text-align:left; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:#0e1013; color:#969eaa; font:500 11px 'Inter',sans-serif; cursor:pointer; }
+  .copilot-suggestions button:hover { color:#fff; border-color:rgba(245,166,35,.35); }
+  .copilot-input { padding:12px; display:flex; gap:8px; border-top:1px solid rgba(255,255,255,.08); }
+  .copilot-input input { flex:1; min-width:0; min-height:42px; padding:0 12px; border:1px solid #292e37; border-radius:9px; background:#080a0c; color:#fff; }
+  .copilot-input button { width:42px; border:0; border-radius:9px; background:var(--gold); color:#17130b; font-size:16px; cursor:pointer; }
+
+  @media (max-width:900px) {
+    .settings-sidebar { width:72px; padding-inline:8px; }
+    .settings-sidebar .ss-header { justify-content:center; }
+    .settings-sidebar .ss-header h2 { font-size:0; }
+    .settings-sidebar .ss-header h2::before { margin:0; }
+    .settings-close-icon { display:none; }
+    .settings-nav .nav-section-title, .settings-nav .nav-sub-header { display:none; }
+    .settings-nav li, .settings-nav li.nav-sub-item { min-height:42px; padding:8px; justify-content:center; font-size:0; }
+    .settings-nav li::before { width:7px !important; height:7px !important; flex-basis:7px !important; }
+    .settings-sidebar .ss-footer .btn { font-size:0; justify-content:center; }
+    .settings-sidebar .ss-footer .btn::before { content:'\2190'; font-size:18px; }
+    .settings-topbar { padding-inline:20px; }
+    .settings-quick-nav { max-width:58vw; overflow-x:auto; scrollbar-width:none; }
+    .settings-quick-nav button { flex:0 0 auto; }
+    #standardFeesTableContainer .k-table thead { display:none; }
+    #standardFeesTableContainer .k-table, #standardFeesTableContainer .k-table tbody, #standardFeesTableContainer .k-table tr, #standardFeesTableContainer .k-table td { display:block; width:100%; }
+    #standardFeesTableContainer .k-table tr { margin-bottom:10px; padding:13px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:#0a0c0f; }
+    #standardFeesTableContainer .k-table td { padding:7px 0; border:0; }
+  }
+  @media (max-width:620px) {
+    .settings-modal { display:block; overflow:hidden; }
+    .settings-sidebar { width:100%; height:58px; padding:7px 10px; flex-direction:row; border-right:0; border-bottom:1px solid rgba(255,255,255,.08); }
+    .settings-sidebar .ss-header { width:42px; min-height:42px; padding:0; margin:0 8px 0 0; border:0; }
+    .settings-nav { flex:1; display:flex; gap:5px; padding:0; overflow-x:auto; }
+    .settings-nav li, .settings-nav li.nav-sub-item { flex:0 0 42px; width:42px; margin:0; }
+    .settings-sidebar .ss-footer { width:42px; padding:0; border:0; }
+    .settings-workspace { height:calc(100vh - 58px); }
+    .settings-topbar { height:58px; flex-basis:58px; padding-inline:14px; }
+    .settings-topbar-title small { display:none; }
+    .settings-quick-nav { max-width:55vw; }
+    .settings-content { padding:24px 13px 66px; }
+    .settings-content .sc-title { font-size:22px; }
+    .settings-section { padding:15px 12px; overflow:visible; }
+    .copilot-launcher { right:14px; bottom:12px; }
+  }
+</style>
 </head>
 <body>
 
@@ -1761,6 +1908,7 @@
       <div class="ss-header">
         <h2>Configurações</h2>
         <p>Gerencie seu sistema</p>
+        <button class="settings-close-icon" onclick="closeSettings()" aria-label="Fechar configurações">×</button>
       </div>
       <ul class="settings-nav" id="settingsNav">
         <li class="nav-section-title">EMPRESA</li>
@@ -1791,12 +1939,40 @@
         <button class="btn btn-secondary" onclick="closeSettings()" style="width:100%; padding:10px; font-size:13px;">Voltar ao Painel</button>
       </div>
     </div>
-
-    <div class="settings-content" id="settingsContent">
-      <!-- Conteúdo dinâmico renderizado pelo JS -->
+    <div class="settings-workspace">
+      <div class="settings-topbar">
+        <div class="settings-topbar-title"><small>Audaz Global</small><strong>Administração</strong></div>
+        <nav class="settings-quick-nav" aria-label="Atalhos de administração">
+          <button data-group="overview" onclick="switchSettingsTab('company')">Visão geral</button>
+          <button data-group="registrations" onclick="switchSettingsTab('carrierProfiles')">Cadastros</button>
+          <button data-group="fees" onclick="switchSettingsTab('standardFees')">Taxas</button>
+          <button data-group="automation" onclick="switchSettingsTab('knowledge')">Automações</button>
+        </nav>
+      </div>
+      <div class="settings-content" id="settingsContent">
+        <!-- Conteúdo dinâmico renderizado pelo JS -->
+      </div>
     </div>
   </div>
 </div>
+
+<button class="copilot-launcher" id="copilotLauncher" onclick="toggleCopilot(true)">Conversar com o Copiloto</button>
+<aside class="copilot-panel" id="copilotPanel" aria-label="Copiloto de Cotações">
+  <div class="copilot-head">
+    <span class="copilot-mark">✦</span>
+    <div><strong>Copiloto Audaz</strong><small>Assistente contextual de cotações</small></div>
+    <button class="copilot-close" onclick="toggleCopilot(false)" aria-label="Fechar copiloto">×</button>
+  </div>
+  <div class="copilot-body">
+    <div class="copilot-message">Olá! Posso ajudar a conferir campos, explicar taxas e regras ou indicar o próximo passo da sua cotação.</div>
+    <div class="copilot-suggestions">
+      <button onclick="copilotPreview('Verifique os campos pendentes desta cotação')">Verificar campos pendentes</button>
+      <button onclick="copilotPreview('Explique as taxas aplicadas neste contexto')">Explicar taxas aplicadas</button>
+      <button onclick="copilotPreview('Qual é o próximo passo recomendado?')">Sugerir próximo passo</button>
+    </div>
+  </div>
+  <div class="copilot-input"><input id="copilotInput" placeholder="Pergunte sobre esta cotação..." onkeydown="if(event.key==='Enter') copilotPreview(this.value)"><button onclick="copilotPreview(document.getElementById('copilotInput').value)" aria-label="Enviar">↑</button></div>
+</aside>
 </div>
 
 <!-- ════════════ MODAL DE AGENTE ════════════ -->
@@ -4971,10 +5147,26 @@ switchTab = function(name) {
 // ═══ CONFIGURAÇÕES ═══
 function openSettings() {
   document.getElementById('settingsOverlay').classList.add('active');
-  switchSettingsTab('company');
+  document.body.classList.add('settings-open');
+  switchSettingsTab(localStorage.getItem('audaz_settings_tab') || 'standardFees');
 }
 function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('active');
+  document.body.classList.remove('settings-open');
+}
+
+function toggleCopilot(open) {
+  document.getElementById('copilotPanel')?.classList.toggle('active', open);
+  document.getElementById('copilotLauncher')?.setAttribute('aria-expanded', String(open));
+  if (open) setTimeout(() => document.getElementById('copilotInput')?.focus(), 80);
+}
+
+function copilotPreview(question) {
+  if (!String(question || '').trim()) return;
+  const message = document.querySelector('#copilotPanel .copilot-message');
+  if (message) message.innerHTML = `<strong style="color:var(--gold);display:block;margin-bottom:5px">Em preparação</strong>O painel visual já está pronto. A conexão do agente com os dados e as ações da cotação será habilitada na próxima etapa, sempre com confirmação humana.`;
+  const input = document.getElementById('copilotInput');
+  if (input) input.value = '';
 }
 
 function marineCommercialNavigation(active) {
@@ -5004,6 +5196,13 @@ function switchSettingsTab(tab) {
       li.classList.remove('active');
     }
   });
+
+  localStorage.setItem('audaz_settings_tab', tab);
+  const feeTabs = ['standardFees','fixedFeesAir','taxes','pricingSettings','carrierRates'];
+  const registrationTabs = ['carrierProfiles','deconsolidators','agentDraftEmail','users'];
+  const automationTabs = ['knowledge','incotermRules'];
+  const activeGroup = feeTabs.includes(tab) ? 'fees' : registrationTabs.includes(tab) ? 'registrations' : automationTabs.includes(tab) ? 'automation' : 'overview';
+  document.querySelectorAll('.settings-quick-nav button').forEach(button => button.classList.toggle('active', button.dataset.group === activeGroup));
 
   const content = document.getElementById('settingsContent');
   const settingsData = JSON.parse(localStorage.getItem('audaz_settings') || '{}');
