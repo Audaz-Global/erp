@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { getAllStandardFees, createStandardFee, updateStandardFee, deleteStandardFee } from '../controllers/standardFeeController';
+import { getAllStandardFees, createStandardFee, updateStandardFee, deleteStandardFee, saveStandardFeeWithApplications } from '../controllers/standardFeeController';
 
 const router = Router();
 
 router.get('/', getAllStandardFees);
+router.post('/with-applications', saveStandardFeeWithApplications);
+router.put('/:id/with-applications', saveStandardFeeWithApplications);
 router.post('/', createStandardFee);
 router.put('/:id', updateStandardFee);
 router.delete('/:id', deleteStandardFee);

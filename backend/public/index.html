@@ -1768,12 +1768,11 @@
 
         <li class="nav-section-title">REGRAS</li>
         <li data-tab="knowledge" onclick="switchSettingsTab('knowledge')">IA</li>
-        <li data-tab="incotermRules" onclick="switchSettingsTab('incotermRules')">Aplicação por Incoterm</li>
         <li class="nav-sub-item" data-tab="incotermRules" onclick="switchSettingsTab('incotermRules'); setTimeout(()=>document.getElementById('incotermFieldRulesTableContainer')?.scrollIntoView({behavior:'smooth'}), 120)">Comportamento de Campos</li>
         <li data-tab="carrierProfiles" onclick="window.marineCommercialSection='';switchSettingsTab('carrierProfiles')">Cadastro de Armadores</li>
 
         <li class="nav-section-title">TAXAS</li>
-        <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Catálogo Central</li>
+        <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Taxas e Regras de Aplicação</li>
         <li class="nav-sub-header">Tarifas Específicas</li>
         <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Companhias Aéreas</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
@@ -5169,11 +5168,11 @@ function switchSettingsTab(tab) {
 
     case 'standardFees':
       content.innerHTML = `
-        <div class="sc-title">Catálogo Central de Taxas</div>
-        <p class="sc-desc">Cadastre cada taxa uma única vez: nome, valor, cobrança, lado da operação e modais compatíveis. O Incoterm não é definido aqui; ele apenas vincula taxas já cadastradas nas Regras de Aplicação.</p>
+        <div class="sc-title">Taxas e Regras de Aplicação</div>
+        <p class="sc-desc">Cadastre a taxa e defina, no mesmo lugar, em quais contextos ela entra na cotação. Uma taxa pode possuir várias aplicações sem duplicar seu valor ou sua forma de cobrança.</p>
         
         <div class="settings-section" style="margin-bottom: 24px;">
-          <h3 style="margin-bottom:14px;">Cadastrar ou editar taxa</h3>
+          <h3 id="sf-form-title" style="margin-bottom:14px;">1. Dados da taxa</h3>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="sf-name" placeholder="Ex: Delivery Fee"></div>
             <div class="form-group" style="margin:0;"><label>Tipo de Cobrança</label>
@@ -5192,7 +5191,7 @@ function switchSettingsTab(tab) {
               <select id="sf-pricingStatus" onchange="toggleStandardFeePricing()"><option value="PRICED">Valor padrão definido</option><option value="ON_REQUEST">A cotar com agente</option></select>
             </div>
             <div class="form-group" style="margin:0;"><label>Tipo (Origem/Destino)</label>
-              <select id="sf-type">
+              <select id="sf-type" onchange="suggestUnifiedApplicationOrder()">
                 <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
               </select>
             </div>
@@ -5212,23 +5211,39 @@ function switchSettingsTab(tab) {
             </div>
             <div class="form-group" style="margin:0;"><label>Descrição (opcional)</label><input type="text" id="sf-description" placeholder="Detalhes da aplicação da taxa"></div>
           </div>
+          <div style="border-top:1px solid var(--border);margin:20px 0 16px;padding-top:18px;">
+            <h3 style="margin:0 0 6px;">2. Onde aplicar</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Adicione uma ou mais combinações. A taxa também pode ser salva sem aplicação para uso avulso.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
+              <div class="form-group" style="margin:0"><label>Incoterm</label><select id="sf-app-incoterm" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todos</option><option>EXW</option><option>FCA</option><option selected>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
+              <div class="form-group" style="margin:0"><label>Modal</label><select id="sf-app-modal" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div>
+              <div class="form-group" style="margin:0"><label>Direção</label><select id="sf-app-direction" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div>
+              <div class="form-group" style="margin:0"><label>Ordem</label><input id="sf-app-order" type="number" min="1" step="1" value="1"></div>
+              <div class="form-group" style="margin:0"><label class="compact-checkbox" for="sf-app-required"><input id="sf-app-required" type="checkbox"><span>Obrigatória</span></label></div>
+              <button type="button" class="btn btn-secondary" id="btnAddSfApplication" onclick="addStandardFeeApplication()" style="min-height:44px;justify-content:center;">Adicionar aplicação</button>
+            </div>
+            <input type="hidden" id="sf-app-index" value="">
+            <div id="sf-applications-list" style="margin-top:14px;"></div>
+          </div>
           <input type="hidden" id="sf-id">
-          <button class="btn btn-primary" id="btnSaveStandardFee" onclick="saveStandardFee()">💾 Salvar Taxa</button>
+          <button class="btn btn-primary" id="btnSaveStandardFee" onclick="saveStandardFee()">💾 Salvar taxa e aplicações</button>
           <button class="btn btn-secondary" id="btnCancelStandardFee" onclick="cancelEditStandardFee()" style="display:none;">Cancelar Edição</button>
         </div>
 
         <div class="settings-section">
-          <h3>Taxas do catálogo</h3>
+          <h3>Taxas cadastradas e suas aplicações</h3>
           <div id="standardFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
         </div>
       `;
+      window.standardFeeApplicationsDraft = [];
+      renderStandardFeeApplicationsDraft();
       loadStandardFeesTable();
       break;
 
     case 'incotermRules':
       content.innerHTML = `
-        <div class="sc-title">Regras de Aplicação por Incoterm</div>
-        <p class="sc-desc">Defina em quais cenários as taxas do Catálogo Central devem entrar automaticamente. Esta tela não cadastra valores: ela apenas vincula uma taxa existente ao Incoterm, modal e direção.</p>
+        <div class="sc-title">Comportamento de Campos</div>
+        <p class="sc-desc">Configure travas e comportamentos operacionais dos campos por Incoterm, modal, direção e etapa. Taxas e suas aplicações são administradas em uma única tela no menu Taxas.</p>
         <div class="settings-section" style="border-color:rgba(245,166,35,.5);margin-bottom:20px;">
           <h3 style="margin:0 0 12px">Contexto operacional</h3>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
@@ -5300,11 +5315,10 @@ function switchSettingsTab(tab) {
       syncIncotermConfigurationContext();
       loadIncotermRulesTable();
       loadIncotermFieldRulesTable();
+      document.getElementById('incotermRuleEditor').style.display = 'none';
+      document.getElementById('incotermRulesTableContainer').closest('.settings-section').style.display = 'none';
       const fieldBehaviorSection = content.querySelector('#incotermFieldRulesTableContainer')?.closest('.settings-section');
-      if (fieldBehaviorSection) {
-        fieldBehaviorSection.style.display = 'none';
-        fieldBehaviorSection.insertAdjacentHTML('beforebegin', '<button class="btn btn-secondary" id="toggleIncotermFieldBehavior" onclick="const section=document.getElementById(\'incotermFieldRulesTableContainer\').closest(\'.settings-section\');section.style.display=section.style.display===\'none\'?\'\':\'none\';this.textContent=section.style.display===\'none\'?\'Abrir controles operacionais avançados\':\'Ocultar controles operacionais avançados\'" style="margin:0 0 20px">Abrir controles operacionais avançados</button>');
-      }
+      if (fieldBehaviorSection) fieldBehaviorSection.style.display = '';
       break;
 
     case 'agentDraftEmail':
@@ -6411,11 +6425,132 @@ function ensureStandardFeeModalScope() {
   }
 }
 
+let standardFeesUnifiedCache = [];
+
+function unifiedScopeDimensionOverlaps(left, right) {
+  return left === 'ALL' || right === 'ALL' || left === right;
+}
+
+function unifiedApplicationScopesOverlap(left, right) {
+  return unifiedScopeDimensionOverlaps(left.incoterm, right.incoterm) &&
+    unifiedScopeDimensionOverlaps(left.modal, right.modal) &&
+    unifiedScopeDimensionOverlaps(left.direction, right.direction);
+}
+
+function standardFeeApplicationLabel(application) {
+  const modal = { AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos' }[application.modal] || application.modal;
+  const direction = { IMPORT:'Importação', EXPORT:'Exportação', ALL:'Todas' }[application.direction] || application.direction;
+  return `${application.incoterm} · ${modal} · ${direction}`;
+}
+
+function renderStandardFeeApplicationsDraft() {
+  const container = document.getElementById('sf-applications-list');
+  if (!container) return;
+  const applications = window.standardFeeApplicationsDraft || [];
+  if (!applications.length) {
+    container.innerHTML = '<div style="padding:12px;border:1px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:12px;">Nenhuma aplicação adicionada. A taxa ficará disponível para uso avulso.</div>';
+    return;
+  }
+  container.innerHTML = `<table class="k-table"><thead><tr><th>Contexto</th><th>Obrigatoriedade</th><th>Ordem</th><th>Ações</th></tr></thead><tbody>${applications.map((application, index) => `
+    <tr><td><strong>${ifrEscape(standardFeeApplicationLabel(application))}</strong></td>
+    <td><span class="required-status ${application.required ? 'required' : 'optional'}">${application.required ? '✓ Obrigatória' : 'Opcional'}</span></td>
+    <td><strong>${application.sortOrder}</strong></td>
+    <td><button type="button" class="rule-action-btn primary" onclick="editStandardFeeApplication(${index})">Editar</button> <button type="button" class="rule-action-btn" onclick="removeStandardFeeApplication(${index})">Remover</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+function currentUnifiedApplication() {
+  return {
+    incoterm: document.getElementById('sf-app-incoterm').value,
+    modal: document.getElementById('sf-app-modal').value,
+    direction: document.getElementById('sf-app-direction').value,
+    required: document.getElementById('sf-app-required').checked,
+    sortOrder: Number(document.getElementById('sf-app-order').value),
+    active: true
+  };
+}
+
+function suggestUnifiedApplicationOrder() {
+  const orderInput = document.getElementById('sf-app-order');
+  if (!orderInput) return;
+  const scope = currentUnifiedApplication();
+  const editingIndexValue = document.getElementById('sf-app-index')?.value ?? '';
+  const editingIndex = editingIndexValue === '' ? -1 : Number(editingIndexValue);
+  const currentFeeId = document.getElementById('sf-id')?.value || '';
+  const feeType = document.getElementById('sf-type')?.value || 'ORIGIN';
+  const used = new Set();
+  (window.standardFeeApplicationsDraft || []).forEach((application, index) => {
+    if (index !== editingIndex && unifiedApplicationScopesOverlap(scope, application)) used.add(Number(application.sortOrder));
+  });
+  standardFeesUnifiedCache.forEach(fee => {
+    if (fee.id === currentFeeId || fee.type !== feeType) return;
+    (fee.incotermRules || []).forEach(application => {
+      if (unifiedApplicationScopesOverlap(scope, application)) used.add(Number(application.sortOrder));
+    });
+  });
+  let next = 1;
+  while (used.has(next)) next++;
+  orderInput.value = String(next);
+}
+
+function resetStandardFeeApplicationEditor() {
+  const index = document.getElementById('sf-app-index');
+  if (!index) return;
+  index.value = '';
+  document.getElementById('sf-app-required').checked = false;
+  document.getElementById('btnAddSfApplication').textContent = 'Adicionar aplicação';
+  suggestUnifiedApplicationOrder();
+}
+
+function addStandardFeeApplication() {
+  const application = currentUnifiedApplication();
+  const orderInput = document.getElementById('sf-app-order');
+  if (!Number.isInteger(application.sortOrder) || application.sortOrder < 1) {
+    orderInput.classList.add('error');
+    toast('❌ A ordem deve ser um número inteiro maior ou igual a 1.');
+    return false;
+  }
+  orderInput.classList.remove('error');
+  const applications = window.standardFeeApplicationsDraft || [];
+  const indexValue = document.getElementById('sf-app-index').value;
+  const editingIndex = indexValue === '' ? -1 : Number(indexValue);
+  const duplicateContext = applications.findIndex((candidate, index) => index !== editingIndex &&
+    candidate.incoterm === application.incoterm && candidate.modal === application.modal && candidate.direction === application.direction);
+  if (duplicateContext >= 0) { toast('❌ Este Incoterm, modal e direção já foram adicionados.'); return false; }
+  const orderConflict = applications.find((candidate, index) => index !== editingIndex &&
+    Number(candidate.sortOrder) === application.sortOrder && unifiedApplicationScopesOverlap(application, candidate));
+  if (orderConflict) { toast(`❌ A ordem ${application.sortOrder} colide com ${standardFeeApplicationLabel(orderConflict)}.`); return false; }
+  if (editingIndex >= 0) applications[editingIndex] = application;
+  else applications.push(application);
+  window.standardFeeApplicationsDraft = applications;
+  renderStandardFeeApplicationsDraft();
+  resetStandardFeeApplicationEditor();
+  return true;
+}
+
+function editStandardFeeApplication(index) {
+  const application = (window.standardFeeApplicationsDraft || [])[index];
+  if (!application) return;
+  document.getElementById('sf-app-index').value = String(index);
+  document.getElementById('sf-app-incoterm').value = application.incoterm;
+  document.getElementById('sf-app-modal').value = application.modal;
+  document.getElementById('sf-app-direction').value = application.direction;
+  document.getElementById('sf-app-order').value = application.sortOrder;
+  document.getElementById('sf-app-required').checked = Boolean(application.required);
+  document.getElementById('btnAddSfApplication').textContent = 'Atualizar aplicação';
+}
+
+function removeStandardFeeApplication(index) {
+  window.standardFeeApplicationsDraft.splice(index, 1);
+  renderStandardFeeApplicationsDraft();
+  resetStandardFeeApplicationEditor();
+}
+
 async function loadStandardFeesTable() {
   ensureStandardFeeModalScope();
   try {
     const res = await fetch(API + '/standard-fees');
     const fees = await res.json();
+    standardFeesUnifiedCache = Array.isArray(fees) ? fees : [];
     const container = document.getElementById('standardFeesTableContainer');
     if (!container) return;
     
@@ -6425,23 +6560,20 @@ async function loadStandardFeesTable() {
     }
     
     let html = `<table class="k-table"><thead><tr>
-      <th>Nome</th><th>Formato</th><th>Valor</th><th>Moeda</th><th>Lado</th><th>Modal</th><th>Aplicação</th><th>Ativo</th><th>Ações</th>
+      <th>Taxa</th><th>Cobrança</th><th>Lado</th><th>Aplicações</th><th>Ativo</th><th>Ações</th>
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
       let chargeTypeStr = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DOCUMENT: 'Por doc', PERCENTAGE: '% Taxas' })[f.chargeType] || f.chargeType;
       html += `<tr>
-        <td style="font-weight:600;">${f.name}</td>
+        <td><strong>${ifrEscape(f.name)}</strong><br><small style="color:var(--text-muted)">${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : `${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ' ' + f.currency}`}</small></td>
         <td>${chargeTypeStr}</td>
-        <td>${f.pricingStatus === 'ON_REQUEST' ? '<span class="badge-pending">A cotar</span>' : `${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ''}`}</td>
-        <td>${f.currency}</td>
         <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
-        <td>${ifrEscape((f.modalScope || 'ALL').replace('SEA_FCL', 'Mar. FCL').replace('SEA_LCL', 'Mar. LCL').replace('AIR', 'Aéreo').replace('ALL', 'Todos'))}</td>
-        <td>${f._count?.incotermRules ? `<button class="action-btn" onclick="openFeeApplicationRules('${f.id}')" title="Ver regras de aplicação">${f._count.incotermRules} vínculo(s)</button>` : '<span style="color:var(--text-muted)">Não vinculada</span>'}</td>
+        <td style="min-width:360px;">${(f.incotermRules || []).length ? (f.incotermRules || []).map(application => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span>${ifrEscape(standardFeeApplicationLabel(application))}</span><span><span class="required-status ${application.required ? 'required' : 'optional'}">${application.required ? 'Obrigatória' : 'Opcional'}</span> <strong style="margin-left:6px">#${application.sortOrder}</strong></span></div>`).join('') : '<span style="color:var(--text-muted)">Uso avulso — sem aplicação automática</span>'}</td>
         <td><span class="status-badge ${f.active ? 'approved' : 'expired'}">${f.active ? 'Ativo' : 'Inativo'}</span></td>
         <td>
           <div class="action-btns">
-            <button class="action-btn" onclick='editStandardFee(${JSON.stringify(f).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+            <button class="rule-action-btn primary" onclick="editStandardFeeById('${f.id}')" title="Editar taxa e aplicações">Editar tudo</button>
             <button class="action-btn danger" onclick="deleteStandardFee('${f.id}')" title="Excluir">🗑️</button>
           </div>
         </td>
@@ -6455,17 +6587,8 @@ async function loadStandardFeesTable() {
 }
 
 async function openFeeApplicationRules(feeId) {
-  window.incotermRuleFeeFocus = feeId;
-  switchSettingsTab('incotermRules');
-  setTimeout(() => {
-    const select = document.getElementById('ir-standardFeeId');
-    if (select) {
-      select.value = feeId;
-      updateIncotermFeeTypeInfo();
-      suggestNextIncotermRuleOrder();
-    }
-    document.getElementById('ir-incoterm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 180);
+  switchSettingsTab('standardFees');
+  setTimeout(() => editStandardFeeById(feeId), 180);
 }
 
 // ════════════ REAPROVEITAR COTAÇÕES (TELA DE RASCUNHO) ════════════
@@ -6566,6 +6689,11 @@ async function loadQuotationIntoDraft() {
   }
 }
 
+function editStandardFeeById(id) {
+  const fee = standardFeesUnifiedCache.find(item => item.id === id);
+  if (fee) editStandardFee(fee);
+}
+
 function editStandardFee(fee) {
   ensureStandardFeeModalScope();
   document.getElementById('sf-id').value = fee.id;
@@ -6579,11 +6707,23 @@ function editStandardFee(fee) {
   document.getElementById('sf-percentBase').value = fee.percentBase || 'FREIGHT';
   document.getElementById('sf-description').value = fee.description || '';
   document.getElementById('sf-modalScope').value = fee.modalScope || 'ALL';
+  window.standardFeeApplicationsDraft = (fee.incotermRules || []).map(application => ({
+    incoterm: application.incoterm,
+    modal: application.modal,
+    direction: application.direction || 'ALL',
+    required: Boolean(application.required),
+    sortOrder: Number(application.sortOrder),
+    active: application.active !== false
+  }));
   toggleSfPercentBase();
   toggleStandardFeePricing();
+  renderStandardFeeApplicationsDraft();
+  resetStandardFeeApplicationEditor();
   
-  document.getElementById('btnSaveStandardFee').innerText = '💾 Atualizar Taxa';
+  document.getElementById('sf-form-title').innerText = `Editar taxa e aplicações: ${fee.name}`;
+  document.getElementById('btnSaveStandardFee').innerText = '💾 Atualizar taxa e aplicações';
   document.getElementById('btnCancelStandardFee').style.display = 'inline-block';
+  document.getElementById('sf-name').scrollIntoView({ behavior:'smooth', block:'center' });
 }
 
 function cancelEditStandardFee() {
@@ -6599,14 +6739,19 @@ function cancelEditStandardFee() {
   document.getElementById('sf-percentBase').value = 'FREIGHT';
   document.getElementById('sf-description').value = '';
   document.getElementById('sf-modalScope').value = 'ALL';
+  window.standardFeeApplicationsDraft = [];
   toggleSfPercentBase();
   toggleStandardFeePricing();
+  renderStandardFeeApplicationsDraft();
+  resetStandardFeeApplicationEditor();
   
-  document.getElementById('btnSaveStandardFee').innerText = '💾 Salvar Taxa';
+  document.getElementById('sf-form-title').innerText = '1. Dados da taxa';
+  document.getElementById('btnSaveStandardFee').innerText = '💾 Salvar taxa e aplicações';
   document.getElementById('btnCancelStandardFee').style.display = 'none';
 }
 
 async function saveStandardFee() {
+  if (document.getElementById('sf-app-index')?.value !== '' && !addStandardFeeApplication()) return;
   const id = document.getElementById('sf-id').value;
   const name = document.getElementById('sf-name').value;
   const value = document.getElementById('sf-value').value;
@@ -6629,11 +6774,12 @@ async function saveStandardFee() {
     percentBase: chargeType === 'PERCENTAGE' ? document.getElementById('sf-percentBase').value : null,
     description: document.getElementById('sf-description').value.trim() || null,
     modalScope: document.getElementById('sf-modalScope').value,
-    active: true
+    active: true,
+    applications: window.standardFeeApplicationsDraft || []
   };
   
   try {
-    const url = id ? API + '/standard-fees/' + id : API + '/standard-fees';
+    const url = id ? API + '/standard-fees/' + id + '/with-applications' : API + '/standard-fees/with-applications';
     const method = id ? 'PUT' : 'POST';
     
     const res = await fetch(url, {
@@ -6646,16 +6792,16 @@ async function saveStandardFee() {
       throw new Error(error.error || 'Erro ao salvar taxa.');
     }
     
-    toast('✅ Taxa salva com sucesso!');
+    toast('✅ Taxa e aplicações salvas com sucesso!');
     cancelEditStandardFee();
     loadStandardFeesTable();
   } catch(e) {
-    toast('❌ Erro ao salvar taxa.');
+    toast('❌ ' + e.message);
   }
 }
 
 async function deleteStandardFee(id) {
-  if (!confirm('Excluir esta taxa permanente?')) return;
+  if (!confirm('Excluir esta taxa e todas as suas aplicações permanentemente?')) return;
   try {
     const res = await fetch(API + '/standard-fees/' + id, { method: 'DELETE' });
     if (!res.ok) {
