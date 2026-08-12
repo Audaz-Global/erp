@@ -593,6 +593,31 @@
     border-color:rgba(245,166,35,.72); box-shadow:0 0 0 3px rgba(245,166,35,.10); background:#0c1321;
   }
   input[type="checkbox"] { accent-color:var(--gold); }
+  .form-group .compact-checkbox {
+    min-height:44px; margin:0; display:inline-flex; align-items:center; justify-content:flex-start; gap:8px;
+    cursor:pointer;
+  }
+  .form-group .compact-checkbox input[type="checkbox"] {
+    width:16px; height:16px; min-height:0; min-width:16px; margin:0; padding:0; flex:0 0 16px;
+    cursor:pointer;
+  }
+  .required-status {
+    display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border-radius:999px;
+    font-size:11px; font-weight:700; white-space:nowrap;
+  }
+  .required-status.required { color:var(--success); background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.32); }
+  .required-status.optional { color:var(--text-muted); background:rgba(148,163,184,.08); border:1px solid rgba(148,163,184,.2); }
+  .rule-action-btn {
+    min-height:32px; padding:6px 10px; border-radius:7px; border:1px solid var(--border); background:rgba(255,255,255,.04);
+    color:var(--text); font:600 11px 'Inter',sans-serif; cursor:pointer; white-space:nowrap;
+  }
+  .rule-action-btn:hover { border-color:var(--gold); background:rgba(245,166,35,.08); }
+  .rule-action-btn.primary { color:var(--gold); border-color:rgba(245,166,35,.38); }
+  .rule-editor-highlight { animation:ruleEditorHighlight 1.4s ease-out; }
+  @keyframes ruleEditorHighlight {
+    0%,35% { border-color:var(--gold); box-shadow:0 0 0 3px rgba(245,166,35,.14); }
+    100% { box-shadow:none; }
+  }
 
   .btn {
     min-height:42px; padding:10px 18px; border-radius:9px; font-size:13px; font-weight:700;
@@ -5213,9 +5238,9 @@ function switchSettingsTab(tab) {
           </div>
         </div>
         
-        <div class="settings-section" style="margin-bottom: 24px;">
+        <div class="settings-section" id="incotermRuleEditor" style="margin-bottom: 24px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 style="margin:0;">Vincular taxa a um contexto</h3>
+            <h3 id="incotermRuleEditorTitle" style="margin:0;">Vincular taxa a um contexto</h3>
             <button class="btn btn-secondary" onclick="seedIncotermRules()" style="padding: 8px 12px; font-size: 12px;">🌱 Popular Regras Padrão</button>
           </div>
           
@@ -5237,7 +5262,7 @@ function switchSettingsTab(tab) {
               </select>
             </div>
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
-            <div class="form-group" style="margin:0"><label><input type="checkbox" id="ir-required"> Taxa obrigatória</label></div>
+            <div class="form-group" style="margin:0"><label class="compact-checkbox" for="ir-required"><input type="checkbox" id="ir-required"><span>Taxa obrigatória</span></label></div>
             <div class="form-group" style="margin:0"><label>Aplicação cadastrada na taxa</label><div id="ir-feeTypeInfo" style="min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;">Selecione uma taxa</div></div>
           </div>
           <input type="hidden" id="ir-direction" value="ALL">
@@ -6699,16 +6724,18 @@ async function applyStandardFees(type, targetId) {
 }
 
 // ═══ REGRAS POR INCOTERM ═══
-function syncIncotermConfigurationContext() {
+async function syncIncotermConfigurationContext() {
   const incoterm = document.getElementById('ctx-incoterm')?.value || 'FOB';
   const modal = document.getElementById('ctx-modal')?.value || 'SEA_FCL';
   const direction = document.getElementById('ctx-direction')?.value || 'IMPORT';
   ['ir-incoterm', 'ifr-incoterm', 'ir-filter'].forEach(id => { const field = document.getElementById(id); if (field) field.value = incoterm; });
   ['ir-modal', 'ifr-modal'].forEach(id => { const field = document.getElementById(id); if (field) field.value = modal; });
   ['ir-direction', 'ifr-direction'].forEach(id => { const field = document.getElementById(id); if (field) field.value = direction; });
-  loadIncotermFeeOptions();
-  loadIncotermRulesTable();
-  loadIncotermFieldRulesTable();
+  await Promise.all([
+    loadIncotermFeeOptions(),
+    loadIncotermRulesTable(),
+    loadIncotermFieldRulesTable()
+  ]);
 }
 
 async function loadIncotermFeeOptions(selectedId = '') {
@@ -6748,7 +6775,7 @@ function updateIncotermFeeTypeInfo() {
 function ensureIncotermRuleDirectionControl() {
   const modal = document.getElementById('ir-modal');
   if (modal && !document.getElementById('ir-direction')) {
-    modal.closest('.form-group').insertAdjacentHTML('afterend', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ir-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div><div class="form-group" style="margin:0"><label><input type="checkbox" id="ir-required"> Taxa obrigatória</label></div>');
+    modal.closest('.form-group').insertAdjacentHTML('afterend', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ir-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div><div class="form-group" style="margin:0"><label class="compact-checkbox" for="ir-required"><input type="checkbox" id="ir-required"><span>Taxa obrigatória</span></label></div>');
   }
 }
 
@@ -6783,21 +6810,23 @@ async function loadIncotermRulesTable() {
         <td><strong style="color:var(--gold)">${r.incoterm}</strong></td>
         <td>${modalLabel}</td>
         <td>${r.direction === 'IMPORT' ? 'Importação' : r.direction === 'EXPORT' ? 'Exportação' : 'Todas'}</td>
-        <td>${r.required ? 'Sim' : 'Não'}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="required-status ${r.required ? 'required' : 'optional'}">${r.required ? '✓ Obrigatória' : 'Opcional'}</span>
+            <button class="rule-action-btn primary" onclick="editIncotermRule('${r.id}')" title="Editar obrigatoriedade, ordem e contexto">Editar aplicação</button>
+          </div>
+        </td>
         <td>${typeLabel}</td>
         <td>
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:210px;">
-            <span>${r.feeName}</span>
-            <button class="action-btn" onclick="editIncotermLinkedFee('${r.standardFeeId}')" title="Editar taxa local" aria-label="Editar taxa ${r.feeName}">✏️</button>
-          </div>
+          <div style="min-width:160px;"><span>${r.feeName}</span></div>
         </td>
         <td>${chargeLabel}</td>
         <td>${r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.value.toFixed(2)}</td>
         <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
         <td>${r.currency}</td>
         <td style="white-space:nowrap;">
-          <button class="action-btn" onclick="editIncotermRule('${r.id}')" title="Editar vinculo">🔗</button>
-          <button onclick="deleteIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;" title="Excluir">🗑️</button>
+          <button class="rule-action-btn" onclick="editIncotermLinkedFee('${r.standardFeeId}')" title="Editar nome, valor e cobrança da taxa">Editar cadastro da taxa</button>
+          <button onclick="deleteIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;margin-left:4px;" title="Excluir vínculo" aria-label="Excluir vínculo">🗑️</button>
         </td></tr>`;
     }
     html += '</tbody></table>';
@@ -6849,7 +6878,7 @@ async function editIncotermRule(id) {
     document.getElementById('ctx-incoterm').value = rule.incoterm;
     document.getElementById('ctx-modal').value = rule.modal;
     document.getElementById('ctx-direction').value = rule.direction || 'ALL';
-    syncIncotermConfigurationContext();
+    await syncIncotermConfigurationContext();
     document.getElementById('ir-id').value = rule.id;
     document.getElementById('ir-incoterm').value = rule.incoterm;
     document.getElementById('ir-modal').value = rule.modal;
@@ -6858,9 +6887,17 @@ async function editIncotermRule(id) {
     document.getElementById('ir-required').checked = Boolean(rule.required);
     await loadIncotermFeeOptions(rule.standardFeeId);
     document.getElementById('ir-linkSortOrder').value = rule.sortOrder || 0;
-    document.getElementById('btnSaveIr').innerText = '💾 Atualizar Regra';
+    document.getElementById('btnSaveIr').innerText = '💾 Atualizar aplicação';
     document.getElementById('btnCancelIr').style.display = '';
-    document.getElementById('ir-incoterm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const editor = document.getElementById('incotermRuleEditor');
+    const editorTitle = document.getElementById('incotermRuleEditorTitle');
+    if (editorTitle) editorTitle.textContent = `Editar aplicação: ${rule.feeName}`;
+    if (editor) {
+      editor.classList.remove('rule-editor-highlight');
+      void editor.offsetWidth;
+      editor.classList.add('rule-editor-highlight');
+    }
+    document.getElementById('ir-required')?.closest('label')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (e) { toast('❌ Erro ao carregar regra.'); }
 }
 
@@ -6896,9 +6933,13 @@ function cancelEditIr() {
   document.getElementById('ir-id').value = '';
   document.getElementById('ir-standardFeeId').value = '';
   document.getElementById('ir-linkSortOrder').value = '0';
+  document.getElementById('ir-required').checked = false;
   updateIncotermFeeTypeInfo();
-  document.getElementById('btnSaveIr').innerText = '💾 Salvar Regra';
+  document.getElementById('btnSaveIr').innerText = 'Salvar vínculo';
   document.getElementById('btnCancelIr').style.display = 'none';
+  const editorTitle = document.getElementById('incotermRuleEditorTitle');
+  if (editorTitle) editorTitle.textContent = 'Vincular taxa a um contexto';
+  document.getElementById('incotermRuleEditor')?.classList.remove('rule-editor-highlight');
 }
 
 async function seedIncotermRules() {
