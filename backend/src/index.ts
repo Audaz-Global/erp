@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import path from 'path';
 import { prisma } from './prisma';
 import { backfillIncotermRuleStandardFees } from './services/standardFeeLinkService';
+import { normalizeIncotermRuleSortOrders } from './services/incotermRuleOrderService';
 export { prisma };
 
 const app = express();
@@ -92,18 +93,24 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+async function startServer() {
+  const linkedRules = await backfillIncotermRuleStandardFees(prisma);
+  if (linkedRules > 0) console.log(`✅ ${linkedRules} regra(s) de Incoterm vinculada(s) às taxas locais.`);
 
-  // Vincula regras antigas ao cadastro mestre sem interromper a inicialização.
-  backfillIncotermRuleStandardFees(prisma)
-    .then(total => {
-      if (total > 0) console.log(`✅ ${total} regra(s) de Incoterm vinculada(s) às taxas locais.`);
-    })
-    .catch(error => console.error('Erro ao vincular regras antigas às taxas locais:', error));
-  
-  // Iniciar worker de leitura do Outlook
-  import('./services/outlookCron').then(cron => {
-    cron.startOutlookWatcher();
-  }).catch(e => console.error('Erro ao carregar Cron do Outlook', e));
+  const normalizedOrders = await normalizeIncotermRuleSortOrders(prisma);
+  if (normalizedOrders > 0) console.log(`✅ ${normalizedOrders} ordem(ns) de regras de Incoterm corrigida(s).`);
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+
+    // Iniciar worker de leitura do Outlook
+    import('./services/outlookCron').then(cron => {
+      cron.startOutlookWatcher();
+    }).catch(e => console.error('Erro ao carregar Cron do Outlook', e));
+  });
+}
+
+startServer().catch(error => {
+  console.error('Erro ao preparar dados essenciais antes da inicialização:', error);
+  process.exit(1);
 });

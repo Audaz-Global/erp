@@ -5,6 +5,13 @@ import {
   findOrCreateStandardFeeForLegacyRule,
   standardFeeSnapshot
 } from '../services/standardFeeLinkService';
+import {
+  findIncotermRuleOrderConflict,
+  IncotermRuleOrderConflictError,
+  lockIncotermRuleOrdering,
+  parseIncotermRuleSortOrder
+} from '../services/incotermRuleOrderService';
+import { Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const VALID_DIRECTIONS = new Set(['IMPORT', 'EXPORT', 'ALL']);
@@ -68,27 +75,39 @@ export const createIncotermRule = async (req: Request, res: Response) => {
     const normalizedIncoterm = String(incoterm).toUpperCase();
     const normalizedModal = String(modal).toUpperCase();
     const normalizedDirection = normalizeDirection(direction);
+    const normalizedSortOrder = parseIncotermRuleSortOrder(sortOrder);
+    if (normalizedSortOrder === null) return res.status(400).json({ error: 'A ordem deve ser um número inteiro maior ou igual a 1.' });
     if (!feeSupportsModal(fee, normalizedModal)) return res.status(400).json({ error: 'A taxa selecionada não é compatível com este modal. Ajuste a compatibilidade no cadastro da taxa.' });
-    const duplicate = await prisma.incotermRule.findFirst({
-      where: { incoterm: normalizedIncoterm, modal: normalizedModal, direction: normalizedDirection, standardFeeId: fee.id }
-    });
-    if (duplicate) return res.status(409).json({ error: 'Esta taxa já está vinculada ao Incoterm e modal selecionados.' });
-
-    const rule = await prisma.incotermRule.create({
-      data: {
-        incoterm: normalizedIncoterm,
-        modal: normalizedModal,
-        direction: normalizedDirection,
-        required: Boolean(required),
-        standardFeeId: fee.id,
-        ...standardFeeSnapshot(fee),
-        sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
-        active: active !== undefined ? active : true,
-      } as any,
-      include: { standardFee: true }
-    });
+    const rule = await prisma.$transaction(async tx => {
+      await lockIncotermRuleOrdering(tx);
+      const duplicate = await tx.incotermRule.findFirst({
+        where: { incoterm: normalizedIncoterm, modal: normalizedModal, direction: normalizedDirection, standardFeeId: fee.id }
+      });
+      if (duplicate) throw new Error('DUPLICATE_FEE_LINK');
+      const orderConflict = await findIncotermRuleOrderConflict(tx, {
+        id: '', incoterm: normalizedIncoterm, modal: normalizedModal, direction: normalizedDirection,
+        feeType: fee.type, sortOrder: normalizedSortOrder
+      });
+      if (orderConflict) throw new IncotermRuleOrderConflictError(orderConflict.feeName, normalizedSortOrder);
+      return tx.incotermRule.create({
+        data: {
+          incoterm: normalizedIncoterm,
+          modal: normalizedModal,
+          direction: normalizedDirection,
+          required: Boolean(required),
+          standardFeeId: fee.id,
+          ...standardFeeSnapshot(fee),
+          sortOrder: normalizedSortOrder,
+          active: active !== undefined ? active : true,
+        } as any,
+        include: { standardFee: true }
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 10000 });
     res.status(201).json(effectiveIncotermRule(rule));
   } catch (error) {
+    if (error instanceof IncotermRuleOrderConflictError) return res.status(409).json({ error: error.message });
+    if (error instanceof Error && error.message === 'DUPLICATE_FEE_LINK') return res.status(409).json({ error: 'Esta taxa já está vinculada ao Incoterm, modal e direção selecionados.' });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') return res.status(409).json({ error: 'Outra alteração de ordem ocorreu ao mesmo tempo. Atualize a lista e tente novamente.' });
     console.error('Erro ao criar regra de incoterm:', error);
     res.status(500).json({ error: 'Erro ao criar regra de incoterm.' });
   }
@@ -97,7 +116,7 @@ export const createIncotermRule = async (req: Request, res: Response) => {
 // Atualiza uma regra
 export const updateIncotermRule = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
     const { incoterm, modal, direction, required, standardFeeId, sortOrder, active } = req.body;
     const current = await prisma.incotermRule.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Regra de Incoterm não encontrada.' });
@@ -109,34 +128,43 @@ export const updateIncotermRule = async (req: Request, res: Response) => {
     const normalizedIncoterm = incoterm ? String(incoterm).toUpperCase() : current.incoterm;
     const normalizedModal = modal ? String(modal).toUpperCase() : current.modal;
     const normalizedDirection = direction !== undefined ? normalizeDirection(direction) : current.direction;
+    const normalizedSortOrder = sortOrder !== undefined ? parseIncotermRuleSortOrder(sortOrder) : current.sortOrder;
+    if (normalizedSortOrder === null) return res.status(400).json({ error: 'A ordem deve ser um número inteiro maior ou igual a 1.' });
     if (!feeSupportsModal(fee, normalizedModal)) return res.status(400).json({ error: 'A taxa selecionada não é compatível com este modal. Ajuste a compatibilidade no cadastro da taxa.' });
-    const duplicate = await prisma.incotermRule.findFirst({
-      where: {
-        id: { not: id },
-        incoterm: normalizedIncoterm,
-        modal: normalizedModal,
-        direction: normalizedDirection,
-        standardFeeId: fee.id
-      }
-    });
-    if (duplicate) return res.status(409).json({ error: 'Esta taxa já está vinculada ao Incoterm e modal selecionados.' });
-    
-    const rule = await prisma.incotermRule.update({
-      where: { id },
-      data: {
-        incoterm: normalizedIncoterm,
-        modal: normalizedModal,
-        direction: normalizedDirection,
-        ...(required !== undefined && { required: Boolean(required) }),
-        standardFeeId: fee.id,
-        ...standardFeeSnapshot(fee),
-        ...(sortOrder !== undefined && { sortOrder: Number(sortOrder) }),
-        ...(active !== undefined && { active })
-      },
-      include: { standardFee: true }
-    });
+    const rule = await prisma.$transaction(async tx => {
+      await lockIncotermRuleOrdering(tx);
+      const duplicate = await tx.incotermRule.findFirst({
+        where: {
+          id: { not: id }, incoterm: normalizedIncoterm, modal: normalizedModal,
+          direction: normalizedDirection, standardFeeId: fee.id
+        }
+      });
+      if (duplicate) throw new Error('DUPLICATE_FEE_LINK');
+      const orderConflict = await findIncotermRuleOrderConflict(tx, {
+        id, incoterm: normalizedIncoterm, modal: normalizedModal, direction: normalizedDirection,
+        feeType: fee.type, sortOrder: normalizedSortOrder
+      });
+      if (orderConflict) throw new IncotermRuleOrderConflictError(orderConflict.feeName, normalizedSortOrder);
+      return tx.incotermRule.update({
+        where: { id },
+        data: {
+          incoterm: normalizedIncoterm,
+          modal: normalizedModal,
+          direction: normalizedDirection,
+          ...(required !== undefined && { required: Boolean(required) }),
+          standardFeeId: fee.id,
+          ...standardFeeSnapshot(fee),
+          sortOrder: normalizedSortOrder,
+          ...(active !== undefined && { active })
+        },
+        include: { standardFee: true }
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10000, timeout: 10000 });
     res.json(effectiveIncotermRule(rule));
   } catch (error) {
+    if (error instanceof IncotermRuleOrderConflictError) return res.status(409).json({ error: error.message });
+    if (error instanceof Error && error.message === 'DUPLICATE_FEE_LINK') return res.status(409).json({ error: 'Esta taxa já está vinculada ao Incoterm, modal e direção selecionados.' });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') return res.status(409).json({ error: 'Outra alteração de ordem ocorreu ao mesmo tempo. Atualize a lista e tente novamente.' });
     console.error('Erro ao atualizar regra de incoterm:', error);
     res.status(500).json({ error: 'Erro ao atualizar regra de incoterm.' });
   }

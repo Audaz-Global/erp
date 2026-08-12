@@ -5261,7 +5261,7 @@ function switchSettingsTab(tab) {
                 <option value="">Carregando taxas...</option>
               </select>
             </div>
-            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="0" placeholder="0"></div>
+            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="1" min="1" step="1" required placeholder="1" oninput="clearIncotermRuleOrderError()"></div>
             <div class="form-group" style="margin:0"><label class="compact-checkbox" for="ir-required"><input type="checkbox" id="ir-required"><span>Taxa obrigatória</span></label></div>
             <div class="form-group" style="margin:0"><label>Aplicação cadastrada na taxa</label><div id="ir-feeTypeInfo" style="min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;">Selecione uma taxa</div></div>
           </div>
@@ -6459,7 +6459,11 @@ async function openFeeApplicationRules(feeId) {
   switchSettingsTab('incotermRules');
   setTimeout(() => {
     const select = document.getElementById('ir-standardFeeId');
-    if (select) select.value = feeId;
+    if (select) {
+      select.value = feeId;
+      updateIncotermFeeTypeInfo();
+      suggestNextIncotermRuleOrder();
+    }
     document.getElementById('ir-incoterm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 180);
 }
@@ -6724,6 +6728,8 @@ async function applyStandardFees(type, targetId) {
 }
 
 // ═══ REGRAS POR INCOTERM ═══
+let incotermRulesContextCache = [];
+
 async function syncIncotermConfigurationContext() {
   const incoterm = document.getElementById('ctx-incoterm')?.value || 'FOB';
   const modal = document.getElementById('ctx-modal')?.value || 'SEA_FCL';
@@ -6756,7 +6762,10 @@ async function loadIncotermFeeOptions(selectedId = '') {
       return `<option value="${f.id}" data-fee-type="${f.type}">${side} - ${f.name} (${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : format})</option>`;
     }).join('');
     if (selectedId) select.value = selectedId;
-    select.onchange = updateIncotermFeeTypeInfo;
+    select.onchange = () => {
+      updateIncotermFeeTypeInfo();
+      suggestNextIncotermRuleOrder();
+    };
     updateIncotermFeeTypeInfo();
   } catch (e) {
     select.innerHTML = '<option value="">Erro ao carregar taxas</option>';
@@ -6770,6 +6779,52 @@ function updateIncotermFeeTypeInfo() {
   const type = selected?.dataset?.feeType;
   info.textContent = type === 'DESTINATION' ? 'Destino' : type === 'ORIGIN' ? 'Origem' : 'Selecione uma taxa';
   info.style.color = type ? 'var(--text-primary)' : 'var(--text-muted)';
+}
+
+function clearIncotermRuleOrderError() {
+  const input = document.getElementById('ir-linkSortOrder');
+  if (!input) return;
+  input.classList.remove('error');
+  input.setCustomValidity('');
+}
+
+function suggestNextIncotermRuleOrder() {
+  const input = document.getElementById('ir-linkSortOrder');
+  const selected = document.getElementById('ir-standardFeeId')?.selectedOptions?.[0];
+  if (!input || !selected?.value || document.getElementById('ir-id')?.value) return;
+  const feeType = selected.dataset.feeType;
+  const used = new Set(incotermRulesContextCache
+    .filter(rule => rule.feeType === feeType && Number.isInteger(Number(rule.sortOrder)) && Number(rule.sortOrder) >= 1)
+    .map(rule => Number(rule.sortOrder)));
+  let nextOrder = 1;
+  while (used.has(nextOrder)) nextOrder++;
+  input.value = String(nextOrder);
+  clearIncotermRuleOrderError();
+}
+
+function validateIncotermRuleOrder() {
+  const input = document.getElementById('ir-linkSortOrder');
+  const selected = document.getElementById('ir-standardFeeId')?.selectedOptions?.[0];
+  if (!input) return false;
+  clearIncotermRuleOrderError();
+  const order = Number(input.value);
+  let message = '';
+  if (!Number.isInteger(order) || order < 1) {
+    message = 'A ordem deve ser um número inteiro maior ou igual a 1.';
+  } else if (selected?.dataset?.feeType) {
+    const editingId = document.getElementById('ir-id')?.value || '';
+    const conflict = incotermRulesContextCache.find(rule =>
+      rule.id !== editingId && rule.feeType === selected.dataset.feeType && Number(rule.sortOrder) === order
+    );
+    if (conflict) message = `A ordem ${order} já está sendo usada pela taxa ${conflict.feeName} neste contexto.`;
+  }
+  if (!message) return true;
+  input.classList.add('error');
+  input.setCustomValidity(message);
+  input.reportValidity();
+  input.focus();
+  toast('❌ ' + message);
+  return false;
 }
 
 function ensureIncotermRuleDirectionControl() {
@@ -6793,6 +6848,8 @@ async function loadIncotermRulesTable() {
     const url = params.toString() ? `/api/incoterm-rules?${params}` : '/api/incoterm-rules';
     const res = await fetch(url);
     const allRules = await res.json();
+    incotermRulesContextCache = Array.isArray(allRules) ? allRules : [];
+    suggestNextIncotermRuleOrder();
     const focusedFeeId = window.incotermRuleFeeFocus || '';
     const rules = focusedFeeId ? allRules.filter(rule => rule.standardFeeId === focusedFeeId) : allRules;
     const container = document.getElementById('incotermRulesTableContainer');
@@ -6801,7 +6858,7 @@ async function loadIncotermRulesTable() {
       container.innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${focusedFeeId ? 'Esta taxa ainda não possui vínculo de aplicação. Selecione o contexto acima e salve o vínculo.' : 'Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.'}</p>`;
       return;
     }
-    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Aplicação</th><th>Taxa</th><th>Cobrança</th><th>Valor</th><th>Mínimo</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
+    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Aplicação</th><th>Taxa</th><th>Ordem</th><th>Cobrança</th><th>Valor</th><th>Mínimo</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
     for (const r of rules) {
       const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_TON:'Por tonelada', PER_WM:'Por tonelada-metro (W/M)', PER_CBM:'Por m³', PER_CONTAINER:'Por contêiner', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
       const modalLabel = {AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos'}[r.modal] || r.modal;
@@ -6820,6 +6877,7 @@ async function loadIncotermRulesTable() {
         <td>
           <div style="min-width:160px;"><span>${r.feeName}</span></div>
         </td>
+        <td><strong>${r.sortOrder}</strong></td>
         <td>${chargeLabel}</td>
         <td>${r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.value.toFixed(2)}</td>
         <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
@@ -6838,13 +6896,14 @@ async function loadIncotermRulesTable() {
 
 async function saveIncotermRule() {
   const id = document.getElementById('ir-id').value;
+  if (!validateIncotermRuleOrder()) return;
   const data = {
     incoterm: document.getElementById('ir-incoterm').value,
     modal: document.getElementById('ir-modal').value,
     direction: document.getElementById('ir-direction').value,
     required: document.getElementById('ir-required').checked,
     standardFeeId: document.getElementById('ir-standardFeeId').value,
-    sortOrder: parseInt(document.getElementById('ir-linkSortOrder').value) || 0
+    sortOrder: Number(document.getElementById('ir-linkSortOrder').value)
   };
   if (!data.standardFeeId) {
     toast('Selecione uma Taxa Local.');
@@ -6886,7 +6945,8 @@ async function editIncotermRule(id) {
     document.getElementById('ir-direction').value = rule.direction || 'ALL';
     document.getElementById('ir-required').checked = Boolean(rule.required);
     await loadIncotermFeeOptions(rule.standardFeeId);
-    document.getElementById('ir-linkSortOrder').value = rule.sortOrder || 0;
+    document.getElementById('ir-linkSortOrder').value = rule.sortOrder;
+    clearIncotermRuleOrderError();
     document.getElementById('btnSaveIr').innerText = '💾 Atualizar aplicação';
     document.getElementById('btnCancelIr').style.display = '';
     const editor = document.getElementById('incotermRuleEditor');
@@ -6932,7 +6992,8 @@ async function editIncotermLinkedFee(standardFeeId) {
 function cancelEditIr() {
   document.getElementById('ir-id').value = '';
   document.getElementById('ir-standardFeeId').value = '';
-  document.getElementById('ir-linkSortOrder').value = '0';
+  document.getElementById('ir-linkSortOrder').value = '1';
+  clearIncotermRuleOrderError();
   document.getElementById('ir-required').checked = false;
   updateIncotermFeeTypeInfo();
   document.getElementById('btnSaveIr').innerText = 'Salvar vínculo';
