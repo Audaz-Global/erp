@@ -110,10 +110,10 @@ model Quotation {
   voyageNumber               String?
   freeTimeDays               Int?
   rateValidUntil             DateTime?
-  rateValiditySource         String?  // AGENT_EMAIL, TARIFF, CONTINGENCY, MANUAL
-  rateValidityEvidence       String?  // trecho de e-mail/tarifário que comprovou a vigência
+  rateValiditySource         String? // AGENT_EMAIL, TARIFF, CONTINGENCY, MANUAL
+  rateValidityEvidence       String? // trecho de e-mail/tarifário que comprovou a vigência
   rateValidityConfidence     Float?
-  rateValidityNeedsReview    Boolean  @default(false)
+  rateValidityNeedsReview    Boolean         @default(false)
   transshipments             String? // JSON array estruturado
   destinationStorage         Float?
   destinationStorageCurrency String?
@@ -165,9 +165,56 @@ model Quotation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  agentResponses AgentResponseVersion[]
+  agentResponses  AgentResponseVersion[]
+  documents       QuotationDocument[]
+  emailDispatches QuotationEmailDispatch[]
 
   @@index([carrierProfileId])
+}
+
+model DocumentBlob {
+  id        String   @id @default(uuid())
+  sha256    String   @unique
+  mimeType  String
+  size      Int
+  content   Bytes
+  createdAt DateTime @default(now())
+
+  documents QuotationDocument[]
+}
+
+model QuotationDocument {
+  id                  String       @id @default(uuid())
+  quotationId         String
+  quotation           Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  blobId              String
+  blob                DocumentBlob @relation(fields: [blobId], references: [id], onDelete: Restrict)
+  originalName        String
+  origin              String       @default("MANUAL") // CLIENT_EMAIL, MANUAL, WHATSAPP, PARTNER_REPLY
+  sourceContainerName String?
+  forwardByDefault    Boolean      @default(true)
+  createdById         String?
+  createdAt           DateTime     @default(now())
+
+  @@unique([quotationId, blobId, originalName, origin])
+  @@index([quotationId, createdAt])
+}
+
+model QuotationEmailDispatch {
+  id              String    @id @default(uuid())
+  quotationId     String
+  quotation       Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  recipientType   String    @default("PARTNER")
+  recipientEmail  String
+  subject         String?
+  conversationId  String?
+  attachmentIds   String? // JSON array dos documentos efetivamente enviados
+  attachmentNames String? // JSON array para auditoria imutável
+  status          String    @default("SENT")
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([quotationId, createdAt])
 }
 
 model AgentResponseVersion {
@@ -250,15 +297,15 @@ model FixedFee {
 }
 
 model CarrierProfile {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  code      String?
-  aliases   String? // JSON array
-  modal     String   @default("SEA")
-  equipmentScopes String? @default("[\"20GP\",\"40GP\",\"40HC\"]") // JSON array de equipamentos habilitados
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  name            String   @unique
+  code            String?
+  aliases         String? // JSON array
+  modal           String   @default("SEA")
+  equipmentScopes String?  @default("[\"20GP\",\"40GP\",\"40HC\"]") // JSON array de equipamentos habilitados
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   quotations Quotation[]
   fieldRules CarrierFieldRule[]
@@ -377,45 +424,45 @@ model CarrierFieldRule {
 }
 
 model StandardFee {
-  id          String   @id @default(uuid())
-  name        String
-  type        String // ORIGIN, DESTINATION
-  chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
-  value       Float
-  pricingStatus String @default("PRICED") // PRICED, ON_REQUEST
-  minValue    Float?
-  currency    String
-  percentBase String? // FREIGHT, FREIGHT_PLUS_ORIGIN
-  description String?
-  modalScope  String   @default("ALL") // ALL ou lista CSV: AIR,SEA_FCL,SEA_LCL
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  name          String
+  type          String // ORIGIN, DESTINATION
+  chargeType    String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
+  value         Float
+  pricingStatus String   @default("PRICED") // PRICED, ON_REQUEST
+  minValue      Float?
+  currency      String
+  percentBase   String? // FREIGHT, FREIGHT_PLUS_ORIGIN
+  description   String?
+  modalScope    String   @default("ALL") // ALL ou lista CSV: AIR,SEA_FCL,SEA_LCL
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   incotermRules IncotermRule[]
 }
 
 model IncotermRule {
-  id          String   @id @default(uuid())
-  incoterm    String // EXW, FCA, FOB, CIF, CFR, DAP, DDP
-  modal       String // AIR, SEA_FCL, SEA_LCL, ALL
-  direction   String   @default("ALL") // IMPORT, EXPORT, ALL
-  originScope String?  // Porto/cidade/país de origem; nulo = qualquer origem
+  id               String   @id @default(uuid())
+  incoterm         String // EXW, FCA, FOB, CIF, CFR, DAP, DDP
+  modal            String // AIR, SEA_FCL, SEA_LCL, ALL
+  direction        String   @default("ALL") // IMPORT, EXPORT, ALL
+  originScope      String? // Porto/cidade/país de origem; nulo = qualquer origem
   destinationScope String? // Porto/cidade/país de destino; nulo = qualquer destino
-  required    Boolean  @default(false)
-  feeType     String // ORIGIN, DESTINATION
-  feeName     String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
-  chargeType  String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
-  value       Float // Valor unitário ou percentual
-  pricingStatus String @default("PRICED") // snapshot da taxa: PRICED, ON_REQUEST
-  minValue    Float? // Valor mínimo (ex: Airport Fee mín USD 45)
-  currency    String   @default("USD")
-  percentBase String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
-  description String? // Descrição informativa para o operador
-  sortOrder   Int      @default(0)
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  required         Boolean  @default(false)
+  feeType          String // ORIGIN, DESTINATION
+  feeName          String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
+  chargeType       String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
+  value            Float // Valor unitário ou percentual
+  pricingStatus    String   @default("PRICED") // snapshot da taxa: PRICED, ON_REQUEST
+  minValue         Float? // Valor mínimo (ex: Airport Fee mín USD 45)
+  currency         String   @default("USD")
+  percentBase      String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
+  description      String? // Descrição informativa para o operador
+  sortOrder        Int      @default(0)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Fonte oficial da taxa. Os campos acima permanecem temporariamente para
   // compatibilidade e migração dos registros criados antes deste vínculo.

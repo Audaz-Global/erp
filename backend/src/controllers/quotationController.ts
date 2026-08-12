@@ -215,7 +215,12 @@ export const updateQuotation = async (req: Request, res: Response) => {
 export const deleteQuotation = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const documents = await prisma.quotationDocument.findMany({ where: { quotationId: id }, select: { blobId: true } });
     await prisma.quotation.delete({ where: { id } });
+    for (const { blobId } of documents) {
+      const references = await prisma.quotationDocument.count({ where: { blobId } });
+      if (!references) await prisma.documentBlob.delete({ where: { id: blobId } }).catch(() => undefined);
+    }
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: 'Erro ao excluir cotação' });

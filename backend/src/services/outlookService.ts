@@ -50,7 +50,33 @@ export const getAccessToken = async (): Promise<string> => {
  * Usa fluxo draft+send para capturar o conversationId do MS Graph.
  * Retorna { conversationId } para tracking de thread.
  */
-export const sendOutlookEmail = async (toEmail: string, subject: string, htmlContent: string, ccEmail?: string): Promise<{ conversationId: string | null }> => {
+export type OutlookAttachment = { name: string; contentType: string; content: Buffer };
+
+async function addAttachmentToDraft(token: string, messageId: string, attachment: OutlookAttachment) {
+  const baseUrl = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${messageId}/attachments`;
+  if (attachment.content.length < 2.8 * 1024 * 1024) {
+    await axios.post(baseUrl, {
+      '@odata.type': '#microsoft.graph.fileAttachment', name: attachment.name,
+      contentType: attachment.contentType, contentBytes: attachment.content.toString('base64')
+    }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, maxBodyLength: Infinity });
+    return;
+  }
+
+  const session = await axios.post(`${baseUrl}/createUploadSession`, {
+    AttachmentItem: { attachmentType: 'file', name: attachment.name, size: attachment.content.length, contentType: attachment.contentType }
+  }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
+  const uploadUrl = session.data.uploadUrl;
+  const chunkSize = 10 * 320 * 1024;
+  for (let start = 0; start < attachment.content.length; start += chunkSize) {
+    const end = Math.min(start + chunkSize, attachment.content.length);
+    await axios.put(uploadUrl, attachment.content.subarray(start, end), {
+      headers: { 'Content-Length': String(end - start), 'Content-Range': `bytes ${start}-${end - 1}/${attachment.content.length}` },
+      maxBodyLength: Infinity, maxContentLength: Infinity
+    });
+  }
+}
+
+export const sendOutlookEmail = async (toEmail: string, subject: string, htmlContent: string, ccEmail?: string, attachments: OutlookAttachment[] = []): Promise<{ conversationId: string | null }> => {
   if (!USER_EMAIL) throw new Error('E-mail do remetente (MS_GRAPH_USER_EMAIL) não configurado.');
   
   const token = await getAccessToken();
@@ -92,6 +118,8 @@ export const sendOutlookEmail = async (toEmail: string, subject: string, htmlCon
     const messageId = draftRes.data.id;
     const conversationId = draftRes.data.conversationId || null;
 
+    for (const attachment of attachments) await addAttachmentToDraft(token, messageId, attachment);
+
     // Passo 2: Enviar o rascunho
     await axios.post(
       `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${messageId}/send`,
@@ -108,6 +136,27 @@ export const sendOutlookEmail = async (toEmail: string, subject: string, htmlCon
     console.error('Erro ao enviar e-mail via MS Graph:', err.response?.data || err.message);
     throw new Error('Falha ao enviar e-mail. Verifique permissões Mail.Send e Mail.ReadWrite no Azure.');
   }
+};
+
+export const replyOutlookEmail = async (messageId: string, htmlContent: string, attachments: OutlookAttachment[] = []): Promise<{ conversationId: string | null }> => {
+  if (!USER_EMAIL) throw new Error('E-mail do remetente (MS_GRAPH_USER_EMAIL) não configurado.');
+  const token = await getAccessToken();
+  const replyDraft = await axios.post(
+    `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${encodeURIComponent(messageId)}/createReply`, {},
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  const replyId = replyDraft.data.id;
+  await axios.patch(
+    `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${replyId}`,
+    { body: { contentType: 'HTML', content: htmlContent } },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  for (const attachment of attachments) await addAttachmentToDraft(token, replyId, attachment);
+  await axios.post(
+    `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${replyId}/send`, null,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return { conversationId: replyDraft.data.conversationId || null };
 };
 
 /**

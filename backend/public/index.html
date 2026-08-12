@@ -833,6 +833,24 @@
   .copilot-input { padding:12px; display:flex; gap:8px; border-top:1px solid rgba(255,255,255,.08); }
   .copilot-input input { flex:1; min-width:0; min-height:42px; padding:0 12px; border:1px solid #292e37; border-radius:9px; background:#080a0c; color:#fff; }
   .copilot-input button { width:42px; border:0; border-radius:9px; background:var(--gold); color:#17130b; font-size:16px; cursor:pointer; }
+  .quotation-documents { margin:22px 0; padding:18px; border:1px solid rgba(255,255,255,.09); border-radius:12px; background:#0b101a; }
+  .quotation-documents-head { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; }
+  .quotation-documents-head strong { display:block; font-size:14px; }
+  .quotation-documents-head small { display:block; margin-top:4px; color:var(--text-muted); font-size:11px; }
+  .document-upload-button { position:relative; overflow:hidden; flex:0 0 auto; }
+  .document-upload-button input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .document-selection-legend { display:grid; grid-template-columns:1fr 132px 155px 70px; gap:8px; padding:0 10px 7px; color:#737e90; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+  .document-selection-legend span:first-child { grid-column:2; text-align:center; }
+  .document-selection-legend span:last-child { text-align:center; }
+  .quotation-document-row { display:grid; grid-template-columns:minmax(0,1fr) 132px 155px 70px; gap:8px; align-items:center; padding:10px; border-top:1px solid rgba(255,255,255,.065); }
+  .quotation-document-name { min-width:0; }
+  .quotation-document-name a { display:block; overflow:hidden; text-overflow:ellipsis; color:#edf0f5; font-size:12px; font-weight:650; text-decoration:none; white-space:nowrap; }
+  .quotation-document-name small { color:#778294; font-size:10px; }
+  .document-check { display:flex; align-items:center; justify-content:center; }
+  .document-check input { width:16px; height:16px; min-height:0; }
+  .document-delete { border:0; background:transparent; color:#7f8998; cursor:pointer; font-size:11px; }
+  .document-delete:hover { color:var(--error); }
+  .document-empty { padding:16px; border:1px dashed rgba(255,255,255,.1); border-radius:9px; color:var(--text-muted); font-size:11px; text-align:center; }
 
   @media (max-width:900px) {
     .settings-sidebar { width:72px; padding-inline:8px; }
@@ -868,6 +886,10 @@
     .settings-content .sc-title { font-size:22px; }
     .settings-section { padding:15px 12px; overflow:visible; }
     .copilot-launcher { right:14px; bottom:12px; }
+    .quotation-documents-head { align-items:flex-start; flex-direction:column; }
+    .document-selection-legend { display:none; }
+    .quotation-document-row { grid-template-columns:1fr 42px 42px 32px; }
+    .document-check span { display:none; }
   }
 </style>
 </head>
@@ -925,7 +947,7 @@
       <div class="file-drop" id="fileDrop">
         <div class="icon">📂</div>
         <p>Arraste e solte arquivos / e-mails (.msg) aqui ou <strong>clique para selecionar</strong></p>
-        <input type="file" id="fileInput" multiple accept=".eml,.msg,.pdf,.xlsx,.csv,.xls">
+        <input type="file" id="fileInput" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip">
       </div>
       <div class="file-list" id="fileList"></div>
 
@@ -1170,6 +1192,15 @@
         <input type="text" id="r-operator-initials" maxlength="4" placeholder="Ex: GDS" style="text-transform: uppercase;">
       </div>
 
+      <section class="quotation-documents" id="quotationDocumentsPanel">
+        <div class="quotation-documents-head">
+          <div><strong>Documentos da cotação</strong><small>Anexos do cliente e arquivos adicionados manualmente acompanham todo o processo.</small></div>
+          <label class="btn btn-secondary document-upload-button">Adicionar documentos<input id="manualDocumentInput" type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" onchange="uploadManualQuotationDocuments(this.files)"></label>
+        </div>
+        <div class="document-selection-legend"><span>Enviar ao parceiro</span><span>Enviar à transportadora</span></div>
+        <div id="quotationDocumentsList"><p class="document-empty">Gere o rascunho para vincular os documentos à cotação.</p></div>
+      </section>
+
       <div class="form-group">
         <label>Assunto do E-mail</label>
         <input type="text" id="r-draft-subject" placeholder="O assunto aparecerá aqui...">
@@ -1228,11 +1259,17 @@
         <select id="pending-quotations" class="req" onchange="loadPendingQuotationData()"><option value="">Carregando...</option></select>
       </div>
       <div id="agent-response-history" style="display:none;margin:-8px 0 20px;padding:12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)"></div>
+      <div id="partner-reply-panel" style="display:none;margin:0 0 20px;padding:16px;border:1px solid rgba(245,166,35,.3);border-radius:12px;background:rgba(245,166,35,.035)">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px"><strong style="font-size:13px">Responder ao parceiro</strong><div style="display:flex;gap:8px"><label class="rule-action-btn primary" style="position:relative;overflow:hidden">Adicionar documento<input type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="uploadReplyDocuments(this)"></label><button class="document-delete" onclick="closePartnerReply()">Fechar</button></div></div>
+        <textarea id="partner-reply-body" placeholder="Escreva a resposta ao parceiro..."></textarea>
+        <div id="replyDocumentsList" style="margin:10px 0"></div>
+        <button class="btn btn-primary" id="btnSendPartnerReply" onclick="sendPartnerReply()">Responder pelo Outlook</button>
+      </div>
 
       <div class="file-drop" id="fileDropAgent">
         <div class="icon">📂</div>
         <p>Arraste e solte arquivos / e-mails (.msg) aqui ou <strong>clique para selecionar</strong></p>
-        <input type="file" id="fileInputAgent" multiple accept=".eml,.msg,.pdf,.xlsx,.csv,.xls">
+        <input type="file" id="fileInputAgent" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip">
       </div>
       <div class="file-list" id="fileListAgent"></div>
       <textarea id="emailTextAgent" placeholder="OU cole a resposta do agente aqui..." style="margin-top:10px"></textarea>
@@ -2280,6 +2317,9 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 
 let selectedFiles = [];
 let currentQuotationId = null;
+let quotationDocuments = [];
+let sourceDocumentsUploadedForQuotation = null;
+let currentReplyResponseId = null;
 window.lastEmailExtraction = null;
 
 // TABS
@@ -2419,6 +2459,133 @@ function renderFileList(isAgent) {
   ).join('');
 }
 
+function documentOriginLabel(origin) {
+  return ({ CLIENT_EMAIL:'E-mail do cliente', MANUAL:'Upload manual', WHATSAPP:'WhatsApp', PARTNER_REPLY:'Retorno do parceiro' })[origin] || origin;
+}
+
+function formatDocumentSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function renderQuotationDocuments() {
+  const container = document.getElementById('quotationDocumentsList');
+  if (!container) return;
+  if (!currentQuotationId) {
+    container.innerHTML = '<p class="document-empty">Gere o rascunho para vincular os documentos à cotação.</p>';
+    return;
+  }
+  if (!quotationDocuments.length) {
+    container.innerHTML = '<p class="document-empty">Nenhum documento vinculado. Use “Adicionar documentos” para incluir arquivos recebidos por WhatsApp ou outros canais.</p>';
+    return;
+  }
+  container.innerHTML = quotationDocuments.map(document => `
+    <div class="quotation-document-row">
+      <div class="quotation-document-name"><a href="${API}/quotations/${currentQuotationId}/documents/${document.id}/download" title="Baixar ${ifrEscape(document.originalName)}">${ifrEscape(document.originalName)}</a><small>${documentOriginLabel(document.origin)} · ${formatDocumentSize(document.blob.size)}${document.sourceContainerName ? ' · extraído de ' + ifrEscape(document.sourceContainerName) : ''}</small></div>
+      <label class="document-check" title="Enviar ao parceiro"><input type="checkbox" data-document-role="partner" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''} onchange="setDocumentForwardDefault('${document.id}',this.checked)"><span style="display:none">Parceiro</span></label>
+      <label class="document-check" title="Enviar à transportadora"><input type="checkbox" data-document-role="trucker" value="${document.id}"><span style="display:none">Transportadora</span></label>
+      <button type="button" class="document-delete" onclick="deleteQuotationDocument('${document.id}')">Excluir</button>
+    </div>`).join('');
+  const replyContainer = document.getElementById('replyDocumentsList');
+  if (replyContainer) replyContainer.innerHTML = quotationDocuments.length ? '<small style="display:block;color:var(--text-muted);margin-bottom:7px">Documentos para incluir nesta resposta:</small>' + quotationDocuments.map(document => `
+    <label style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-top:1px solid rgba(255,255,255,.06);font-size:11px"><input type="checkbox" data-document-role="reply" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''}><span>${ifrEscape(document.originalName)} <em style="color:var(--text-muted)">· ${formatDocumentSize(document.blob.size)}</em></span></label>`).join('') : '<p class="document-empty">Nenhum documento vinculado.</p>';
+}
+
+function openPartnerReply(responseId) {
+  currentReplyResponseId = responseId;
+  const panel = document.getElementById('partner-reply-panel');
+  if (panel) { panel.style.display = 'block'; panel.scrollIntoView({ behavior:'smooth', block:'center' }); }
+  renderQuotationDocuments();
+}
+
+function closePartnerReply() {
+  currentReplyResponseId = null;
+  document.getElementById('partner-reply-panel').style.display = 'none';
+  document.getElementById('partner-reply-body').value = '';
+}
+
+async function sendPartnerReply() {
+  if (!currentReplyResponseId) return alert('Selecione uma resposta recebida.');
+  const body = document.getElementById('partner-reply-body').value.trim();
+  if (!body) return alert('Escreva uma mensagem antes de responder.');
+  const button = document.getElementById('btnSendPartnerReply');
+  button.disabled = true; button.textContent = 'Enviando...';
+  try {
+    const response = await fetch(`${API}/outlook/reply/${currentReplyResponseId}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ htmlBody:body, attachmentIds:selectedQuotationDocumentIds('reply') })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Falha ao responder.');
+    toast('✅ Resposta enviada com os documentos selecionados.');
+    closePartnerReply();
+  } catch (error) { alert(error.message); }
+  finally { button.disabled = false; button.textContent = 'Responder pelo Outlook'; }
+}
+
+async function loadQuotationDocuments() {
+  if (!currentQuotationId) { quotationDocuments = []; renderQuotationDocuments(); return; }
+  const response = await fetch(`${API}/quotations/${currentQuotationId}/documents`);
+  if (!response.ok) return;
+  quotationDocuments = await response.json();
+  renderQuotationDocuments();
+}
+
+async function uploadQuotationDocumentFiles(files, origin, expandEmailAttachments) {
+  if (!currentQuotationId || !files || !files.length) return [];
+  const form = new FormData();
+  Array.from(files).forEach(file => form.append('files', file));
+  form.append('origin', origin);
+  form.append('extractEmailAttachments', String(Boolean(expandEmailAttachments)));
+  const response = await fetch(`${API}/quotations/${currentQuotationId}/documents`, { method:'POST', body:form });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Não foi possível salvar os documentos.');
+  await loadQuotationDocuments();
+  return data;
+}
+
+async function uploadPendingQuotationDocuments() {
+  if (!currentQuotationId || !selectedFiles.length || sourceDocumentsUploadedForQuotation === currentQuotationId) return;
+  await uploadQuotationDocumentFiles(selectedFiles, 'CLIENT_EMAIL', true);
+  sourceDocumentsUploadedForQuotation = currentQuotationId;
+}
+
+async function uploadManualQuotationDocuments(files) {
+  const input = document.getElementById('manualDocumentInput');
+  try {
+    if (!currentQuotationId) throw new Error('Gere o rascunho primeiro para criar a cotação.');
+    await uploadQuotationDocumentFiles(files, 'MANUAL', false);
+    toast('✅ Documentos adicionados à cotação.');
+  } catch (error) { alert(error.message); }
+  finally { if (input) input.value = ''; }
+}
+
+async function uploadReplyDocuments(input) {
+  try {
+    await uploadQuotationDocumentFiles(input.files, 'MANUAL', false);
+    toast('✅ Documento adicionado e disponível para a resposta.');
+  } catch (error) { alert(error.message); }
+  finally { input.value = ''; }
+}
+
+async function setDocumentForwardDefault(id, checked) {
+  await fetch(`${API}/quotations/${currentQuotationId}/documents/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ forwardByDefault:checked }) });
+  const document = quotationDocuments.find(item => item.id === id);
+  if (document) document.forwardByDefault = checked;
+}
+
+async function deleteQuotationDocument(id) {
+  if (!confirm('Excluir este documento da cotação?')) return;
+  const response = await fetch(`${API}/quotations/${currentQuotationId}/documents/${id}`, { method:'DELETE' });
+  if (!response.ok) return alert('Não foi possível excluir o documento.');
+  await loadQuotationDocuments();
+}
+
+function selectedQuotationDocumentIds(role) {
+  return Array.from(document.querySelectorAll(`[data-document-role="${role}"]:checked`)).map(input => input.value);
+}
+
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t); setTimeout(() => t.remove(), 4000);
@@ -2481,9 +2648,12 @@ function clearExtract() {
   document.getElementById('emailText').value=''; 
   document.getElementById('emailTextAgent').value=''; 
   currentQuotationId = null;
+  quotationDocuments = [];
+  sourceDocumentsUploadedForQuotation = null;
   window.lastExtractedRawText = null;
   window.lastEmailExtraction = null;
   renderEmailExtractionAudit(null);
+  renderQuotationDocuments();
 }
 
 function renderEmailExtractionAudit(audit) {
@@ -3296,6 +3466,8 @@ async function generateDraftEmail() {
     const qData = await readApiJson(resCreate, 'O salvamento da cotação');
     if (!qData.id) throw new Error('O servidor não retornou o identificador da cotação.');
     currentQuotationId = qData.id;
+    await uploadPendingQuotationDocuments();
+    await loadQuotationDocuments();
 
     const selectEl = document.getElementById('r-agent-email');
     const selectedOption = selectEl.options[selectEl.selectedIndex];
@@ -3406,6 +3578,7 @@ async function sendOutlookEmail() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
 
   try {
+    await uploadPendingQuotationDocuments();
     const selectEl = document.getElementById('r-agent-email');
     const selectedOption = selectEl.options[selectEl.selectedIndex];
     const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
@@ -3449,7 +3622,9 @@ async function sendOutlookEmail() {
         needsTransport,
         truckerEmail,
         truckerName,
-        truckerCcEmail: truckerCcEmail || null
+        truckerCcEmail: truckerCcEmail || null,
+        attachmentIds: selectedQuotationDocumentIds('partner'),
+        truckerAttachmentIds: selectedQuotationDocumentIds('trucker')
       })
     });
     
@@ -4738,6 +4913,9 @@ async function loadPendingQuotationData() {
     checkValidation();
     return;
   }
+  currentQuotationId = q.id;
+  sourceDocumentsUploadedForQuotation = q.id;
+  await loadQuotationDocuments();
   loadAgentResponseHistory(q.id);
   
   // Mostra o formulário de revisão de custos para aguardar input do parceiro
@@ -4787,7 +4965,7 @@ async function loadPendingQuotationData() {
   checkValidation();
 }
 
-async function loadAgentResponseHistory(quotationId){const el=document.getElementById('agent-response-history');if(!el)return;el.style.display='block';el.innerHTML='<small style="color:var(--text-muted)">Carregando histórico automático...</small>';try{const res=await fetch('/api/outlook/responses/'+quotationId);if(!res.ok)throw new Error();const items=await res.json();if(!items.length){el.innerHTML='<small style="color:var(--text-muted)">Nenhum retorno automático processado nesta cotação.</small>';return;}const labels={SUCCESS:'Valores reconhecidos',NO_VALUES:'Sem valores novos',FAILED:'Falha na leitura',PROCESSING:'Processando'};el.innerHTML='<strong style="font-size:12px">Histórico de retornos do Outlook</strong>'+items.slice(0,5).map(item=>{let data={};try{data=JSON.parse(item.extractedData||'{}')}catch{}let names=[];try{names=JSON.parse(item.attachmentNames||'[]')}catch{}const evidence=Array.isArray(data.field_evidence)?data.field_evidence:[],rawConfidence=Number(item.confidence),confidence=item.confidence==null?null:(rawConfidence<=1?rawConfidence*100:rawConfidence);return`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px"><span class="status-badge">${labels[item.processingStatus]||item.processingStatus}</span> ${ifrEscape(item.subject||'Sem assunto')} — ${item.receivedAt?new Date(item.receivedAt).toLocaleString('pt-BR'):'sem data'}</summary><div style="padding:8px 12px;font-size:11px;color:var(--text-muted)"><div>Remetente: ${ifrEscape(item.senderEmail||'—')} | Confiança: ${confidence!=null?Math.round(confidence)+'%':'—'} | Tentativas: ${item.attempts}</div>${names.length?`<div>Anexos: ${names.map(ifrEscape).join(', ')}</div>`:''}${item.errorMessage?`<div style="color:var(--warning)">${ifrEscape(item.errorMessage)}</div>`:''}${evidence.length?'<ul>'+evidence.slice(0,12).map(e=>`<li><strong>${ifrEscape(e.field)}</strong>: ${ifrEscape(e.evidence)} <em>(${ifrEscape(e.source)})</em></li>`).join('')+'</ul>':''}<details><summary>Ver resposta atual isolada</summary><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${ifrEscape(item.latestText||'')}</pre></details></div></details>`}).join('');}catch{el.innerHTML='<small style="color:var(--warning)">Não foi possível carregar o histórico automático.</small>';}}
+async function loadAgentResponseHistory(quotationId){const el=document.getElementById('agent-response-history');if(!el)return;el.style.display='block';el.innerHTML='<small style="color:var(--text-muted)">Carregando histórico automático...</small>';try{const res=await fetch('/api/outlook/responses/'+quotationId);if(!res.ok)throw new Error();const items=await res.json();if(!items.length){el.innerHTML='<small style="color:var(--text-muted)">Nenhum retorno automático processado nesta cotação.</small>';return;}const labels={SUCCESS:'Valores reconhecidos',NO_VALUES:'Sem valores novos',FAILED:'Falha na leitura',PROCESSING:'Processando'};el.innerHTML='<strong style="font-size:12px">Histórico de retornos do Outlook</strong>'+items.slice(0,5).map(item=>{let data={};try{data=JSON.parse(item.extractedData||'{}')}catch{}let names=[];try{names=JSON.parse(item.attachmentNames||'[]')}catch{}const evidence=Array.isArray(data.field_evidence)?data.field_evidence:[],rawConfidence=Number(item.confidence),confidence=item.confidence==null?null:(rawConfidence<=1?rawConfidence*100:rawConfidence);return`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px"><span class="status-badge">${labels[item.processingStatus]||item.processingStatus}</span> ${ifrEscape(item.subject||'Sem assunto')} — ${item.receivedAt?new Date(item.receivedAt).toLocaleString('pt-BR'):'sem data'}</summary><div style="padding:8px 12px;font-size:11px;color:var(--text-muted)"><div>Remetente: ${ifrEscape(item.senderEmail||'—')} | Confiança: ${confidence!=null?Math.round(confidence)+'%':'—'} | Tentativas: ${item.attempts}</div>${names.length?`<div>Anexos: ${names.map(ifrEscape).join(', ')}</div>`:''}${item.errorMessage?`<div style="color:var(--warning)">${ifrEscape(item.errorMessage)}</div>`:''}${evidence.length?'<ul>'+evidence.slice(0,12).map(e=>`<li><strong>${ifrEscape(e.field)}</strong>: ${ifrEscape(e.evidence)} <em>(${ifrEscape(e.source)})</em></li>`).join('')+'</ul>':''}<button class="rule-action-btn primary" style="margin:8px 0" onclick="openPartnerReply('${item.id}')">Responder com documentos</button><details><summary>Ver resposta atual isolada</summary><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${ifrEscape(item.latestText||'')}</pre></details></div></details>`}).join('');}catch{el.innerHTML='<small style="color:var(--warning)">Não foi possível carregar o histórico automático.</small>';}}
 
 // 3. COTAÇÕES — Estado global
 let allQuotations = [];
@@ -6829,6 +7007,8 @@ async function loadQuotationIntoDraft() {
     
     if (quotation) {
       currentQuotationId = quotation.id;
+      sourceDocumentsUploadedForQuotation = quotation.id;
+      await loadQuotationDocuments();
       window.lastExtractedRawText = null;
       window.lastEmailExtraction = null;
       if (quotation.extractionAudit) {

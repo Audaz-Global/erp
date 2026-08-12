@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { sendOutlookEmail, searchEmails } from '../services/outlookService';
+import { replyOutlookEmail, sendOutlookEmail, searchEmails } from '../services/outlookService';
 import { marked } from 'marked';
 
 const router = Router();
@@ -11,7 +11,7 @@ marked.setOptions({ breaks: true });
 // Rota para disparar o e-mail de cotação via Outlook
 router.post('/send-draft', async (req: Request, res: Response) => {
   try {
-    const { quotationId, htmlBody, subject, agentEmail, agentName, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail } = req.body;
+    const { quotationId, htmlBody, subject, agentEmail, agentName, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail, attachmentIds = [], truckerAttachmentIds = [] } = req.body;
 
     if (!quotationId) return res.status(400).json({ error: 'quotationId é obrigatório' });
     if (!agentEmail) return res.status(400).json({ error: 'agentEmail é obrigatório' });
@@ -20,6 +20,8 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
 
     let targetQuotationId = quotation.id;
+    let effectiveAttachmentIds: string[] = Array.isArray(attachmentIds) ? attachmentIds : [];
+    let effectiveTruckerAttachmentIds: string[] = Array.isArray(truckerAttachmentIds) ? truckerAttachmentIds : [];
     let baseReference = quotation.reference || quotation.id.substring(0,6).toUpperCase();
     let targetReference = baseReference;
     let mailSubject = subject || `Solicitação de Cotação de Frete - REF: ${targetReference}`;
@@ -54,6 +56,21 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       });
 
       targetQuotationId = clone.id;
+
+      const sourceDocuments = await prisma.quotationDocument.findMany({ where: { quotationId: quotation.id } });
+      if (sourceDocuments.length) {
+        await prisma.quotationDocument.createMany({ data: sourceDocuments.map(document => ({
+          quotationId: clone.id, blobId: document.blobId, originalName: document.originalName, origin: document.origin,
+          sourceContainerName: document.sourceContainerName, forwardByDefault: document.forwardByDefault, createdById: document.createdById
+        })), skipDuplicates: true });
+        const clonedDocuments = await prisma.quotationDocument.findMany({ where: { quotationId: clone.id } });
+        const remap = (ids: string[]) => ids.map(id => {
+          const source = sourceDocuments.find(document => document.id === id);
+          return source ? clonedDocuments.find(document => document.blobId === source.blobId && document.originalName === source.originalName)?.id : undefined;
+        }).filter((id): id is string => Boolean(id));
+        effectiveAttachmentIds = remap(effectiveAttachmentIds);
+        effectiveTruckerAttachmentIds = remap(effectiveTruckerAttachmentIds);
+      }
     }
 
     // Podemos adicionar uma folha de estilos básica para que o e-mail não fique feio no Outlook
@@ -71,7 +88,18 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     const finalHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedHtml}</body></html>`;
 
     // Envia usando a Microsoft Graph API (draft+send para capturar conversationId)
-    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail);
+    const selectedDocuments = await prisma.quotationDocument.findMany({
+      where: { quotationId: targetQuotationId, id: { in: effectiveAttachmentIds } }, include: { blob: true }
+    });
+    const outlookAttachments = selectedDocuments.map(document => ({
+      name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
+    }));
+    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail, outlookAttachments);
+    await prisma.quotationEmailDispatch.create({ data: {
+      quotationId: targetQuotationId, recipientType: 'PARTNER', recipientEmail: agentEmail, subject: mailSubject,
+      conversationId, attachmentIds: JSON.stringify(selectedDocuments.map(item => item.id)),
+      attachmentNames: JSON.stringify(selectedDocuments.map(item => item.originalName)), status: 'SENT'
+    } });
 
     // Se houver necessidade de transporte terrestre e o e-mail da transportadora for fornecido
     let truckerConversationId = null;
@@ -82,8 +110,18 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         const renderedTruckerHtml = await marked.parse(truckerMarkdown);
         const finalTruckerHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedTruckerHtml}</body></html>`;
         
-        const truckerRes = await sendOutlookEmail(truckerEmail, truckerSubject, finalTruckerHtmlEmail, truckerCcEmail);
+        const selectedTruckerDocuments = await prisma.quotationDocument.findMany({
+          where: { quotationId: targetQuotationId, id: { in: effectiveTruckerAttachmentIds } }, include: { blob: true }
+        });
+        const truckerRes = await sendOutlookEmail(truckerEmail, truckerSubject, finalTruckerHtmlEmail, truckerCcEmail, selectedTruckerDocuments.map(document => ({
+          name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
+        })));
         truckerConversationId = truckerRes.conversationId;
+        await prisma.quotationEmailDispatch.create({ data: {
+          quotationId: targetQuotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail, subject: truckerSubject,
+          conversationId: truckerConversationId, attachmentIds: JSON.stringify(selectedTruckerDocuments.map(item => item.id)),
+          attachmentNames: JSON.stringify(selectedTruckerDocuments.map(item => item.originalName)), status: 'SENT'
+        } });
         console.log(`[Outlook] E-mail de transportadora enviado para ${truckerEmail} | REF: ${targetReference} | ConversationId: ${truckerConversationId || 'N/A'}`);
       } catch (tErr: any) {
         console.error('Erro ao enviar e-mail da transportadora pelo Outlook:', tErr);
@@ -112,7 +150,42 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     res.json({ success: true, quotation: updated });
   } catch (error: any) {
     console.error('Erro ao disparar Outlook:', error);
+    const quotationId = String(req.body?.quotationId || '');
+    const recipientEmail = String(req.body?.agentEmail || '');
+    if (quotationId && recipientEmail) {
+      await prisma.quotationEmailDispatch.create({ data: {
+        quotationId, recipientType: 'PARTNER', recipientEmail, subject: req.body?.subject || null,
+        attachmentIds: JSON.stringify(Array.isArray(req.body?.attachmentIds) ? req.body.attachmentIds : []),
+        status: 'FAILED', errorMessage: String(error.message || 'Falha no envio').slice(0, 1000)
+      } }).catch(() => undefined);
+    }
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/reply/:responseId', async (req: Request, res: Response) => {
+  try {
+    const responseVersion = await prisma.agentResponseVersion.findUnique({ where: { id: req.params.responseId } });
+    if (!responseVersion) return res.status(404).json({ error: 'Resposta do parceiro não encontrada.' });
+    const htmlBody = String(req.body?.htmlBody || '').trim();
+    if (!htmlBody) return res.status(400).json({ error: 'Escreva uma mensagem antes de responder.' });
+    const attachmentIds = Array.isArray(req.body?.attachmentIds) ? req.body.attachmentIds : [];
+    const documents = await prisma.quotationDocument.findMany({
+      where: { quotationId: responseVersion.quotationId, id: { in: attachmentIds } }, include: { blob: true }
+    });
+    const renderedHtml = await marked.parse(htmlBody);
+    const result = await replyOutlookEmail(responseVersion.messageId, String(renderedHtml), documents.map(document => ({
+      name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
+    })));
+    await prisma.quotationEmailDispatch.create({ data: {
+      quotationId: responseVersion.quotationId, recipientType: 'PARTNER_REPLY', recipientEmail: responseVersion.senderEmail || '',
+      subject: responseVersion.subject ? `RE: ${responseVersion.subject}` : 'Resposta ao parceiro', conversationId: result.conversationId,
+      attachmentIds: JSON.stringify(documents.map(item => item.id)), attachmentNames: JSON.stringify(documents.map(item => item.originalName)), status: 'SENT'
+    } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Erro ao responder e-mail pelo Outlook:', error);
+    res.status(500).json({ error: error.message || 'Falha ao responder o e-mail.' });
   }
 });
 
