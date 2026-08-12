@@ -29,7 +29,9 @@ export function incotermRuleScopesOverlap(left: RuleOrderScope, right: RuleOrder
 }
 
 export async function lockIncotermRuleOrdering(prisma: PrismaLike): Promise<void> {
-  await prisma.$queryRawUnsafe('SELECT pg_advisory_xact_lock(74201931)');
+  // Retorna apenas um inteiro, pois o Prisma não desserializa o tipo void
+  // produzido quando pg_advisory_xact_lock é selecionado diretamente.
+  await prisma.$queryRawUnsafe('SELECT 1::int AS acquired FROM pg_advisory_xact_lock(74201931)');
 }
 
 export async function findIncotermRuleOrderConflict(
