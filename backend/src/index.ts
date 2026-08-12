@@ -6,6 +6,7 @@ import path from 'path';
 import { prisma } from './prisma';
 import { backfillIncotermRuleStandardFees } from './services/standardFeeLinkService';
 import { normalizeIncotermRuleSortOrders } from './services/incotermRuleOrderService';
+import { backfillQuotationHistory } from './services/quotationHistoryService';
 export { prisma };
 
 const app = express();
@@ -99,6 +100,9 @@ async function startServer() {
 
   const normalizedOrders = await normalizeIncotermRuleSortOrders(prisma);
   if (normalizedOrders > 0) console.log(`✅ ${normalizedOrders} ordem(ns) de regras de Incoterm corrigida(s).`);
+
+  const historyRecords = await backfillQuotationHistory(prisma);
+  if (historyRecords > 0) console.log(`✅ ${historyRecords} registro(s) histórico(s) reconstruído(s).`);
 
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);

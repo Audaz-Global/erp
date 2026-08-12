@@ -2,6 +2,11 @@ import { fetchEmailAttachments, fetchEmailsByConversationId, fetchUnreadEmails, 
 import { prisma } from '../prisma';
 import { extractAgentCosts } from './aiService';
 import { buildThreadContext, extractOutlookAttachments, mergeExtractedCosts, mergeFeeLists, splitAgentReply } from './agentResponseService';
+import { findRequestCycle, markCycleResponse, recordQuotationEvent } from './quotationHistoryService';
+
+const quotationChangesForAgent = (updateData: Record<string, any>) => Object.fromEntries(
+  Object.entries(updateData).filter(([field]) => !['agentResponseRaw', 'costsData'].includes(field)).map(([field, value]) => [field, { to: value }])
+);
 import { applyRateValidityPolicy, rateValidityFields } from './rateValidityService';
 import { applyMinLclStorage } from '../utils/cargoUtils';
 
@@ -172,6 +177,9 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
   const receivedAt = email.receivedDateTime && !isNaN(Date.parse(email.receivedDateTime)) ? new Date(email.receivedDateTime) : null;
   const senderEmail = email.from?.emailAddress?.address || null;
   const reply = splitAgentReply(bodyContent);
+  let requestCycle = receivedAt ? await findRequestCycle(prisma, {
+    quotationId: quotation.id, conversationId: email.conversationId || null, senderEmail, receivedAt
+  }) : null;
 
   const version = await prisma.agentResponseVersion.upsert({
     where: { messageId },
@@ -179,14 +187,21 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       quotationId: quotation.id, messageId, conversationId: email.conversationId || null,
       subject: email.subject || null, senderEmail, receivedAt, matchLayer,
       latestText: reply.latestText, quotedHistory: reply.quotedHistory, signature: reply.signature,
-      processingStatus: 'PROCESSING', attempts: 1
+      processingStatus: 'PROCESSING', attempts: 1, requestCycleId: requestCycle?.id || null
     },
     update: {
       quotationId: quotation.id, conversationId: email.conversationId || null,
       subject: email.subject || null, senderEmail, receivedAt, matchLayer,
       latestText: reply.latestText, quotedHistory: reply.quotedHistory, signature: reply.signature,
-      processingStatus: 'PROCESSING', errorMessage: null, attempts: { increment: 1 }
+      processingStatus: 'PROCESSING', errorMessage: null, attempts: { increment: 1 }, requestCycleId: requestCycle?.id || null
     }
+  });
+  if (requestCycle && receivedAt) requestCycle = await markCycleResponse(prisma, requestCycle, receivedAt, false);
+  if (!existingVersion) await recordQuotationEvent(prisma, {
+    quotationId: quotation.id, type: 'PARTNER_RESPONSE_RECEIVED', eventAt: receivedAt || new Date(),
+    actorType: 'OUTLOOK', channel: 'OUTLOOK', partnerEmail: senderEmail,
+    sourceType: 'AGENT_RESPONSE', sourceId: version.id,
+    metadata: { subject: email.subject || null, requestCycleId: requestCycle?.id || null, matchLayer }
   });
 
   try {
@@ -226,10 +241,17 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       const has = (...fields: string[]) => fields.some(field => presentFields.has(field));
 
       if (presentFields.size === 0) {
-        await prisma.agentResponseVersion.update({ where: { id: version.id }, data: {
-          attachmentNames: JSON.stringify(attachments.names), extractedData: JSON.stringify(c), confidence: c.confidence ?? null,
-          processingStatus: 'NO_VALUES', processedAt: new Date(), errorMessage: 'Nenhum valor novo foi identificado na resposta atual.'
-        } });
+        await prisma.$transaction(async tx => {
+          await tx.agentResponseVersion.update({ where: { id: version.id }, data: {
+            attachmentNames: JSON.stringify(attachments.names), extractedData: JSON.stringify(c), confidence: c.confidence ?? null,
+            processingStatus: 'NO_VALUES', processedAt: new Date(), errorMessage: 'Nenhum valor novo foi identificado na resposta atual.'
+          } });
+          await recordQuotationEvent(tx, {
+            quotationId: quotation.id, type: 'RESPONSE_PROCESSED_NO_VALUES', actorType: 'AI', channel: 'OUTLOOK',
+            partnerEmail: senderEmail, sourceType: 'AGENT_RESPONSE', sourceId: version.id,
+            metadata: { requestCycleId: requestCycle?.id || null, attachmentNames: attachments.names }
+          });
+        });
         console.log(`[Outlook] Resposta sem valores novos | Cotação: ${quotation.id} | Mensagem: ${messageId}`);
         return true;
       }
@@ -309,20 +331,33 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
         updateData.commercialValue = c.invoice_value;
       }
 
-      await prisma.$transaction([
-        prisma.quotation.update({ where: { id: quotation.id }, data: updateData }),
-        prisma.agentResponseVersion.update({ where: { id: version.id }, data: {
+      await prisma.$transaction(async tx => {
+        await tx.quotation.update({ where: { id: quotation.id }, data: updateData });
+        await tx.agentResponseVersion.update({ where: { id: version.id }, data: {
           attachmentNames: JSON.stringify(attachments.names), extractedData: JSON.stringify(c), confidence: c.confidence ?? null,
-          processingStatus: 'SUCCESS', processedAt: new Date(), errorMessage: null
-        } })
-      ]);
+          processingStatus: 'SUCCESS', processedAt: new Date(), errorMessage: null, requestCycleId: requestCycle?.id || null
+        } });
+        if (requestCycle && receivedAt) await markCycleResponse(tx, requestCycle, receivedAt, true);
+        await recordQuotationEvent(tx, {
+          quotationId: quotation.id, type: 'RESPONSE_PROCESSED_WITH_VALUES', actorType: 'AI', channel: 'OUTLOOK',
+          partnerEmail: senderEmail, previousStatus: quotation.status, newStatus: 'RETORNO_RECEBIDO',
+          changes: quotationChangesForAgent(updateData), sourceType: 'AGENT_RESPONSE', sourceId: version.id,
+          metadata: { requestCycleId: requestCycle?.id || null, presentFields: [...presentFields], attachmentNames: attachments.names }
+        });
+      });
       console.log(`[Outlook] ✅ Retorno processado | Cotação: ${quotation.id} | REF: ${quotation.reference} | Camada: ${matchLayer} | Assunto: "${email.subject}"`);
       return true;
     }
     await prisma.agentResponseVersion.update({ where: { id: version.id }, data: { processingStatus: 'NO_VALUES', processedAt: new Date(), errorMessage: 'A IA não retornou custos estruturados.' } });
+    await recordQuotationEvent(prisma, { quotationId: quotation.id, type: 'RESPONSE_PROCESSED_NO_VALUES', actorType: 'AI', sourceType: 'AGENT_RESPONSE', sourceId: version.id });
     return true;
   } catch(e: any) {
     await prisma.agentResponseVersion.update({ where: { id: version.id }, data: { processingStatus: 'FAILED', errorMessage: String(e?.message || e).slice(0, 2000), processedAt: new Date() } }).catch(() => undefined);
+    await recordQuotationEvent(prisma, {
+      quotationId: quotation.id, type: 'RESPONSE_PROCESSING_FAILED', actorType: 'AI', channel: 'OUTLOOK',
+      partnerEmail: senderEmail, sourceType: 'AGENT_RESPONSE', sourceId: version.id,
+      metadata: { error: String(e?.message || e).slice(0, 1000) }
+    }).catch(() => undefined);
     console.error(`[Outlook] ❌ Erro ao extrair custos via IA para cotação ${quotation.id}:`, e);
     return false;
   }

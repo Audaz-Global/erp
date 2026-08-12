@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { documentPublicSelect, extractEmailAttachments, persistQuotationDocument, validateDocument } from '../services/quotationDocumentService';
+import { recordQuotationEvent } from '../services/quotationHistoryService';
 
 const originValues = new Set(['CLIENT_EMAIL', 'MANUAL', 'WHATSAPP', 'PARTNER_REPLY']);
 
@@ -33,6 +34,12 @@ export async function uploadQuotationDocuments(req: Request, res: Response) {
         }
       }
     }
+    await recordQuotationEvent(prisma, {
+      quotationId, type: 'DOCUMENTS_ADDED', actorType: 'USER',
+      actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
+      channel: origin === 'CLIENT_EMAIL' ? 'EMAIL' : origin,
+      metadata: { documents: saved.map(item => ({ id: item.id, name: item.originalName, origin: item.origin, size: item.blob?.size })) }
+    });
     res.status(201).json(saved);
   } catch (error: any) {
     console.error('Erro no upload de documentos:', error);
@@ -71,6 +78,11 @@ export async function deleteQuotationDocument(req: Request, res: Response) {
   const document = await prisma.quotationDocument.findFirst({ where: { id: req.params.documentId, quotationId: req.params.id } });
   if (!document) return res.status(404).json({ error: 'Documento não encontrado.' });
   await prisma.quotationDocument.delete({ where: { id: document.id } });
+  await recordQuotationEvent(prisma, {
+    quotationId: String(req.params.id), type: 'DOCUMENT_REMOVED', actorType: 'USER',
+    actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
+    metadata: { documentId: document.id, name: document.originalName, origin: document.origin }
+  });
   const references = await prisma.quotationDocument.count({ where: { blobId: document.blobId } });
   if (!references) await prisma.documentBlob.delete({ where: { id: document.blobId } }).catch(() => undefined);
   res.status(204).send();

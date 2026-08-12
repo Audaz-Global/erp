@@ -851,6 +851,19 @@
   .document-delete { border:0; background:transparent; color:#7f8998; cursor:pointer; font-size:11px; }
   .document-delete:hover { color:var(--error); }
   .document-empty { padding:16px; border:1px dashed rgba(255,255,255,.1); border-radius:9px; color:var(--text-muted); font-size:11px; text-align:center; }
+  .response-metrics { margin-bottom:18px; padding:18px 20px; }
+  .response-metrics-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .response-metric { padding:13px; border:1px solid rgba(255,255,255,.07); border-radius:10px; background:rgba(0,0,0,.16); }
+  .response-metric strong { display:block; font-size:20px; }
+  .response-metric small { color:var(--text-muted); font-size:10px; }
+  .partner-metric-list { margin-top:12px; display:grid; gap:6px; }
+  .partner-metric-row { display:grid; grid-template-columns:minmax(180px,1fr) repeat(4,110px); gap:8px; align-items:center; padding:8px 10px; border-top:1px solid rgba(255,255,255,.06); font-size:11px; }
+  .quotation-timeline { grid-column:1/-1; }
+  .timeline-item { position:relative; padding:2px 0 15px 22px; border-left:1px solid rgba(255,255,255,.1); margin-left:5px; }
+  .timeline-item::before { content:''; position:absolute; width:9px; height:9px; left:-5px; top:5px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(245,166,35,.09); }
+  .timeline-item strong { display:block; color:#e7eaf0; font-size:11px; }
+  .timeline-item small { color:#778294; font-size:10px; }
+  .timeline-change { margin-top:5px; color:#9da6b4; font-size:10px; }
 
   @media (max-width:900px) {
     .settings-sidebar { width:72px; padding-inline:8px; }
@@ -890,6 +903,9 @@
     .document-selection-legend { display:none; }
     .quotation-document-row { grid-template-columns:1fr 42px 42px 32px; }
     .document-check span { display:none; }
+    .response-metrics-grid { grid-template-columns:1fr 1fr; }
+    .partner-metric-row { grid-template-columns:1fr 80px; }
+    .partner-metric-row span:nth-child(3), .partner-metric-row span:nth-child(4), .partner-metric-row span:nth-child(5) { display:none; }
   }
 </style>
 </head>
@@ -1433,6 +1449,7 @@
         <div class="sc-data"><div id="sc-profit" style="color: var(--success); line-height: 1.2;"></div><p style="margin-top:4px;">Lucro (Estimado)</p></div>
       </div>
     </div>
+    <div class="card response-metrics" id="responseMetricsPanel"><p style="color:var(--text-muted);font-size:12px">Carregando indicadores de resposta dos parceiros...</p></div>
 
     <!-- Toolbar: busca e filtros -->
     <div class="card" style="padding: 20px 24px;">
@@ -4990,11 +5007,38 @@ async function loadQuotations() {
     }).catch(() => {});
 
     updateSummaryCards();
+    loadPartnerResponseMetrics();
     filterQuotations();
   } catch(e) {
     fetch(API + '/log-error', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'Erro TryCatch no loadQuotations', err: e.message }) }).catch(() => {});
     toast('Erro ao carregar cotações: ' + e.message);
   }
+}
+
+function formatResponseDuration(minutes) {
+  if (minutes == null) return '—';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60), mins = minutes % 60;
+  return `${hours}h${mins ? ' ' + mins + 'min' : ''}`;
+}
+
+async function loadPartnerResponseMetrics() {
+  const panel = document.getElementById('responseMetricsPanel');
+  if (!panel) return;
+  try {
+    const response = await fetch(API + '/quotations/metrics/partner-responses');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Falha ao carregar indicadores.');
+    const summary = data.summary || {};
+    panel.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><strong style="font-size:14px">Tempo de resposta dos parceiros</strong><small style="display:block;color:var(--text-muted);margin-top:3px">Primeira resposta e retorno completo medidos por ciclo de solicitação.</small></div><span class="status-badge approved">${summary.responseRate || 0}% respondidas</span></div>
+      <div class="response-metrics-grid">
+        <div class="response-metric"><strong>${summary.requests || 0}</strong><small>Solicitações enviadas</small></div>
+        <div class="response-metric"><strong>${formatResponseDuration(summary.medianFirstResponseMinutes)}</strong><small>Mediana da primeira resposta</small></div>
+        <div class="response-metric"><strong>${formatResponseDuration(summary.medianCompleteResponseMinutes)}</strong><small>Mediana até valores completos</small></div>
+        <div class="response-metric"><strong>${summary.pending || 0}</strong><small>Aguardando resposta</small></div>
+      </div>
+      ${(data.partners || []).length ? `<div class="partner-metric-list"><div class="partner-metric-row" style="color:var(--text-muted);text-transform:uppercase;font-size:9px"><span>Parceiro</span><span>Solicitações</span><span>Resposta</span><span>Completa</span><span>Pendentes</span></div>${data.partners.slice(0,8).map(partner => `<div class="partner-metric-row"><span><strong>${ifrEscape(partner.partnerName || partner.partnerEmail)}</strong><small style="display:block;color:var(--text-muted)">${ifrEscape(partner.partnerEmail)}</small></span><span>${partner.requests}</span><span>${formatResponseDuration(partner.medianFirstResponseMinutes)}</span><span>${formatResponseDuration(partner.medianCompleteResponseMinutes)}</span><span>${partner.pending}</span></div>`).join('')}</div>` : ''}`;
+  } catch (error) { panel.innerHTML = `<p style="color:var(--warning);font-size:11px">${ifrEscape(error.message)}</p>`; }
 }
 
 function updateSummaryCards() {
@@ -5268,11 +5312,52 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">Serviços (BRL)</span><span class="dd">R$${q.destinationServicesTotal != null ? Number(q.destinationServicesTotal).toFixed(2) : '—'}</span></div>
         <div class="dl"><span class="dt">Total (BRL)</span><span class="dd" style="color:var(--success); font-weight:700;">R$${q.totalBrl != null ? Number(q.totalBrl).toFixed(2) : '—'}</span></div>
       </div>
+      <div class="detail-group quotation-timeline" id="quotation-timeline-${q.id}"><h4>Histórico e evolução</h4><p style="color:var(--text-muted);font-size:11px">Carregando linha do tempo...</p></div>
     </div>
   </td>`;
 
   // Inserir logo após a row clicada
   rowEl.after(detailTr);
+  loadQuotationTimeline(q.id);
+}
+
+const TIMELINE_EVENT_LABELS = {
+  QUOTATION_CREATED:'Cotação criada', QUOTATION_CLONED:'Cotação duplicada para outro parceiro',
+  QUOTATION_UPDATED:'Dados da cotação alterados', STATUS_CHANGED:'Status alterado',
+  EMAIL_SENT:'Solicitação enviada', FOLLOW_UP_SENT:'Follow-up enviado', EMAIL_SEND_FAILED:'Falha no envio',
+  EMAIL_REPLY_SENT:'Resposta enviada ao parceiro', PARTNER_RESPONSE_RECEIVED:'Resposta recebida do parceiro',
+  RESPONSE_PROCESSED_WITH_VALUES:'Resposta processada com valores', RESPONSE_PROCESSED_NO_VALUES:'Resposta processada sem valores',
+  RESPONSE_PROCESSING_FAILED:'Falha ao processar resposta', DOCUMENTS_ADDED:'Documentos adicionados',
+  DOCUMENT_REMOVED:'Documento removido', PDF_GENERATED:'PDF gerado'
+};
+const TIMELINE_FIELD_LABELS = {
+  status:'Status', agentEmail:'E-mail do parceiro', agentName:'Parceiro', incoterm:'Incoterm', modal:'Modal', loadType:'Tipo de carga',
+  originCity:'Origem', originPort:'Porto de origem', destinationCity:'Destino', destinationPort:'Porto de destino',
+  totalGrossWeightKg:'Peso bruto', totalCbm:'CBM', totalPackages:'Volumes', commercialValue:'Valor comercial',
+  freightValue:'Frete', freightCurrency:'Moeda', carrier:'Armador', freeTimeDays:'Free time', rateValidUntil:'Validade',
+  totalBrl:'Total BRL', totalUsd:'Total USD', expectedProfit:'Lucro esperado'
+};
+
+function timelineJson(value) { try { return value ? JSON.parse(value) : null; } catch { return null; } }
+function timelineValue(value) { return value == null || value === '' ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value); }
+
+async function loadQuotationTimeline(quotationId) {
+  const container = document.getElementById('quotation-timeline-' + quotationId);
+  if (!container) return;
+  try {
+    const response = await fetch(`${API}/quotations/${quotationId}/timeline`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Falha ao carregar histórico.');
+    const cycles = data.cycles || [];
+    const cycleSummary = cycles.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px">${cycles.map(cycle => `<span class="status-badge ${cycle.status === 'OPEN' ? 'review' : 'approved'}" title="Enviado em ${new Date(cycle.sentAt).toLocaleString('pt-BR')}">${ifrEscape(cycle.partnerName || cycle.partnerEmail)} · ${cycle.status === 'OPEN' ? 'aguardando' : formatResponseDuration(cycle.firstResponseMinutes)}</span>`).join('')}</div>` : '';
+    const events = (data.events || []).slice().reverse();
+    container.innerHTML = `<h4>Histórico e evolução</h4>${cycleSummary}${events.length ? events.map(event => {
+      const changes = timelineJson(event.changes) || {};
+      const changeText = Object.entries(changes).slice(0,6).map(([field, values]) => `<div><strong>${ifrEscape(TIMELINE_FIELD_LABELS[field] || field)}:</strong> ${ifrEscape(timelineValue(values.from))} → ${ifrEscape(timelineValue(values.to))}</div>`).join('');
+      const statusText = event.previousStatus !== event.newStatus && event.newStatus ? ` · ${ifrEscape(event.previousStatus || '—')} → ${ifrEscape(event.newStatus)}` : '';
+      return `<div class="timeline-item"><strong>${ifrEscape(TIMELINE_EVENT_LABELS[event.type] || event.type)}${event.inferred ? ' <span style="color:var(--warning);font-size:9px">(reconstruído)</span>' : ''}</strong><small>${new Date(event.eventAt).toLocaleString('pt-BR')}${event.partnerName || event.partnerEmail ? ' · ' + ifrEscape(event.partnerName || event.partnerEmail) : ''}${statusText}</small>${changeText ? `<div class="timeline-change">${changeText}</div>` : ''}</div>`;
+    }).join('') : '<p style="color:var(--text-muted);font-size:11px">Nenhum evento registrado.</p>'}`;
+  } catch (error) { container.innerHTML = `<h4>Histórico e evolução</h4><p style="color:var(--warning);font-size:11px">${ifrEscape(error.message)}</p>`; }
 }
 
 function openEditQuotationModal(id) {

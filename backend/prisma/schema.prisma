@@ -168,6 +168,8 @@ model Quotation {
   agentResponses  AgentResponseVersion[]
   documents       QuotationDocument[]
   emailDispatches QuotationEmailDispatch[]
+  events          QuotationEvent[]
+  requestCycles   QuotationRequestCycle[]
 
   @@index([carrierProfileId])
 }
@@ -201,27 +203,29 @@ model QuotationDocument {
 }
 
 model QuotationEmailDispatch {
-  id              String    @id @default(uuid())
+  id              String                 @id @default(uuid())
   quotationId     String
-  quotation       Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  recipientType   String    @default("PARTNER")
+  quotation       Quotation              @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  recipientType   String                 @default("PARTNER")
   recipientEmail  String
   subject         String?
   conversationId  String?
   attachmentIds   String? // JSON array dos documentos efetivamente enviados
   attachmentNames String? // JSON array para auditoria imutável
-  status          String    @default("SENT")
+  status          String                 @default("SENT")
   errorMessage    String?
-  createdAt       DateTime  @default(now())
+  requestCycleId  String?
+  requestCycle    QuotationRequestCycle? @relation(fields: [requestCycleId], references: [id], onDelete: SetNull)
+  createdAt       DateTime               @default(now())
 
   @@index([quotationId, createdAt])
 }
 
 model AgentResponseVersion {
-  id               String    @id @default(uuid())
+  id               String                 @id @default(uuid())
   quotationId      String
-  quotation        Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  messageId        String    @unique
+  quotation        Quotation              @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  messageId        String                 @unique
   conversationId   String?
   subject          String?
   senderEmail      String?
@@ -233,15 +237,70 @@ model AgentResponseVersion {
   attachmentNames  String? // JSON array
   extractedData    String? // JSON com valores e evidências retornados pela IA
   confidence       Float?
-  processingStatus String    @default("PROCESSING") // PROCESSING, SUCCESS, NO_VALUES, FAILED
+  processingStatus String                 @default("PROCESSING") // PROCESSING, SUCCESS, NO_VALUES, FAILED
   errorMessage     String?
-  attempts         Int       @default(0)
+  attempts         Int                    @default(0)
   processedAt      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  requestCycleId   String?
+  requestCycle     QuotationRequestCycle? @relation(fields: [requestCycleId], references: [id], onDelete: SetNull)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@index([quotationId, receivedAt])
   @@index([processingStatus])
+}
+
+model QuotationEvent {
+  id             String    @id @default(uuid())
+  quotationId    String
+  quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  type           String
+  eventAt        DateTime  @default(now())
+  recordedAt     DateTime  @default(now())
+  actorType      String    @default("SYSTEM") // USER, SYSTEM, OUTLOOK, AI
+  actorId        String?
+  actorName      String?
+  channel        String?
+  partnerEmail   String?
+  partnerName    String?
+  previousStatus String?
+  newStatus      String?
+  changes        String? // JSON com valores anteriores e novos
+  metadata       String? // JSON com contexto adicional
+  sourceType     String?
+  sourceId       String?
+  inferred       Boolean   @default(false)
+
+  @@index([quotationId, eventAt])
+  @@index([type, eventAt])
+}
+
+model QuotationRequestCycle {
+  id                         String    @id @default(uuid())
+  quotationId                String
+  quotation                  Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  recipientType              String    @default("PARTNER")
+  partnerEmail               String
+  partnerName                String?
+  conversationId             String?
+  status                     String    @default("OPEN") // OPEN, RESPONDED, COMPLETED, FAILED, CLOSED
+  sentAt                     DateTime
+  firstResponseAt            DateTime?
+  substantiveResponseAt      DateTime?
+  firstResponseMinutes       Int?
+  substantiveResponseMinutes Int?
+  followUpCount              Int       @default(0)
+  closedAt                   DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  dispatches QuotationEmailDispatch[]
+  responses  AgentResponseVersion[]
+
+  @@index([quotationId, sentAt])
+  @@index([partnerEmail, sentAt])
+  @@index([conversationId])
+  @@index([status, sentAt])
 }
 
 model KnowledgeEntry {

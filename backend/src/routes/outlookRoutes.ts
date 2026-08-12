@@ -2,14 +2,50 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { replyOutlookEmail, sendOutlookEmail, searchEmails } from '../services/outlookService';
 import { marked } from 'marked';
+import { recordQuotationEvent } from '../services/quotationHistoryService';
 
 const router = Router();
 
 // Configuração do marked para quebrar linhas normalmente
 marked.setOptions({ breaks: true });
 
+async function recordSuccessfulDispatch(input: {
+  quotationId: string; recipientType: string; recipientEmail: string; partnerName?: string | null;
+  subject: string; conversationId: string | null; documents: Array<{ id: string; originalName: string }>;
+}) {
+  const sentAt = new Date();
+  return prisma.$transaction(async tx => {
+    let cycle = await tx.quotationRequestCycle.findFirst({
+      where: { quotationId: input.quotationId, recipientType: input.recipientType, partnerEmail: { equals: input.recipientEmail, mode: 'insensitive' }, status: { in: ['OPEN', 'RESPONDED'] } },
+      orderBy: { sentAt: 'desc' }
+    });
+    const isFollowUp = Boolean(cycle);
+    if (cycle) cycle = await tx.quotationRequestCycle.update({ where: { id: cycle.id }, data: {
+      followUpCount: { increment: 1 }, conversationId: cycle.conversationId || input.conversationId
+    } });
+    else cycle = await tx.quotationRequestCycle.create({ data: {
+      quotationId: input.quotationId, recipientType: input.recipientType, partnerEmail: input.recipientEmail,
+      partnerName: input.partnerName || null, conversationId: input.conversationId, sentAt
+    } });
+    const dispatch = await tx.quotationEmailDispatch.create({ data: {
+      quotationId: input.quotationId, recipientType: input.recipientType, recipientEmail: input.recipientEmail,
+      subject: input.subject, conversationId: input.conversationId,
+      attachmentIds: JSON.stringify(input.documents.map(item => item.id)),
+      attachmentNames: JSON.stringify(input.documents.map(item => item.originalName)), status: 'SENT', requestCycleId: cycle.id
+    } });
+    await recordQuotationEvent(tx, {
+      quotationId: input.quotationId, type: isFollowUp ? 'FOLLOW_UP_SENT' : 'EMAIL_SENT', eventAt: sentAt,
+      actorType: 'SYSTEM', channel: 'OUTLOOK', partnerEmail: input.recipientEmail, partnerName: input.partnerName,
+      newStatus: 'AGUARDANDO_AGENTE', sourceType: 'EMAIL_DISPATCH', sourceId: dispatch.id,
+      metadata: { recipientType: input.recipientType, attachmentNames: input.documents.map(item => item.originalName), requestCycleId: cycle.id }
+    });
+    return { dispatch, cycle };
+  });
+}
+
 // Rota para disparar o e-mail de cotação via Outlook
 router.post('/send-draft', async (req: Request, res: Response) => {
+  let auditQuotationId = String(req.body?.quotationId || '');
   try {
     const { quotationId, htmlBody, subject, agentEmail, agentName, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail, attachmentIds = [], truckerAttachmentIds = [] } = req.body;
 
@@ -56,6 +92,12 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       });
 
       targetQuotationId = clone.id;
+      auditQuotationId = clone.id;
+      await recordQuotationEvent(prisma, {
+        quotationId: clone.id, type: 'QUOTATION_CLONED', actorType: 'SYSTEM',
+        previousStatus: quotation.status, newStatus: 'AGUARDANDO_AGENTE',
+        partnerEmail: agentEmail, partnerName: agentName, metadata: { sourceQuotationId: quotation.id }
+      });
 
       const sourceDocuments = await prisma.quotationDocument.findMany({ where: { quotationId: quotation.id } });
       if (sourceDocuments.length) {
@@ -95,11 +137,8 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
     }));
     const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail, outlookAttachments);
-    await prisma.quotationEmailDispatch.create({ data: {
-      quotationId: targetQuotationId, recipientType: 'PARTNER', recipientEmail: agentEmail, subject: mailSubject,
-      conversationId, attachmentIds: JSON.stringify(selectedDocuments.map(item => item.id)),
-      attachmentNames: JSON.stringify(selectedDocuments.map(item => item.originalName)), status: 'SENT'
-    } });
+    await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: 'PARTNER', recipientEmail: agentEmail,
+      partnerName: agentName, subject: mailSubject, conversationId, documents: selectedDocuments });
 
     // Se houver necessidade de transporte terrestre e o e-mail da transportadora for fornecido
     let truckerConversationId = null;
@@ -117,11 +156,8 @@ router.post('/send-draft', async (req: Request, res: Response) => {
           name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
         })));
         truckerConversationId = truckerRes.conversationId;
-        await prisma.quotationEmailDispatch.create({ data: {
-          quotationId: targetQuotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail, subject: truckerSubject,
-          conversationId: truckerConversationId, attachmentIds: JSON.stringify(selectedTruckerDocuments.map(item => item.id)),
-          attachmentNames: JSON.stringify(selectedTruckerDocuments.map(item => item.originalName)), status: 'SENT'
-        } });
+        await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
+          partnerName: truckerName, subject: truckerSubject, conversationId: truckerConversationId, documents: selectedTruckerDocuments });
         console.log(`[Outlook] E-mail de transportadora enviado para ${truckerEmail} | REF: ${targetReference} | ConversationId: ${truckerConversationId || 'N/A'}`);
       } catch (tErr: any) {
         console.error('Erro ao enviar e-mail da transportadora pelo Outlook:', tErr);
@@ -150,7 +186,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     res.json({ success: true, quotation: updated });
   } catch (error: any) {
     console.error('Erro ao disparar Outlook:', error);
-    const quotationId = String(req.body?.quotationId || '');
+    const quotationId = auditQuotationId;
     const recipientEmail = String(req.body?.agentEmail || '');
     if (quotationId && recipientEmail) {
       await prisma.quotationEmailDispatch.create({ data: {
@@ -158,6 +194,10 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         attachmentIds: JSON.stringify(Array.isArray(req.body?.attachmentIds) ? req.body.attachmentIds : []),
         status: 'FAILED', errorMessage: String(error.message || 'Falha no envio').slice(0, 1000)
       } }).catch(() => undefined);
+      await recordQuotationEvent(prisma, {
+        quotationId, type: 'EMAIL_SEND_FAILED', actorType: 'SYSTEM', channel: 'OUTLOOK', partnerEmail: recipientEmail,
+        metadata: { error: String(error.message || 'Falha no envio').slice(0, 1000) }
+      }).catch(() => undefined);
     }
     res.status(500).json({ error: error.message });
   }
@@ -180,8 +220,14 @@ router.post('/reply/:responseId', async (req: Request, res: Response) => {
     await prisma.quotationEmailDispatch.create({ data: {
       quotationId: responseVersion.quotationId, recipientType: 'PARTNER_REPLY', recipientEmail: responseVersion.senderEmail || '',
       subject: responseVersion.subject ? `RE: ${responseVersion.subject}` : 'Resposta ao parceiro', conversationId: result.conversationId,
-      attachmentIds: JSON.stringify(documents.map(item => item.id)), attachmentNames: JSON.stringify(documents.map(item => item.originalName)), status: 'SENT'
+      attachmentIds: JSON.stringify(documents.map(item => item.id)), attachmentNames: JSON.stringify(documents.map(item => item.originalName)),
+      status: 'SENT', requestCycleId: responseVersion.requestCycleId
     } });
+    await recordQuotationEvent(prisma, {
+      quotationId: responseVersion.quotationId, type: 'EMAIL_REPLY_SENT', actorType: 'USER', channel: 'OUTLOOK',
+      partnerEmail: responseVersion.senderEmail, sourceType: 'AGENT_RESPONSE', sourceId: responseVersion.id,
+      metadata: { attachmentNames: documents.map(item => item.originalName) }
+    });
     res.json({ success: true });
   } catch (error: any) {
     console.error('Erro ao responder e-mail pelo Outlook:', error);

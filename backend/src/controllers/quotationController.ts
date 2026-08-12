@@ -8,6 +8,7 @@ import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/i
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
 import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
+import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -99,6 +100,11 @@ export const createQuotation = async (req: Request, res: Response) => {
     };
 
     const quotation = await prisma.quotation.create({ data });
+    await recordQuotationEvent(prisma, {
+      quotationId: quotation.id, type: 'QUOTATION_CREATED', actorType: 'USER',
+      actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
+      newStatus: quotation.status, metadata: { reference: quotation.reference }
+    });
     res.status(201).json(quotation);
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
@@ -126,7 +132,7 @@ export const getQuotations = async (req: Request, res: Response) => {
 // 3. Get single Quotation
 export const getQuotationById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const quotation = await prisma.quotation.findUnique({
       where: { id },
       include: { client: true }
@@ -141,7 +147,9 @@ export const getQuotationById = async (req: Request, res: Response) => {
 // 4. Update Quotation
 export const updateQuotation = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
+    const current = await prisma.quotation.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
     
     // Desestruturar campos que não pertencem ao model Quotation
     const { 
@@ -156,7 +164,6 @@ export const updateQuotation = async (req: Request, res: Response) => {
     } = req.body;
 
     if (ruleStage) {
-      const current = await prisma.quotation.findUnique({ where: { id } });
       await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
     }
@@ -203,6 +210,12 @@ export const updateQuotation = async (req: Request, res: Response) => {
       where: { id },
       data: updateData,
       include: { client: true }
+    });
+    const changes = quotationChanges(current, quotation);
+    if (Object.keys(changes).length) await recordQuotationEvent(prisma, {
+      quotationId: id, type: current.status !== quotation.status ? 'STATUS_CHANGED' : 'QUOTATION_UPDATED', actorType: 'USER',
+      actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
+      previousStatus: current.status, newStatus: quotation.status, changes
     });
     res.json(quotation);
   } catch (error: any) {
@@ -266,6 +279,7 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
       ...quotation,
       publicWebViewUrl
     });
+    await recordQuotationEvent(prisma, { quotationId: quotation.id, type: 'PDF_GENERATED', actorType: 'USER', channel: 'SYSTEM' });
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -287,7 +301,9 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
 // 7. Update Quotation Status / Phase
 export const updatePhase = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
+    const current = await prisma.quotation.findUnique({ where: { id } });
+    if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
     const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak } = req.body;
 
     const updateData: any = { status };
@@ -335,6 +351,13 @@ export const updatePhase = async (req: Request, res: Response) => {
     const updated = await prisma.quotation.update({
       where: { id },
       data: updateData
+    });
+
+    const changes = quotationChanges(current, updated);
+    if (Object.keys(changes).length) await recordQuotationEvent(prisma, {
+      quotationId: id, type: current.status !== updated.status ? 'STATUS_CHANGED' : 'QUOTATION_UPDATED', actorType: 'USER',
+      actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
+      previousStatus: current.status, newStatus: updated.status, changes
     });
 
     res.json(updated);
