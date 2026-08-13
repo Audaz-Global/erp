@@ -9,6 +9,7 @@ import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/car
 import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
+import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -35,6 +36,7 @@ export const createQuotation = async (req: Request, res: Response) => {
 
     // Extract non-quotation fields
     const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
+    normalizeDangerousGoodsPayload(quotationData);
     if (ruleStage) await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase());
     if (ruleStage) await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase());
 
@@ -105,7 +107,7 @@ export const createQuotation = async (req: Request, res: Response) => {
       actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
       newStatus: quotation.status, metadata: { reference: quotation.reference }
     });
-    res.status(201).json(quotation);
+    res.status(201).json(withDangerousGoodsCompliance(quotation));
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
@@ -123,7 +125,7 @@ export const getQuotations = async (req: Request, res: Response) => {
         createdBy: { select: { name: true } }
       }
     });
-    res.json(quotations);
+    res.json(quotations.map(withDangerousGoodsCompliance));
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar cotações' });
   }
@@ -138,7 +140,7 @@ export const getQuotationById = async (req: Request, res: Response) => {
       include: { client: true }
     });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
-    res.json(quotation);
+    res.json(withDangerousGoodsCompliance(quotation));
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar a cotação' });
   }
@@ -168,7 +170,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
     }
 
-    const updateData: any = { ...quotationData };
+    const updateData: any = normalizeDangerousGoodsPayload({ ...quotationData }, current);
     if (sourceEmails !== undefined) updateData.sourceEmails = sourceEmails;
     if (updateData.packages && !updateData.totalCbm) {
       updateData.totalCbm = calculateCbmFromDimensions(updateData.packages, updateData.totalPackages || 1);
@@ -217,7 +219,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
       actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
       previousStatus: current.status, newStatus: quotation.status, changes
     });
-    res.json(quotation);
+    res.json(withDangerousGoodsCompliance(quotation));
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
     res.status(error instanceof IncotermFieldRuleError || error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });

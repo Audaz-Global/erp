@@ -1,4 +1,5 @@
 import { htmlToStructuredText, parseExcel, parseMsg, parsePdf } from './parserService';
+import { normalizeFeeList } from './dangerousGoodsService';
 
 export interface ReplyParts {
   latestText: string;
@@ -102,10 +103,11 @@ export function mergeFeeLists(savedValue: string | null | undefined, incoming: a
   const key = (fee: any) => String(fee?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   for (const fee of incoming || []) {
     const index = result.findIndex((existing: any) => key(existing) === key(fee));
-    if (index >= 0) result[index] = { ...result[index], ...fee };
-    else result.push(fee);
+    const normalizedFee = normalizeFeeList([fee])[0] || fee;
+    if (index >= 0) result[index] = { ...result[index], ...normalizedFee };
+    else result.push(normalizedFee);
   }
-  return result;
+  return normalizeFeeList(result);
 }
 
 export function mergeExtractedCosts(previousValue: string | null | undefined, incoming: any, presentFields: Set<string>) {

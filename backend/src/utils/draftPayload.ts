@@ -1,4 +1,5 @@
 import type { Quotation } from '@prisma/client';
+import { normalizeDangerousGoodsStatus, normalizeMsdsStatus } from '../services/dangerousGoodsService';
 
 export interface DraftPayload {
   reference: string | null;
@@ -23,6 +24,10 @@ export interface DraftPayload {
   commercialValue: number | null;
   commercialCurrency: string | null;
   isImo: boolean;
+  dangerousGoodsStatus: string;
+  msdsStatus: string;
+  unNumber: string | null;
+  dangerousGoodsClass: string | null;
   requiresInsurance: boolean;
   needsOriginInland: boolean;
   originInlandRoute: string | null;
@@ -37,6 +42,7 @@ export interface DraftPayload {
 type QuotationWithClient = Quotation & { client?: { name?: string; cnpj?: string | null } | null };
 
 export function buildDraftPayload(quotation: QuotationWithClient, originalEmailText: string): DraftPayload {
+  const dangerousGoodsStatus = normalizeDangerousGoodsStatus(quotation.dangerousGoodsStatus, quotation.isImo);
   return {
     reference: quotation.reference,
     direction: quotation.direction,
@@ -60,6 +66,10 @@ export function buildDraftPayload(quotation: QuotationWithClient, originalEmailT
     commercialValue: quotation.commercialValue,
     commercialCurrency: quotation.commercialCurrency,
     isImo: quotation.isImo,
+    dangerousGoodsStatus,
+    msdsStatus: normalizeMsdsStatus(quotation.msdsStatus, dangerousGoodsStatus),
+    unNumber: quotation.unNumber,
+    dangerousGoodsClass: quotation.dangerousGoodsClass,
     requiresInsurance: quotation.requiresInsurance,
     needsOriginInland: quotation.needsOriginInland,
     originInlandRoute: quotation.originInlandRoute,

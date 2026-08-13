@@ -92,6 +92,16 @@ model Quotation {
   totalCbm           Float?
   totalPackages      Int?
   isImo              Boolean @default(false)
+  dangerousGoodsStatus     String  @default("TO_CONFIRM") // CONFIRMED, NOT_DANGEROUS, TO_CONFIRM
+  dangerousGoodsSource     String?
+  dangerousGoodsConfidence Float?
+  msdsStatus                String  @default("NOT_REQUESTED") // NOT_REQUESTED, REQUESTED, PENDING, RECEIVED, VALIDATED, WAIVED
+  msdsNotes                 String?
+  unNumber                  String?
+  dangerousGoodsClass       String?
+  packingGroup              String?
+  properShippingName        String?
+  flashPoint                String?
   isPerishable       Boolean @default(false)
   requiresAnvisa     Boolean @default(false)
   requiresArmy       Boolean @default(false)

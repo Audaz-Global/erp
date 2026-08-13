@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
 import { applyRateValidityPolicy } from './rateValidityService';
+import { DG_STATUS, normalizeDangerousGoodsStatus, normalizeMsdsStatus } from './dangerousGoodsService';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -252,7 +253,23 @@ export const extractClientData = async (text: string, contextRules: string = '',
                   description: 'Lista de dimensões de cada lote de caixas/volumes. Cada item do array DEVE obrigatoriamente iniciar com a quantidade correspondente de caixas daquela dimensão no formato "QTDx CxLxA cm" (ex: "1x 50*50*28 cm", "2x 50*50*13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm").'
                 },
                 commercial_value_usd: { type: 'number', description: 'Valor comercial numérico da carga. Se a moeda original for EUR, BRL ou GBP, ignore a sigla e retorne apenas o número puro (ex: 2610.00). Não faça conversão cambial.' },
-                is_imo: { type: 'boolean' },
+                is_imo: { type: 'boolean', description: 'Compatibilidade: true somente quando a carga perigosa estiver explicitamente confirmada.' },
+                dangerous_goods_status: {
+                  type: 'string', enum: ['CONFIRMED', 'NOT_DANGEROUS', 'TO_CONFIRM'],
+                  description: 'CONFIRMED se DG/Dangerous Goods/IMO/Hazmat estiver explicito; NOT_DANGEROUS somente com declaracao explicita de carga nao perigosa; TO_CONFIRM quando nao houver informacao.'
+                },
+                dangerous_goods_source: { type: 'string', description: 'Trecho ou documento que fundamenta a classificacao DG.' },
+                dangerous_goods_confidence: { type: 'number' },
+                msds_status: {
+                  type: 'string', enum: ['NOT_REQUESTED', 'REQUESTED', 'PENDING', 'RECEIVED', 'VALIDATED', 'WAIVED'],
+                  description: 'RECEIVED quando houver MSDS/SDS anexada; PENDING para carga DG sem documento; NOT_REQUESTED para carga nao DG ou a confirmar.'
+                },
+                msds_notes: { type: 'string' },
+                un_number: { type: 'string' },
+                dangerous_goods_class: { type: 'string' },
+                packing_group: { type: 'string' },
+                proper_shipping_name: { type: 'string' },
+                flash_point: { type: 'string' },
                 requires_insurance: { 
                   type: 'boolean', 
                   description: 'Se o cliente solicitou ou mencionou seguro no e-mail (ex: "com seguro", "frete com seguro"). Se disser "sem seguro" ou não houver menção, retorne false.' 
@@ -301,6 +318,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
       2. No campo "transport_route", preencha a rota terrestre nacional necessária no formato "[Origem] x [Destino]" (ex: "Santos x Itatiba/SP" se vier via Porto de Santos, ou "Guarulhos x Jacareí/SP" se vier via Aeroporto de Guarulhos). Se needs_transport for false, retorne string vazia "".
 
     Instruções Importantes para Carga/Equipamento Especial:
+    - **Carga perigosa / DG**: DG, Dangerous Goods, Dangerous Cargo, IMO e Hazmat indicam carga perigosa confirmada. Uma declaração explícita "non-DG", "not dangerous" ou "não perigosa" indica NOT_DANGEROUS. Se a fonte não disser nada, retorne TO_CONFIRM; nunca transforme ausência de informação em NOT_DANGEROUS.
+    - **MSDS/SDS**: Detecte se a ficha de segurança foi anexada ou mencionada. Para carga DG sem documento, retorne PENDING. A ausência do MSDS não invalida a extração. Extraia UN Number, classe, packing group, proper shipping name e flash point somente quando constarem na fonte.
     - Analise se a solicitação do cliente ou os documentos mencionam siglas ou equipamentos especiais de contêineres, como Open Top (OT), High Cube (HC), Flat Rack, etc.
     - Se encontrar tais siglas ou especificações (e.g. "40' OT HC", "Open Top", "High Cube", "OP e HC"), aplique as regras explicadas no CONTEXTO (como "Sigla E-mail (4 x 40' OT HC)" etc.).
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
@@ -327,6 +346,9 @@ export const extractClientData = async (text: string, contextRules: string = '',
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.cargo) {
+      parsed.cargo.dangerous_goods_status = normalizeDangerousGoodsStatus(parsed.cargo.dangerous_goods_status, parsed.cargo.is_imo);
+      parsed.cargo.is_imo = parsed.cargo.dangerous_goods_status === DG_STATUS.CONFIRMED;
+      parsed.cargo.msds_status = normalizeMsdsStatus(parsed.cargo.msds_status, parsed.cargo.dangerous_goods_status);
       const packagingFacts = extractPackagingFacts(text);
       if (packagingFacts) {
         parsed.cargo.gross_weight_kg = packagingFacts.grossWeightKg;
@@ -373,7 +395,9 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - Nome do Cliente: ${data.clientName || 'Não informado'}
     - CNPJ do Cliente: ${data.clientCnpj || 'Não informado'}
     - Valor da Carga: ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'Não informado'}
-    - IMO: ${data.isImo ? 'SIM' : 'NÃO'}
+    - Carga perigosa (DG/IMO): ${data.dangerousGoodsStatus === 'CONFIRMED' ? 'SIM' : data.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A CONFIRMAR' : 'NÃO'}
+    - MSDS: ${data.msdsStatus || 'NÃO INFORMADO'}
+    - UN / Classe de risco: ${data.unNumber || 'Não informado'} / ${data.dangerousGoodsClass || 'Não informada'}
     - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
     ${data.reference ? `- Referência: ${data.reference}` : ''}`;
 }
@@ -389,7 +413,8 @@ export function buildTruckerDraftDataContext(data: DraftPayload): string {
     - CBM Total: ${data.totalCbm || 'Não informado'}
     - Descrição da Carga: ${data.cargoDescription || 'Não informada'}
     - Valor da Carga (para Seguro/GR): ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'Não informado'}
-    - IMO (Carga Perigosa): ${data.isImo ? 'SIM (Requer motorista com MOPP e veículo adequado)' : 'NÃO'}
+    - Carga Perigosa (DG/IMO): ${data.dangerousGoodsStatus === 'CONFIRMED' ? 'SIM (verificar MOPP e veículo adequado)' : data.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A CONFIRMAR' : 'NÃO'}
+    - MSDS: ${data.msdsStatus || 'NÃO INFORMADO'}
     ${data.reference ? `- Referência do Processo: ${data.reference}` : ''}`;
 }
 
@@ -629,6 +654,7 @@ export const extractAgentCosts = async (
          - Para taxas cotadas por conjunto de documentos ("for each set of docs"), use o valor informado.
        - Retorne a lista de taxas em "origin_fees" com o respectivo "name" (por extenso, ex: "AWB Fee & CGC", "Terminal Charges", "Customs Clearance", "Handling Fee", "Pick Up"), "value" (número) e "currency" (moeda, ex: "USD", "BRL").
     6. **Taxas Locais de Destino e Rodoviário (destination_fees):** Identifique todas as taxas locais no destino (Destination charges) informadas no e-mail do agente ou cliente.
+       - DG Fee, IMO Fee, DGR Fee, Dangerous Goods Surcharge e Hazmat Fee são nomenclaturas equivalentes de taxa de carga perigosa. Preserve o nome original na resposta e extraia todas as ocorrências; o sistema fará a validação de possível duplicidade.
        - Se houver menção ou solicitação de orçamento de frete rodoviário nacional (ex: transporte terrestre doméstico / rodoviário / entrega local de GRU para Itatiba, Jacareí, São Paulo, etc.), inclua essa taxa sob o nome "Frete Rodoviário Nacional [Trecho]" (ex: "Frete Rodoviário Nacional (GRU x Itatiba)"). IMPORTANTE: Se o documento ou e-mail de orçamento do frete rodoviário apresentar o valor "Sem impostos" e também um "Total previsto com impostos" (ex: com ICMS/ISS), você DEVE extrair obrigatoriamente o "Total previsto com impostos" (valor final) para esta taxa.
        - Calcule o valor total de cada taxa local de destino encontrada da mesma forma que na origem (valores fixos ou baseados em peso/Hawb).
        - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").

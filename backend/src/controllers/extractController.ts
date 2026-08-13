@@ -280,7 +280,7 @@ export const generateDraft = async (req: Request, res: Response) => {
       quotationCode: agentEmailCode, direction: quotation.direction === 'EXPORT' ? 'Exportação' : 'Importação', modal: payload.modal || '', incoterm: payload.incoterm || '',
       origin: payload.originPort || payload.originCity || 'Não informado', destination: payload.destinationPort || payload.destinationCity || 'Não informado', equipment: payload.loadType || 'Não informado',
       grossWeight: payload.totalGrossWeightKg != null ? String(payload.totalGrossWeightKg) : 'Não informado', cargoValue: payload.commercialValue != null ? `${payload.commercialCurrency || ''} ${payload.commercialValue}`.trim() : 'Não informado',
-      imoStatus: payload.isImo ? 'Sim' : 'Não', directService: payload.connections ? 'Conforme rota informada' : 'Quando aplicável', freeTime: 'Quando aplicável', client: payload.clientName || '', clientReference: payload.clientReferenceNumber || ''
+      imoStatus: payload.dangerousGoodsStatus === 'CONFIRMED' ? 'Sim' : payload.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A confirmar' : 'Não', directService: payload.connections ? 'Conforme rota informada' : 'Quando aplicável', freeTime: 'Quando aplicável', client: payload.clientName || '', clientReference: payload.clientReferenceNumber || ''
     };
     const draftText = selectedTemplate ? renderDraftBody(selectedTemplate.bodyTemplate, bodyTokens) : await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
 

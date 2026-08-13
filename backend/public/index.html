@@ -1110,13 +1110,24 @@
                 <input type="number" id="r-packages">
               </div>
               <div class="form-group">
-                <label>Carga IMO? <span id="conf-imo"></span></label>
-                <select id="r-imo"><option value="false">Não</option><option value="true">Sim</option></select>
+                <label>Carga perigosa (DG / IMO)? <span id="conf-imo"></span></label>
+                <select id="r-imo" onchange="onDangerousGoodsChange('r')">
+                  <option value="TO_CONFIRM">A confirmar</option><option value="NOT_DANGEROUS">Não</option><option value="CONFIRMED">Sim</option>
+                </select>
               </div>
+              <div class="form-group">
+                <label>MSDS / SDS</label>
+                <select id="r-msds" onchange="renderDangerousGoodsAlerts('r')">
+                  <option value="NOT_REQUESTED">Não solicitado</option><option value="REQUESTED">Solicitado</option><option value="PENDING">Pendente</option><option value="RECEIVED">Recebido</option><option value="VALIDATED">Validado</option><option value="WAIVED">Dispensado</option>
+                </select>
+              </div>
+              <div class="form-group"><label>UN Number</label><input type="text" id="r-un-number" placeholder="Ex: UN 3480"></div>
+              <div class="form-group"><label>Classe de risco</label><input type="text" id="r-dg-class" placeholder="Ex: 9"></div>
               <div class="form-group">
                 <label>Valor da Carga (USD) <span id="conf-commercial-value"></span></label>
                 <input type="number" id="r-commercial-value" step="0.01" placeholder="Ex: 10000.00">
               </div>
+              <div id="r-dg-alerts" style="grid-column:1/-1;"></div>
               <div class="form-group">
                 <label>Dimensões / CBM <span id="conf-dimensions"></span></label>
                 <input type="text" id="r-dimensions" placeholder="Ex: 120x80x100 cm">
@@ -1724,9 +1735,22 @@
           <input type="number" id="rev-commercial-value" step="0.01" placeholder="0.00">
         </div>
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">Carga IMO?</label>
-          <select id="rev-imo"><option value="false">Não</option><option value="true">Sim</option></select>
+          <label style="font-size:11px;">Carga perigosa (DG / IMO)?</label>
+          <select id="rev-imo" onchange="onDangerousGoodsChange('rev')"><option value="TO_CONFIRM">A confirmar</option><option value="NOT_DANGEROUS">Não</option><option value="CONFIRMED">Sim</option></select>
         </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">MSDS / SDS</label>
+          <select id="rev-msds" onchange="renderDangerousGoodsAlerts('rev')"><option value="NOT_REQUESTED">Não solicitado</option><option value="REQUESTED">Solicitado</option><option value="PENDING">Pendente</option><option value="RECEIVED">Recebido</option><option value="VALIDATED">Validado</option><option value="WAIVED">Dispensado</option></select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">UN Number</label>
+          <input type="text" id="rev-un-number" placeholder="Ex: UN 3480">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Classe de risco</label>
+          <input type="text" id="rev-dg-class" placeholder="Ex: 9">
+        </div>
+        <div id="rev-dg-alerts" style="grid-column:1/-1;"></div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Seguro Incluso?</label>
           <select id="rev-insurance" onchange="toggleInsuranceConfigBox()"><option value="false">Não</option><option value="true">Sim</option></select>
@@ -2701,6 +2725,41 @@ function renderConf(val, confStr) {
   return `<div class="conf-wrapper"><div class="conf-dot ${color}"></div> ${pct}%</div>`;
 }
 
+function isDangerousGoodsFeeName(name) {
+  const normalized = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  return /\b(DG|IMO|DGR)\s*(FEE|SURCHARGE|CHARGE)\b/.test(normalized) ||
+    /\b(DANGEROUS GOODS|DANGEROUS CARGO|HAZMAT)\s*(FEE|SURCHARGE|CHARGE)\b/.test(normalized);
+}
+
+function countDangerousGoodsFees(prefix) {
+  if (prefix !== 'rev') return 0;
+  const text = ['rev-origin-services', 'rev-destination-services'].map(id => document.getElementById(id)?.value || '').join('\n');
+  return text.split('\n').filter(line => isDangerousGoodsFeeName(line.split(':')[0])).length;
+}
+
+function renderDangerousGoodsAlerts(prefix) {
+  const panel = document.getElementById(`${prefix}-dg-alerts`);
+  const status = document.getElementById(`${prefix}-imo`)?.value || 'TO_CONFIRM';
+  const msds = document.getElementById(`${prefix}-msds`)?.value || 'NOT_REQUESTED';
+  if (!panel) return;
+  const alerts = [];
+  if (status === 'TO_CONFIRM') alerts.push('Classificação DG ainda precisa ser confirmada.');
+  if (status === 'CONFIRMED' && !['RECEIVED', 'VALIDATED', 'WAIVED'].includes(msds)) alerts.push('MSDS pendente — solicite ou verifique o documento. A cotação pode continuar.');
+  const dgFeeCount = countDangerousGoodsFees(prefix);
+  if (prefix === 'rev' && status === 'CONFIRMED' && dgFeeCount === 0) alerts.push('Nenhuma DG Fee, IMO Fee ou taxa equivalente foi identificada.');
+  if (prefix === 'rev' && dgFeeCount > 1) alerts.push('Possível duplicidade de taxa DG/IMO. Confirme se as cobranças são distintas.');
+  panel.innerHTML = alerts.map(message => `<div style="margin-top:6px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">⚠️ ${message}</div>`).join('');
+  panel.style.display = alerts.length ? 'block' : 'none';
+}
+
+function onDangerousGoodsChange(prefix) {
+  const status = document.getElementById(`${prefix}-imo`)?.value;
+  const msds = document.getElementById(`${prefix}-msds`);
+  if (msds && status === 'CONFIRMED' && ['NOT_REQUESTED', ''].includes(msds.value)) msds.value = 'PENDING';
+  if (msds && status !== 'CONFIRMED' && msds.value === 'PENDING') msds.value = 'NOT_REQUESTED';
+  renderDangerousGoodsAlerts(prefix);
+}
+
 const RATE_VALIDITY_LABELS = { AGENT_EMAIL: 'Lida do e-mail do agente', TARIFF: 'Lida do tarifário', CONTINGENCY: 'Contingência de até 15 dias — revisar', MANUAL: 'Definida manualmente' };
 
 function setRateValidityStatus(prefix, metadata = {}) {
@@ -3039,8 +3098,14 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-packages').value = d.cargo.packages_count || '';
       document.getElementById('conf-packages').innerHTML = renderConf(d.cargo.packages_count, d.cargo.confidence);
       
-      document.getElementById('r-imo').value = d.cargo.is_imo ? "true" : "false";
-      document.getElementById('conf-imo').innerHTML = renderConf(d.cargo.is_imo, d.cargo.confidence);
+      document.getElementById('r-imo').value = d.cargo.dangerous_goods_status || (d.cargo.is_imo ? 'CONFIRMED' : 'TO_CONFIRM');
+      document.getElementById('r-msds').value = d.cargo.msds_status || (document.getElementById('r-imo').value === 'CONFIRMED' ? 'PENDING' : 'NOT_REQUESTED');
+      document.getElementById('r-imo').dataset.source = d.cargo.dangerous_goods_source || '';
+      document.getElementById('r-imo').dataset.confidence = d.cargo.dangerous_goods_confidence ?? d.cargo.confidence ?? '';
+      document.getElementById('r-un-number').value = d.cargo.un_number || '';
+      document.getElementById('r-dg-class').value = d.cargo.dangerous_goods_class || '';
+      document.getElementById('conf-imo').innerHTML = renderConf(d.cargo.dangerous_goods_status || d.cargo.is_imo, d.cargo.dangerous_goods_confidence || d.cargo.confidence);
+      renderDangerousGoodsAlerts('r');
 
       document.getElementById('r-insurance').value = d.cargo.requires_insurance ? "true" : "false";
       document.getElementById('conf-insurance').innerHTML = renderConf(d.cargo.requires_insurance, d.cargo.confidence);
@@ -3445,7 +3510,13 @@ async function generateDraftEmail() {
       connections: document.getElementById('r-connections').value || null,
       totalGrossWeightKg: parseFloat(document.getElementById('r-weight').value) || 0,
       totalPackages: parseInt(document.getElementById('r-packages').value) || 0,
-      isImo: document.getElementById('r-imo').value === 'true',
+      dangerousGoodsStatus: document.getElementById('r-imo').value,
+      isImo: document.getElementById('r-imo').value === 'CONFIRMED',
+      msdsStatus: document.getElementById('r-msds').value,
+      dangerousGoodsSource: document.getElementById('r-imo').dataset.source || 'MANUAL',
+      dangerousGoodsConfidence: parseFloat(document.getElementById('r-imo').dataset.confidence) || null,
+      unNumber: document.getElementById('r-un-number').value || null,
+      dangerousGoodsClass: document.getElementById('r-dg-class').value || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
@@ -3687,7 +3758,13 @@ async function saveAsAwaitingAgent() {
       connections: document.getElementById('r-connections').value || null,
       totalGrossWeightKg: parseFloat(document.getElementById('r-weight').value) || 0,
       totalPackages: parseInt(document.getElementById('r-packages').value) || 0,
-      isImo: document.getElementById('r-imo').value === 'true',
+      dangerousGoodsStatus: document.getElementById('r-imo').value,
+      isImo: document.getElementById('r-imo').value === 'CONFIRMED',
+      msdsStatus: document.getElementById('r-msds').value,
+      dangerousGoodsSource: document.getElementById('r-imo').dataset.source || 'MANUAL',
+      dangerousGoodsConfidence: parseFloat(document.getElementById('r-imo').dataset.confidence) || null,
+      unNumber: document.getElementById('r-un-number').value || null,
+      dangerousGoodsClass: document.getElementById('r-dg-class').value || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
@@ -4139,7 +4216,10 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-net-weight').value = q.totalNetWeightKg || '';
     document.getElementById('rev-packages').value = q.totalPackages || '';
     document.getElementById('rev-commercial-value').value = q.commercialValue || '';
-    document.getElementById('rev-imo').value = q.isImo ? 'true' : 'false';
+    document.getElementById('rev-imo').value = q.dangerousGoodsStatus || (q.isImo ? 'CONFIRMED' : 'TO_CONFIRM');
+    document.getElementById('rev-msds').value = q.msdsStatus || (q.isImo ? 'PENDING' : 'NOT_REQUESTED');
+    document.getElementById('rev-un-number').value = q.unNumber || '';
+    document.getElementById('rev-dg-class').value = q.dangerousGoodsClass || '';
     document.getElementById('rev-insurance').value = q.requiresInsurance ? 'true' : 'false';
     document.getElementById('rev-dimensions').value = q.packages || '';
     document.getElementById('rev-cargo-description').value = q.cargoDescription || '';
@@ -4258,6 +4338,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
         return '';
       })() : '');
     }
+
+    renderDangerousGoodsAlerts('rev');
 
     // Calcular o unitário inicial
     const loadType = document.getElementById('rev-load-type').value;
@@ -4640,7 +4722,11 @@ async function confirmAndGeneratePDF() {
         totalNetWeightKg: parseFloat(document.getElementById('rev-net-weight').value) || null,
         totalPackages: parseInt(document.getElementById('rev-packages').value) || null,
         commercialValue: parseFloat(document.getElementById('rev-commercial-value').value) || null,
-        isImo: document.getElementById('rev-imo').value === 'true',
+        dangerousGoodsStatus: document.getElementById('rev-imo').value,
+        isImo: document.getElementById('rev-imo').value === 'CONFIRMED',
+        msdsStatus: document.getElementById('rev-msds').value,
+        unNumber: document.getElementById('rev-un-number').value || null,
+        dangerousGoodsClass: document.getElementById('rev-dg-class').value || null,
         requiresInsurance: document.getElementById('rev-insurance').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
@@ -5298,7 +5384,7 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">Peso Bruto</span><span class="dd">${q.totalGrossWeightKg ? q.totalGrossWeightKg + ' kg' : '—'}</span></div>
         <div class="dl"><span class="dt">CBM</span><span class="dd">${q.totalCbm || '—'}</span></div>
         <div class="dl"><span class="dt">Volumes</span><span class="dd">${q.totalPackages || '—'}</span></div>
-        <div class="dl"><span class="dt">IMO</span><span class="dd">${q.isImo ? '⚠️ Sim' : 'Não'}</span></div>
+        <div class="dl"><span class="dt">DG / IMO</span><span class="dd">${q.dangerousGoodsStatus === 'CONFIRMED' || q.isImo ? '⚠️ Sim' : q.dangerousGoodsStatus === 'TO_CONFIRM' ? '⚠️ A confirmar' : 'Não'}</span></div>
         <div class="dl"><span class="dt">Descrição</span><span class="dd">${q.cargoDescription || '—'}</span></div>
       </div>
       ${transportGroup}
@@ -8091,6 +8177,11 @@ function modernizeLegacyUI(root = document.body) {
 
 document.addEventListener('DOMContentLoaded', function() {
   modernizeLegacyUI(document.body);
+  ['rev-origin-services', 'rev-destination-services'].forEach(id => {
+    const field = document.getElementById(id);
+    if (field) field.addEventListener('input', () => renderDangerousGoodsAlerts('rev'));
+  });
+  renderDangerousGoodsAlerts('r');
   ['r', 'rev'].forEach(prefix => {
     const field = document.getElementById(`${prefix}-rate-valid-until`);
     if (field) field.addEventListener('change', () => markRateValidityManual(prefix));

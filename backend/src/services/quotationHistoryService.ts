@@ -26,7 +26,8 @@ const trackedFields = [
   'destinationCity', 'destinationPort', 'totalGrossWeightKg', 'totalCbm', 'totalPackages', 'commercialValue',
   'freightValue', 'freightCurrency', 'carrier', 'vesselName', 'voyageNumber', 'freeTimeDays', 'rateValidUntil',
   'destinationStorage', 'destinationServicesTotal', 'destinationTaxes', 'originServicesTotal', 'originInlandValue',
-  'totalBrl', 'totalUsd', 'expectedProfit', 'customsClearanceIncluded', 'requiresInsurance', 'needsTransport'
+  'totalBrl', 'totalUsd', 'expectedProfit', 'customsClearanceIncluded', 'requiresInsurance', 'needsTransport',
+  'isImo', 'dangerousGoodsStatus', 'msdsStatus', 'unNumber', 'dangerousGoodsClass', 'packingGroup'
 ];
 
 function comparable(value: any) {
