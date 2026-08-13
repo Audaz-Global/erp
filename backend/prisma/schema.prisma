@@ -102,6 +102,9 @@ model Quotation {
   packingGroup              String?
   properShippingName        String?
   flashPoint                String?
+  dangerousGoodsProductCount Int?
+  dangerousPackagesCount     Int?
+  unNumberCount              Int?
   isPerishable       Boolean @default(false)
   requiresAnvisa     Boolean @default(false)
   requiresArmy       Boolean @default(false)
@@ -355,6 +358,11 @@ model FixedFee {
   type             String // ORIGIN, DESTINATION
   value            Float
   currency         String // USD, BRL
+  billingUnit      String          @default("UNKNOWN")
+  originalUnit     String?
+  feeCategory      String?
+  ispsClassification String?
+  includedInFreight  String?
   modal            String // SEA_FCL, SEA_LCL, AIR, ROAD
   active           Boolean         @default(true)
   createdAt        DateTime        @default(now())

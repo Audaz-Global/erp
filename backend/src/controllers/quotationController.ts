@@ -432,11 +432,14 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         const parsedServices = JSON.parse(quotation.originServices);
         if (Array.isArray(parsedServices) && parsedServices.length > 0) {
           detailedFeesOrigem = parsedServices.map(f => {
-            const val = parseFloat(f.value) || 0;
+            const val = parseFloat(f.totalValue ?? f.value) || 0;
             const curr = f.currency || 'USD';
             return {
               name: f.name,
               val: val,
+              unitValue: parseFloat(f.unitValue ?? f.value) || 0,
+              billingUnit: f.billingUnit || 'UNKNOWN',
+              quantity: f.quantity ?? 1,
               currency: curr,
               brl: getBrlValue(val, curr)
             };
@@ -454,11 +457,14 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         const parsed = JSON.parse(quotation.destinationServices);
         if (Array.isArray(parsed) && parsed.length > 0) {
           detailedFeesDestino = parsed.map(f => {
-            const val = parseFloat(f.value) || 0;
+            const val = parseFloat(f.totalValue ?? f.value) || 0;
             const curr = f.currency || 'USD';
             return {
               name: f.name,
               val: val,
+              unitValue: parseFloat(f.unitValue ?? f.value) || 0,
+              billingUnit: f.billingUnit || 'UNKNOWN',
+              quantity: f.quantity ?? 1,
               currency: curr,
               brl: getBrlValue(val, curr)
             };
@@ -474,7 +480,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const modalStr = String(quotation.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
-    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto };
+    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0 };
     
     if (detailedFeesOrigem.length === 0) {
       try {

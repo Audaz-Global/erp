@@ -1,3 +1,6 @@
+import { feeCalculationAlerts, ispsCompliance, normalizeFeeList, resolveFeeQuantities } from './feeCalculationService';
+export { canonicalFeeCategory, normalizeFeeList } from './feeCalculationService';
+
 export const DG_STATUS = {
   CONFIRMED: 'CONFIRMED',
   NOT_DANGEROUS: 'NOT_DANGEROUS',
@@ -40,30 +43,6 @@ export function normalizeMsdsStatus(value: unknown, dangerousGoodsStatus: string
   return dangerousGoodsStatus === DG_STATUS.CONFIRMED ? MSDS_STATUS.PENDING : MSDS_STATUS.NOT_REQUESTED;
 }
 
-export function canonicalFeeCategory(name: unknown) {
-  const value = plain(name).replace(/[^A-Z0-9]+/g, ' ').trim();
-  const aliases = [
-    /\bDG\s*(FEE|SURCHARGE|CHARGE)\b/,
-    /\bIMO\s*(FEE|SURCHARGE|CHARGE)\b/,
-    /\bDGR\s*(FEE|SURCHARGE|CHARGE)\b/,
-    /\bDANGEROUS\s*(GOODS|CARGO)\s*(FEE|SURCHARGE|CHARGE)\b/,
-    /\bHAZMAT\s*(FEE|SURCHARGE|CHARGE)\b/
-  ];
-  return aliases.some(pattern => pattern.test(value)) ? 'DANGEROUS_GOODS_FEE' : null;
-}
-
-export function normalizeFeeList(value: unknown): any[] {
-  let fees: any[] = [];
-  if (Array.isArray(value)) fees = value;
-  else if (typeof value === 'string') {
-    try { const parsed = JSON.parse(value); fees = Array.isArray(parsed) ? parsed : []; } catch { fees = []; }
-  }
-  return fees.map(fee => {
-    const canonicalCategory = canonicalFeeCategory(fee?.name);
-    return canonicalCategory ? { ...fee, canonicalCategory } : fee;
-  });
-}
-
 export function normalizeDangerousGoodsPayload(payload: any, current?: any) {
   const hasStatus = payload.dangerousGoodsStatus !== undefined;
   const hasLegacy = payload.isImo !== undefined;
@@ -79,7 +58,8 @@ export function normalizeDangerousGoodsPayload(payload: any, current?: any) {
   );
   for (const field of ['originServices', 'destinationServices']) {
     if (payload[field] !== undefined && payload[field] !== null) {
-      payload[field] = JSON.stringify(normalizeFeeList(payload[field]));
+      const scopedFees = normalizeFeeList(payload[field], field === 'originServices' ? 'ORIGIN' : 'DESTINATION');
+      payload[field] = JSON.stringify(resolveFeeQuantities(scopedFees, { ...current, ...payload }));
     }
   }
   return payload;
@@ -100,7 +80,9 @@ export function dangerousGoodsCompliance(quotation: any) {
   }
   if (status === DG_STATUS.CONFIRMED && dgFees.length === 0) alerts.push({ code: 'DG_FEE_MISSING', level: 'WARNING', message: 'Carga perigosa sem DG Fee, IMO Fee ou taxa equivalente identificada.' });
   if (dgFees.length > 1) alerts.push({ code: 'DG_FEE_DUPLICATE', level: 'WARNING', message: 'Possível duplicidade de taxa DG/IMO. Confirme se as cobranças são realmente distintas.' });
-  return { status, msdsStatus, dgFeeCount: dgFees.length, dgFees, alerts };
+  const feeAlerts = feeCalculationAlerts(fees);
+  const isps = ispsCompliance(fees);
+  return { status, msdsStatus, dgFeeCount: dgFees.length, dgFees, feeAlerts, isps, alerts: [...alerts, ...feeAlerts.map(item => ({ ...item, level: 'WARNING' as const })), ...isps.alerts] };
 }
 
 export function withDangerousGoodsCompliance<T extends object>(quotation: T) {

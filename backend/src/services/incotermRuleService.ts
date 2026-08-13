@@ -17,12 +17,20 @@ export interface CalculatedFee {
   valueUnit?: string;
   min?: string;
   total?: string;
+  unitValue?: number;
+  billingUnit?: string;
+  originalUnit?: string;
+  quantity?: number | null;
+  totalValue?: number;
+  quantitySource?: string;
+  needsReview?: boolean;
 }
 
 export interface FeeCalculationContext {
   totalCbm?: number;
   containerCount?: number;
   grossWeightKg?: number;
+  dangerousGoodsProductCount?: number;
 }
 
 /**
@@ -185,6 +193,13 @@ function calculateFee(
       unit = 'Por documento';
       break;
 
+    case 'PER_DG_PRODUCT':
+      qty = Number(context.dangerousGoodsProductCount || 0);
+      value = rule.value * Number(qty);
+      unit = 'Por produto perigoso';
+      valueUnit = rule.value.toFixed(2);
+      break;
+
     case 'PERCENTAGE': {
       let base = 0;
       if (rule.percentBase === 'FREIGHT') {
@@ -215,7 +230,14 @@ function calculateFee(
     unit,
     valueUnit,
     min,
-    total: `${rule.currency} ${value.toFixed(2)}`
+    total: `${rule.currency} ${value.toFixed(2)}`,
+    unitValue: rule.value,
+    billingUnit: ({ FIXED:'PER_SHIPMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PER_DOCUMENT:'PER_DOCUMENT', PERCENTAGE:'PERCENTAGE' } as Record<string,string>)[rule.chargeType] || 'UNKNOWN',
+    originalUnit: unit,
+    quantity: typeof qty === 'number' ? qty : null,
+    totalValue: value,
+    quantitySource: rule.chargeType === 'PER_CONTAINER' ? 'CONTAINER_COUNT' : rule.chargeType === 'PER_KG' ? 'CHARGEABLE_WEIGHT' : rule.chargeType === 'PER_CBM' ? 'CARGO_CBM' : 'INCOTERM_RULE',
+    needsReview: rule.chargeType === 'PER_DG_PRODUCT' && Number(qty) <= 0
   };
 }
 

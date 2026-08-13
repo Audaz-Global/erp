@@ -1,5 +1,5 @@
 import { htmlToStructuredText, parseExcel, parseMsg, parsePdf } from './parserService';
-import { normalizeFeeList } from './dangerousGoodsService';
+import { normalizeFeeList } from './feeCalculationService';
 
 export interface ReplyParts {
   latestText: string;

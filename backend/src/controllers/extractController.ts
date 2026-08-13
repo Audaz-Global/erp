@@ -7,6 +7,7 @@ import { renderDraftBody, renderDraftSubject } from '../utils/emailTemplate';
 import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService';
 import { findAgentDraftEmailTemplate } from '../services/agentDraftEmailTemplateService';
 import { applyRateValidityPolicy } from '../services/rateValidityService';
+import { resolveFeeQuantities } from '../services/feeCalculationService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -152,6 +153,8 @@ export const extractData = async (req: Request, res: Response) => {
 - Direção: ${quotation.direction || 'IMPORT'}
 - Inland de Origem solicitado: ${quotation.needsOriginInland ? 'Sim' : 'Não'}
 - Rota do Inland de Origem: ${quotation.originInlandRoute || 'Não informada'}
+- Carga perigosa: ${quotation.dangerousGoodsStatus === 'CONFIRMED' || quotation.isImo ? 'Sim' : quotation.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A confirmar' : 'Não'}
+- Quantidade de produtos perigosos distintos: ${quotation.dangerousGoodsProductCount ?? 'Não informada'}
 `;
           }
         } catch (dbErr) {
@@ -185,6 +188,10 @@ export const extractData = async (req: Request, res: Response) => {
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
       if (aiResult?.costs) applyRateValidityPolicy(aiResult.costs);
+      if (aiResult?.costs && quotation) {
+        aiResult.costs.origin_fees = resolveFeeQuantities(aiResult.costs.origin_fees, quotation);
+        aiResult.costs.destination_fees = resolveFeeQuantities(aiResult.costs.destination_fees, quotation);
+      }
       
       // Regra de Negócio: Calcular Seguro Automático
       if (aiResult && aiResult.costs && aiResult.costs.insurance_requested) {
@@ -194,7 +201,7 @@ export const extractData = async (req: Request, res: Response) => {
         // Sum origin fees
         let originFeesTotal = 0;
         if (Array.isArray(aiResult.costs.origin_fees)) {
-          originFeesTotal = aiResult.costs.origin_fees.reduce((sum: number, f: any) => sum + (parseFloat(f.value) || 0), 0);
+          originFeesTotal = aiResult.costs.origin_fees.reduce((sum: number, f: any) => sum + (parseFloat(f.totalValue ?? f.value) || 0), 0);
         }
         
         const base = invoiceValue + freight + originFeesTotal;

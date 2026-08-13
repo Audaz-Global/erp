@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import * as xlsx from 'xlsx';
+import { normalizeBillingUnit, normalizeFee } from '../services/feeCalculationService';
 
 const prisma = new PrismaClient();
 
@@ -18,7 +19,8 @@ export const getFixedFees = async (req: Request, res: Response) => {
 
 export const createFixedFee = async (req: Request, res: Response) => {
   try {
-    const { name, carrier, carrierProfileId, containerSize, type, value, currency, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, ispsClassification, includedInFreight, modal, active } = req.body;
+    const normalized = normalizeFee({ name, value, currency, billingUnit, originalUnit, ispsClassification, includedInFreight, chargedBy: carrier, applicationScope: type });
     const fee = await prisma.fixedFee.create({
       data: {
         name,
@@ -28,6 +30,11 @@ export const createFixedFee = async (req: Request, res: Response) => {
         type,
         value: Number(value),
         currency: currency || 'USD',
+        billingUnit: normalizeBillingUnit(billingUnit, originalUnit || name),
+        originalUnit: originalUnit || null,
+        feeCategory: normalized.canonicalCategory,
+        ispsClassification: normalized.ispsClassification,
+        includedInFreight: normalized.includedInFreight,
         modal: modal || 'ALL',
         active: active !== undefined ? active : true
       }
@@ -41,7 +48,24 @@ export const createFixedFee = async (req: Request, res: Response) => {
 export const updateFixedFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, carrier, carrierProfileId, containerSize, type, value, currency, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, ispsClassification, includedInFreight, modal, active } = req.body;
+    const current = await prisma.fixedFee.findUnique({ where: { id } });
+    if (!current) {
+      res.status(404).json({ error: 'Taxa fixa não encontrada.' });
+      return;
+    }
+    const effective = {
+      name: name ?? current.name,
+      value: value ?? current.value,
+      currency: currency ?? current.currency,
+      billingUnit: billingUnit ?? current.billingUnit,
+      originalUnit: originalUnit !== undefined ? originalUnit : current.originalUnit,
+      ispsClassification: ispsClassification !== undefined ? ispsClassification : current.ispsClassification,
+      includedInFreight: includedInFreight !== undefined ? includedInFreight : current.includedInFreight,
+      chargedBy: carrier !== undefined ? carrier : current.carrier,
+      applicationScope: type ?? current.type
+    };
+    const normalized = normalizeFee(effective);
     
     const fee = await prisma.fixedFee.update({
       where: { id },
@@ -53,6 +77,11 @@ export const updateFixedFee = async (req: Request, res: Response) => {
         type,
         value: value !== undefined ? Number(value) : undefined,
         currency,
+        billingUnit: billingUnit !== undefined ? normalizeBillingUnit(billingUnit, originalUnit || name) : undefined,
+        originalUnit,
+        feeCategory: normalized.canonicalCategory,
+        ispsClassification: normalized.ispsClassification,
+        includedInFreight: normalized.includedInFreight,
         modal,
         active
       }
@@ -143,6 +172,11 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
               type: type,
               value: val,
               currency: String(currency).substring(0, 10).toUpperCase().trim(),
+              billingUnit: normalizeBillingUnit(undefined, name),
+              originalUnit: String(name),
+              feeCategory: normalizeFee({ name }).canonicalCategory,
+              ispsClassification: normalizeFee({ name }).ispsClassification,
+              includedInFreight: normalizeFee({ name }).includedInFreight,
               modal: modal,
               active: true
             }
@@ -159,6 +193,11 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
                   type: type,
                   value: row['__EMPTY_1'],
                   currency: String(currency).substring(0, 10).toUpperCase().trim(),
+                  billingUnit: normalizeBillingUnit(undefined, name),
+                  originalUnit: String(name),
+                  feeCategory: normalizeFee({ name }).canonicalCategory,
+                  ispsClassification: normalizeFee({ name }).ispsClassification,
+                  includedInFreight: normalizeFee({ name }).includedInFreight,
                   modal: modal,
                   active: true
                 }

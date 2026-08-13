@@ -28,6 +28,7 @@ export interface DraftPayload {
   msdsStatus: string;
   unNumber: string | null;
   dangerousGoodsClass: string | null;
+  dangerousGoodsProductCount: number | null;
   requiresInsurance: boolean;
   needsOriginInland: boolean;
   originInlandRoute: string | null;
@@ -70,6 +71,7 @@ export function buildDraftPayload(quotation: QuotationWithClient, originalEmailT
     msdsStatus: normalizeMsdsStatus(quotation.msdsStatus, dangerousGoodsStatus),
     unNumber: quotation.unNumber,
     dangerousGoodsClass: quotation.dangerousGoodsClass,
+    dangerousGoodsProductCount: quotation.dangerousGoodsProductCount,
     requiresInsurance: quotation.requiresInsurance,
     needsOriginInland: quotation.needsOriginInland,
     originInlandRoute: quotation.originInlandRoute,

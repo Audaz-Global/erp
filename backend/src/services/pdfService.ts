@@ -1175,13 +1175,14 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         const parsedServices = JSON.parse(quotationData.originServices);
         if (Array.isArray(parsedServices) && parsedServices.length > 0) {
           detailedFeesOrigem = parsedServices.map(f => {
-            const val = parseFloat(f.value) || 0;
+            const val = parseFloat(f.totalValue ?? f.value) || 0;
+            const unitVal = parseFloat(f.unitValue ?? f.value) || 0;
             const curr = f.currency || 'USD';
             return {
               name: f.name,
-              qty: 1,
-              unit: 'Fixo',
-              valueUnit: val.toFixed(2),
+              qty: f.quantity ?? 1,
+              unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
+              valueUnit: unitVal.toFixed(2),
               min: '0,00',
               currency: curr,
               total: `${curr} ${val.toFixed(2)}`
@@ -1198,7 +1199,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const modalStr = String(quotationData.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
-    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0) };
+    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0) };
 
     if (detailedFeesOrigem.length === 0) {
       try {
@@ -1254,13 +1255,14 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         const parsedDestServices = JSON.parse(quotationData.destinationServices);
         if (Array.isArray(parsedDestServices) && parsedDestServices.length > 0) {
           detailedFeesDestino = parsedDestServices.map(f => {
-            const val = parseFloat(f.value) || 0;
+            const val = parseFloat(f.totalValue ?? f.value) || 0;
+            const unitVal = parseFloat(f.unitValue ?? f.value) || 0;
             const curr = f.currency || 'USD';
             return {
               name: f.name,
-              qty: 1,
-              unit: 'Fixo',
-              valueUnit: val.toFixed(2),
+              qty: f.quantity ?? 1,
+              unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
+              valueUnit: unitVal.toFixed(2),
               min: '0,00',
               currency: curr,
               total: `${curr} ${val.toFixed(2)}`
@@ -1643,7 +1645,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
         const parsed = JSON.parse(quotationData.originServices);
         if (Array.isArray(parsed)) {
           parsed.forEach(f => {
-            const val = parseFloat(f.value) || 0;
+            const val = parseFloat(f.totalValue ?? f.value) || 0;
             const curr = (f.currency || 'USD').toUpperCase();
             if (curr === 'USD') sumOrigemUsd += val;
             else if (curr === 'EUR') sumOrigemEur += val;
@@ -1674,13 +1676,13 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
           parsed.forEach(f => {
             const nameLower = String(f.name || '').toLowerCase().trim();
             if (!existingNames.has(nameLower)) {
-              const val = parseFloat(f.value) || 0;
+              const val = parseFloat(f.totalValue ?? f.value) || 0;
               const curr = (f.currency || 'USD').toUpperCase();
               detailedFees.push({
                 name: f.name || 'Taxa de Destino',
-                qty: 1,
-                unit: 'Fixo',
-                valueUnit: safeToFixed(val, 2),
+                qty: f.quantity ?? 1,
+                unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
+                valueUnit: safeToFixed(parseFloat(f.unitValue ?? f.value) || 0, 2),
                 currency: curr,
                 total: `${curr} ${safeToFixed(val, 2)}`
               });

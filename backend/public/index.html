@@ -1123,6 +1123,7 @@
               </div>
               <div class="form-group"><label>UN Number</label><input type="text" id="r-un-number" placeholder="Ex: UN 3480"></div>
               <div class="form-group"><label>Classe de risco</label><input type="text" id="r-dg-class" placeholder="Ex: 9"></div>
+              <div class="form-group"><label>Produtos perigosos distintos</label><input type="number" id="r-dg-product-count" min="0" placeholder="Ex: 4"></div>
               <div class="form-group">
                 <label>Valor da Carga (USD) <span id="conf-commercial-value"></span></label>
                 <input type="number" id="r-commercial-value" step="0.01" placeholder="Ex: 10000.00">
@@ -1697,6 +1698,7 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
           <textarea id="rev-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+          <div id="rev-origin-fees-preview" style="margin-top:8px;overflow:auto;"></div>
         </div>
         <div style="grid-column:1/-1;margin-top:12px;padding:14px;border:1px solid rgba(245,166,35,0.35);border-radius:10px;background:rgba(245,166,35,0.04);">
           <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:10px;">🚚 INLAND DE ORIGEM (COLETA) — OPCIONAL</div>
@@ -1710,6 +1712,8 @@
         <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Destino (Itemizadas)</label>
           <textarea id="rev-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+          <div id="rev-destination-fees-preview" style="margin-top:8px;overflow:auto;"></div>
+          <div id="rev-isps-alerts" style="margin-top:8px;"></div>
         </div>
       </div>
     </div>
@@ -1750,6 +1754,7 @@
           <label style="font-size:11px;">Classe de risco</label>
           <input type="text" id="rev-dg-class" placeholder="Ex: 9">
         </div>
+        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Produtos DG distintos</label><input type="number" id="rev-dg-product-count" min="0" placeholder="Ex: 4"></div>
         <div id="rev-dg-alerts" style="grid-column:1/-1;"></div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Seguro Incluso?</label>
@@ -2725,6 +2730,102 @@ function renderConf(val, confStr) {
   return `<div class="conf-wrapper"><div class="conf-dot ${color}"></div> ${pct}%</div>`;
 }
 
+const FEE_UNIT_LABELS = { TOTAL_SHIPMENT:'Total do embarque', PER_DG_PRODUCT:'Produto perigoso', PER_ITEM:'Item', PER_PACKAGE:'Volume', PER_DOCUMENT:'Documento', PER_HAWB:'HAWB', PER_MAWB:'MAWB', PER_SHIPMENT:'Embarque', PER_CONTAINER:'Contêiner', PER_BL:'BL', PER_KG:'kg', PER_CHARGEABLE_WEIGHT:'Peso taxável', PER_CBM:'m³', PER_TON:'Tonelada', PER_WM:'Peso/medida (W/M)', PERCENTAGE:'Percentual', UNKNOWN:'Unidade não identificada' };
+
+function parseFeeLine(line) {
+  const separator = String(line || '').indexOf(':');
+  if (separator < 0) return null;
+  const name = line.slice(0, separator).trim();
+  const segments = line.slice(separator + 1).split('|').map(value => value.trim());
+  const first = segments[0].split(/\s+/);
+  const unitValue = parseFloat(String(first[0] || '').replace(',', '.'));
+  if (!name || !Number.isFinite(unitValue)) return null;
+  const currency = String(first[1] || 'USD').toUpperCase();
+  const billingUnit = String(segments[1] || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
+  const quantityMatch = segments.find(value => /^(QTY|QTD)\s+/i.test(value))?.match(/(?:QTY|QTD)\s+([\d.,]+)/i);
+  const quantityPending = segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value));
+  const totalMatch = segments.find(value => /^TOTAL\s+/i.test(value))?.match(/TOTAL\s+([\d.,]+)/i);
+  const quantity = quantityMatch ? parseFloat(quantityMatch[1].replace(',', '.')) : (quantityPending ? null : (['TOTAL_SHIPMENT','PER_SHIPMENT','UNKNOWN'].includes(billingUnit) ? 1 : null));
+  const explicitTotal = totalMatch ? parseFloat(totalMatch[1].replace(',', '.')) : null;
+  const totalValue = Number.isFinite(explicitTotal) ? explicitTotal : (Number.isFinite(quantity) ? unitValue * quantity : unitValue);
+  const mismatch = Number.isFinite(explicitTotal) && Number.isFinite(quantity) && Math.abs(unitValue * quantity - explicitTotal) > 0.01;
+  const quantityMissing = !Number.isFinite(quantity) && !['PERCENTAGE'].includes(billingUnit);
+  const isIsps = /\bISPS\b|\b(TERMINAL|PORT) SECURITY (FEE|CHARGE|SURCHARGE)\b/i.test(name);
+  const ispsSegment = segments.find(value => /^ISPS\s+/i.test(value));
+  const scopeSegment = segments.find(value => /^SCOPE\s+/i.test(value));
+  const freightSegment = segments.find(value => /^FREIGHT\s+/i.test(value));
+  const chargedBySegment = segments.find(value => /^CHARGEDBY\s+/i.test(value));
+  let ispsClassification = ispsSegment ? ispsSegment.replace(/^ISPS\s+/i, '').trim().toUpperCase() : null;
+  if (isIsps && !['ISPS_CARRIER','ISPS_TERMINAL'].includes(ispsClassification)) {
+    const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(name);
+    const terminalHint = /terminal|port|porto|wharf/i.test(name);
+    ispsClassification = carrierHint && !terminalHint ? 'ISPS_CARRIER' : terminalHint && !carrierHint ? 'ISPS_TERMINAL' : 'ISPS_UNCLASSIFIED';
+  }
+  const includedInFreight = isIsps ? (freightSegment ? freightSegment.replace(/^FREIGHT\s+/i, '').trim().toUpperCase() : 'TO_CONFIRM') : null;
+  const applicationScope = isIsps ? (scopeSegment ? scopeSegment.replace(/^SCOPE\s+/i, '').trim().toUpperCase() : 'UNKNOWN') : null;
+  const chargedBy = isIsps && chargedBySegment ? chargedBySegment.replace(/^CHARGEDBY\s+/i, '').trim() : null;
+  const ispsUnclassified = isIsps && ispsClassification === 'ISPS_UNCLASSIFIED';
+  const ispsInclusionPending = isIsps && includedInFreight !== 'NOT_INCLUDED';
+  const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending;
+  const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : [])];
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, needsReview, reviewReasons };
+}
+
+function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
+
+function enrichFeeMetadata(fees, originalFees = []) {
+  const originals = new Map((originalFees || []).map(fee => [String(fee.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(), fee]));
+  return fees.map(fee => {
+    const original = originals.get(String(fee.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()) || {};
+    return { ...original, ...fee, evidence: original.evidence || null, confidence: original.confidence ?? null, quantitySource: fee.quantitySource === 'MANUAL' && original.quantitySource ? original.quantitySource : fee.quantitySource };
+  });
+}
+
+function formatFeeLine(fee) {
+  const unitValue = Number(fee.unitValue ?? fee.value ?? 0);
+  const structured = fee.billingUnit !== undefined || fee.unitValue !== undefined || fee.totalValue !== undefined;
+  const quantity = fee.quantity ?? (structured ? null : 1);
+  const total = Number(fee.totalValue ?? fee.value ?? (quantity == null ? unitValue : unitValue * quantity));
+  const unit = fee.billingUnit || 'UNKNOWN';
+  const isIsps = fee.canonicalCategory === 'ISPS_FEE' || /\bISPS\b|\b(TERMINAL|PORT) SECURITY (FEE|CHARGE|SURCHARGE)\b/i.test(fee.name || '');
+  const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(fee.name || '');
+  const terminalHint = /terminal|port|porto|wharf/i.test(fee.name || '');
+  const inferredIsps = carrierHint && !terminalHint ? 'ISPS_CARRIER' : terminalHint && !carrierHint ? 'ISPS_TERMINAL' : 'ISPS_UNCLASSIFIED';
+  const ispsDetails = isIsps ? ` | ISPS ${fee.ispsClassification || inferredIsps} | SCOPE ${fee.applicationScope || fee.feeType || 'UNKNOWN'} | FREIGHT ${fee.includedInFreight || 'TO_CONFIRM'}${fee.chargedBy ? ` | CHARGEDBY ${fee.chargedBy}` : ''}` : '';
+  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${ispsDetails}`;
+}
+
+function escapeFeeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
+
+function renderFeeCalculationPreview() {
+  [['rev-origin-services','rev-origin-fees-preview'],['rev-destination-services','rev-destination-fees-preview']].forEach(([fieldId,panelId]) => {
+    const panel = document.getElementById(panelId); if (!panel) return;
+    const fees = parseFeeText(document.getElementById(fieldId)?.value);
+    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue.toFixed(2)}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue.toFixed(2)}</td></tr>`).join('')}</tbody></table>` : '';
+  });
+  renderIspsAlerts();
+}
+
+function ispsReview(fees) {
+  const ispsFees = fees.filter(fee => fee.canonicalCategory === 'ISPS_FEE');
+  const alerts = [];
+  ispsFees.filter(fee => fee.ispsClassification === 'ISPS_UNCLASSIFIED').forEach(fee => alerts.push({code:'UNCLASSIFIED',message:`${fee.name}: classifique como ISPS_CARRIER ou ISPS_TERMINAL.`}));
+  ispsFees.filter(fee => fee.includedInFreight === 'INCLUDED').forEach(fee => alerts.push({code:'INCLUDED',message:`${fee.name}: indicada como já incluída no frete; não deve ser somada separadamente sem correção.`}));
+  ispsFees.filter(fee => fee.includedInFreight === 'TO_CONFIRM').forEach(fee => alerts.push({code:'INCLUSION_PENDING',message:`${fee.name}: confirme se está incluída no frete.`}));
+  const groups = new Map();
+  ispsFees.forEach(fee => { const key=[fee.ispsClassification,fee.applicationScope,String(fee.chargedBy||'').toLowerCase(),fee.billingUnit].join('|'); groups.set(key,[...(groups.get(key)||[]),fee]); });
+  groups.forEach(group => { if(group.length>1) alerts.push({code:'DUPLICATE',message:`Possível duplicidade: ${group.map(fee=>fee.name).join(' / ')}.`}); });
+  const classes = new Set(ispsFees.map(fee => fee.ispsClassification));
+  if(classes.has('ISPS_CARRIER')&&classes.has('ISPS_TERMINAL')) alerts.push({code:'COEXISTENCE',message:'ISPS de armador e terminal coexistem. Confirme que ambas são aplicáveis.'});
+  return { ispsFees, alerts };
+}
+
+function renderIspsAlerts() {
+  const panel=document.getElementById('rev-isps-alerts'); if(!panel)return;
+  const review=ispsReview([...parseFeeText(document.getElementById('rev-origin-services')?.value),...parseFeeText(document.getElementById('rev-destination-services')?.value)]);
+  panel.innerHTML=review.alerts.map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
+}
+
 function isDangerousGoodsFeeName(name) {
   const normalized = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
   return /\b(DG|IMO|DGR)\s*(FEE|SURCHARGE|CHARGE)\b/.test(normalized) ||
@@ -3104,6 +3205,9 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-imo').dataset.confidence = d.cargo.dangerous_goods_confidence ?? d.cargo.confidence ?? '';
       document.getElementById('r-un-number').value = d.cargo.un_number || '';
       document.getElementById('r-dg-class').value = d.cargo.dangerous_goods_class || '';
+      document.getElementById('r-dg-product-count').value = d.cargo.dangerous_goods_product_count || '';
+      document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount = d.cargo.dangerous_packages_count || '';
+      document.getElementById('r-dg-product-count').dataset.unNumberCount = d.cargo.un_number_count || '';
       document.getElementById('conf-imo').innerHTML = renderConf(d.cargo.dangerous_goods_status || d.cargo.is_imo, d.cargo.dangerous_goods_confidence || d.cargo.confidence);
       renderDangerousGoodsAlerts('r');
 
@@ -3194,7 +3298,7 @@ function fillReviewForm(d, mode) {
       if (d.costs.origin_fees && Array.isArray(d.costs.origin_fees)) {
         const lines = d.costs.origin_fees
           .filter(f => !/(pick\s*up|pickup|collection|pre[- ]?carriage|coleta)/i.test(String(f.name || '')))
-          .map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
+          .map(formatFeeLine);
         document.getElementById('r-agent-origin-services').value = lines.join('\n');
       } else {
         document.getElementById('r-agent-origin-services').value = '';
@@ -3207,7 +3311,7 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-agent-origin-inland-transit').value = originInland.transit_time || '';
 
       if (d.costs.destination_fees && Array.isArray(d.costs.destination_fees)) {
-        const lines = d.costs.destination_fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`);
+        const lines = d.costs.destination_fees.map(formatFeeLine);
         document.getElementById('r-agent-destination-services').value = lines.join('\n');
       } else {
         document.getElementById('r-agent-destination-services').value = '';
@@ -3517,6 +3621,9 @@ async function generateDraftEmail() {
       dangerousGoodsConfidence: parseFloat(document.getElementById('r-imo').dataset.confidence) || null,
       unNumber: document.getElementById('r-un-number').value || null,
       dangerousGoodsClass: document.getElementById('r-dg-class').value || null,
+      dangerousGoodsProductCount: parseInt(document.getElementById('r-dg-product-count').value) || null,
+      dangerousPackagesCount: parseInt(document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount) || null,
+      unNumberCount: parseInt(document.getElementById('r-dg-product-count').dataset.unNumberCount) || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
@@ -3765,6 +3872,9 @@ async function saveAsAwaitingAgent() {
       dangerousGoodsConfidence: parseFloat(document.getElementById('r-imo').dataset.confidence) || null,
       unNumber: document.getElementById('r-un-number').value || null,
       dangerousGoodsClass: document.getElementById('r-dg-class').value || null,
+      dangerousGoodsProductCount: parseInt(document.getElementById('r-dg-product-count').value) || null,
+      dangerousPackagesCount: parseInt(document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount) || null,
+      unNumberCount: parseInt(document.getElementById('r-dg-product-count').dataset.unNumberCount) || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
@@ -3830,13 +3940,9 @@ function recalculateModalDestinationServicesTotal() {
   let destinationServicesTotalBrl = 0;
   
   if (destinationServicesRaw.trim()) {
-    const lines = destinationServicesRaw.split('\n');
-    lines.forEach(line => {
-      const parts = line.split(':');
-      if (parts.length >= 2) {
-        const valAndCurr = parts[1].trim().split(/\s+/);
-        const value = parseFloat(valAndCurr[0]) || 0;
-        const currency = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+    parseFeeText(destinationServicesRaw).forEach(fee => {
+        const value = fee.totalValue || 0;
+        const currency = fee.currency;
         
         const usdRate = 5.05;
         const eurRate = 5.50;
@@ -3850,7 +3956,6 @@ function recalculateModalDestinationServicesTotal() {
         } else {
           destinationServicesTotalBrl += value * usdRate;
         }
-      }
     });
   }
   
@@ -3873,16 +3978,12 @@ function recalculateModalDestinationServicesTotal() {
   let originBrl = 0;
   const originServicesRaw = document.getElementById('rev-origin-services').value || '';
   if (originServicesRaw.trim()) {
-    originServicesRaw.split('\n').forEach(line => {
-      const parts = line.split(':');
-      if (parts.length >= 2) {
-        const valAndCurr = parts[1].trim().split(/\s+/);
-        const val = parseFloat(valAndCurr[0]) || 0;
-        const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+    parseFeeText(originServicesRaw).forEach(fee => {
+        const val = fee.totalValue || 0;
+        const curr = fee.currency;
         if (curr === 'BRL') originBrl += val;
         else if (curr === 'USD') originBrl += val * 5.05;
         else if (curr === 'EUR') originBrl += val * 5.50;
-      }
     });
   }
 
@@ -3945,16 +4046,12 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
     let originServicesTotalUsd = 0;
     const originServicesRaw = document.getElementById('rev-origin-services').value || '';
     if (originServicesRaw.trim()) {
-      originServicesRaw.split('\n').forEach(line => {
-        const parts = line.split(':');
-        if (parts.length >= 2) {
-          const valAndCurr = parts[1].trim().split(/\s+/);
-          const val = parseFloat(valAndCurr[0]) || 0;
-          const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+      parseFeeText(originServicesRaw).forEach(fee => {
+          const val = fee.totalValue || 0;
+          const curr = fee.currency;
           if (curr === 'USD') originServicesTotalUsd += val;
           else if (curr === 'EUR') originServicesTotalUsd += val * 1.08;
           else if (curr === 'BRL') originServicesTotalUsd += val / usdRate;
-        }
       });
     }
 
@@ -3984,7 +4081,7 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
       }
     }
 
-    lines.push(`Seguro Internacional: ${seguroValUsd.toFixed(2)} USD`);
+    lines.push(formatFeeLine({ name:'Seguro Internacional', unitValue:seguroValUsd, value:seguroValUsd, currency:'USD', billingUnit:'PER_SHIPMENT', quantity:1, totalValue:seguroValUsd }));
   }
 
   destFeesTextarea.value = lines.join('\n');
@@ -4024,16 +4121,12 @@ function updateBuyVsSellTable() {
   let sellOriginFeesUsd = 0;
   const originServicesRaw = document.getElementById('rev-origin-services').value || '';
   if (originServicesRaw.trim()) {
-    originServicesRaw.split('\n').forEach(line => {
-      const parts = line.split(':');
-      if (parts.length >= 2) {
-        const valAndCurr = parts[1].trim().split(/\s+/);
-        const val = parseFloat(valAndCurr[0]) || 0;
-        const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+    parseFeeText(originServicesRaw).forEach(fee => {
+        const val = fee.totalValue || 0;
+        const curr = fee.currency;
         if (curr === 'USD') sellOriginFeesUsd += val;
         else if (curr === 'EUR') sellOriginFeesUsd += val * 1.08;
         else if (curr === 'BRL') sellOriginFeesUsd += val / usdRate;
-      }
     });
   }
   let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesUsd;
@@ -4051,18 +4144,14 @@ function updateBuyVsSellTable() {
 
   // Somar também linhas avulsas de destino (exceto Seguro e Spread)
   const destText = document.getElementById('rev-destination-services').value || '';
-  destText.split('\n').forEach(line => {
-    const l = line.trim().toLowerCase();
+  parseFeeText(destText).forEach(fee => {
+    const l = fee.name.toLowerCase();
     if (l && !l.startsWith('seguro') && !l.includes('seguro internacional') && !l.includes('spread / profit')) {
-      const parts = line.split(':');
-      if (parts.length >= 2) {
-        const valAndCurr = parts[1].trim().split(/\s+/);
-        const val = parseFloat(valAndCurr[0]) || 0;
-        const curr = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+        const val = fee.totalValue || 0;
+        const curr = fee.currency;
         if (curr === 'USD') sellDestFeesUsd += val;
         else if (curr === 'EUR') sellDestFeesUsd += val * 1.08;
         else if (curr === 'BRL') sellDestFeesUsd += val / usdRate;
-      }
     }
   });
 
@@ -4175,7 +4264,7 @@ function applySmartProfit() {
     
     // Remove "Spread / Profit" se já existir
     const lines = currentText.split('\n').filter(line => !line.toLowerCase().includes('spread / profit'));
-    lines.push(`Spread / Profit: ${profitValUsd.toFixed(2)} USD`);
+    lines.push(formatFeeLine({ name:'Spread / Profit', unitValue:profitValUsd, value:profitValUsd, currency:'USD', billingUnit:'PER_SHIPMENT', quantity:1, totalValue:profitValUsd }));
     
     destFeesTextarea.value = lines.join('\n');
     recalculateModalDestinationServicesTotal();
@@ -4196,6 +4285,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     const res = await fetch(API + '/quotations/' + qId);
     const q = await res.json();
 
+    window.reviewFeeMetadata = { origin: [], destination: [] };
     // Pré-preencher modal com dados da cotação
     document.getElementById('rev-client-name').value = (q.client?.name) || '';
     document.getElementById('rev-client-cnpj').value = (q.client?.cnpj) || '';
@@ -4220,6 +4310,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-msds').value = q.msdsStatus || (q.isImo ? 'PENDING' : 'NOT_REQUESTED');
     document.getElementById('rev-un-number').value = q.unNumber || '';
     document.getElementById('rev-dg-class').value = q.dangerousGoodsClass || '';
+    document.getElementById('rev-dg-product-count').value = q.dangerousGoodsProductCount || '';
     document.getElementById('rev-insurance').value = q.requiresInsurance ? 'true' : 'false';
     document.getElementById('rev-dimensions').value = q.packages || '';
     document.getElementById('rev-cargo-description').value = q.cargoDescription || '';
@@ -4272,7 +4363,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
         try {
           const fees = JSON.parse(q.originServices);
           if (Array.isArray(fees)) {
-            originFeesText = fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+            window.reviewFeeMetadata.origin = fees;
+            originFeesText = fees.map(formatFeeLine).join('\n');
           }
         } catch(e) {
           console.error(e);
@@ -4285,7 +4377,8 @@ async function validateAndGeneratePDF(qIdParam = null) {
         try {
           const fees = JSON.parse(q.destinationServices);
           if (Array.isArray(fees) && fees.length > 0) {
-            destFeesText = fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+            window.reviewFeeMetadata.destination = fees;
+            destFeesText = fees.map(formatFeeLine).join('\n');
           }
         } catch(e) {
           console.error(e);
@@ -4332,7 +4425,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
         try {
           const fees = JSON.parse(q.destinationServices);
           if (Array.isArray(fees) && fees.length > 0) {
-            return fees.map(f => `${f.name}: ${(f.value || 0).toFixed(2)} ${f.currency || 'USD'}`).join('\n');
+            return fees.map(formatFeeLine).join('\n');
           }
         } catch(e){}
         return '';
@@ -4340,6 +4433,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     }
 
     renderDangerousGoodsAlerts('rev');
+    renderFeeCalculationPreview();
 
     // Calcular o unitário inicial
     const loadType = document.getElementById('rev-load-type').value;
@@ -4561,6 +4655,22 @@ async function confirmAndGeneratePDF() {
     return;
   }
   if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
+  const reviewedFees = [...parseFeeText(document.getElementById('rev-origin-services').value), ...parseFeeText(document.getElementById('rev-destination-services').value)];
+  const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING'));
+  if (missingQuantity.length) {
+    alert(`Informe a quantidade aplicável antes de finalizar: ${missingQuantity.map(fee => fee.name).join(', ')}.`);
+    return;
+  }
+  const isps = ispsReview(reviewedFees);
+  const blockingIsps = isps.alerts.filter(alert => ['UNCLASSIFIED','INCLUDED','INCLUSION_PENDING'].includes(alert.code));
+  if (blockingIsps.length) {
+    alert(`Revise as taxas ISPS antes de finalizar:\n${blockingIsps.map(item => '• '+item.message).join('\n')}\n\nEdite a linha usando ISPS_CARRIER ou ISPS_TERMINAL e FREIGHT NOT_INCLUDED quando a cobrança for realmente adicional.`);
+    return;
+  }
+  const confirmIsps = isps.alerts.filter(alert => ['DUPLICATE','COEXISTENCE'].includes(alert.code));
+  if (confirmIsps.length && !window.confirm(`${confirmIsps.map(item=>item.message).join('\n')}\nConfirma que as cobranças são aplicáveis?`)) return;
+  const uncertainFees = reviewedFees.filter(fee => fee.needsReview);
+  if (uncertainFees.length && !window.confirm(`Existem taxas com unidade não identificada ou cálculo divergente: ${uncertainFees.map(fee => fee.name).join(', ')}. Confirma os totais apresentados?`)) return;
 
   const confirmBtn = document.querySelector('#pdfReviewOverlay .btn-primary');
   confirmBtn.disabled = true;
@@ -4573,20 +4683,15 @@ async function confirmAndGeneratePDF() {
     const weightBreakValue = document.getElementById('rev-weight-break').value || 'normal';
 
     const originServicesRaw = document.getElementById('rev-origin-services').value || '';
-    const originServicesList = [];
+    let originServicesList = [];
     let originServicesTotal = 0;
     
     if (originServicesRaw.trim()) {
-      const lines = originServicesRaw.split('\n');
-      lines.forEach(line => {
-        const parts = line.split(':');
-        if (parts.length >= 2) {
-          const name = parts[0].trim();
-          const valAndCurr = parts[1].trim().split(/\s+/);
-          const value = parseFloat(valAndCurr[0]) || 0;
-          const currency = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+      parseFeeText(originServicesRaw).forEach(fee => {
+          const { name, currency } = fee;
+          const value = fee.totalValue || 0;
           if (name) {
-            originServicesList.push({ name, value, currency });
+            originServicesList.push(fee);
             
             // Calcular valor equivalente em USD para fins de originServicesTotal
             if (currency === 'USD') {
@@ -4599,27 +4704,22 @@ async function confirmAndGeneratePDF() {
               originServicesTotal += value;
             }
           }
-        }
       });
     }
+    originServicesList = enrichFeeMetadata(originServicesList, window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
     const originServicesStr = originServicesList.length > 0 ? JSON.stringify(originServicesList) : null;
 
     const destinationServicesRaw = document.getElementById('rev-destination-services').value || '';
-    const destinationServicesList = [];
+    let destinationServicesList = [];
     let destinationServicesTotal = 0;
     let destinationServicesTotalBrl = 0;
     
     if (destinationServicesRaw.trim()) {
-      const lines = destinationServicesRaw.split('\n');
-      lines.forEach(line => {
-        const parts = line.split(':');
-        if (parts.length >= 2) {
-          const name = parts[0].trim();
-          const valAndCurr = parts[1].trim().split(/\s+/);
-          const value = parseFloat(valAndCurr[0]) || 0;
-          const currency = valAndCurr[1] ? valAndCurr[1].trim().toUpperCase() : 'USD';
+      parseFeeText(destinationServicesRaw).forEach(fee => {
+          const { name, currency } = fee;
+          const value = fee.totalValue || 0;
           if (name) {
-            destinationServicesList.push({ name, value, currency });
+            destinationServicesList.push(fee);
             
             // Calcular valor equivalente em USD para fins de destinationServicesTotal
             if (currency === 'USD') {
@@ -4643,9 +4743,9 @@ async function confirmAndGeneratePDF() {
               destinationServicesTotalBrl += value * 5.05;
             }
           }
-        }
       });
     }
+    destinationServicesList = enrichFeeMetadata(destinationServicesList, window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
     const destinationServicesStr = destinationServicesList.length > 0 ? JSON.stringify(destinationServicesList) : null;
 
     const targetServicesBrl = destinationServicesList.length > 0 ? destinationServicesTotalBrl : (parseFloat(document.getElementById('rev-services').value) || 0);
@@ -4727,6 +4827,7 @@ async function confirmAndGeneratePDF() {
         msdsStatus: document.getElementById('rev-msds').value,
         unNumber: document.getElementById('rev-un-number').value || null,
         dangerousGoodsClass: document.getElementById('rev-dg-class').value || null,
+        dangerousGoodsProductCount: parseInt(document.getElementById('rev-dg-product-count').value) || null,
         requiresInsurance: document.getElementById('rev-insurance').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
@@ -4840,17 +4941,13 @@ function normalizeReturnFeeName(name) {
 }
 
 function parseReturnFeeLines(text) {
-  if (!String(text || '').trim()) return [];
-  return String(text).split('\n').map(line => {
-    const separator = line.indexOf(':');
-    if (separator < 0) return null;
-    const rawName = line.slice(0, separator).trim();
+  return String(text || '').split('\n').map(line => {
+    const parsed = parseFeeLine(line);
+    if (!parsed) return null;
+    const rawName = parsed.name;
     const estimated = /\[estimativa incoterm\]/i.test(rawName);
     const name = stripReturnEstimateLabel(rawName);
-    const valueParts = line.slice(separator + 1).trim().split(/\s+/);
-    const value = parseFloat(String(valueParts[0] || '').replace(',', '.'));
-    if (!name || !Number.isFinite(value)) return null;
-    return { name, value, currency: String(valueParts[1] || 'USD').toUpperCase(), source: estimated ? 'INCOTERM' : 'PARTNER' };
+    return { ...parsed, name, source: estimated ? 'INCOTERM' : 'PARTNER' };
   }).filter(Boolean);
 }
 
@@ -4858,12 +4955,7 @@ function parseSavedReturnFees(raw) {
   if (!raw) return [];
   try {
     const fees = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return Array.isArray(fees) ? fees.map(f => ({
-      name: stripReturnEstimateLabel(f.name),
-      value: Number(f.value) || 0,
-      currency: String(f.currency || 'USD').toUpperCase(),
-      source: f.source === 'INCOTERM' || /\[estimativa incoterm\]/i.test(f.name) ? 'INCOTERM' : 'PARTNER'
-    })).filter(f => f.name) : [];
+    return Array.isArray(fees) ? fees.map(f => ({ ...f, name: stripReturnEstimateLabel(f.name), source: f.source === 'INCOTERM' || /\[estimativa incoterm\]/i.test(f.name) ? 'INCOTERM' : 'PARTNER' })).filter(f => f.name) : [];
   } catch (e) {
     return [];
   }
@@ -4880,7 +4972,7 @@ function mergeReturnFees(existingFees, presetFees) {
 function formatReturnFees(fees) {
   return fees.map(f => {
     const label = f.source === 'INCOTERM' ? RETURN_ESTIMATE_LABEL : '';
-    return `${stripReturnEstimateLabel(f.name)}${label}: ${f.pending ? 'A COTAR' : `${Number(f.value).toFixed(2)} ${f.currency || 'USD'}`}`;
+    return f.pending ? `${stripReturnEstimateLabel(f.name)}${label}: A COTAR` : formatFeeLine({ ...f, name: `${stripReturnEstimateLabel(f.name)}${label}` });
   }).join('\n');
 }
 
@@ -4910,12 +5002,20 @@ function calculateReturnRuleFees(q) {
     if (rule.chargeType === 'PER_CBM') value = cbm > 0 ? (Number(rule.value) || 0) * cbm : null;
     if (rule.chargeType === 'PER_WM') { const wm = Math.max(grossTons, cbm); value = wm > 0 ? (Number(rule.value) || 0) * wm : null; }
     if (rule.chargeType === 'PER_CONTAINER') value = containerQty > 0 ? (Number(rule.value) || 0) * containerQty : null;
+    if (rule.chargeType === 'PER_DG_PRODUCT') value = Number(q.dangerousGoodsProductCount) > 0 ? (Number(rule.value) || 0) * Number(q.dangerousGoodsProductCount) : null;
     if (rule.chargeType === 'PERCENTAGE' && freight > 0) {
       const base = rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freight + originTotal : freight;
       value = base * ((Number(rule.value) || 0) / 100);
     }
     if (value != null && rule.minValue != null) value = Math.max(value, Number(rule.minValue) || 0);
     return value;
+  };
+  const structuredRuleFee = (rule, totalValue) => {
+    const unitMap = { FIXED:'PER_SHIPMENT', PER_DOCUMENT:'PER_DOCUMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PERCENTAGE:'PERCENTAGE' };
+    const quantityMap = { FIXED:1, PER_DOCUMENT:1, PER_KG:taxable, PER_TON:grossTons, PER_CBM:cbm, PER_WM:Math.max(grossTons, cbm), PER_CONTAINER:containerQty, PER_DG_PRODUCT:Number(q.dangerousGoodsProductCount)||null };
+    const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
+    const quantity = quantityMap[rule.chargeType] ?? null;
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:rule.currency||'USD', billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, needsReview:billingUnit==='UNKNOWN' };
   };
 
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
@@ -4925,7 +5025,7 @@ function calculateReturnRuleFees(q) {
     }
     const value = calculateRule(rule);
     if (value != null) {
-      calculated.push({ name: rule.feeName, value, currency: rule.currency || 'USD', feeType: 'ORIGIN' });
+      calculated.push(structuredRuleFee(rule, value));
       originTotal += value;
     }
   });
@@ -4935,7 +5035,7 @@ function calculateReturnRuleFees(q) {
       return;
     }
     const value = calculateRule(rule);
-    if (value != null) calculated.push({ name: rule.feeName, value, currency: rule.currency || 'USD', feeType: 'DESTINATION' });
+    if (value != null) calculated.push(structuredRuleFee(rule, value));
   });
   return calculated;
 }
@@ -5731,6 +5831,7 @@ function switchSettingsTab(tab) {
                 <option value="PER_WM">Por tonelada-metro (W/M)</option>
                 <option value="PER_CBM">Por m³</option>
                 <option value="PER_CONTAINER">Por contêiner</option>
+                <option value="PER_DG_PRODUCT">Por produto perigoso</option>
                 <option value="PER_DOCUMENT">Por documento</option>
                 <option value="PERCENTAGE">% de Taxas Selecionadas</option>
               </select>
@@ -6548,6 +6649,14 @@ function buildFixedFeesTabHtml(scope) {
           </select>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group" style="margin:0;"><label>Unidade de cobrança</label><select id="ff-billing-unit">${Object.entries(FEE_UNIT_LABELS).map(([value,label]) => `<option value="${value}">${label}</option>`).join('')}</select></div>
+        <div class="form-group" style="margin:0;"><label>Descrição original da unidade</label><input id="ff-original-unit" placeholder="Ex: per DG item, per container"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group" style="margin:0;"><label>Classificação ISPS</label><select id="ff-isps-classification"><option value="">Não se aplica</option><option value="ISPS_CARRIER">ISPS do armador/navio</option><option value="ISPS_TERMINAL">ISPS do terminal</option><option value="ISPS_UNCLASSIFIED">ISPS a classificar</option></select></div>
+        <div class="form-group" style="margin:0;"><label>Relação com o frete</label><select id="ff-included-in-freight"><option value="">Não se aplica</option><option value="NOT_INCLUDED">Cobrança adicional</option><option value="INCLUDED">Já incluída no frete</option><option value="TO_CONFIRM">A confirmar</option></select></div>
+      </div>
       ${modalField}
       <input type="hidden" id="ff-id">
       <button class="btn btn-primary" id="btnSaveFixedFee" onclick="saveFixedFee()" style="margin-top:16px;">💾 Salvar Taxa</button>
@@ -6618,7 +6727,7 @@ async function loadFixedFeesTable() {
     }
     
     let html = `<table class="k-table"><thead><tr>
-      <th>Nome</th><th>Armador</th><th>Contêiner</th><th>Valor</th><th>Moeda</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
+      <th>Nome</th><th>Armador</th><th>Contêiner</th><th>Valor</th><th>Moeda</th><th>Unidade</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
@@ -6628,6 +6737,7 @@ async function loadFixedFeesTable() {
         <td>${f.containerSize || '-'}</td>
         <td>${Number(f.value).toFixed(2)}</td>
         <td>${f.currency}</td>
+        <td>${FEE_UNIT_LABELS[f.billingUnit] || f.originalUnit || 'Não identificada'}${f.feeCategory==='ISPS_FEE'?`<br><small>${f.ispsClassification||'ISPS_UNCLASSIFIED'} · Frete: ${f.includedInFreight||'TO_CONFIRM'}</small>`:''}</td>
         <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
         <td>${f.modal}</td>
         <td><span class="status-badge ${f.active ? 'approved' : 'expired'}">${f.active ? 'Ativo' : 'Inativo'}</span></td>
@@ -6663,6 +6773,10 @@ function editFixedFee(fee) {
   document.getElementById('ff-value').value = fee.value;
   document.getElementById('ff-currency').value = fee.currency;
   document.getElementById('ff-type').value = fee.type;
+  document.getElementById('ff-billing-unit').value = fee.billingUnit || 'UNKNOWN';
+  document.getElementById('ff-original-unit').value = fee.originalUnit || '';
+  document.getElementById('ff-isps-classification').value = fee.ispsClassification || '';
+  document.getElementById('ff-included-in-freight').value = fee.includedInFreight || '';
   document.getElementById('ff-modal').value = fee.modal;
   
   document.getElementById('btnSaveFixedFee').innerText = '💾 Atualizar Taxa';
@@ -6677,6 +6791,10 @@ function cancelEditFixedFee() {
   document.getElementById('ff-value').value = '';
   document.getElementById('ff-currency').value = 'USD';
   document.getElementById('ff-type').value = 'ORIGIN';
+  document.getElementById('ff-billing-unit').value = 'UNKNOWN';
+  document.getElementById('ff-original-unit').value = '';
+  document.getElementById('ff-isps-classification').value = '';
+  document.getElementById('ff-included-in-freight').value = '';
   document.getElementById('ff-modal').value = currentFixedFeeScope === 'AIR' ? 'AIR' : 'ALL';
 
   document.getElementById('btnSaveFixedFee').innerText = '💾 Salvar Taxa';
@@ -6701,6 +6819,10 @@ async function saveFixedFee() {
     containerSize,
     value: parseFloat(value),
     currency: document.getElementById('ff-currency').value,
+    billingUnit: document.getElementById('ff-billing-unit').value,
+    originalUnit: document.getElementById('ff-original-unit').value || null,
+    ispsClassification: document.getElementById('ff-isps-classification').value || null,
+    includedInFreight: document.getElementById('ff-included-in-freight').value || null,
     type: document.getElementById('ff-type').value,
     modal: document.getElementById('ff-modal').value,
     active: true
@@ -6934,7 +7056,8 @@ async function applyFixedFees(type, targetId) {
       let line = f.name;
       if (f.carrier) line = `[${f.carrier}] ` + line;
       if (f.containerSize) line = line + ` (${f.containerSize})`;
-      return `${line}: ${Number(f.value).toFixed(2)} ${f.currency}`;
+      const billingUnit = f.billingUnit || 'UNKNOWN';
+      return formatFeeLine({ name:line, unitValue:Number(f.value), value:Number(f.value), currency:f.currency, billingUnit, originalUnit:f.originalUnit || null, quantity:['PER_SHIPMENT','TOTAL_SHIPMENT','UNKNOWN'].includes(billingUnit) ? 1 : null, totalValue:Number(f.value), canonicalCategory:f.feeCategory, ispsClassification:f.ispsClassification, includedInFreight:f.includedInFreight, applicationScope:f.type, chargedBy:f.carrier, needsReview:!['PER_SHIPMENT','TOTAL_SHIPMENT'].includes(billingUnit) });
     });
     
     if (currentText) {
@@ -7112,7 +7235,7 @@ async function loadStandardFeesTable() {
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
-      let chargeTypeStr = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DOCUMENT: 'Por doc', PERCENTAGE: '% Taxas' })[f.chargeType] || f.chargeType;
+      let chargeTypeStr = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DG_PRODUCT:'Por produto perigoso', PER_DOCUMENT: 'Por doc', PERCENTAGE: '% Taxas' })[f.chargeType] || f.chargeType;
       html += `<tr>
         <td><strong>${ifrEscape(f.name)}</strong><br><small style="color:var(--text-muted)">${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : `${Number(f.value).toFixed(2)}${f.chargeType === 'PERCENTAGE' ? '%' : ' ' + f.currency}`}</small></td>
         <td>${chargeTypeStr}</td>
@@ -7402,11 +7525,11 @@ async function applyStandardFees(type, targetId) {
       return;
     }
 
+    const unitMap = { FIXED:'PER_SHIPMENT', PER_DOCUMENT:'PER_DOCUMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PERCENTAGE:'PERCENTAGE' };
     let newLines = applicableFees.map(f => {
-      let chargeInfo = f.chargeType === 'PERCENTAGE' ? `${Number(f.value).toFixed(2)}%` : `${Number(f.value).toFixed(2)} ${f.currency}`;
-      if (f.chargeType === 'PER_DOCUMENT') chargeInfo += ' (Por Doc)';
-      else if (f.chargeType === 'FIXED') chargeInfo += ' (Fixo)';
-      return `${f.name}: ${chargeInfo}`;
+      const billingUnit = unitMap[f.chargeType] || 'UNKNOWN';
+      const quantity = ['PER_SHIPMENT','PER_DOCUMENT'].includes(billingUnit) ? 1 : null;
+      return formatFeeLine({ name:f.name, unitValue:Number(f.value), value:Number(f.value), currency:f.currency, billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue:Number(f.value), needsReview:quantity===null });
     });
     
     if (currentText) {
@@ -8179,7 +8302,7 @@ document.addEventListener('DOMContentLoaded', function() {
   modernizeLegacyUI(document.body);
   ['rev-origin-services', 'rev-destination-services'].forEach(id => {
     const field = document.getElementById(id);
-    if (field) field.addEventListener('input', () => renderDangerousGoodsAlerts('rev'));
+    if (field) field.addEventListener('input', () => { renderDangerousGoodsAlerts('rev'); renderFeeCalculationPreview(); });
   });
   renderDangerousGoodsAlerts('r');
   ['r', 'rev'].forEach(prefix => {

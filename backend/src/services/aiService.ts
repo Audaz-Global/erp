@@ -1,8 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+﻿import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
 import { applyRateValidityPolicy } from './rateValidityService';
 import { DG_STATUS, normalizeDangerousGoodsStatus, normalizeMsdsStatus } from './dangerousGoodsService';
+import { normalizeFeeList } from './feeCalculationService';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -270,6 +271,9 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 packing_group: { type: 'string' },
                 proper_shipping_name: { type: 'string' },
                 flash_point: { type: 'string' },
+                dangerous_goods_product_count: { type: 'number', description: 'Quantidade de produtos perigosos distintos explicitamente informada.' },
+                dangerous_packages_count: { type: 'number', description: 'Quantidade de volumes contendo carga perigosa explicitamente informada.' },
+                un_number_count: { type: 'number', description: 'Quantidade de UN Numbers distintos identificados.' },
                 requires_insurance: { 
                   type: 'boolean', 
                   description: 'Se o cliente solicitou ou mencionou seguro no e-mail (ex: "com seguro", "frete com seguro"). Se disser "sem seguro" ou não houver menção, retorne false.' 
@@ -320,6 +324,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     Instruções Importantes para Carga/Equipamento Especial:
     - **Carga perigosa / DG**: DG, Dangerous Goods, Dangerous Cargo, IMO e Hazmat indicam carga perigosa confirmada. Uma declaração explícita "non-DG", "not dangerous" ou "não perigosa" indica NOT_DANGEROUS. Se a fonte não disser nada, retorne TO_CONFIRM; nunca transforme ausência de informação em NOT_DANGEROUS.
     - **MSDS/SDS**: Detecte se a ficha de segurança foi anexada ou mencionada. Para carga DG sem documento, retorne PENDING. A ausência do MSDS não invalida a extração. Extraia UN Number, classe, packing group, proper shipping name e flash point somente quando constarem na fonte.
+    - Diferencie quantidade de produtos perigosos, quantidade de UN Numbers e quantidade de volumes perigosos. Não use uma como equivalente da outra sem evidência explícita.
     - Analise se a solicitação do cliente ou os documentos mencionam siglas ou equipamentos especiais de contêineres, como Open Top (OT), High Cube (HC), Flat Rack, etc.
     - Se encontrar tais siglas ou especificações (e.g. "40' OT HC", "Open Top", "High Cube", "OP e HC"), aplique as regras explicadas no CONTEXTO (como "Sigla E-mail (4 x 40' OT HC)" etc.).
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
@@ -367,7 +372,6 @@ export const extractClientData = async (text: string, contextRules: string = '',
     throw new Error('Falha ao processar dados do cliente com IA: ' + (error?.message || String(error)));
   }
 };
-
 export function buildAgentDraftDataContext(data: DraftPayload): string {
   const isSeaFcl = data.modal === 'SEA' && String(data.loadType).startsWith('FCL');
   const containerInfo = isSeaFcl ? extractContainerInfo(data.packages, data.totalPackages, data.loadType) : null;
@@ -398,6 +402,7 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - Carga perigosa (DG/IMO): ${data.dangerousGoodsStatus === 'CONFIRMED' ? 'SIM' : data.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A CONFIRMAR' : 'NÃO'}
     - MSDS: ${data.msdsStatus || 'NÃO INFORMADO'}
     - UN / Classe de risco: ${data.unNumber || 'Não informado'} / ${data.dangerousGoodsClass || 'Não informada'}
+    - Produtos perigosos distintos: ${data.dangerousGoodsProductCount ?? 'Não informado'}
     - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
     ${data.reference ? `- Referência: ${data.reference}` : ''}`;
 }
@@ -555,8 +560,16 @@ export const extractAgentCosts = async (
                     type: 'object',
                     properties: {
                       name: { type: 'string', description: 'Nome da taxa de origem (ex: AWB Fee, CGC, Terminal Charges, Pick up, Handling)' },
-                      value: { type: 'number', description: 'Valor total calculado da taxa' },
-                      currency: { type: 'string', description: 'Moeda da taxa (ex: USD, EUR, BRL)' }
+                      value: { type: 'number', description: 'Compatibilidade: valor total calculado da taxa' },
+                      unitValue: { type: 'number', description: 'Valor unitário antes da multiplicação' },
+                      currency: { type: 'string', description: 'Moeda da taxa (ex: USD, EUR, BRL)' },
+                      billingUnit: { type: 'string', enum: ['TOTAL_SHIPMENT','PER_DG_PRODUCT','PER_ITEM','PER_PACKAGE','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_SHIPMENT','PER_CONTAINER','PER_BL','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE','UNKNOWN'] },
+                      originalUnit: { type: 'string' }, quantity: { type: 'number' }, totalValue: { type: 'number' },
+                      quantitySource: { type: 'string' }, evidence: { type: 'string' }, confidence: { type: 'number' }, needsReview: { type: 'boolean' },
+                      ispsClassification: { type: 'string', enum: ['ISPS_CARRIER','ISPS_TERMINAL','ISPS_UNCLASSIFIED'] },
+                      applicationScope: { type: 'string', enum: ['ORIGIN','DESTINATION','TRANSIT','UNKNOWN'] },
+                      chargedBy: { type: 'string' },
+                      includedInFreight: { type: 'string', enum: ['INCLUDED','NOT_INCLUDED','TO_CONFIRM'] }
                     },
                     required: ['name', 'value']
                   },
@@ -579,8 +592,16 @@ export const extractAgentCosts = async (
                     type: 'object',
                     properties: {
                       name: { type: 'string', description: 'Nome da taxa de destino (ex: Delivery Fee, CCT Fee, Desconsolidação, Frete Rodoviário Nacional)' },
-                      value: { type: 'number', description: 'Valor total calculado da taxa' },
-                      currency: { type: 'string', description: 'Moeda da taxa (ex: USD, EUR, BRL)' }
+                      value: { type: 'number', description: 'Compatibilidade: valor total calculado da taxa' },
+                      unitValue: { type: 'number', description: 'Valor unitário antes da multiplicação' },
+                      currency: { type: 'string', description: 'Moeda da taxa (ex: USD, EUR, BRL)' },
+                      billingUnit: { type: 'string', enum: ['TOTAL_SHIPMENT','PER_DG_PRODUCT','PER_ITEM','PER_PACKAGE','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_SHIPMENT','PER_CONTAINER','PER_BL','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE','UNKNOWN'] },
+                      originalUnit: { type: 'string' }, quantity: { type: 'number' }, totalValue: { type: 'number' },
+                      quantitySource: { type: 'string' }, evidence: { type: 'string' }, confidence: { type: 'number' }, needsReview: { type: 'boolean' },
+                      ispsClassification: { type: 'string', enum: ['ISPS_CARRIER','ISPS_TERMINAL','ISPS_UNCLASSIFIED'] },
+                      applicationScope: { type: 'string', enum: ['ORIGIN','DESTINATION','TRANSIT','UNKNOWN'] },
+                      chargedBy: { type: 'string' },
+                      includedInFreight: { type: 'string', enum: ['INCLUDED','NOT_INCLUDED','TO_CONFIRM'] }
                     },
                     required: ['name', 'value']
                   },
@@ -645,6 +666,8 @@ export const extractAgentCosts = async (
        - **Validade da tarifa:** procure explicitamente por "valid until", "validity", "valid thru", "effective until", "validade até", "vigência" e intervalos de vigência. Retorne rate_valid_until em YYYY-MM-DD, rate_validity_evidence com o trecho literal e rate_validity_confidence entre 0 e 1.
        - Use rate_validity_source=AGENT_EMAIL quando estiver no corpo da RESPOSTA ATUAL; use TARIFF somente quando a evidência estiver em anexo/tarifário da resposta atual. Não use o histórico como fonte e não invente datas.
     5. **Inland de Origem (origin_inland) e Taxas Locais de Origem (origin_fees):**
+       - Para CADA taxa retorne name, unitValue, currency, billingUnit, originalUnit, quantity, totalValue, quantitySource, evidence, confidence e needsReview. Mantenha value igual a totalValue por compatibilidade.
+       - Nunca presuma que o valor informado é por contêiner. Se unidade ou quantidade não estiver clara, use UNKNOWN ou deixe quantity ausente e needsReview=true; preserve o total explícito sem inventar multiplicador.
        - Classifique Pick Up, Pickup, Collection, Pre-carriage ou coleta da fábrica até o aeroporto/porto como origin_inland. Extraia valor, moeda, rota e prazo separadamente.
        - NÃO repita o Pick Up dentro de origin_fees.
        - Em origin_fees, identifique apenas as demais taxas locais na origem (AWB, Handling, THC, XRAY, Customs Clearance etc.).
@@ -654,7 +677,11 @@ export const extractAgentCosts = async (
          - Para taxas cotadas por conjunto de documentos ("for each set of docs"), use o valor informado.
        - Retorne a lista de taxas em "origin_fees" com o respectivo "name" (por extenso, ex: "AWB Fee & CGC", "Terminal Charges", "Customs Clearance", "Handling Fee", "Pick Up"), "value" (número) e "currency" (moeda, ex: "USD", "BRL").
     6. **Taxas Locais de Destino e Rodoviário (destination_fees):** Identifique todas as taxas locais no destino (Destination charges) informadas no e-mail do agente ou cliente.
+       - Para CADA taxa retorne name, unitValue, currency, billingUnit, originalUnit, quantity, totalValue, quantitySource, evidence, confidence e needsReview. Mantenha value igual a totalValue por compatibilidade.
        - DG Fee, IMO Fee, DGR Fee, Dangerous Goods Surcharge e Hazmat Fee são nomenclaturas equivalentes de taxa de carga perigosa. Preserve o nome original na resposta e extraia todas as ocorrências; o sistema fará a validação de possível duplicidade.
+       - Uma taxa DG pode ser por produto perigoso, UN, volume DG, contêiner ou embarque. Use PER_DG_PRODUCT somente quando a fonte disser per DG/IMO product/item. Exemplo: USD 50 per DG item para 4 produtos => unitValue=50, billingUnit=PER_DG_PRODUCT, quantity=4, totalValue=200, value=200.
+       - **ISPS:** normalize ISPS, International Ship and Port Facility Security e Terminal/Port Security Fee na família ISPS. Use ispsClassification=ISPS_CARRIER somente com evidência de armador/navio/frete marítimo; ISPS_TERMINAL somente com evidência de terminal/porto; caso contrário use ISPS_UNCLASSIFIED. Informe applicationScope, chargedBy e includedInFreight. ISPS isolada nunca deve ser classificada por suposição.
+       - Se o frete disser all-in ou including ISPS, marque includedInFreight=INCLUDED. Se a proposta disser que ISPS é adicional/separada, use NOT_INCLUDED. Sem evidência, use TO_CONFIRM. Preserve o trecho em evidence.
        - Se houver menção ou solicitação de orçamento de frete rodoviário nacional (ex: transporte terrestre doméstico / rodoviário / entrega local de GRU para Itatiba, Jacareí, São Paulo, etc.), inclua essa taxa sob o nome "Frete Rodoviário Nacional [Trecho]" (ex: "Frete Rodoviário Nacional (GRU x Itatiba)"). IMPORTANTE: Se o documento ou e-mail de orçamento do frete rodoviário apresentar o valor "Sem impostos" e também um "Total previsto com impostos" (ex: com ICMS/ISS), você DEVE extrair obrigatoriamente o "Total previsto com impostos" (valor final) para esta taxa.
        - Calcule o valor total de cada taxa local de destino encontrada da mesma forma que na origem (valores fixos ou baseados em peso/Hawb).
        - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").
@@ -696,6 +723,8 @@ export const extractAgentCosts = async (
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.costs) {
+      parsed.costs.origin_fees = normalizeFeeList(parsed.costs.origin_fees, 'ORIGIN');
+      parsed.costs.destination_fees = normalizeFeeList(parsed.costs.destination_fees, 'DESTINATION');
       const ttStr = parsed.costs.transit_time;
       let ttDays = null;
       if (ttStr && ttStr !== 'n/a') {
