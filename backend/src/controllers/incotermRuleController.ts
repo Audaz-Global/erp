@@ -15,11 +15,26 @@ import { Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const VALID_DIRECTIONS = new Set(['IMPORT', 'EXPORT', 'ALL']);
+const VALID_APPLICABILITY = new Set(['REQUIRED', 'APPLICABLE', 'CONDITIONAL', 'NOT_APPLICABLE', 'TO_CONFIRM']);
 
 function normalizeDirection(value: unknown) {
   const direction = String(value || 'ALL').toUpperCase();
   if (!VALID_DIRECTIONS.has(direction)) throw new Error('Direção inválida.');
   return direction;
+}
+
+function normalizeApplicability(value: unknown) {
+  if (value === undefined) return undefined;
+  const applicability = String(value || 'APPLICABLE').toUpperCase();
+  if (!VALID_APPLICABILITY.has(applicability)) throw new Error('Comportamento de aplicabilidade inválido.');
+  return applicability;
+}
+
+function normalizeCondition(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
 }
 
 function feeSupportsModal(fee: any, modal: string) {
@@ -55,7 +70,9 @@ export const getIncotermRules = async (req: Request, res: Response) => {
 // Cria uma nova regra
 export const createIncotermRule = async (req: Request, res: Response) => {
   try {
-    const { incoterm, modal, direction, required, standardFeeId, feeType, feeName, chargeType, value, minValue, currency, percentBase, description, sortOrder, active } = req.body;
+    const { incoterm, modal, direction, required, standardFeeId, feeType, feeName, chargeType, value, minValue, currency, percentBase, description, sortOrder, active, applicability, financialGroup, condition, reason } = req.body;
+    const normalizedApplicability = normalizeApplicability(applicability) || 'APPLICABLE';
+    const normalizedCondition = normalizeCondition(condition);
     let fee = standardFeeId ? await prisma.standardFee.findUnique({ where: { id: standardFeeId } }) : null;
     if (!fee && feeName) {
       fee = await findOrCreateStandardFeeForLegacyRule(prisma, {
@@ -95,6 +112,10 @@ export const createIncotermRule = async (req: Request, res: Response) => {
           modal: normalizedModal,
           direction: normalizedDirection,
           required: Boolean(required),
+          applicability: normalizedApplicability,
+          financialGroup: financialGroup || null,
+          condition: normalizedCondition ?? null,
+          reason: reason || null,
           standardFeeId: fee.id,
           ...standardFeeSnapshot(fee),
           sortOrder: normalizedSortOrder,
@@ -117,7 +138,9 @@ export const createIncotermRule = async (req: Request, res: Response) => {
 export const updateIncotermRule = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id || '');
-    const { incoterm, modal, direction, required, standardFeeId, sortOrder, active } = req.body;
+    const { incoterm, modal, direction, required, standardFeeId, sortOrder, active, applicability, financialGroup, condition, reason } = req.body;
+    const normalizedApplicability = normalizeApplicability(applicability);
+    const normalizedCondition = normalizeCondition(condition);
     const current = await prisma.incotermRule.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Regra de Incoterm não encontrada.' });
 
@@ -152,6 +175,10 @@ export const updateIncotermRule = async (req: Request, res: Response) => {
           modal: normalizedModal,
           direction: normalizedDirection,
           ...(required !== undefined && { required: Boolean(required) }),
+          ...(normalizedApplicability !== undefined && { applicability: normalizedApplicability }),
+          ...(financialGroup !== undefined && { financialGroup: financialGroup || null }),
+          ...(normalizedCondition !== undefined && { condition: normalizedCondition }),
+          ...(reason !== undefined && { reason: reason || null }),
           standardFeeId: fee.id,
           ...standardFeeSnapshot(fee),
           sortOrder: normalizedSortOrder,

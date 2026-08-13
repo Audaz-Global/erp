@@ -10,6 +10,8 @@ import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
+import { withIncotermApplicability } from '../services/incotermApplicabilityService';
+import { normalizeFee } from '../services/feeCalculationService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -107,7 +109,7 @@ export const createQuotation = async (req: Request, res: Response) => {
       actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
       newStatus: quotation.status, metadata: { reference: quotation.reference }
     });
-    res.status(201).json(withDangerousGoodsCompliance(quotation));
+    res.status(201).json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
@@ -140,7 +142,7 @@ export const getQuotationById = async (req: Request, res: Response) => {
       include: { client: true }
     });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
-    res.json(withDangerousGoodsCompliance(quotation));
+    res.json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar a cotação' });
   }
@@ -219,7 +221,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
       actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
       previousStatus: current.status, newStatus: quotation.status, changes
     });
-    res.json(withDangerousGoodsCompliance(quotation));
+    res.json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
     res.status(error instanceof IncotermFieldRuleError || error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
@@ -441,7 +443,9 @@ export const getPublicWebView = async (req: Request, res: Response) => {
               billingUnit: f.billingUnit || 'UNKNOWN',
               quantity: f.quantity ?? 1,
               currency: curr,
-              brl: getBrlValue(val, curr)
+              brl: getBrlValue(val, curr),
+              financialGroup: normalizeFee({ ...f, applicationScope:'ORIGIN' }).financialGroup,
+              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature
             };
           });
         }
@@ -466,7 +470,9 @@ export const getPublicWebView = async (req: Request, res: Response) => {
               billingUnit: f.billingUnit || 'UNKNOWN',
               quantity: f.quantity ?? 1,
               currency: curr,
-              brl: getBrlValue(val, curr)
+              brl: getBrlValue(val, curr),
+              financialGroup: normalizeFee({ ...f, applicationScope:'DESTINATION' }).financialGroup,
+              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature
             };
           });
         }
@@ -480,13 +486,13 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const modalStr = String(quotation.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
-    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0 };
+    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0, insuranceRequested: Boolean(quotation.requiresInsurance), customsClearanceContracted: Boolean(quotation.customsClearanceIncluded) };
     
     if (detailedFeesOrigem.length === 0) {
       try {
         const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         if (originFees.length > 0) {
-          detailedFeesOrigem = formatFeesForController(originFees, getBrlValue);
+          detailedFeesOrigem = formatFeesForController(originFees, getBrlValue).map(f => ({ ...normalizeFee({ name:f.name, currency:f.currency, applicationScope:'ORIGIN' }), ...f }));
         }
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para origem:', err);
@@ -504,13 +510,11 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       });
     }
 
-    const subtotalOrigemBrl = detailedFeesOrigem.reduce((s, f) => s + f.brl, 0);
-
     if (detailedFeesDestino.length === 0) {
       try {
         const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         if (destinationFees.length > 0) {
-          detailedFeesDestino = formatFeesForController(destinationFees, getBrlValue);
+          detailedFeesDestino = formatFeesForController(destinationFees, getBrlValue).map(f => ({ ...normalizeFee({ name:f.name, currency:f.currency, applicationScope:'DESTINATION' }), ...f }));
         }
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para destino:', err);
@@ -529,6 +533,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
             (ruleFee.name.toLowerCase().includes('iof') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('iof')));
           if (!nameMatch) {
             detailedFeesDestino.push({
+              ...normalizeFee({ name:ruleFee.name, currency:ruleFee.currency, applicationScope:'DESTINATION' }),
               name: ruleFee.name,
               val: ruleFee.value,
               currency: ruleFee.currency,
@@ -543,11 +548,20 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     // Desembaraço (Condicional ao flag — independente do Incoterm)
     if (quotation.customsClearanceIncluded && !detailedFeesDestino.some(f => f.name.toLowerCase().includes('desembaraço'))) {
-      detailedFeesDestino.push({ name: 'Desembaraço Aduaneiro', val: 900.00, currency: 'BRL', brl: 900.00 });
+      detailedFeesDestino.push({ name: 'Desembaraço Aduaneiro', val: 900.00, currency: 'BRL', brl: 900.00, financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS' });
     }
 
+    const detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => f.financialGroup === 'FREIGHT_COMPONENT');
+    const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
+    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => additionalGroups.has(f.financialGroup)).map(f => ({ ...f, financialGroupLabel: additionalLabels[f.financialGroup] || f.financialGroup }));
+    detailedFeesOrigem = detailedFeesOrigem.filter(f => f.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(f.financialGroup));
+    detailedFeesDestino = detailedFeesDestino.filter(f => f.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(f.financialGroup));
+    const subtotalFreightComponentsBrl = detailedFeesFreightComponents.reduce((s, f) => s + f.brl, 0);
+    const subtotalAdditionalBrl = detailedFeesAdditionalGroups.reduce((s, f) => s + f.brl, 0);
+    const subtotalOrigemBrl = detailedFeesOrigem.reduce((s, f) => s + f.brl, 0);
     const subtotalDestinoBrl = detailedFeesDestino.reduce((s, f) => s + f.brl, 0);
-    const totalGeralBrl = fTotalBrl + subtotalOrigemBrl + subtotalDestinoBrl;
+    const totalGeralBrl = fTotalBrl + subtotalFreightComponentsBrl + subtotalOrigemBrl + subtotalDestinoBrl + subtotalAdditionalBrl;
 
     const hasOversized = isAir && hasOversizedCargo(quotation.packages || '');
     const oversizedAlertHtml = hasOversized
@@ -806,11 +820,16 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           <td class="t-right">${fCurr} ${(fVal / taxavel).toFixed(2)} / kg</td>
           <td class="t-right">R$ ${(fTotalBrl / taxavel).toFixed(2)} / kg</td>
         </tr>
+        ${detailedFeesFreightComponents.map(fee => `
+        <tr>
+          <td>${fee.name}</td><td>Componente do frete${fee.chargeNature ? ` · ${fee.chargeNature}` : ''}</td>
+          <td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td>
+        </tr>`).join('')}
         <tr class="total-row">
           <td>Subtotal Frete</td>
           <td></td>
           <td class="t-right">${fCurr} ${fVal.toFixed(2)}</td>
-          <td class="t-right">R$ ${fTotalBrl.toFixed(2)}</td>
+          <td class="t-right">R$ ${(fTotalBrl + subtotalFreightComponentsBrl).toFixed(2)}</td>
         </tr>
 
         <!-- Origem -->
@@ -850,6 +869,11 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           <td class="t-right">—</td>
           <td class="t-right">R$ ${subtotalDestinoBrl.toFixed(2)}</td>
         </tr>
+
+        ${detailedFeesAdditionalGroups.length ? `
+        <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro, impostos e profit</td></tr>
+        ${detailedFeesAdditionalGroups.map(fee => `<tr><td>${fee.financialGroupLabel}: ${fee.name}</td><td>${fee.chargeNature || 'Outra'}</td><td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td></tr>`).join('')}
+        <tr class="total-row"><td>Subtotal de outras classificações</td><td></td><td></td><td class="t-right">R$ ${subtotalAdditionalBrl.toFixed(2)}</td></tr>` : ''}
 
         <!-- Total Geral -->
         <tr class="total-row grand-total">

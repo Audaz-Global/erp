@@ -11,6 +11,7 @@ const prisma = new PrismaClient();
 const VALID_MODAL_SCOPES = new Set(['ALL', 'AIR', 'SEA_FCL', 'SEA_LCL']);
 const VALID_DIRECTIONS = new Set(['ALL', 'IMPORT', 'EXPORT']);
 const VALID_INCOTERMS = new Set(['ALL', 'EXW', 'FCA', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']);
+const VALID_APPLICABILITY = new Set(['REQUIRED', 'APPLICABLE', 'CONDITIONAL', 'NOT_APPLICABLE', 'TO_CONFIRM']);
 
 type ApplicationInput = {
   id?: string;
@@ -20,7 +21,23 @@ type ApplicationInput = {
   required?: unknown;
   sortOrder?: unknown;
   active?: unknown;
+  applicability?: unknown;
+  financialGroup?: unknown;
+  condition?: unknown;
+  reason?: unknown;
 };
+
+function normalizeApplicability(value: unknown) {
+  const applicability = String(value || 'APPLICABLE').toUpperCase();
+  if (!VALID_APPLICABILITY.has(applicability)) throw new Error('Comportamento de aplicabilidade inválido.');
+  return applicability;
+}
+
+function normalizeCondition(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
 
 function normalizeModalScope(value: unknown) {
   const parts = String(value || 'ALL').toUpperCase().split(',').map(v => v.trim()).filter(Boolean);
@@ -63,7 +80,19 @@ export function normalizeApplications(value: unknown) {
     if (!VALID_MODAL_SCOPES.has(modal)) throw new Error(`Modal inválido na aplicação ${index + 1}.`);
     if (!VALID_DIRECTIONS.has(direction)) throw new Error(`Direção inválida na aplicação ${index + 1}.`);
     if (sortOrder === null) throw new Error(`A ordem da aplicação ${index + 1} deve ser um inteiro maior ou igual a 1.`);
-    return { incoterm, modal, direction, required: Boolean(application.required), sortOrder, active: application.active !== false };
+    let applicability: string;
+    let condition: string | null;
+    try {
+      applicability = normalizeApplicability(application.applicability);
+      condition = normalizeCondition(application.condition);
+    } catch (err: any) {
+      throw new Error(`${err.message} (aplicação ${index + 1})`);
+    }
+    return {
+      incoterm, modal, direction, required: Boolean(application.required), sortOrder, active: application.active !== false,
+      applicability, financialGroup: application.financialGroup ? String(application.financialGroup).toUpperCase() : null,
+      condition, reason: application.reason ? String(application.reason).trim() || null : null
+    };
   });
 }
 

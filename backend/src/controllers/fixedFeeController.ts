@@ -19,8 +19,8 @@ export const getFixedFees = async (req: Request, res: Response) => {
 
 export const createFixedFee = async (req: Request, res: Response) => {
   try {
-    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, ispsClassification, includedInFreight, modal, active } = req.body;
-    const normalized = normalizeFee({ name, value, currency, billingUnit, originalUnit, ispsClassification, includedInFreight, chargedBy: carrier, applicationScope: type });
+    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, ispsClassification, includedInFreight, modal, active } = req.body;
+    const normalized = normalizeFee({ name, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, classificationSource:'MANUAL', ispsClassification, includedInFreight, chargedBy: carrier, applicationScope: type });
     const fee = await prisma.fixedFee.create({
       data: {
         name,
@@ -33,6 +33,9 @@ export const createFixedFee = async (req: Request, res: Response) => {
         billingUnit: normalizeBillingUnit(billingUnit, originalUnit || name),
         originalUnit: originalUnit || null,
         feeCategory: normalized.canonicalCategory,
+        financialGroup: normalized.financialGroup,
+        chargeNature: normalized.chargeNature,
+        classificationSource: 'MANUAL',
         ispsClassification: normalized.ispsClassification,
         includedInFreight: normalized.includedInFreight,
         modal: modal || 'ALL',
@@ -48,7 +51,7 @@ export const createFixedFee = async (req: Request, res: Response) => {
 export const updateFixedFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, ispsClassification, includedInFreight, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, ispsClassification, includedInFreight, modal, active } = req.body;
     const current = await prisma.fixedFee.findUnique({ where: { id } });
     if (!current) {
       res.status(404).json({ error: 'Taxa fixa não encontrada.' });
@@ -60,6 +63,9 @@ export const updateFixedFee = async (req: Request, res: Response) => {
       currency: currency ?? current.currency,
       billingUnit: billingUnit ?? current.billingUnit,
       originalUnit: originalUnit !== undefined ? originalUnit : current.originalUnit,
+      financialGroup: financialGroup !== undefined ? financialGroup : current.financialGroup,
+      chargeNature: chargeNature !== undefined ? chargeNature : current.chargeNature,
+      classificationSource: 'MANUAL',
       ispsClassification: ispsClassification !== undefined ? ispsClassification : current.ispsClassification,
       includedInFreight: includedInFreight !== undefined ? includedInFreight : current.includedInFreight,
       chargedBy: carrier !== undefined ? carrier : current.carrier,
@@ -80,6 +86,9 @@ export const updateFixedFee = async (req: Request, res: Response) => {
         billingUnit: billingUnit !== undefined ? normalizeBillingUnit(billingUnit, originalUnit || name) : undefined,
         originalUnit,
         feeCategory: normalized.canonicalCategory,
+        financialGroup: normalized.financialGroup,
+        chargeNature: normalized.chargeNature,
+        classificationSource: 'MANUAL',
         ispsClassification: normalized.ispsClassification,
         includedInFreight: normalized.includedInFreight,
         modal,
@@ -175,6 +184,9 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
               billingUnit: normalizeBillingUnit(undefined, name),
               originalUnit: String(name),
               feeCategory: normalizeFee({ name }).canonicalCategory,
+              financialGroup: normalizeFee({ name, chargedBy: sheetName, applicationScope: type }).financialGroup,
+              chargeNature: normalizeFee({ name }).chargeNature,
+              classificationSource: 'RULE',
               ispsClassification: normalizeFee({ name }).ispsClassification,
               includedInFreight: normalizeFee({ name }).includedInFreight,
               modal: modal,
@@ -196,6 +208,9 @@ export const importFixedFeesXlsx = async (req: Request, res: Response): Promise<
                   billingUnit: normalizeBillingUnit(undefined, name),
                   originalUnit: String(name),
                   feeCategory: normalizeFee({ name }).canonicalCategory,
+                  financialGroup: normalizeFee({ name, chargedBy: sheetName, applicationScope: type }).financialGroup,
+                  chargeNature: normalizeFee({ name }).chargeNature,
+                  classificationSource: 'RULE',
                   ispsClassification: normalizeFee({ name }).ispsClassification,
                   includedInFreight: normalizeFee({ name }).includedInFreight,
                   modal: modal,

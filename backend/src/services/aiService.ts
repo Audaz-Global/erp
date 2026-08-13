@@ -569,7 +569,10 @@ export const extractAgentCosts = async (
                       ispsClassification: { type: 'string', enum: ['ISPS_CARRIER','ISPS_TERMINAL','ISPS_UNCLASSIFIED'] },
                       applicationScope: { type: 'string', enum: ['ORIGIN','DESTINATION','TRANSIT','UNKNOWN'] },
                       chargedBy: { type: 'string' },
-                      includedInFreight: { type: 'string', enum: ['INCLUDED','NOT_INCLUDED','TO_CONFIRM'] }
+                      includedInFreight: { type: 'string', enum: ['INCLUDED','NOT_INCLUDED','TO_CONFIRM'] },
+                      financialGroup: { type: 'string', enum: ['INTERNATIONAL_FREIGHT','FREIGHT_COMPONENT','ORIGIN_CHARGE','DESTINATION_CHARGE','DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT','TO_CONFIRM'] },
+                      chargeNature: { type: 'string', enum: ['BASE_FREIGHT','FUEL','SECURITY','DG','CUSTOMS','INSURANCE','TAX','PROFIT','LOCAL_SERVICE','OTHER'] },
+                      classificationSource: { type: 'string', enum: ['AI'] }
                     },
                     required: ['name', 'value']
                   },
@@ -601,7 +604,10 @@ export const extractAgentCosts = async (
                       ispsClassification: { type: 'string', enum: ['ISPS_CARRIER','ISPS_TERMINAL','ISPS_UNCLASSIFIED'] },
                       applicationScope: { type: 'string', enum: ['ORIGIN','DESTINATION','TRANSIT','UNKNOWN'] },
                       chargedBy: { type: 'string' },
-                      includedInFreight: { type: 'string', enum: ['INCLUDED','NOT_INCLUDED','TO_CONFIRM'] }
+                      includedInFreight: { type: 'string', enum: ['INCLUDED','NOT_INCLUDED','TO_CONFIRM'] },
+                      financialGroup: { type: 'string', enum: ['INTERNATIONAL_FREIGHT','FREIGHT_COMPONENT','ORIGIN_CHARGE','DESTINATION_CHARGE','DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT','TO_CONFIRM'] },
+                      chargeNature: { type: 'string', enum: ['BASE_FREIGHT','FUEL','SECURITY','DG','CUSTOMS','INSURANCE','TAX','PROFIT','LOCAL_SERVICE','OTHER'] },
+                      classificationSource: { type: 'string', enum: ['AI'] }
                     },
                     required: ['name', 'value']
                   },
@@ -667,6 +673,10 @@ export const extractAgentCosts = async (
        - Use rate_validity_source=AGENT_EMAIL quando estiver no corpo da RESPOSTA ATUAL; use TARIFF somente quando a evidência estiver em anexo/tarifário da resposta atual. Não use o histórico como fonte e não invente datas.
     5. **Inland de Origem (origin_inland) e Taxas Locais de Origem (origin_fees):**
        - Para CADA taxa retorne name, unitValue, currency, billingUnit, originalUnit, quantity, totalValue, quantitySource, evidence, confidence e needsReview. Mantenha value igual a totalValue por compatibilidade.
+       - Para CADA taxa retorne também financialGroup, chargeNature e classificationSource=AI. A seção do documento não define sozinha o grupo financeiro.
+       - Use INTERNATIONAL_FREIGHT somente para o frete marítimo base; FREIGHT_COMPONENT para BAF, CAF, LSS, PSS, GRI e outros adicionais do armador que compõem o frete; ORIGIN_CHARGE e DESTINATION_CHARGE para despesas locais; CUSTOMS_CHARGE para despacho/desembaraço; INSURANCE para seguro; TAX_IOF para impostos/IOF; PROFIT para margem; DG_CHARGE apenas quando a taxa DG não puder ser alocada com segurança em frete/origem/destino. Sem evidência suficiente use TO_CONFIRM.
+       - chargeNature é independente do grupo: DG para carga perigosa, SECURITY para ISPS/security, FUEL para combustível, CUSTOMS, INSURANCE, TAX, PROFIT, BASE_FREIGHT, LOCAL_SERVICE ou OTHER.
+       - Uma taxa encontrada em origin_fees pode ser FREIGHT_COMPONENT. Nunca a mantenha como ORIGIN_CHARGE apenas por estar na seção de origem.
        - Nunca presuma que o valor informado é por contêiner. Se unidade ou quantidade não estiver clara, use UNKNOWN ou deixe quantity ausente e needsReview=true; preserve o total explícito sem inventar multiplicador.
        - Classifique Pick Up, Pickup, Collection, Pre-carriage ou coleta da fábrica até o aeroporto/porto como origin_inland. Extraia valor, moeda, rota e prazo separadamente.
        - NÃO repita o Pick Up dentro de origin_fees.

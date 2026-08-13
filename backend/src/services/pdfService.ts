@@ -5,6 +5,7 @@ import path from 'path';
 import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForPdf } from '../services/incotermRuleService';
+import { normalizeFee } from './feeCalculationService';
 
 function safeToFixed(num: any, digits: number = 2): string {
   const n = parseFloat(num);
@@ -476,6 +477,19 @@ const defaultTemplate = `
     </tbody>
   </table>
 
+  {{#if detailedFeesAdditionalGroups.length}}
+  <div class="section-banner-sm">Outras classificações financeiras</div>
+  <table>
+    <thead><tr><th>Classificação</th><th>Taxa</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Total</th></tr></thead>
+    <tbody>
+      {{#each detailedFeesAdditionalGroups}}
+      <tr><td>{{this.financialGroupLabel}}</td><td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td><td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.total}}</td></tr>
+      {{/each}}
+      <tr style="background-color:#f9f9f9;font-weight:bold;border-top:1.5px solid #000"><td colspan="5" class="t-right">Subtotal:</td><td class="t-right">{{{subtotalAdditional}}}</td></tr>
+    </tbody>
+  </table>
+  {{/if}}
+
   <div class="totals-box">
     <table class="totals-table">
       <tr>
@@ -840,6 +854,12 @@ const defaultAirTemplate = `
         <td class="t-right">0,00</td>
         <td class="t-right">{{freightTotalValue}}</td>
       </tr>
+      {{#each detailedFeesFreightComponents}}
+        <tr>
+          <td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td>
+          <td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.min}}</td><td class="t-right">0,00</td><td class="t-right">{{this.total}}</td>
+        </tr>
+      {{/each}}
       {{#if subtotalFrete}}
       <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
         <td colspan="6" class="t-right">Subtotal Frete:</td>
@@ -916,6 +936,16 @@ const defaultAirTemplate = `
       {{/if}}
     </tbody>
   </table>
+
+  {{#if detailedFeesAdditionalGroups.length}}
+  <div class="section-banner-sm">Taxas DG, aduaneiras, seguro, impostos e profit</div>
+  <table><thead><tr><th>Classificação</th><th>Taxa</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Total</th></tr></thead><tbody>
+    {{#each detailedFeesAdditionalGroups}}
+    <tr><td>{{this.financialGroupLabel}}</td><td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td><td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.total}}</td></tr>
+    {{/each}}
+    <tr style="background-color:#f9f9f9;font-weight:bold"><td colspan="5" class="t-right">Subtotal:</td><td class="t-right">{{{subtotalAdditional}}}</td></tr>
+  </tbody></table>
+  {{/if}}
 
   <div class="totals-box">
     <table class="totals-table">
@@ -1020,6 +1050,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   let freightTotalValue = '';
   let detailedFeesOrigem: any[] = [];
   let detailedFeesDestino: any[] = [];
+  let detailedFeesFreightComponents: any[] = [];
+  let detailedFeesAdditionalGroups: any[] = [];
   let totalUsd = 0;
   let sumUsd = 0;
   let totalGeralLabel = '';
@@ -1185,7 +1217,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               valueUnit: unitVal.toFixed(2),
               min: '0,00',
               currency: curr,
-              total: `${curr} ${val.toFixed(2)}`
+              total: `${curr} ${val.toFixed(2)}`,
+              financialGroup: normalizeFee({ ...f, applicationScope:'ORIGIN' }).financialGroup,
+              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature
             };
           });
         }
@@ -1199,13 +1233,13 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const modalStr = String(quotationData.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
-    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0) };
+    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0), insuranceRequested: Boolean(quotationData.requiresInsurance), customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded) };
 
     if (detailedFeesOrigem.length === 0) {
       try {
         const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         if (originFees.length > 0) {
-          detailedFeesOrigem = formatFeesForPdf(originFees);
+          detailedFeesOrigem = formatFeesForPdf(originFees).map(f => ({ ...normalizeFee({ name:f.name, currency:f.currency, applicationScope:'ORIGIN' }), ...f }));
         }
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para origem (PDF):', err);
@@ -1265,7 +1299,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               valueUnit: unitVal.toFixed(2),
               min: '0,00',
               currency: curr,
-              total: `${curr} ${val.toFixed(2)}`
+              total: `${curr} ${val.toFixed(2)}`,
+              financialGroup: normalizeFee({ ...f, applicationScope:'DESTINATION' }).financialGroup,
+              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature
             };
           });
         }
@@ -1279,7 +1315,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       try {
         const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         if (destinationFees.length > 0) {
-          detailedFeesDestino = formatFeesForPdf(destinationFees);
+          detailedFeesDestino = formatFeesForPdf(destinationFees).map(f => ({ ...normalizeFee({ name:f.name, currency:f.currency, applicationScope:'DESTINATION' }), ...f }));
         }
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para destino (PDF):', err);
@@ -1298,6 +1334,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
             (ruleFee.name.toLowerCase().includes('iof') && detailedFeesDestino.some(f => f.name.toLowerCase().includes('iof')));
           if (!nameMatch) {
             detailedFeesDestino.push({
+              ...normalizeFee({ name:ruleFee.name, currency:ruleFee.currency, applicationScope:'DESTINATION' }),
               name: ruleFee.name,
               qty: ruleFee.qty,
               unit: ruleFee.unit,
@@ -1322,9 +1359,21 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         valueUnit: '900.00', 
         min: '0,00', 
         currency: 'BRL', 
-        total: `BRL 900.00` 
+        total: `BRL 900.00`, financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS'
       });
     }
+
+    // Componentes do frete não devem aparecer como taxas locais, ainda que tenham
+    // sido encontrados nas seções de origem/destino do retorno do agente.
+    detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino]
+      .filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
+    const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
+    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino]
+      .filter(fee => additionalGroups.has(fee.financialGroup))
+      .map(fee => ({ ...fee, financialGroupLabel: additionalLabels[fee.financialGroup] || fee.financialGroup }));
+    detailedFeesOrigem = detailedFeesOrigem.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup));
+    detailedFeesDestino = detailedFeesDestino.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup));
 
     // Consolidar subtotais e totais por moeda
     let sumOrigemBrl = 0;
@@ -1355,6 +1404,22 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         else if (curr === 'EUR') sumDestinoEur += v;
         else if (curr === 'BRL') sumDestinoBrl += v;
       }
+    });
+    detailedFeesFreightComponents.forEach(f => {
+      const parts = String(f.total || '').split(' ');
+      const value = parseFloat(parts[parts.length - 1] || '0') || 0;
+      const currency = String(parts[0] || f.currency || 'USD').toUpperCase();
+      if (currency === 'USD') sumOrigemUsd += value;
+      else if (currency === 'EUR') sumOrigemEur += value;
+      else if (currency === 'BRL') sumOrigemBrl += value;
+    });
+    detailedFeesAdditionalGroups.forEach(f => {
+      const parts = String(f.total || '').split(' ');
+      const value = parseFloat(parts[parts.length - 1] || '0') || 0;
+      const currency = String(parts[0] || f.currency || 'USD').toUpperCase();
+      if (currency === 'USD') sumDestinoUsd += value;
+      else if (currency === 'EUR') sumDestinoEur += value;
+      else if (currency === 'BRL') sumDestinoBrl += value;
     });
 
     sumUsd = sumDestinoUsd + (fCurr === 'USD' ? fVal : 0) + sumOrigemUsd;
@@ -1418,9 +1483,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     freightTotalValue,
     detailedFeesOrigem,
     detailedFeesDestino,
-    subtotalFrete: formatSubtotals([{ total: freightTotalValue }]),
+    detailedFeesFreightComponents,
+    detailedFeesAdditionalGroups,
+    subtotalFrete: formatSubtotals([{ total: freightTotalValue }, ...detailedFeesFreightComponents]),
     subtotalOrigem: formatSubtotals(detailedFeesOrigem),
     subtotalDestino: formatSubtotals(detailedFeesDestino),
+    subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups),
     totalGeralLabel,
     totalUsd: sumUsd.toFixed(2),
     logoBase64,
@@ -1567,7 +1635,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                 unit: isPerContainer ? (containerType === "20'" ? "Por CNTR 20'" : "Por CNTR 40'") : "Por documento",
                 valueUnit: unitValue.toFixed(2),
                 currency,
-                total: `${currency} ${totalVal.toFixed(2)}`
+                total: `${currency} ${totalVal.toFixed(2)}`,
+                ...normalizeFee({ name:taxName, currency, applicationScope:'DESTINATION', chargedBy:carrier })
               });
 
               if (currency === 'BRL') {
@@ -1588,7 +1657,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                   unit: '% sobre Frete Internacional',
                   valueUnit: '3.50 %',
                   currency: 'USD',
-                  total: `USD ${iV.toFixed(2)}`
+                  total: `USD ${iV.toFixed(2)}`, financialGroup:'TAX_IOF', chargeNature:'TAX'
                 });
                 calculatedUsdTotal += iV;
               }
@@ -1602,7 +1671,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                   unit: 'Fixo',
                   valueUnit: storage.toFixed(2),
                   currency: 'BRL',
-                  total: `BRL ${storage.toFixed(2)}`
+                  total: `BRL ${storage.toFixed(2)}`, financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE'
                 });
                 calculatedBrlTotal += storage;
               }
@@ -1616,7 +1685,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                   unit: 'Fixo',
                   valueUnit: taxes.toFixed(2),
                   currency: 'BRL',
-                  total: `BRL ${taxes.toFixed(2)}`
+                  total: `BRL ${taxes.toFixed(2)}`, financialGroup:'TAX_IOF', chargeNature:'TAX'
                 });
                 calculatedBrlTotal += taxes;
               }
@@ -1684,7 +1753,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                 unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
                 valueUnit: safeToFixed(parseFloat(f.unitValue ?? f.value) || 0, 2),
                 currency: curr,
-                total: `${curr} ${safeToFixed(val, 2)}`
+                total: `${curr} ${safeToFixed(val, 2)}`,
+                ...normalizeFee({ ...f, applicationScope:'DESTINATION' })
               });
               existingNames.add(nameLower);
               hasDetailedFees = true;
@@ -1701,14 +1771,17 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       if (String(fee.name || '').toUpperCase().includes('ISPS') && !String(fee.name).toUpperCase().includes('DESTINO')) fee.name = 'ISPS - Destino';
     });
 
-    // DG/IMO é acessório do frete marítimo. O Profit continua incorporado no frete.
-    const isFreightAccessory = (fee: any) => {
-      const name = String(fee.name || '').toUpperCase();
-      return /(^|\s)(DG|IMO)(\s|$|\/)/.test(name) || name.includes('DANGEROUS GOODS');
-    };
+    // A posição comercial é definida pelo grupo financeiro, não pelo nome ou
+    // pela seção do documento onde a cobrança foi encontrada.
+    detailedFees = detailedFees.map((fee:any) => ({ ...fee, ...normalizeFee({ ...fee, applicationScope:fee.applicationScope || 'DESTINATION' }) }));
+    const isFreightAccessory = (fee: any) => fee.financialGroup === 'FREIGHT_COMPONENT';
     const freightAccessories = detailedFees.filter(isFreightAccessory);
-    detailedFees = detailedFees.filter((fee: any) => !isFreightAccessory(fee));
+    const maritimeAdditionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
+    const maritimeAdditionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const detailedFeesAdditionalGroups = detailedFees.filter((fee:any) => maritimeAdditionalGroups.has(fee.financialGroup)).map((fee:any) => ({ ...fee, financialGroupLabel:maritimeAdditionalLabels[fee.financialGroup] || fee.financialGroup }));
+    detailedFees = detailedFees.filter((fee: any) => !isFreightAccessory(fee) && !maritimeAdditionalGroups.has(fee.financialGroup));
     freightAccessories.forEach((fee: any) => {
+      if (fee._alreadyInOriginTotal) return;
       const value = (parseFloat(fee.valueUnit) || 0) * (Number(fee.qty) || 1);
       const currency = String(fee.currency || 'USD').toUpperCase();
       if (currency === 'BRL') sumOrigemBrl += value;
@@ -1734,6 +1807,14 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                        (parseFloat(quotationData.destinationStorage) || 0) +
                        (parseFloat(quotationData.destinationTaxes) || 0);
     }
+    detailedFeesAdditionalGroups.forEach((fee:any) => {
+      if (fee._alreadyInOriginTotal) return;
+      const val = (parseFloat(fee.valueUnit) || 0) * (Number(fee.qty) || 1);
+      const curr = String(fee.currency || 'BRL').toUpperCase();
+      if (curr === 'BRL') sumDestinoBrl += val;
+      else if (curr === 'USD') sumDestinoUsd += val;
+      else if (curr === 'EUR') sumDestinoEur += val;
+    });
 
     const totalUsd = sumOrigemUsd + sumDestinoUsd;
     const totalEur = sumOrigemEur + sumDestinoEur;
@@ -1877,10 +1958,15 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       try {
         const services = JSON.parse(quotationData.originServices);
         if (Array.isArray(services)) services.forEach((fee: any) => {
-          const value = parseFloat(fee.value) || 0;
+          const totalValue = parseFloat(fee.totalValue ?? fee.value) || 0;
+          const unitValue = parseFloat(fee.unitValue ?? fee.value) || 0;
           const currency = String(fee.currency || 'USD').toUpperCase();
           const name = String(fee.name || 'Taxa de Origem');
-          originServiceRows.push({ name: name.toUpperCase().includes('ISPS') && !name.toUpperCase().includes('ORIGEM') ? 'ISPS - Origem' : name, qty: fee.qty || 1, unit: fee.unit || 'Fixo', valueUnit: safeToFixed(value, 2), currency, total: `${currency} ${safeToFixed(value * (Number(fee.qty) || 1), 2)}` });
+          const normalized = normalizeFee({ ...fee, applicationScope:'ORIGIN' });
+          const row = { ...normalized, name: name.toUpperCase().includes('ISPS') && !name.toUpperCase().includes('ORIGEM') ? 'ISPS - Origem' : name, qty: fee.quantity ?? fee.qty ?? 1, unit: fee.originalUnit || fee.billingUnit || fee.unit || 'Fixo', valueUnit: safeToFixed(unitValue, 2), currency, total: `${currency} ${safeToFixed(totalValue, 2)}`, _alreadyInOriginTotal:true };
+          if (normalized.financialGroup === 'FREIGHT_COMPONENT') freightAccessories.push(row);
+          else if (maritimeAdditionalGroups.has(normalized.financialGroup)) detailedFeesAdditionalGroups.push({ ...row, financialGroupLabel:maritimeAdditionalLabels[normalized.financialGroup] || normalized.financialGroup });
+          else originServiceRows.push(row);
         });
       } catch (err) { console.error('Erro ao detalhar taxas de origem no PDF:', err); }
     }
@@ -1917,7 +2003,9 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       detailedFees,
       originServiceRows,
       freightAccessories,
-      subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }]),
+      detailedFeesAdditionalGroups,
+      subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups),
+      subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }, ...freightAccessories]),
       subtotalDestino: formatSubtotals(detailedFees),
       freightQtyRich,
       freightCalculationType,

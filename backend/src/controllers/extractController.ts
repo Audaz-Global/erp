@@ -174,9 +174,9 @@ export const extractData = async (req: Request, res: Response) => {
           const deconsolidators = await prisma.deconsolidator.findMany({
             where: { active: true, modal: feeModal }
           });
-          localFeesTable = `TABELA DE TAXAS LOCAIS DE DESTINO POR ${modalLabel.toUpperCase()} (CADASTRADAS NO BANCO):\n\n`;
+          localFeesTable = `CATÁLOGO DE TAXAS POR ${modalLabel.toUpperCase()} (CADASTRADAS NO BANCO; respeite o grupo financeiro informado):\n\n`;
           fees.forEach(f => {
-            localFeesTable += `- Cia: ${f.carrier || 'Geral'} | Taxa: ${f.name} | Valor: ${f.value} ${f.currency} (${f.type === 'ORIGIN' ? 'Origem' : 'Destino'})\n`;
+            localFeesTable += `- Cia: ${f.carrier || 'Geral'} | Taxa: ${f.name} | Valor: ${f.value} ${f.currency} | Escopo: ${f.type} | Grupo: ${f.financialGroup || 'TO_CONFIRM'} | Natureza: ${f.chargeNature || 'OTHER'}\n`;
           });
           deconsolidators.forEach(d => {
             localFeesTable += `- Desconsolidação (${d.name}${d.location ? ' - ' + d.location : ''}): ${d.value} ${d.currency}\n`;
@@ -217,7 +217,7 @@ export const extractData = async (req: Request, res: Response) => {
           aiResult.costs.destination_fees.push({
             name: 'Seguro Internacional',
             value: parseFloat(insuranceValue.toFixed(2)),
-            currency: 'USD'
+            currency: 'USD', financialGroup:'INSURANCE', chargeNature:'INSURANCE', classificationSource:'RULE', applicationScope:'DESTINATION'
           });
         }
       }

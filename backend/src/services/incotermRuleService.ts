@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { effectiveIncotermRule } from './standardFeeLinkService';
+import { evaluateIncotermCondition } from './incotermApplicabilityService';
 
 const prisma = new PrismaClient();
 
@@ -31,6 +32,8 @@ export interface FeeCalculationContext {
   containerCount?: number;
   grossWeightKg?: number;
   dangerousGoodsProductCount?: number;
+  insuranceRequested?: boolean;
+  customsClearanceContracted?: boolean;
 }
 
 /**
@@ -63,7 +66,22 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
 
   // Se há regras específicas para o modal, elas têm prioridade.
   // Regras "ALL" só entram se não existir regra com mesmo feeName no modal específico.
-  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => r.active);
+  // Regras NOT_APPLICABLE nunca são oferecidas neste preenchimento automático
+  // (lista ainda vazia — nada foi extraído/digitado, não há dado real a preservar).
+  // Regras CONDITIONAL só entram quando a condição já é conhecida e atendida.
+  const applicabilityContext = {
+    direction: dbDirection,
+    isDangerousGoods: Boolean(context.dangerousGoodsProductCount && context.dangerousGoodsProductCount > 0),
+    insuranceRequested: Boolean(context.insuranceRequested),
+    customsClearanceContracted: Boolean(context.customsClearanceContracted)
+  };
+  const effectiveRules = rules.map(effectiveIncotermRule).filter(r => {
+    if (!r.active) return false;
+    const applicability = (r as any).applicability || 'APPLICABLE';
+    if (applicability === 'NOT_APPLICABLE') return false;
+    if (applicability === 'CONDITIONAL') return evaluateIncotermCondition((r as any).condition, applicabilityContext).met;
+    return true;
+  });
   const ranked = effectiveRules.sort((a, b) => {
     const score = (rule: any) => (rule.incoterm === 'ALL' ? 0 : 4) + (rule.modal === 'ALL' ? 0 : 2) + (rule.direction === 'ALL' ? 0 : 1);
     return score(a) - score(b);

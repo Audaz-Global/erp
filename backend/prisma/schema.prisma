@@ -361,6 +361,9 @@ model FixedFee {
   billingUnit      String          @default("UNKNOWN")
   originalUnit     String?
   feeCategory      String?
+  financialGroup   String?
+  chargeNature     String?
+  classificationSource String?
   ispsClassification String?
   includedInFreight  String?
   modal            String // SEA_FCL, SEA_LCL, AIR, ROAD
@@ -527,6 +530,10 @@ model IncotermRule {
   originScope      String? // Porto/cidade/país de origem; nulo = qualquer origem
   destinationScope String? // Porto/cidade/país de destino; nulo = qualquer destino
   required         Boolean  @default(false)
+  applicability    String   @default("APPLICABLE") // REQUIRED, APPLICABLE, CONDITIONAL, NOT_APPLICABLE, TO_CONFIRM
+  financialGroup   String? // Casamento principal com taxas extraídas/manuais: ORIGIN_CHARGE, DESTINATION_CHARGE, INSURANCE, CUSTOMS_CHARGE, DG_CHARGE, TAX_IOF, FREIGHT_COMPONENT, INTERNATIONAL_FREIGHT
+  condition        String? // JSON: {"type":"DG_ONLY"|"INSURANCE_REQUESTED"|"CUSTOMS_CLEARANCE_CONTRACTED"|...}
+  reason           String? // Justificativa da regra, exibida em alertas e na tela administrativa
   feeType          String // ORIGIN, DESTINATION
   feeName          String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
   chargeType       String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE

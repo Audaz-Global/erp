@@ -2732,6 +2732,18 @@ function renderConf(val, confStr) {
 
 const FEE_UNIT_LABELS = { TOTAL_SHIPMENT:'Total do embarque', PER_DG_PRODUCT:'Produto perigoso', PER_ITEM:'Item', PER_PACKAGE:'Volume', PER_DOCUMENT:'Documento', PER_HAWB:'HAWB', PER_MAWB:'MAWB', PER_SHIPMENT:'Embarque', PER_CONTAINER:'Contêiner', PER_BL:'BL', PER_KG:'kg', PER_CHARGEABLE_WEIGHT:'Peso taxável', PER_CBM:'m³', PER_TON:'Tonelada', PER_WM:'Peso/medida (W/M)', PERCENTAGE:'Percentual', UNKNOWN:'Unidade não identificada' };
 
+const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
+const CHARGE_NATURE_LABELS = { BASE_FREIGHT:'Frete base', FUEL:'Combustível', SECURITY:'Segurança / ISPS', DG:'Carga perigosa', CUSTOMS:'Aduaneira', INSURANCE:'Seguro', TAX:'Tributo', PROFIT:'Profit', LOCAL_SERVICE:'Serviço local', OTHER:'Outra' };
+
+function inferFeeClassification(name, scope, ispsClassification, chargedBy) {
+  const text = `${name || ''} ${chargedBy || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const dg = /\b(DG|IMO|DGR|DANGEROUS GOODS|HAZMAT)\b/.test(text);
+  const isps = /\bISPS\b|SECURITY/.test(text);
+  const chargeNature = dg ? 'DG' : isps ? 'SECURITY' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|FUEL|BUNKER)\b/.test(text) ? 'FUEL' : /CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text) ? 'TAX' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'BASE_FREIGHT' : /THC|HANDLING|DOCUMENT|TERMINAL|DELIVERY|PICK.?UP|COLLECTION|INLAND|STORAGE|ARMAZENAGEM/.test(text) ? 'LOCAL_SERVICE' : 'OTHER';
+  const financialGroup = /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'INTERNATIONAL_FREIGHT' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text) ? 'TAX_IOF' : /CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS_CHARGE' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER)\b/.test(text) ? 'FREIGHT_COMPONENT' : ispsClassification === 'ISPS_CARRIER' || (dg && /CARRIER|ARMADOR|SHIPPING LINE/.test(text)) ? 'FREIGHT_COMPONENT' : dg && (!scope || scope === 'UNKNOWN') ? 'DG_CHARGE' : scope === 'ORIGIN' ? 'ORIGIN_CHARGE' : scope === 'DESTINATION' ? 'DESTINATION_CHARGE' : 'TO_CONFIRM';
+  return { financialGroup, chargeNature };
+}
+
 function parseFeeLine(line) {
   const separator = String(line || '').indexOf(':');
   if (separator < 0) return null;
@@ -2755,6 +2767,9 @@ function parseFeeLine(line) {
   const scopeSegment = segments.find(value => /^SCOPE\s+/i.test(value));
   const freightSegment = segments.find(value => /^FREIGHT\s+/i.test(value));
   const chargedBySegment = segments.find(value => /^CHARGEDBY\s+/i.test(value));
+  const groupSegment = segments.find(value => /^GROUP\s+/i.test(value));
+  const natureSegment = segments.find(value => /^NATURE\s+/i.test(value));
+  const sourceSegment = segments.find(value => /^SOURCE\s+/i.test(value));
   let ispsClassification = ispsSegment ? ispsSegment.replace(/^ISPS\s+/i, '').trim().toUpperCase() : null;
   if (isIsps && !['ISPS_CARRIER','ISPS_TERMINAL'].includes(ispsClassification)) {
     const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(name);
@@ -2762,13 +2777,18 @@ function parseFeeLine(line) {
     ispsClassification = carrierHint && !terminalHint ? 'ISPS_CARRIER' : terminalHint && !carrierHint ? 'ISPS_TERMINAL' : 'ISPS_UNCLASSIFIED';
   }
   const includedInFreight = isIsps ? (freightSegment ? freightSegment.replace(/^FREIGHT\s+/i, '').trim().toUpperCase() : 'TO_CONFIRM') : null;
-  const applicationScope = isIsps ? (scopeSegment ? scopeSegment.replace(/^SCOPE\s+/i, '').trim().toUpperCase() : 'UNKNOWN') : null;
-  const chargedBy = isIsps && chargedBySegment ? chargedBySegment.replace(/^CHARGEDBY\s+/i, '').trim() : null;
+  const applicationScope = scopeSegment ? scopeSegment.replace(/^SCOPE\s+/i, '').trim().toUpperCase() : 'UNKNOWN';
+  const chargedBy = chargedBySegment ? chargedBySegment.replace(/^CHARGEDBY\s+/i, '').trim() : null;
+  const inferredClassification = inferFeeClassification(name, applicationScope, ispsClassification, chargedBy);
+  const financialGroup = groupSegment ? groupSegment.replace(/^GROUP\s+/i, '').trim().toUpperCase() : inferredClassification.financialGroup;
+  const chargeNature = natureSegment ? natureSegment.replace(/^NATURE\s+/i, '').trim().toUpperCase() : inferredClassification.chargeNature;
+  const classificationSource = sourceSegment ? sourceSegment.replace(/^SOURCE\s+/i, '').trim().toUpperCase() : 'RULE';
   const ispsUnclassified = isIsps && ispsClassification === 'ISPS_UNCLASSIFIED';
   const ispsInclusionPending = isIsps && includedInFreight !== 'NOT_INCLUDED';
-  const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending;
-  const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, needsReview, reviewReasons };
+  const financialGroupMissing = financialGroup === 'TO_CONFIRM';
+  const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
+  const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, needsReview, reviewReasons };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -2792,7 +2812,9 @@ function formatFeeLine(fee) {
   const terminalHint = /terminal|port|porto|wharf/i.test(fee.name || '');
   const inferredIsps = carrierHint && !terminalHint ? 'ISPS_CARRIER' : terminalHint && !carrierHint ? 'ISPS_TERMINAL' : 'ISPS_UNCLASSIFIED';
   const ispsDetails = isIsps ? ` | ISPS ${fee.ispsClassification || inferredIsps} | SCOPE ${fee.applicationScope || fee.feeType || 'UNKNOWN'} | FREIGHT ${fee.includedInFreight || 'TO_CONFIRM'}${fee.chargedBy ? ` | CHARGEDBY ${fee.chargedBy}` : ''}` : '';
-  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${ispsDetails}`;
+  const classification = inferFeeClassification(fee.name, fee.applicationScope || fee.feeType, fee.ispsClassification || inferredIsps, fee.chargedBy);
+  const classificationDetails = ` | GROUP ${fee.financialGroup || classification.financialGroup} | NATURE ${fee.chargeNature || classification.chargeNature} | SOURCE ${fee.classificationSource || 'RULE'}`;
+  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${classificationDetails}${ispsDetails}`;
 }
 
 function escapeFeeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
@@ -2801,7 +2823,7 @@ function renderFeeCalculationPreview() {
   [['rev-origin-services','rev-origin-fees-preview'],['rev-destination-services','rev-destination-fees-preview']].forEach(([fieldId,panelId]) => {
     const panel = document.getElementById(panelId); if (!panel) return;
     const fees = parseFeeText(document.getElementById(fieldId)?.value);
-    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue.toFixed(2)}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue.toFixed(2)}</td></tr>`).join('')}</tbody></table>` : '';
+    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong><br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue.toFixed(2)}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue.toFixed(2)}</td></tr>`).join('')}</tbody></table>` : '';
   });
   renderIspsAlerts();
 }
@@ -2822,8 +2844,10 @@ function ispsReview(fees) {
 
 function renderIspsAlerts() {
   const panel=document.getElementById('rev-isps-alerts'); if(!panel)return;
-  const review=ispsReview([...parseFeeText(document.getElementById('rev-origin-services')?.value),...parseFeeText(document.getElementById('rev-destination-services')?.value)]);
-  panel.innerHTML=review.alerts.map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
+  const fees=[...parseFeeText(document.getElementById('rev-origin-services')?.value),...parseFeeText(document.getElementById('rev-destination-services')?.value)];
+  const review=ispsReview(fees);
+  const financialAlerts=fees.filter(f=>f.financialGroup==='TO_CONFIRM').map(f=>({code:'FINANCIAL',message:`${f.name}: defina o grupo financeiro com GROUP ... antes de finalizar.`}));
+  panel.innerHTML=[...review.alerts,...financialAlerts].map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
 }
 
 function isDangerousGoodsFeeName(name) {
@@ -4661,6 +4685,11 @@ async function confirmAndGeneratePDF() {
     alert(`Informe a quantidade aplicável antes de finalizar: ${missingQuantity.map(fee => fee.name).join(', ')}.`);
     return;
   }
+  const missingFinancialGroup = reviewedFees.filter(fee => fee.financialGroup === 'TO_CONFIRM');
+  if (missingFinancialGroup.length) {
+    alert(`Classifique o grupo financeiro antes de finalizar: ${missingFinancialGroup.map(fee => fee.name).join(', ')}.\n\nEdite a linha usando GROUP FREIGHT_COMPONENT, ORIGIN_CHARGE, DESTINATION_CHARGE ou outro grupo aplicável.`);
+    return;
+  }
   const isps = ispsReview(reviewedFees);
   const blockingIsps = isps.alerts.filter(alert => ['UNCLASSIFIED','INCLUDED','INCLUSION_PENDING'].includes(alert.code));
   if (blockingIsps.length) {
@@ -5869,8 +5898,49 @@ function switchSettingsTab(tab) {
               <div class="form-group" style="margin:0"><label>Direção</label><select id="sf-app-direction" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div>
               <div class="form-group" style="margin:0"><label>Ordem</label><input id="sf-app-order" type="number" min="1" step="1" value="1"></div>
               <div class="form-group" style="margin:0"><label class="compact-checkbox" for="sf-app-required"><input id="sf-app-required" type="checkbox"><span>Obrigatória</span></label></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin-top:10px;">
+              <div class="form-group" style="margin:0"><label>Aplicabilidade</label>
+                <select id="sf-app-applicability" onchange="updateSfAppConditionVisibility()">
+                  <option value="APPLICABLE">Applicable — entra se houver valor</option>
+                  <option value="REQUIRED">Required — esperada, alerta se ausente</option>
+                  <option value="CONDITIONAL">Conditional — só entra se a condição for atendida</option>
+                  <option value="NOT_APPLICABLE">Not applicable — não é oferecida automaticamente</option>
+                  <option value="TO_CONFIRM">To confirm — exige revisão antes de finalizar</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0"><label>Grupo financeiro</label>
+                <select id="sf-app-financialGroup">
+                  <option value="">— casar por nome da taxa —</option>
+                  <option value="INTERNATIONAL_FREIGHT">Frete internacional</option>
+                  <option value="FREIGHT_COMPONENT">Componente do frete</option>
+                  <option value="ORIGIN_CHARGE">Taxa de origem</option>
+                  <option value="DESTINATION_CHARGE">Taxa de destino</option>
+                  <option value="DG_CHARGE">Taxa DG</option>
+                  <option value="CUSTOMS_CHARGE">Taxa aduaneira</option>
+                  <option value="INSURANCE">Seguro</option>
+                  <option value="TAX_IOF">Impostos / IOF</option>
+                  <option value="PROFIT">Profit</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;display:none" id="sf-app-conditionGroup"><label>Condição (quando Conditional)</label>
+                <select id="sf-app-condition">
+                  <option value="">—</option>
+                  <option value="DG_ONLY">Somente carga DG</option>
+                  <option value="NOT_DG">Somente carga não-DG</option>
+                  <option value="INSURANCE_REQUESTED">Somente se seguro foi solicitado</option>
+                  <option value="CUSTOMS_CLEARANCE_CONTRACTED">Somente se desembaraço foi contratado</option>
+                  <option value="IMPORT_ONLY">Somente importação</option>
+                  <option value="EXPORT_ONLY">Somente exportação</option>
+                  <option value="FCL_ONLY">Somente FCL</option>
+                  <option value="LCL_ONLY">Somente LCL</option>
+                  <option value="NOT_INCLUDED_IN_FREIGHT">Somente se não incluída no frete</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0"><label>Justificativa</label><input id="sf-app-reason" placeholder="Ex: no FOB a despesa de origem é do vendedor"></div>
               <button type="button" class="btn btn-secondary" id="btnAddSfApplication" onclick="addStandardFeeApplication()" style="min-height:44px;justify-content:center;">Adicionar aplicação</button>
             </div>
+            <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;">Taxas já extraídas de e-mail ou digitadas manualmente na cotação nunca são removidas por esta regra — continuam no cálculo e na proposta, apenas recebem um alerta interno de revisão.</p>
             <input type="hidden" id="sf-app-index" value="">
             <div id="sf-applications-list" style="margin-top:14px;"></div>
           </div>
@@ -5928,7 +5998,46 @@ function switchSettingsTab(tab) {
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="1" min="1" step="1" required placeholder="1" oninput="clearIncotermRuleOrderError()"></div>
             <div class="form-group" style="margin:0"><label class="compact-checkbox" for="ir-required"><input type="checkbox" id="ir-required"><span>Taxa obrigatória</span></label></div>
             <div class="form-group" style="margin:0"><label>Aplicação cadastrada na taxa</label><div id="ir-feeTypeInfo" style="min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;">Selecione uma taxa</div></div>
+            <div class="form-group" style="margin:0"><label>Aplicabilidade</label>
+              <select id="ir-applicability" onchange="updateIncotermConditionVisibility()">
+                <option value="APPLICABLE">Applicable — entra se houver valor</option>
+                <option value="REQUIRED">Required — esperada, alerta se ausente</option>
+                <option value="CONDITIONAL">Conditional — só entra se a condição for atendida</option>
+                <option value="NOT_APPLICABLE">Not applicable — não é oferecida automaticamente</option>
+                <option value="TO_CONFIRM">To confirm — exige revisão antes de finalizar</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0"><label>Grupo financeiro</label>
+              <select id="ir-financialGroup">
+                <option value="">— não usar como critério —</option>
+                <option value="INTERNATIONAL_FREIGHT">Frete internacional</option>
+                <option value="FREIGHT_COMPONENT">Componente do frete</option>
+                <option value="ORIGIN_CHARGE">Taxa de origem</option>
+                <option value="DESTINATION_CHARGE">Taxa de destino</option>
+                <option value="DG_CHARGE">Taxa DG</option>
+                <option value="CUSTOMS_CHARGE">Taxa aduaneira</option>
+                <option value="INSURANCE">Seguro</option>
+                <option value="TAX_IOF">Impostos / IOF</option>
+                <option value="PROFIT">Profit</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0" id="ir-conditionGroup"><label>Condição (quando Conditional)</label>
+              <select id="ir-condition">
+                <option value="">—</option>
+                <option value="DG_ONLY">Somente carga DG</option>
+                <option value="NOT_DG">Somente carga não-DG</option>
+                <option value="INSURANCE_REQUESTED">Somente se seguro foi solicitado</option>
+                <option value="CUSTOMS_CLEARANCE_CONTRACTED">Somente se desembaraço foi contratado</option>
+                <option value="IMPORT_ONLY">Somente importação</option>
+                <option value="EXPORT_ONLY">Somente exportação</option>
+                <option value="FCL_ONLY">Somente FCL</option>
+                <option value="LCL_ONLY">Somente LCL</option>
+                <option value="NOT_INCLUDED_IN_FREIGHT">Somente se não incluída no frete</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;grid-column:span 2;"><label>Justificativa da regra</label><input id="ir-reason" placeholder="Ex: no FOB a despesa de origem é responsabilidade do vendedor"></div>
           </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">Taxas já extraídas de e-mail ou digitadas manualmente nunca são removidas por esta regra — elas continuam no cálculo e na proposta, apenas recebem um alerta interno de revisão.</p>
           <input type="hidden" id="ir-direction" value="ALL">
           <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. A origem ou o destino são definidos exclusivamente no cadastro da taxa; a regra informa apenas quando ela se aplica.</p>
           <input type="hidden" id="ir-id">
@@ -6657,6 +6766,10 @@ function buildFixedFeesTabHtml(scope) {
         <div class="form-group" style="margin:0;"><label>Classificação ISPS</label><select id="ff-isps-classification"><option value="">Não se aplica</option><option value="ISPS_CARRIER">ISPS do armador/navio</option><option value="ISPS_TERMINAL">ISPS do terminal</option><option value="ISPS_UNCLASSIFIED">ISPS a classificar</option></select></div>
         <div class="form-group" style="margin:0;"><label>Relação com o frete</label><select id="ff-included-in-freight"><option value="">Não se aplica</option><option value="NOT_INCLUDED">Cobrança adicional</option><option value="INCLUDED">Já incluída no frete</option><option value="TO_CONFIRM">A confirmar</option></select></div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="form-group" style="margin:0;"><label>Grupo financeiro</label><select id="ff-financial-group">${Object.entries(FINANCIAL_GROUP_LABELS).map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></div>
+        <div class="form-group" style="margin:0;"><label>Natureza da cobrança</label><select id="ff-charge-nature">${Object.entries(CHARGE_NATURE_LABELS).map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></div>
+      </div>
       ${modalField}
       <input type="hidden" id="ff-id">
       <button class="btn btn-primary" id="btnSaveFixedFee" onclick="saveFixedFee()" style="margin-top:16px;">💾 Salvar Taxa</button>
@@ -6727,7 +6840,7 @@ async function loadFixedFeesTable() {
     }
     
     let html = `<table class="k-table"><thead><tr>
-      <th>Nome</th><th>Armador</th><th>Contêiner</th><th>Valor</th><th>Moeda</th><th>Unidade</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
+      <th>Nome</th><th>Armador</th><th>Contêiner</th><th>Valor</th><th>Moeda</th><th>Unidade</th><th>Classificação</th><th>Tipo</th><th>Modal</th><th>Ativo</th><th>Ações</th>
     </tr></thead><tbody>`;
     
     fees.forEach(f => {
@@ -6738,6 +6851,7 @@ async function loadFixedFeesTable() {
         <td>${Number(f.value).toFixed(2)}</td>
         <td>${f.currency}</td>
         <td>${FEE_UNIT_LABELS[f.billingUnit] || f.originalUnit || 'Não identificada'}${f.feeCategory==='ISPS_FEE'?`<br><small>${f.ispsClassification||'ISPS_UNCLASSIFIED'} · Frete: ${f.includedInFreight||'TO_CONFIRM'}</small>`:''}</td>
+        <td><strong>${FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup || 'Pendente'}</strong><br><small>${CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature || '-'}</small></td>
         <td><span class="status-badge ${f.type === 'ORIGIN' ? 'draft' : 'approved'}">${f.type === 'ORIGIN' ? 'Origem' : 'Destino'}</span></td>
         <td>${f.modal}</td>
         <td><span class="status-badge ${f.active ? 'approved' : 'expired'}">${f.active ? 'Ativo' : 'Inativo'}</span></td>
@@ -6777,6 +6891,8 @@ function editFixedFee(fee) {
   document.getElementById('ff-original-unit').value = fee.originalUnit || '';
   document.getElementById('ff-isps-classification').value = fee.ispsClassification || '';
   document.getElementById('ff-included-in-freight').value = fee.includedInFreight || '';
+  document.getElementById('ff-financial-group').value = fee.financialGroup || 'TO_CONFIRM';
+  document.getElementById('ff-charge-nature').value = fee.chargeNature || 'OTHER';
   document.getElementById('ff-modal').value = fee.modal;
   
   document.getElementById('btnSaveFixedFee').innerText = '💾 Atualizar Taxa';
@@ -6795,6 +6911,8 @@ function cancelEditFixedFee() {
   document.getElementById('ff-original-unit').value = '';
   document.getElementById('ff-isps-classification').value = '';
   document.getElementById('ff-included-in-freight').value = '';
+  document.getElementById('ff-financial-group').value = 'TO_CONFIRM';
+  document.getElementById('ff-charge-nature').value = 'OTHER';
   document.getElementById('ff-modal').value = currentFixedFeeScope === 'AIR' ? 'AIR' : 'ALL';
 
   document.getElementById('btnSaveFixedFee').innerText = '💾 Salvar Taxa';
@@ -6823,6 +6941,8 @@ async function saveFixedFee() {
     originalUnit: document.getElementById('ff-original-unit').value || null,
     ispsClassification: document.getElementById('ff-isps-classification').value || null,
     includedInFreight: document.getElementById('ff-included-in-freight').value || null,
+    financialGroup: document.getElementById('ff-financial-group').value,
+    chargeNature: document.getElementById('ff-charge-nature').value,
     type: document.getElementById('ff-type').value,
     modal: document.getElementById('ff-modal').value,
     active: true
@@ -7114,6 +7234,9 @@ function standardFeeApplicationLabel(application) {
   return `${application.incoterm} · ${modal} · ${direction}`;
 }
 
+const APPLICABILITY_LABEL = { REQUIRED:'Required', APPLICABLE:'Applicable', CONDITIONAL:'Conditional', NOT_APPLICABLE:'Not applicable', TO_CONFIRM:'To confirm' };
+const APPLICABILITY_COLOR = { REQUIRED:'var(--info)', APPLICABLE:'var(--text-muted)', CONDITIONAL:'var(--warning)', NOT_APPLICABLE:'var(--error)', TO_CONFIRM:'var(--warning)' };
+
 function renderStandardFeeApplicationsDraft() {
   const container = document.getElementById('sf-applications-list');
   if (!container) return;
@@ -7122,22 +7245,35 @@ function renderStandardFeeApplicationsDraft() {
     container.innerHTML = '<div style="padding:12px;border:1px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:12px;">Nenhuma aplicação adicionada. A taxa ficará disponível para uso avulso.</div>';
     return;
   }
-  container.innerHTML = `<table class="k-table"><thead><tr><th>Contexto</th><th>Obrigatoriedade</th><th>Ordem</th><th>Ações</th></tr></thead><tbody>${applications.map((application, index) => `
+  container.innerHTML = `<table class="k-table"><thead><tr><th>Contexto</th><th>Obrigatoriedade</th><th>Aplicabilidade</th><th>Ordem</th><th>Ações</th></tr></thead><tbody>${applications.map((application, index) => `
     <tr><td><strong>${ifrEscape(standardFeeApplicationLabel(application))}</strong></td>
     <td><span class="required-status ${application.required ? 'required' : 'optional'}">${application.required ? '✓ Obrigatória' : 'Opcional'}</span></td>
+    <td><span style="color:${APPLICABILITY_COLOR[application.applicability] || 'var(--text-muted)'}" title="${ifrEscape(application.reason || '')}">${APPLICABILITY_LABEL[application.applicability] || application.applicability || 'Applicable'}</span></td>
     <td><strong>${application.sortOrder}</strong></td>
     <td><button type="button" class="rule-action-btn primary" onclick="editStandardFeeApplication(${index})">Editar</button> <button type="button" class="rule-action-btn" onclick="removeStandardFeeApplication(${index})">Remover</button></td></tr>`).join('')}</tbody></table>`;
 }
 
 function currentUnifiedApplication() {
+  const applicability = document.getElementById('sf-app-applicability').value;
   return {
     incoterm: document.getElementById('sf-app-incoterm').value,
     modal: document.getElementById('sf-app-modal').value,
     direction: document.getElementById('sf-app-direction').value,
     required: document.getElementById('sf-app-required').checked,
     sortOrder: Number(document.getElementById('sf-app-order').value),
-    active: true
+    active: true,
+    applicability,
+    financialGroup: document.getElementById('sf-app-financialGroup').value || null,
+    condition: applicability === 'CONDITIONAL' && document.getElementById('sf-app-condition').value
+      ? JSON.stringify({ type: document.getElementById('sf-app-condition').value }) : null,
+    reason: document.getElementById('sf-app-reason').value || null
   };
+}
+
+function updateSfAppConditionVisibility() {
+  const group = document.getElementById('sf-app-conditionGroup');
+  const applicability = document.getElementById('sf-app-applicability')?.value;
+  if (group) group.style.display = applicability === 'CONDITIONAL' ? '' : 'none';
 }
 
 function suggestUnifiedApplicationOrder() {
@@ -7168,6 +7304,11 @@ function resetStandardFeeApplicationEditor() {
   if (!index) return;
   index.value = '';
   document.getElementById('sf-app-required').checked = false;
+  document.getElementById('sf-app-applicability').value = 'APPLICABLE';
+  document.getElementById('sf-app-financialGroup').value = '';
+  document.getElementById('sf-app-condition').value = '';
+  document.getElementById('sf-app-reason').value = '';
+  updateSfAppConditionVisibility();
   document.getElementById('btnAddSfApplication').textContent = 'Adicionar aplicação';
   suggestUnifiedApplicationOrder();
 }
@@ -7207,6 +7348,13 @@ function editStandardFeeApplication(index) {
   document.getElementById('sf-app-direction').value = application.direction;
   document.getElementById('sf-app-order').value = application.sortOrder;
   document.getElementById('sf-app-required').checked = Boolean(application.required);
+  document.getElementById('sf-app-applicability').value = application.applicability || 'APPLICABLE';
+  document.getElementById('sf-app-financialGroup').value = application.financialGroup || '';
+  let parsedCondition = null;
+  try { parsedCondition = application.condition ? JSON.parse(application.condition) : null; } catch (e) { parsedCondition = null; }
+  document.getElementById('sf-app-condition').value = parsedCondition?.type || '';
+  document.getElementById('sf-app-reason').value = application.reason || '';
+  updateSfAppConditionVisibility();
   document.getElementById('btnAddSfApplication').textContent = 'Atualizar aplicação';
 }
 
@@ -7386,7 +7534,11 @@ function editStandardFee(fee) {
     direction: application.direction || 'ALL',
     required: Boolean(application.required),
     sortOrder: Number(application.sortOrder),
-    active: application.active !== false
+    active: application.active !== false,
+    applicability: application.applicability || 'APPLICABLE',
+    financialGroup: application.financialGroup || null,
+    condition: application.condition || null,
+    reason: application.reason || null
   }));
   toggleSfPercentBase();
   toggleStandardFeePricing();
@@ -7600,6 +7752,12 @@ function updateIncotermFeeTypeInfo() {
   info.style.color = type ? 'var(--text-primary)' : 'var(--text-muted)';
 }
 
+function updateIncotermConditionVisibility() {
+  const group = document.getElementById('ir-conditionGroup');
+  const applicability = document.getElementById('ir-applicability')?.value;
+  if (group) group.style.display = applicability === 'CONDITIONAL' ? '' : 'none';
+}
+
 function clearIncotermRuleOrderError() {
   const input = document.getElementById('ir-linkSortOrder');
   if (!input) return;
@@ -7677,11 +7835,14 @@ async function loadIncotermRulesTable() {
       container.innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${focusedFeeId ? 'Esta taxa ainda não possui vínculo de aplicação. Selecione o contexto acima e salve o vínculo.' : 'Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.'}</p>`;
       return;
     }
-    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Aplicação</th><th>Taxa</th><th>Ordem</th><th>Cobrança</th><th>Valor</th><th>Mínimo</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
+    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Aplicabilidade</th><th>Aplicação</th><th>Taxa</th><th>Ordem</th><th>Cobrança</th><th>Valor</th><th>Mínimo</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
+    const applicabilityColor = { REQUIRED:'var(--info)', APPLICABLE:'var(--text-muted)', CONDITIONAL:'var(--warning)', NOT_APPLICABLE:'var(--error)', TO_CONFIRM:'var(--warning)' };
+    const applicabilityLabel = { REQUIRED:'Required', APPLICABLE:'Applicable', CONDITIONAL:'Conditional', NOT_APPLICABLE:'Not applicable', TO_CONFIRM:'To confirm' };
     for (const r of rules) {
       const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_TON:'Por tonelada', PER_WM:'Por tonelada-metro (W/M)', PER_CBM:'Por m³', PER_CONTAINER:'Por contêiner', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
       const modalLabel = {AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos'}[r.modal] || r.modal;
       const typeLabel = r.feeType === 'ORIGIN' ? '<span style="color:var(--info)">Origem</span>' : '<span style="color:var(--warning)">Destino</span>';
+      const applicability = r.applicability || 'APPLICABLE';
       html += `<tr>
         <td><strong style="color:var(--gold)">${r.incoterm}</strong></td>
         <td>${modalLabel}</td>
@@ -7692,6 +7853,7 @@ async function loadIncotermRulesTable() {
             <button class="rule-action-btn primary" onclick="editIncotermRule('${r.id}')" title="Editar obrigatoriedade, ordem e contexto">Editar aplicação</button>
           </div>
         </td>
+        <td><span style="color:${applicabilityColor[applicability] || 'var(--text-muted)'}" title="${r.reason || ''}">${applicabilityLabel[applicability] || applicability}</span></td>
         <td>${typeLabel}</td>
         <td>
           <div style="min-width:160px;"><span>${r.feeName}</span></div>
@@ -7722,7 +7884,12 @@ async function saveIncotermRule() {
     direction: document.getElementById('ir-direction').value,
     required: document.getElementById('ir-required').checked,
     standardFeeId: document.getElementById('ir-standardFeeId').value,
-    sortOrder: Number(document.getElementById('ir-linkSortOrder').value)
+    sortOrder: Number(document.getElementById('ir-linkSortOrder').value),
+    applicability: document.getElementById('ir-applicability').value,
+    financialGroup: document.getElementById('ir-financialGroup').value || null,
+    condition: document.getElementById('ir-applicability').value === 'CONDITIONAL' && document.getElementById('ir-condition').value
+      ? JSON.stringify({ type: document.getElementById('ir-condition').value }) : null,
+    reason: document.getElementById('ir-reason').value || null
   };
   if (!data.standardFeeId) {
     toast('Selecione uma Taxa Local.');
@@ -7765,6 +7932,13 @@ async function editIncotermRule(id) {
     document.getElementById('ir-required').checked = Boolean(rule.required);
     await loadIncotermFeeOptions(rule.standardFeeId);
     document.getElementById('ir-linkSortOrder').value = rule.sortOrder;
+    document.getElementById('ir-applicability').value = rule.applicability || 'APPLICABLE';
+    document.getElementById('ir-financialGroup').value = rule.financialGroup || '';
+    let parsedCondition = null;
+    try { parsedCondition = rule.condition ? JSON.parse(rule.condition) : null; } catch (e) { parsedCondition = null; }
+    document.getElementById('ir-condition').value = parsedCondition?.type || '';
+    document.getElementById('ir-reason').value = rule.reason || '';
+    updateIncotermConditionVisibility();
     clearIncotermRuleOrderError();
     document.getElementById('btnSaveIr').innerText = '💾 Atualizar aplicação';
     document.getElementById('btnCancelIr').style.display = '';
@@ -7814,6 +7988,11 @@ function cancelEditIr() {
   document.getElementById('ir-linkSortOrder').value = '1';
   clearIncotermRuleOrderError();
   document.getElementById('ir-required').checked = false;
+  document.getElementById('ir-applicability').value = 'APPLICABLE';
+  document.getElementById('ir-financialGroup').value = '';
+  document.getElementById('ir-condition').value = '';
+  document.getElementById('ir-reason').value = '';
+  updateIncotermConditionVisibility();
   updateIncotermFeeTypeInfo();
   document.getElementById('btnSaveIr').innerText = 'Salvar vínculo';
   document.getElementById('btnCancelIr').style.display = 'none';

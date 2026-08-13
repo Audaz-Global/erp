@@ -26,6 +26,19 @@ export const FREIGHT_INCLUSION = {
   INCLUDED: 'INCLUDED', NOT_INCLUDED: 'NOT_INCLUDED', TO_CONFIRM: 'TO_CONFIRM'
 } as const;
 
+export const FINANCIAL_GROUPS = {
+  INTERNATIONAL_FREIGHT: 'INTERNATIONAL_FREIGHT', FREIGHT_COMPONENT: 'FREIGHT_COMPONENT',
+  ORIGIN_CHARGE: 'ORIGIN_CHARGE', DESTINATION_CHARGE: 'DESTINATION_CHARGE', DG_CHARGE: 'DG_CHARGE',
+  CUSTOMS_CHARGE: 'CUSTOMS_CHARGE', INSURANCE: 'INSURANCE', TAX_IOF: 'TAX_IOF',
+  PROFIT: 'PROFIT', TO_CONFIRM: 'TO_CONFIRM'
+} as const;
+
+export const CHARGE_NATURES = {
+  BASE_FREIGHT: 'BASE_FREIGHT', FUEL: 'FUEL', SECURITY: 'SECURITY', DG: 'DG',
+  CUSTOMS: 'CUSTOMS', INSURANCE: 'INSURANCE', TAX: 'TAX', PROFIT: 'PROFIT',
+  LOCAL_SERVICE: 'LOCAL_SERVICE', OTHER: 'OTHER'
+} as const;
+
 const validUnits = new Set(Object.values(BILLING_UNITS));
 const fixedQuantityUnits = new Set([BILLING_UNITS.TOTAL_SHIPMENT, BILLING_UNITS.PER_SHIPMENT]);
 const quantityRequiredUnits = new Set([
@@ -87,6 +100,43 @@ function normalizeApplicationScope(value: unknown) {
   return 'UNKNOWN';
 }
 
+export function normalizeChargeNature(value: unknown, context: unknown, canonicalCategory?: string | null) {
+  const explicit = plain(value).replace(/[^A-Z0-9]+/g, '_');
+  if (Object.values(CHARGE_NATURES).includes(explicit as any)) return explicit;
+  const text = plain(context).replace(/[^A-Z0-9%]+/g, ' ');
+  if (canonicalCategory === 'DANGEROUS_GOODS_FEE') return CHARGE_NATURES.DG;
+  if (canonicalCategory === 'ISPS_FEE' || /\b(ISPS|SECURITY)\b/.test(text)) return CHARGE_NATURES.SECURITY;
+  if (/\b(OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL)\b/.test(text)) return CHARGE_NATURES.BASE_FREIGHT;
+  if (/\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|FUEL|BUNKER)\b/.test(text)) return CHARGE_NATURES.FUEL;
+  if (/\b(CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO ADUANEIRO)\b/.test(text)) return CHARGE_NATURES.CUSTOMS;
+  if (/\b(INSURANCE|SEGURO)\b/.test(text)) return CHARGE_NATURES.INSURANCE;
+  if (/\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text)) return CHARGE_NATURES.TAX;
+  if (/\b(PROFIT|MARGIN|MARKUP|SPREAD|MARGEM)\b/.test(text)) return CHARGE_NATURES.PROFIT;
+  if (/\b(THC|HANDLING|DOCUMENTATION|DOC FEE|BL FEE|TERMINAL|DELIVERY|PICK UP|PICKUP|COLLECTION|INLAND|ARMAZENAGEM|STORAGE)\b/.test(text)) return CHARGE_NATURES.LOCAL_SERVICE;
+  return CHARGE_NATURES.OTHER;
+}
+
+export function normalizeFinancialGroup(value: unknown, context: any) {
+  const explicit = plain(value).replace(/[^A-Z0-9]+/g, '_');
+  if (Object.values(FINANCIAL_GROUPS).includes(explicit as any)) return explicit;
+  const text = plain([context?.name, context?.description, context?.evidence, context?.chargedBy].filter(Boolean).join(' ')).replace(/[^A-Z0-9%]+/g, ' ');
+  const scope = normalizeApplicationScope(context?.applicationScope || context?.feeType);
+  const category = context?.canonicalCategory || canonicalFeeCategory(context?.name);
+  const carrierCharge = context?.ispsClassification === ISPS_CLASSIFICATIONS.CARRIER || /\b(CARRIER|ARMADOR|SHIPPING LINE)\b/.test(text);
+  if (/\b(OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL)\b/.test(text)) return FINANCIAL_GROUPS.INTERNATIONAL_FREIGHT;
+  if (/\b(PROFIT|MARGIN|MARKUP|SPREAD|MARGEM)\b/.test(text)) return FINANCIAL_GROUPS.PROFIT;
+  if (/\b(INSURANCE|SEGURO)\b/.test(text)) return FINANCIAL_GROUPS.INSURANCE;
+  if (/\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text)) return FINANCIAL_GROUPS.TAX_IOF;
+  if (/\b(CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO ADUANEIRO)\b/.test(text)) return FINANCIAL_GROUPS.CUSTOMS_CHARGE;
+  if (/\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER|FUEL SURCHARGE|OCEAN SURCHARGE)\b/.test(text)) return FINANCIAL_GROUPS.FREIGHT_COMPONENT;
+  if (category === 'ISPS_FEE' && context?.ispsClassification === ISPS_CLASSIFICATIONS.CARRIER) return FINANCIAL_GROUPS.FREIGHT_COMPONENT;
+  if (category === 'DANGEROUS_GOODS_FEE' && carrierCharge) return FINANCIAL_GROUPS.FREIGHT_COMPONENT;
+  if (category === 'DANGEROUS_GOODS_FEE' && scope === 'UNKNOWN') return FINANCIAL_GROUPS.DG_CHARGE;
+  if (scope === 'ORIGIN') return FINANCIAL_GROUPS.ORIGIN_CHARGE;
+  if (scope === 'DESTINATION') return FINANCIAL_GROUPS.DESTINATION_CHARGE;
+  return FINANCIAL_GROUPS.TO_CONFIRM;
+}
+
 export function normalizeBillingUnit(value: unknown, originalUnit?: unknown) {
   const normalized = plain(value).replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '');
   if (validUnits.has(normalized as any)) return normalized;
@@ -141,16 +191,23 @@ export function normalizeFee(fee: any) {
   const ispsContext = [source.name, source.evidence, source.description, source.originalUnit, source.chargedBy].filter(Boolean).join(' ');
   const ispsClassification = canonicalCategory === 'ISPS_FEE' ? normalizeIspsClassification(source.ispsClassification, ispsContext) : null;
   const includedInFreight = canonicalCategory === 'ISPS_FEE' ? normalizeFreightInclusion(source.includedInFreight !== undefined ? source.includedInFreight : ispsContext) : null;
+  const applicationScope = normalizeApplicationScope(source.applicationScope || source.feeType || ispsContext);
+  const classificationContext = { ...source, canonicalCategory, ispsClassification, applicationScope };
+  const financialGroup = normalizeFinancialGroup(source.financialGroup, classificationContext);
+  const chargeNature = normalizeChargeNature(source.chargeNature, ispsContext, canonicalCategory);
+  const classificationSource = source.classificationSource || (source.financialGroup || source.chargeNature ? 'MANUAL' : 'RULE');
   const ispsClassificationMissing = canonicalCategory === 'ISPS_FEE' && ispsClassification === ISPS_CLASSIFICATIONS.UNCLASSIFIED;
   const freightInclusionUnknown = canonicalCategory === 'ISPS_FEE' && includedInFreight === FREIGHT_INCLUSION.TO_CONFIRM;
-  const needsReview = Boolean(source.needsReview || unitMissing || quantityMissing || inconsistentTotal || ispsClassificationMissing || freightInclusionUnknown);
+  const financialGroupMissing = financialGroup === FINANCIAL_GROUPS.TO_CONFIRM;
+  const needsReview = Boolean(source.needsReview || unitMissing || quantityMissing || inconsistentTotal || ispsClassificationMissing || freightInclusionUnknown || financialGroupMissing);
   const reviewReasons = [
     ...(Array.isArray(source.reviewReasons) ? source.reviewReasons : []),
     ...(unitMissing ? ['BILLING_UNIT_MISSING'] : []),
     ...(quantityMissing ? ['QUANTITY_MISSING'] : []),
     ...(inconsistentTotal ? ['TOTAL_MISMATCH'] : []),
     ...(ispsClassificationMissing ? ['ISPS_CLASSIFICATION_MISSING'] : []),
-    ...(freightInclusionUnknown ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : [])
+    ...(freightInclusionUnknown ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []),
+    ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])
   ];
   return {
     ...source,
@@ -160,9 +217,9 @@ export function normalizeFee(fee: any) {
     originalUnit: source.originalUnit || source.unitLabel || source.application || null,
     quantity, totalValue, quantitySource: source.quantitySource || null,
     evidence: source.evidence || null, confidence: finite(source.confidence),
-    ispsClassification, applicationScope: canonicalCategory === 'ISPS_FEE' ? normalizeApplicationScope(source.applicationScope || source.feeType || ispsContext) : null,
-    chargedBy: canonicalCategory === 'ISPS_FEE' ? (source.chargedBy || null) : null,
+    ispsClassification, applicationScope, chargedBy: source.chargedBy || null,
     includedInFreight,
+    financialGroup, chargeNature, classificationSource,
     needsReview, reviewReasons: [...new Set(reviewReasons)]
   };
 }
@@ -201,6 +258,14 @@ export function feeCalculationAlerts(fees: unknown) {
     code: fee.reviewReasons[0] || 'FEE_REVIEW_REQUIRED', feeName: fee.name,
     message: `${fee.name || 'Taxa'}: ${fee.reviewReasons.includes('ISPS_CLASSIFICATION_MISSING') ? 'ISPS sem classificação entre armador e terminal' : fee.reviewReasons.includes('ISPS_FREIGHT_INCLUSION_UNCONFIRMED') ? 'não foi possível confirmar se a ISPS já está incluída no frete' : fee.reviewReasons.includes('BILLING_UNIT_MISSING') ? 'unidade de cobrança não identificada' : fee.reviewReasons.includes('QUANTITY_MISSING') ? 'quantidade aplicável não identificada' : 'total divergente do valor unitário × quantidade'}.`
   }));
+}
+
+export function financialClassificationCompliance(fees: unknown) {
+  const normalized = normalizeFeeList(fees);
+  const alerts: Array<{ code: string; level: 'INFO' | 'WARNING'; message: string; feeNames?: string[] }> = [];
+  normalized.filter(fee => fee.financialGroup === FINANCIAL_GROUPS.TO_CONFIRM).forEach(fee => alerts.push({ code:'FINANCIAL_GROUP_TO_CONFIRM', level:'WARNING', message:`${fee.name}: defina o grupo financeiro antes de finalizar.`, feeNames:[fee.name] }));
+  normalized.filter(fee => fee.includedInFreight === FREIGHT_INCLUSION.INCLUDED && fee.financialGroup !== FINANCIAL_GROUPS.INTERNATIONAL_FREIGHT).forEach(fee => alerts.push({ code:'FEE_ALREADY_INCLUDED_IN_FREIGHT', level:'WARNING', message:`${fee.name}: indicada como incluída no frete; não some novamente.`, feeNames:[fee.name] }));
+  return { fees: normalized, alerts };
 }
 
 export function ispsCompliance(fees: unknown) {

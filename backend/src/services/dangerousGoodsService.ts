@@ -1,4 +1,4 @@
-import { feeCalculationAlerts, ispsCompliance, normalizeFeeList, resolveFeeQuantities } from './feeCalculationService';
+import { feeCalculationAlerts, financialClassificationCompliance, ispsCompliance, normalizeFeeList, resolveFeeQuantities } from './feeCalculationService';
 export { canonicalFeeCategory, normalizeFeeList } from './feeCalculationService';
 
 export const DG_STATUS = {
@@ -82,7 +82,8 @@ export function dangerousGoodsCompliance(quotation: any) {
   if (dgFees.length > 1) alerts.push({ code: 'DG_FEE_DUPLICATE', level: 'WARNING', message: 'Possível duplicidade de taxa DG/IMO. Confirme se as cobranças são realmente distintas.' });
   const feeAlerts = feeCalculationAlerts(fees);
   const isps = ispsCompliance(fees);
-  return { status, msdsStatus, dgFeeCount: dgFees.length, dgFees, feeAlerts, isps, alerts: [...alerts, ...feeAlerts.map(item => ({ ...item, level: 'WARNING' as const })), ...isps.alerts] };
+  const financialClassification = financialClassificationCompliance(fees);
+  return { status, msdsStatus, dgFeeCount: dgFees.length, dgFees, feeAlerts, isps, financialClassification, alerts: [...alerts, ...feeAlerts.map(item => ({ ...item, level: 'WARNING' as const })), ...isps.alerts, ...financialClassification.alerts] };
 }
 
 export function withDangerousGoodsCompliance<T extends object>(quotation: T) {
