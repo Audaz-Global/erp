@@ -8480,6 +8480,7 @@ async function fetchIncotermTree() {
 
   try {
     const res = await fetch(API + '/incoterm-tree/' + incoterm + '/' + direction + '/' + modal);
+    await loadStandardFeesList();
     if (!res.ok) throw new Error('Falha ao buscar árvore');
     const data = await res.json();
     window.currentIncotermTree = {
