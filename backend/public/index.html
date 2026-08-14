@@ -5944,7 +5944,6 @@ function switchSettingsTab(tab) {
                 <option value="REQUIRED">Required — esperada, alerta se ausente</option>
                 <option value="CONDITIONAL">Conditional — só entra se a condição for atendida</option>
                 <option value="NOT_APPLICABLE">Not applicable — não é oferecida automaticamente</option>
-                <option value="TO_CONFIRM">To confirm — exige revisão antes de finalizar</option>
               </select>
             </div>
             <div class="form-group" style="margin:0"><label>Grupo financeiro</label>
@@ -8126,6 +8125,30 @@ async function saveCarrierRate(id,status){const val=x=>document.getElementById(x
 async function importDanielCarrierRates(event){const file=event.target.files?.[0];if(!file)return;const form=new FormData();form.append('file',file);toast('⏳ Importando e validando a base...');const res=await fetch('/api/carrier-rates/import-daniel',{method:'POST',body:form});const body=await res.json().catch(()=>({}));event.target.value='';if(!res.ok){toast('❌ '+(body.error||'Falha na importação.'));return;}toast(`✅ ${body.summary.importedRows} tarifas importadas como referência; ${body.summary.skippedRows} ignoradas.`);loadCarrierRatesSettings();}
 const IFR_BEHAVIOR_LABELS = { EDITABLE:'Editável', REQUIRED:'Obrigatório', SUGGESTED:'Sugerido', LOCKED:'Bloqueado', HIDDEN:'Oculto', NOT_APPLICABLE:'Não aplicável', RETURN_ONLY:'Somente no retorno' };
 const IFR_STAGE_LABELS = { ALL:'Todas', REQUEST:'Solicitação', RETURN:'Retorno', FINAL:'Revisão final' };
+const INCOTERM_CONDITION_LABELS = {
+  DG_ONLY: 'Somente carga DG',
+  NOT_DG: 'Somente carga não-DG',
+  INSURANCE_REQUESTED: 'Somente se seguro foi solicitado',
+  CUSTOMS_CLEARANCE_CONTRACTED: 'Somente se desembaraço foi contratado',
+  IMPORT_ONLY: 'Somente importação',
+  EXPORT_ONLY: 'Somente exportação',
+  FCL_ONLY: 'Somente FCL',
+  LCL_ONLY: 'Somente LCL',
+  NOT_INCLUDED_IN_FREIGHT: 'Somente se não incluída no frete'
+};
+function treeFeeConditionType(fee) {
+  if (!fee || !fee.condition) return '';
+  try {
+    const parsed = typeof fee.condition === 'string' ? JSON.parse(fee.condition) : fee.condition;
+    return parsed?.type || '';
+  } catch (e) {
+    return '';
+  }
+}
+function updateTreeFeeCondition(type, index, value) {
+  const fee = (type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees)[index];
+  fee.condition = value ? JSON.stringify({ type: value }) : null;
+}
 let incotermFieldRuleCache = [];
 
 function ifrEscape(value) {
@@ -8506,25 +8529,57 @@ function renderTreeFees(type, containerId) {
     return;
   }
 
-  let html = '<table class="k-table" style="min-width: 800px;"><thead><tr><th>Ordem</th><th>Taxa Padrão (ID)</th><th>Aplicabilidade</th><th>Grupo Financeiro</th><th>Remover</th></tr></thead><tbody>';
-  
+  let html = '<table class="k-table" style="min-width: 1100px;"><thead><tr><th>Ordem</th><th>Nome da Taxa</th><th>Tipo de Cobrança</th><th>Valor</th><th>Moeda</th><th>Mínimo</th><th>Base %</th><th>Aplicabilidade</th><th>Condição</th><th>Grupo Financeiro</th><th>Remover</th></tr></thead><tbody>';
+
   fees.forEach((fee, index) => {
+    const isOnRequest = fee.pricingStatus === 'ON_REQUEST';
     html += `<tr>
       <td><input type="number" value="${fee.sortOrder || index + 1}" style="width: 60px;" onchange="updateTreeFee('${type}', ${index}, 'sortOrder', this.value)"></td>
+      <td><input type="text" value="${fee.feeName || ''}" style="width: 160px;" placeholder="Ex: BL Fee" onchange="updateTreeFee('${type}', ${index}, 'feeName', this.value)"></td>
       <td>
-        <select style="width: 200px;" onchange="updateTreeFee('${type}', ${index}, 'standardFeeId', this.value)">
-          <option value="">-- Selecione uma Taxa Padrão --</option>
-          ${window.standardFeesList.map(sf => `<option value="${sf.id}" ${sf.id === fee.standardFeeId ? 'selected' : ''}>${sf.name}</option>`).join('')}
+        <select onchange="updateTreeFee('${type}', ${index}, 'chargeType', this.value); renderTreeFees('${type}', '${containerId}')">
+          <option value="FIXED" ${fee.chargeType === 'FIXED' ? 'selected' : ''}>Fixo</option>
+          <option value="PER_KG" ${fee.chargeType === 'PER_KG' ? 'selected' : ''}>Por Kg</option>
+          <option value="PER_DOCUMENT" ${fee.chargeType === 'PER_DOCUMENT' ? 'selected' : ''}>Por Documento</option>
+          <option value="PERCENTAGE" ${fee.chargeType === 'PERCENTAGE' ? 'selected' : ''}>Percentual</option>
         </select>
       </td>
       <td>
-        <select onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value)">
+        <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 90px;" ${isOnRequest ? 'disabled' : ''} onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">
+          <input type="checkbox" ${isOnRequest ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'pricingStatus', this.checked ? 'ON_REQUEST' : 'PRICED'); renderTreeFees('${type}', '${containerId}')"> A cotar
+        </label>
+      </td>
+      <td>
+        <select style="width: 80px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
+          <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+          <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
+        </select>
+      </td>
+      <td><input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 80px;" placeholder="—" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)"></td>
+      <td>
+        ${fee.chargeType === 'PERCENTAGE' ? `
+        <select onchange="updateTreeFee('${type}', ${index}, 'percentBase', this.value)">
+          <option value="FREIGHT" ${(fee.percentBase || 'FREIGHT') === 'FREIGHT' ? 'selected' : ''}>Sobre o Frete</option>
+          <option value="FREIGHT_PLUS_ORIGIN" ${fee.percentBase === 'FREIGHT_PLUS_ORIGIN' ? 'selected' : ''}>Frete + Origem</option>
+        </select>
+        ` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
+      </td>
+      <td>
+        <select onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value); renderTreeFees('${type}', '${containerId}')">
           <option value="APPLICABLE" ${fee.applicability === 'APPLICABLE' ? 'selected' : ''}>Aplicável</option>
           <option value="REQUIRED" ${fee.applicability === 'REQUIRED' ? 'selected' : ''}>Obrigatória</option>
           <option value="CONDITIONAL" ${fee.applicability === 'CONDITIONAL' ? 'selected' : ''}>Condicional</option>
           <option value="NOT_APPLICABLE" ${fee.applicability === 'NOT_APPLICABLE' ? 'selected' : ''}>Não Aplicável</option>
-          <option value="TO_CONFIRM" ${fee.applicability === 'TO_CONFIRM' ? 'selected' : ''}>A Confirmar</option>
         </select>
+      </td>
+      <td>
+        ${fee.applicability === 'CONDITIONAL' ? `
+        <select onchange="updateTreeFeeCondition('${type}', ${index}, this.value)">
+          <option value="">-- Selecione --</option>
+          ${Object.entries(INCOTERM_CONDITION_LABELS).map(([val, label]) => `<option value="${val}" ${treeFeeConditionType(fee) === val ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>
+        ` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
       </td>
       <td>
         <select onchange="updateTreeFee('${type}', ${index}, 'financialGroup', this.value)">
@@ -8543,15 +8598,16 @@ function renderTreeFees(type, containerId) {
 }
 
 function updateTreeFee(type, index, field, value) {
-  if (type === 'ORIGIN') {
-    window.currentIncotermTree.originFees[index][field] = field === 'sortOrder' ? Number(value) : value;
-  } else {
-    window.currentIncotermTree.destinationFees[index][field] = field === 'sortOrder' ? Number(value) : value;
-  }
+  let parsed = value;
+  if (field === 'sortOrder') parsed = Number(value);
+  else if (field === 'value') parsed = value === '' ? '' : Number(value);
+  else if (field === 'minValue') parsed = value === '' ? null : Number(value);
+  const list = type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees;
+  list[index][field] = parsed;
 }
 
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, standardFeeId: '', applicability: 'APPLICABLE', financialGroup: '' };
+  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE', financialGroup: '' };
   if (type === 'ORIGIN') {
     window.currentIncotermTree.originFees.push(newFee);
     renderTreeFees('ORIGIN', 'tree-origin-fees-container');
@@ -8635,8 +8691,8 @@ async function saveIncotermTree() {
     incoterm,
     direction,
     modal,
-    originFees: window.currentIncotermTree.originFees.filter(f => f.standardFeeId),
-    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.standardFeeId),
+    originFees: window.currentIncotermTree.originFees.filter(f => f.feeName),
+    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.feeName),
     fieldRules: window.currentIncotermTree.fieldRules.filter(r => r.fieldKey)
   };
 

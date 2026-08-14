@@ -3,7 +3,6 @@ import {
   lockIncotermRuleOrdering,
   parseIncotermRuleSortOrder
 } from './incotermRuleOrderService';
-import { findOrCreateStandardFeeForLegacyRule, standardFeeSnapshot } from './standardFeeLinkService';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +13,7 @@ export interface IncotermTreeFeePayload {
   feeType?: string;
   chargeType?: string;
   value?: number;
+  pricingStatus?: string;
   minValue?: number;
   currency?: string;
   percentBase?: string;
@@ -94,40 +94,16 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
       where: { incoterm: incotermUpper, direction: directionUpper, modal: modalUpper }
     });
 
-    // Recreate fees
+    // Recreate fees — cadastradas direto na árvore, sem depender de um catálogo de taxas padrão
     let sortOrderCounter = 1;
     for (const feeData of allFees) {
       if (!feeData) continue;
-      let feeId = feeData.standardFeeId;
-
-      // Se não veio com ID de taxa padrão, precisa encontrar ou criar (legacy fallback)
-      if (!feeId) {
-        if (!feeData.feeName || !feeData.feeType || !feeData.chargeType || feeData.value === undefined) {
-          throw new Error('Parâmetros incompletos para recriar taxa legada (feeName, feeType, chargeType, value). Use standardFeeId sempre que possível.');
-        }
-
-        const standardFee = await findOrCreateStandardFeeForLegacyRule(tx as any, {
-          feeName: feeData.feeName,
-          feeType: feeData.feeType,
-          chargeType: feeData.chargeType,
-          value: Number(feeData.value),
-          minValue: feeData.minValue !== undefined && feeData.minValue !== null ? Number(feeData.minValue) : null,
-          currency: feeData.currency || 'USD',
-          percentBase: feeData.percentBase || null,
-          description: feeData.description || null,
-          active: feeData.active !== undefined ? feeData.active : true
-        } as any);
-        feeId = standardFee.id;
+      if (!feeData.feeName || !feeData.chargeType) {
+        throw new Error('Informe nome e tipo de cobrança da taxa.');
       }
-      
-      const standardFeeObj = await tx.standardFee.findUnique({ where: { id: feeId } });
-      if (!standardFeeObj) throw new Error(`Standard fee ${feeId} not found`);
-
-      // Verifica suporte a modal
-      const scopes = String(standardFeeObj.modalScope || 'ALL').toUpperCase().split(',').map(s => s.trim());
-      const supportsModal = scopes.includes('ALL') || scopes.includes(modalUpper);
-      if (!supportsModal) {
-        throw new Error(`A taxa ${standardFeeObj.name} não é compatível com o modal ${modalUpper}.`);
+      const pricingStatus = feeData.pricingStatus === 'ON_REQUEST' ? 'ON_REQUEST' : 'PRICED';
+      if (pricingStatus === 'PRICED' && (feeData.value === undefined || feeData.value === null || (feeData.value as any) === '')) {
+        throw new Error(`Informe o valor da taxa "${feeData.feeName}" ou marque "A cotar".`);
       }
 
       await tx.incotermRule.create({
@@ -138,10 +114,18 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
           required: Boolean(feeData.required),
           applicability: feeData.applicability || 'APPLICABLE',
           financialGroup: feeData.financialGroup || null,
-          condition: feeData.condition ? JSON.stringify(feeData.condition) : null,
+          condition: feeData.condition ? (typeof feeData.condition === 'string' ? feeData.condition : JSON.stringify(feeData.condition)) : null,
           reason: feeData.reason || null,
-          standardFeeId: standardFeeObj.id,
-          ...standardFeeSnapshot(standardFeeObj),
+          standardFeeId: null,
+          feeType: feeData.feeType,
+          feeName: String(feeData.feeName).trim(),
+          chargeType: feeData.chargeType,
+          value: pricingStatus === 'ON_REQUEST' ? 0 : Number(feeData.value),
+          pricingStatus,
+          minValue: feeData.minValue !== undefined && feeData.minValue !== null && (feeData.minValue as any) !== '' ? Number(feeData.minValue) : null,
+          currency: feeData.currency || 'USD',
+          percentBase: feeData.chargeType === 'PERCENTAGE' ? (feeData.percentBase || 'FREIGHT') : null,
+          description: feeData.description || null,
           sortOrder: parseIncotermRuleSortOrder(feeData.sortOrder) || sortOrderCounter++,
           active: feeData.active !== undefined ? feeData.active : true
         } as any
