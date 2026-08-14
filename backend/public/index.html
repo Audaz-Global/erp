@@ -2003,7 +2003,7 @@
         <li data-tab="carrierProfiles" onclick="window.marineCommercialSection='';switchSettingsTab('carrierProfiles')">Cadastro de Armadores</li>
 
         <li class="nav-section-title">TAXAS</li>
-        <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Taxas e Regras de Aplicação</li>
+        <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Árvore de Incoterms</li>
         <li class="nav-sub-header">Tarifas Específicas</li>
         <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Companhias Aéreas</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
@@ -5844,119 +5844,58 @@ function switchSettingsTab(tab) {
       break;
 
     case 'standardFees':
-      content.innerHTML = `
-        <div class="sc-title">Taxas e Regras de Aplicação</div>
-        <p class="sc-desc">Cadastre a taxa e defina, no mesmo lugar, em quais contextos ela entra na cotação. Uma taxa pode possuir várias aplicações sem duplicar seu valor ou sua forma de cobrança.</p>
+      content.innerHTML = \`
+        <div class="sc-title">Árvore de Incoterms</div>
+        <p class="sc-desc">Gerencie todas as taxas e regras de comportamento de campos por Incoterm, Modal e Direção em uma única tela.</p>
         
         <div class="settings-section" style="margin-bottom: 24px;">
-          <h3 id="sf-form-title" style="margin-bottom:14px;">1. Dados da taxa</h3>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="sf-name" placeholder="Ex: Delivery Fee"></div>
-            <div class="form-group" style="margin:0;"><label>Tipo de Cobrança</label>
-              <select id="sf-chargeType" onchange="toggleSfPercentBase()">
-                <option value="FIXED">Fixo</option>
-                <option value="PER_KG">Por Kg</option>
-                <option value="PER_TON">Por tonelada</option>
-                <option value="PER_WM">Por tonelada-metro (W/M)</option>
-                <option value="PER_CBM">Por m³</option>
-                <option value="PER_CONTAINER">Por contêiner</option>
-                <option value="PER_DG_PRODUCT">Por produto perigoso</option>
-                <option value="PER_DOCUMENT">Por documento</option>
-                <option value="PERCENTAGE">% de Taxas Selecionadas</option>
+          <h3>Filtros da Árvore</h3>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; align-items: end;">
+            <div class="form-group" style="margin:0;"><label>Incoterm</label>
+              <select id="tree-incoterm">
+                <option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB" selected>FOB</option>
+                <option value="CFR">CFR</option><option value="CIF">CIF</option><option value="CPT">CPT</option>
+                <option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option>
+                <option value="DDP">DDP</option>
               </select>
             </div>
-            <div class="form-group" style="margin:0;"><label>Situação do preço</label>
-              <select id="sf-pricingStatus" onchange="toggleStandardFeePricing()"><option value="PRICED">Valor padrão definido</option><option value="ON_REQUEST">A cotar com agente</option></select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Tipo (Origem/Destino)</label>
-              <select id="sf-type" onchange="suggestUnifiedApplicationOrder()">
-                <option value="ORIGIN">Origem</option><option value="DESTINATION">Destino</option>
+            <div class="form-group" style="margin:0;"><label>Modal</label>
+              <select id="tree-modal">
+                <option value="AIR">Aéreo</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option>
               </select>
             </div>
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;" id="sf-value-group"><label>Valor / Porcentagem</label><input type="number" id="sf-value" step="0.01" placeholder="Ex: 55.00 ou 3.5"></div>
-            <div class="form-group" style="margin:0;"><label>Moeda (se aplicável)</label>
-              <select id="sf-currency">
-                <option value="USD">USD</option><option value="BRL">BRL</option><option value="EUR">EUR</option>
+            <div class="form-group" style="margin:0;"><label>Direção</label>
+              <select id="tree-direction">
+                <option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option>
               </select>
             </div>
-            <div class="form-group" style="margin:0;"><label>Mínimo (opcional)</label><input type="number" id="sf-minValue" step="0.01" placeholder="Ex: 45.00"></div>
+            <button class="btn btn-primary" onclick="fetchIncotermTree()" style="height: 44px; justify-content: center;">🔍 Buscar Árvore</button>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px; margin-bottom: 16px;">
-            <div class="form-group" style="margin:0; display:none;" id="sf-percentBase-group"><label>Base do percentual</label>
-              <select id="sf-percentBase"><option value="FREIGHT">Frete</option><option value="FREIGHT_PLUS_ORIGIN">Frete + Origem</option></select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Descrição (opcional)</label><input type="text" id="sf-description" placeholder="Detalhes da aplicação da taxa"></div>
-          </div>
-          <div style="border-top:1px solid var(--border);margin:20px 0 16px;padding-top:18px;">
-            <h3 style="margin:0 0 6px;">2. Onde aplicar</h3>
-            <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Adicione uma ou mais combinações. A taxa também pode ser salva sem aplicação para uso avulso.</p>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;">
-              <div class="form-group" style="margin:0"><label>Incoterm</label><select id="sf-app-incoterm" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todos</option><option>EXW</option><option>FCA</option><option selected>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
-              <div class="form-group" style="margin:0"><label>Modal</label><select id="sf-app-modal" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div>
-              <div class="form-group" style="margin:0"><label>Direção</label><select id="sf-app-direction" onchange="suggestUnifiedApplicationOrder()"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div>
-              <div class="form-group" style="margin:0"><label>Ordem</label><input id="sf-app-order" type="number" min="1" step="1" value="1"></div>
-              <div class="form-group" style="margin:0"><label class="compact-checkbox" for="sf-app-required"><input id="sf-app-required" type="checkbox"><span>Obrigatória</span></label></div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin-top:10px;">
-              <div class="form-group" style="margin:0"><label>Aplicabilidade</label>
-                <select id="sf-app-applicability" onchange="updateSfAppConditionVisibility()">
-                  <option value="APPLICABLE">Applicable — entra se houver valor</option>
-                  <option value="REQUIRED">Required — esperada, alerta se ausente</option>
-                  <option value="CONDITIONAL">Conditional — só entra se a condição for atendida</option>
-                  <option value="NOT_APPLICABLE">Not applicable — não é oferecida automaticamente</option>
-                  <option value="TO_CONFIRM">To confirm — exige revisão antes de finalizar</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin:0"><label>Grupo financeiro</label>
-                <select id="sf-app-financialGroup">
-                  <option value="">— casar por nome da taxa —</option>
-                  <option value="INTERNATIONAL_FREIGHT">Frete internacional</option>
-                  <option value="FREIGHT_COMPONENT">Componente do frete</option>
-                  <option value="ORIGIN_CHARGE">Taxa de origem</option>
-                  <option value="DESTINATION_CHARGE">Taxa de destino</option>
-                  <option value="DG_CHARGE">Taxa DG</option>
-                  <option value="CUSTOMS_CHARGE">Taxa aduaneira</option>
-                  <option value="INSURANCE">Seguro</option>
-                  <option value="TAX_IOF">Impostos / IOF</option>
-                  <option value="PROFIT">Profit</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin:0;display:none" id="sf-app-conditionGroup"><label>Condição (quando Conditional)</label>
-                <select id="sf-app-condition">
-                  <option value="">—</option>
-                  <option value="DG_ONLY">Somente carga DG</option>
-                  <option value="NOT_DG">Somente carga não-DG</option>
-                  <option value="INSURANCE_REQUESTED">Somente se seguro foi solicitado</option>
-                  <option value="CUSTOMS_CLEARANCE_CONTRACTED">Somente se desembaraço foi contratado</option>
-                  <option value="IMPORT_ONLY">Somente importação</option>
-                  <option value="EXPORT_ONLY">Somente exportação</option>
-                  <option value="FCL_ONLY">Somente FCL</option>
-                  <option value="LCL_ONLY">Somente LCL</option>
-                  <option value="NOT_INCLUDED_IN_FREIGHT">Somente se não incluída no frete</option>
-                </select>
-              </div>
-              <div class="form-group" style="margin:0"><label>Justificativa</label><input id="sf-app-reason" placeholder="Ex: no FOB a despesa de origem é do vendedor"></div>
-              <button type="button" class="btn btn-secondary" id="btnAddSfApplication" onclick="addStandardFeeApplication()" style="min-height:44px;justify-content:center;">Adicionar aplicação</button>
-            </div>
-            <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;">Taxas já extraídas de e-mail ou digitadas manualmente na cotação nunca são removidas por esta regra — continuam no cálculo e na proposta, apenas recebem um alerta interno de revisão.</p>
-            <input type="hidden" id="sf-app-index" value="">
-            <div id="sf-applications-list" style="margin-top:14px;"></div>
-          </div>
-          <input type="hidden" id="sf-id">
-          <button class="btn btn-primary" id="btnSaveStandardFee" onclick="saveStandardFee()">💾 Salvar taxa e aplicações</button>
-          <button class="btn btn-secondary" id="btnCancelStandardFee" onclick="cancelEditStandardFee()" style="display:none;">Cancelar Edição</button>
         </div>
 
-        <div class="settings-section">
-          <h3>Taxas cadastradas e suas aplicações</h3>
-          <div id="standardFeesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
+        <div id="tree-editor" style="display: none;">
+          <div class="settings-section" style="margin-bottom: 24px;">
+            <h3>Taxas de Origem</h3>
+            <div id="tree-origin-fees-container" style="overflow-x: auto;"></div>
+            <button class="btn btn-secondary" onclick="addTreeFee('ORIGIN')" style="margin-top: 12px;">+ Adicionar Taxa de Origem</button>
+          </div>
+
+          <div class="settings-section" style="margin-bottom: 24px;">
+            <h3>Taxas de Destino</h3>
+            <div id="tree-destination-fees-container" style="overflow-x: auto;"></div>
+            <button class="btn btn-secondary" onclick="addTreeFee('DESTINATION')" style="margin-top: 12px;">+ Adicionar Taxa de Destino</button>
+          </div>
+
+          <div class="settings-section" style="margin-bottom: 24px;">
+            <h3>Regras de Campos</h3>
+            <div id="tree-field-rules-container" style="overflow-x: auto;"></div>
+            <button class="btn btn-secondary" onclick="addTreeFieldRule()" style="margin-top: 12px;">+ Adicionar Regra de Campo</button>
+          </div>
+
+          <button class="btn btn-primary" onclick="saveIncotermTree()" style="width: 100%; justify-content: center;">💾 Salvar Árvore Completa</button>
         </div>
-      `;
-      window.standardFeeApplicationsDraft = [];
-      renderStandardFeeApplicationsDraft();
-      loadStandardFeesTable();
+      \`;
+      loadStandardFeesList();
       break;
 
     case 'incotermRules':
@@ -8518,6 +8457,209 @@ document.addEventListener('DOMContentLoaded', function() {
   const finalCarrier=document.getElementById('rev-carrier');
   if(finalCarrier)finalCarrier.addEventListener('change',()=>applyCarrierProfile('rev',finalCarrier.value,'FINAL',document.getElementById('rev-modal').value,document.getElementById('rev-load-type').value,true));
 });
+
+// === ÁRVORE DE INCOTERMS LOGIC ===
+window.currentIncotermTree = { originFees: [], destinationFees: [], fieldRules: [] };
+window.standardFeesList = [];
+
+async function loadStandardFeesList() {
+  try {
+    const res = await fetch(API + '/standard-fees');
+    if (res.ok) {
+      window.standardFeesList = await res.json();
+    }
+  } catch (e) {
+    console.error('Erro ao carregar lista de taxas', e);
+  }
+}
+
+async function fetchIncotermTree() {
+  const incoterm = document.getElementById('tree-incoterm').value;
+  const direction = document.getElementById('tree-direction').value;
+  const modal = document.getElementById('tree-modal').value;
+
+  try {
+    const res = await fetch(API + '/incoterm-tree/' + incoterm + '/' + direction + '/' + modal);
+    if (!res.ok) throw new Error('Falha ao buscar árvore');
+    const data = await res.json();
+    window.currentIncotermTree = {
+      originFees: data.originFees || [],
+      destinationFees: data.destinationFees || [],
+      fieldRules: data.fieldRules || []
+    };
+    
+    document.getElementById('tree-editor').style.display = 'block';
+    renderTreeFees('ORIGIN', 'tree-origin-fees-container');
+    renderTreeFees('DESTINATION', 'tree-destination-fees-container');
+    renderTreeFieldRules();
+    toast('Árvore carregada.');
+  } catch (e) {
+    toast('Erro: ' + e.message);
+  }
+}
+
+function renderTreeFees(type, containerId) {
+  const container = document.getElementById(containerId);
+  const fees = type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees;
+  
+  if (fees.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted); font-size:12px;">Nenhuma taxa cadastrada.</p>';
+    return;
+  }
+
+  let html = '<table class="k-table" style="min-width: 800px;"><thead><tr><th>Ordem</th><th>Taxa Padrão (ID)</th><th>Aplicabilidade</th><th>Grupo Financeiro</th><th>Obrigatória</th><th>Remover</th></tr></thead><tbody>';
+  
+  fees.forEach((fee, index) => {
+    html += `<tr>
+      <td><input type="number" value="${fee.sortOrder || index + 1}" style="width: 60px;" onchange="updateTreeFee('${type}', ${index}, 'sortOrder', this.value)"></td>
+      <td>
+        <select style="width: 200px;" onchange="updateTreeFee('${type}', ${index}, 'standardFeeId', this.value)">
+          <option value="">-- Selecione uma Taxa Padrão --</option>
+          ${window.standardFeesList.map(sf => `<option value="${sf.id}" ${sf.id === fee.standardFeeId ? 'selected' : ''}>${sf.name}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value)">
+          <option value="APPLICABLE" ${fee.applicability === 'APPLICABLE' ? 'selected' : ''}>Applicable</option>
+          <option value="REQUIRED" ${fee.applicability === 'REQUIRED' ? 'selected' : ''}>Required</option>
+          <option value="CONDITIONAL" ${fee.applicability === 'CONDITIONAL' ? 'selected' : ''}>Conditional</option>
+          <option value="NOT_APPLICABLE" ${fee.applicability === 'NOT_APPLICABLE' ? 'selected' : ''}>Not Applicable</option>
+          <option value="TO_CONFIRM" ${fee.applicability === 'TO_CONFIRM' ? 'selected' : ''}>To Confirm</option>
+        </select>
+      </td>
+      <td>
+        <select onchange="updateTreeFee('${type}', ${index}, 'financialGroup', this.value)">
+          <option value="">--</option>
+          <option value="ORIGIN_CHARGE" ${fee.financialGroup === 'ORIGIN_CHARGE' ? 'selected' : ''}>Taxa de origem</option>
+          <option value="DESTINATION_CHARGE" ${fee.financialGroup === 'DESTINATION_CHARGE' ? 'selected' : ''}>Taxa de destino</option>
+          <option value="DG_CHARGE" ${fee.financialGroup === 'DG_CHARGE' ? 'selected' : ''}>Taxa DG</option>
+        </select>
+      </td>
+      <td><input type="checkbox" ${fee.required ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'required', this.checked)"></td>
+      <td><button class="action-btn danger" onclick="removeTreeFee('${type}', ${index})">❌</button></td>
+    </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function updateTreeFee(type, index, field, value) {
+  if (type === 'ORIGIN') {
+    window.currentIncotermTree.originFees[index][field] = field === 'sortOrder' ? Number(value) : value;
+  } else {
+    window.currentIncotermTree.destinationFees[index][field] = field === 'sortOrder' ? Number(value) : value;
+  }
+}
+
+function addTreeFee(type) {
+  const newFee = { sortOrder: 99, standardFeeId: '', applicability: 'APPLICABLE', required: false, financialGroup: '' };
+  if (type === 'ORIGIN') {
+    window.currentIncotermTree.originFees.push(newFee);
+    renderTreeFees('ORIGIN', 'tree-origin-fees-container');
+  } else {
+    window.currentIncotermTree.destinationFees.push(newFee);
+    renderTreeFees('DESTINATION', 'tree-destination-fees-container');
+  }
+}
+
+function removeTreeFee(type, index) {
+  if (type === 'ORIGIN') {
+    window.currentIncotermTree.originFees.splice(index, 1);
+    renderTreeFees('ORIGIN', 'tree-origin-fees-container');
+  } else {
+    window.currentIncotermTree.destinationFees.splice(index, 1);
+    renderTreeFees('DESTINATION', 'tree-destination-fees-container');
+  }
+}
+
+function renderTreeFieldRules() {
+  const container = document.getElementById('tree-field-rules-container');
+  const rules = window.currentIncotermTree.fieldRules;
+  
+  if (rules.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted); font-size:12px;">Nenhuma regra de campo cadastrada.</p>';
+    return;
+  }
+
+  let html = '<table class="k-table"><thead><tr><th>Campo</th><th>Comportamento</th><th>Etapa</th><th>Justificativa</th><th>Remover</th></tr></thead><tbody>';
+  
+  rules.forEach((rule, index) => {
+    html += `<tr>
+      <td><input type="text" value="${rule.fieldKey || ''}" onchange="updateTreeFieldRule(${index}, 'fieldKey', this.value)" placeholder="Ex: incoterm"></td>
+      <td>
+        <select onchange="updateTreeFieldRule(${index}, 'behavior', this.value)">
+          <option value="EDITABLE" ${rule.behavior === 'EDITABLE' ? 'selected' : ''}>Editável</option>
+          <option value="READONLY" ${rule.behavior === 'READONLY' ? 'selected' : ''}>Apenas Leitura</option>
+          <option value="HIDDEN" ${rule.behavior === 'HIDDEN' ? 'selected' : ''}>Oculto</option>
+          <option value="SUGGESTED" ${rule.behavior === 'SUGGESTED' ? 'selected' : ''}>Sugerido</option>
+          <option value="BLOCKED" ${rule.behavior === 'BLOCKED' ? 'selected' : ''}>Bloqueado</option>
+        </select>
+      </td>
+      <td>
+        <select onchange="updateTreeFieldRule(${index}, 'stage', this.value)">
+          <option value="ALL" ${rule.stage === 'ALL' ? 'selected' : ''}>Todas</option>
+          <option value="REQUEST" ${rule.stage === 'REQUEST' ? 'selected' : ''}>Solicitação</option>
+          <option value="DRAFT" ${rule.stage === 'DRAFT' ? 'selected' : ''}>Rascunho</option>
+          <option value="FINAL" ${rule.stage === 'FINAL' ? 'selected' : ''}>Final</option>
+          <option value="RETURN" ${rule.stage === 'RETURN' ? 'selected' : ''}>Retorno</option>
+        </select>
+      </td>
+      <td><input type="text" value="${rule.reason || ''}" onchange="updateTreeFieldRule(${index}, 'reason', this.value)"></td>
+      <td><button class="action-btn danger" onclick="removeTreeFieldRule(${index})">❌</button></td>
+    </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function updateTreeFieldRule(index, field, value) {
+  window.currentIncotermTree.fieldRules[index][field] = value;
+}
+
+function addTreeFieldRule() {
+  window.currentIncotermTree.fieldRules.push({ fieldKey: '', behavior: 'EDITABLE', stage: 'ALL', reason: '' });
+  renderTreeFieldRules();
+}
+
+function removeTreeFieldRule(index) {
+  window.currentIncotermTree.fieldRules.splice(index, 1);
+  renderTreeFieldRules();
+}
+
+async function saveIncotermTree() {
+  const incoterm = document.getElementById('tree-incoterm').value;
+  const direction = document.getElementById('tree-direction').value;
+  const modal = document.getElementById('tree-modal').value;
+
+  const payload = {
+    incoterm,
+    direction,
+    modal,
+    originFees: window.currentIncotermTree.originFees.filter(f => f.standardFeeId),
+    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.standardFeeId),
+    fieldRules: window.currentIncotermTree.fieldRules.filter(r => r.fieldKey)
+  };
+
+  try {
+    const res = await fetch(API + '/incoterm-tree/' + incoterm + '/' + direction + '/' + modal, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Falha ao salvar a árvore');
+    }
+    
+    toast('✅ Árvore de Incoterms salva com sucesso!');
+    fetchIncotermTree(); // recarrega
+  } catch (e) {
+    toast('Erro: ' + e.message);
+  }
+}
 </script>
 </body>
 </html>
