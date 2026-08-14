@@ -5937,7 +5937,6 @@ function switchSettingsTab(tab) {
               </select>
             </div>
             <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="1" min="1" step="1" required placeholder="1" oninput="clearIncotermRuleOrderError()"></div>
-            <div class="form-group" style="margin:0"><label class="compact-checkbox" for="ir-required"><input type="checkbox" id="ir-required"><span>Taxa obrigatória</span></label></div>
             <div class="form-group" style="margin:0"><label>Aplicação cadastrada na taxa</label><div id="ir-feeTypeInfo" style="min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;">Selecione uma taxa</div></div>
             <div class="form-group" style="margin:0"><label>Aplicabilidade</label>
               <select id="ir-applicability" onchange="updateIncotermConditionVisibility()">
@@ -7748,7 +7747,7 @@ function validateIncotermRuleOrder() {
 function ensureIncotermRuleDirectionControl() {
   const modal = document.getElementById('ir-modal');
   if (modal && !document.getElementById('ir-direction')) {
-    modal.closest('.form-group').insertAdjacentHTML('afterend', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ir-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div><div class="form-group" style="margin:0"><label class="compact-checkbox" for="ir-required"><input type="checkbox" id="ir-required"><span>Taxa obrigatória</span></label></div>');
+    modal.closest('.form-group').insertAdjacentHTML('afterend', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ir-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div>');
   }
 }
 
@@ -7823,7 +7822,6 @@ async function saveIncotermRule() {
     incoterm: document.getElementById('ir-incoterm').value,
     modal: document.getElementById('ir-modal').value,
     direction: document.getElementById('ir-direction').value,
-    required: document.getElementById('ir-required').checked,
     standardFeeId: document.getElementById('ir-standardFeeId').value,
     sortOrder: Number(document.getElementById('ir-linkSortOrder').value),
     applicability: document.getElementById('ir-applicability').value,
@@ -7870,7 +7868,6 @@ async function editIncotermRule(id) {
     document.getElementById('ir-modal').value = rule.modal;
     ensureIncotermRuleDirectionControl();
     document.getElementById('ir-direction').value = rule.direction || 'ALL';
-    document.getElementById('ir-required').checked = Boolean(rule.required);
     await loadIncotermFeeOptions(rule.standardFeeId);
     document.getElementById('ir-linkSortOrder').value = rule.sortOrder;
     document.getElementById('ir-applicability').value = rule.applicability || 'APPLICABLE';
@@ -7891,7 +7888,7 @@ async function editIncotermRule(id) {
       void editor.offsetWidth;
       editor.classList.add('rule-editor-highlight');
     }
-    document.getElementById('ir-required')?.closest('label')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('ir-applicability')?.closest('.form-group')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (e) { toast('❌ Erro ao carregar regra.'); }
 }
 
@@ -7928,7 +7925,6 @@ function cancelEditIr() {
   document.getElementById('ir-standardFeeId').value = '';
   document.getElementById('ir-linkSortOrder').value = '1';
   clearIncotermRuleOrderError();
-  document.getElementById('ir-required').checked = false;
   document.getElementById('ir-applicability').value = 'APPLICABLE';
   document.getElementById('ir-financialGroup').value = '';
   document.getElementById('ir-condition').value = '';
@@ -8510,7 +8506,7 @@ function renderTreeFees(type, containerId) {
     return;
   }
 
-  let html = '<table class="k-table" style="min-width: 800px;"><thead><tr><th>Ordem</th><th>Taxa Padrão (ID)</th><th>Aplicabilidade</th><th>Grupo Financeiro</th><th>Obrigatória</th><th>Remover</th></tr></thead><tbody>';
+  let html = '<table class="k-table" style="min-width: 800px;"><thead><tr><th>Ordem</th><th>Taxa Padrão (ID)</th><th>Aplicabilidade</th><th>Grupo Financeiro</th><th>Remover</th></tr></thead><tbody>';
   
   fees.forEach((fee, index) => {
     html += `<tr>
@@ -8538,7 +8534,6 @@ function renderTreeFees(type, containerId) {
           <option value="DG_CHARGE" ${fee.financialGroup === 'DG_CHARGE' ? 'selected' : ''}>Taxa DG</option>
         </select>
       </td>
-      <td><input type="checkbox" ${fee.required ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'required', this.checked)"></td>
       <td><button class="action-btn danger" onclick="removeTreeFee('${type}', ${index})">❌</button></td>
     </tr>`;
   });
@@ -8556,7 +8551,7 @@ function updateTreeFee(type, index, field, value) {
 }
 
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, standardFeeId: '', applicability: 'APPLICABLE', required: false, financialGroup: '' };
+  const newFee = { sortOrder: 99, standardFeeId: '', applicability: 'APPLICABLE', financialGroup: '' };
   if (type === 'ORIGIN') {
     window.currentIncotermTree.originFees.push(newFee);
     renderTreeFees('ORIGIN', 'tree-origin-fees-container');
@@ -8589,23 +8584,23 @@ function renderTreeFieldRules() {
   
   rules.forEach((rule, index) => {
     html += `<tr>
-      <td><input type="text" value="${rule.fieldKey || ''}" onchange="updateTreeFieldRule(${index}, 'fieldKey', this.value)" placeholder="Ex: incoterm"></td>
+      <td>
+        <select onchange="updateTreeFieldRule(${index}, 'fieldKey', this.value)">
+          <option value="">-- Selecione o campo --</option>
+          ${Object.entries(IFR_FIELD_LABELS).map(([val, label]) => `<option value="${val}" ${rule.fieldKey === val ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>
+      </td>
       <td>
         <select onchange="updateTreeFieldRule(${index}, 'behavior', this.value)">
-          <option value="EDITABLE" ${rule.behavior === 'EDITABLE' ? 'selected' : ''}>Editável</option>
-          <option value="READONLY" ${rule.behavior === 'READONLY' ? 'selected' : ''}>Apenas Leitura</option>
-          <option value="HIDDEN" ${rule.behavior === 'HIDDEN' ? 'selected' : ''}>Oculto</option>
-          <option value="SUGGESTED" ${rule.behavior === 'SUGGESTED' ? 'selected' : ''}>Sugerido</option>
-          <option value="BLOCKED" ${rule.behavior === 'BLOCKED' ? 'selected' : ''}>Bloqueado</option>
+          ${Object.entries(IFR_BEHAVIOR_LABELS).map(([val, label]) => `<option value="${val}" ${rule.behavior === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
       </td>
       <td>
         <select onchange="updateTreeFieldRule(${index}, 'stage', this.value)">
           <option value="ALL" ${rule.stage === 'ALL' ? 'selected' : ''}>Todas</option>
           <option value="REQUEST" ${rule.stage === 'REQUEST' ? 'selected' : ''}>Solicitação</option>
-          <option value="DRAFT" ${rule.stage === 'DRAFT' ? 'selected' : ''}>Rascunho</option>
-          <option value="FINAL" ${rule.stage === 'FINAL' ? 'selected' : ''}>Final</option>
           <option value="RETURN" ${rule.stage === 'RETURN' ? 'selected' : ''}>Retorno</option>
+          <option value="FINAL" ${rule.stage === 'FINAL' ? 'selected' : ''}>Final</option>
         </select>
       </td>
       <td><input type="text" value="${rule.reason || ''}" onchange="updateTreeFieldRule(${index}, 'reason', this.value)"></td>
