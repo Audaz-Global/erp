@@ -3,7 +3,7 @@ import { prisma } from '../prisma';
 import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, applyMinLclStorage, extractContainerInfo } from '../utils/cargoUtils';
-import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
+import { getFeesForIncoterm, formatFeesForController, resolveFreightValue } from '../services/incotermRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
 import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
@@ -420,9 +420,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     }
 
     // Frete
-    const fVal = quotation.freightValue || 0;
-    const fCurr = quotation.freightCurrency || (isAir && String(quotation.reference).includes('ACO') ? 'EUR' : 'USD');
-    const fTotalBrl = getBrlValue(fVal, fCurr);
+    let fVal = quotation.freightValue || 0;
+    let fCurr = quotation.freightCurrency || (isAir && String(quotation.reference).includes('ACO') ? 'EUR' : 'USD');
 
     // Detalhar taxas de origem
     let detailedFeesOrigem: any[] = [];
@@ -484,7 +483,12 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
     const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0, insuranceRequested: Boolean(quotation.requiresInsurance), customsClearanceContracted: Boolean(quotation.customsClearanceIncluded) };
-    
+
+    const resolvedFreight = await resolveFreightValue(incotermStr, modalForRules, quotation.direction, fVal, fCurr, feeContext);
+    fVal = resolvedFreight.value;
+    fCurr = resolvedFreight.currency;
+    const fTotalBrl = getBrlValue(fVal, fCurr);
+
     if (detailedFeesOrigem.length === 0) {
       try {
         const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);

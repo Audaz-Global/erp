@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extractContainerInfo } from '../utils/cargoUtils';
-import { getFeesForIncoterm, formatFeesForPdf } from '../services/incotermRuleService';
+import { getFeesForIncoterm, formatFeesForPdf, resolveFreightValue } from '../services/incotermRuleService';
 import { normalizeFee } from './feeCalculationService';
 
 function safeToFixed(num: any, digits: number = 2): string {
@@ -1191,15 +1191,13 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   } else {
     // Lógica geral de custos (Totalmente Dinâmica via IncotermRules)
     const isAco = String(quotationData.reference).includes('ACO');
-    const fCurr = quotationData.freightCurrency || (isAco ? 'EUR' : 'USD');
+    let fCurr = quotationData.freightCurrency || (isAco ? 'EUR' : 'USD');
 
     // Frete
     let fVal = parseFloat(quotationData.freightValue);
     if (isNaN(fVal)) {
       fVal = isTestCase ? 4188.20 : 0;
     }
-    freightTotalValue = `${fCurr} ${fVal.toFixed(2)}`;
-    freightUnitValue = chargableWeight > 0 ? `${fCurr} ${(fVal / chargableWeight).toFixed(2)}` : `${fCurr} 0.00`;
 
     // Origem — usa dados salvos se existirem
     if (quotationData.originServices) {
@@ -1234,6 +1232,14 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
     const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0), insuranceRequested: Boolean(quotationData.requiresInsurance), customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded) };
+
+    if (!isTestCase) {
+      const resolvedFreight = await resolveFreightValue(incotermStr, modalForRules, quotationData.direction, fVal, fCurr, feeContext);
+      fVal = resolvedFreight.value;
+      fCurr = resolvedFreight.currency;
+    }
+    freightTotalValue = `${fCurr} ${fVal.toFixed(2)}`;
+    freightUnitValue = chargableWeight > 0 ? `${fCurr} ${(fVal / chargableWeight).toFixed(2)}` : `${fCurr} 0.00`;
 
     if (detailedFeesOrigem.length === 0) {
       try {

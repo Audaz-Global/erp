@@ -5873,6 +5873,13 @@ function switchSettingsTab(tab) {
 
         <div id="tree-editor" style="display: none;">
           <div class="settings-section" style="margin-bottom: 24px;">
+            <h3>Frete Internacional</h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 12px;">Valor de referência usado como fallback quando a cotação não tiver frete específico informado (nem digitado, nem extraído, nem da Base de Fretes).</p>
+            <div id="tree-freight-fees-container" style="overflow-x: auto;"></div>
+            <button class="btn btn-secondary" onclick="addTreeFee('FREIGHT')" style="margin-top: 12px;">+ Adicionar Taxa de Frete</button>
+          </div>
+
+          <div class="settings-section" style="margin-bottom: 24px;">
             <h3>Taxas de Origem</h3>
             <div id="tree-origin-fees-container" style="overflow-x: auto;"></div>
             <button class="btn btn-secondary" onclick="addTreeFee('ORIGIN')" style="margin-top: 12px;">+ Adicionar Taxa de Origem</button>
@@ -7697,6 +7704,11 @@ const INCOTERM_CONDITION_LABELS = {
   LCL_ONLY: 'Somente LCL',
   NOT_INCLUDED_IN_FREIGHT: 'Somente se não incluída no frete'
 };
+function getTreeFeeList(type) {
+  if (type === 'ORIGIN') return window.currentIncotermTree.originFees;
+  if (type === 'FREIGHT') return window.currentIncotermTree.freightFees;
+  return window.currentIncotermTree.destinationFees;
+}
 function treeFeeConditionType(fee) {
   if (!fee || !fee.condition) return '';
   try {
@@ -7707,7 +7719,7 @@ function treeFeeConditionType(fee) {
   }
 }
 function updateTreeFeeCondition(type, index, value) {
-  const fee = (type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees)[index];
+  const fee = getTreeFeeList(type)[index];
   fee.condition = value ? JSON.stringify({ type: value }) : null;
 }
 function ifrEscape(value) {
@@ -7927,7 +7939,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // === ÁRVORE DE INCOTERMS LOGIC ===
-window.currentIncotermTree = { originFees: [], destinationFees: [] };
+window.currentIncotermTree = { originFees: [], destinationFees: [], freightFees: [] };
 window.standardFeesList = [];
 
 async function loadStandardFeesList() {
@@ -7953,22 +7965,26 @@ async function fetchIncotermTree() {
     const data = await res.json();
     window.currentIncotermTree = {
       originFees: data.originFees || [],
-      destinationFees: data.destinationFees || []
+      destinationFees: data.destinationFees || [],
+      freightFees: data.freightFees || []
     };
 
     document.getElementById('tree-editor').style.display = 'block';
     renderTreeFees('ORIGIN', 'tree-origin-fees-container');
     renderTreeFees('DESTINATION', 'tree-destination-fees-container');
+    renderTreeFees('FREIGHT', 'tree-freight-fees-container');
     toast('Árvore carregada.');
   } catch (e) {
     toast('Erro: ' + e.message);
   }
 }
 
+const TREE_FEE_CONTAINER_ID = { ORIGIN: 'tree-origin-fees-container', DESTINATION: 'tree-destination-fees-container', FREIGHT: 'tree-freight-fees-container' };
+
 function renderTreeFees(type, containerId) {
   const container = document.getElementById(containerId);
-  const fees = type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees;
-  
+  const fees = getTreeFeeList(type);
+
   if (fees.length === 0) {
     container.innerHTML = '<p style="color:var(--text-muted); font-size:12px;">Nenhuma taxa cadastrada.</p>';
     return;
@@ -7986,6 +8002,7 @@ function renderTreeFees(type, containerId) {
           <option value="FIXED" ${fee.chargeType === 'FIXED' ? 'selected' : ''}>Fixo</option>
           <option value="PER_KG" ${fee.chargeType === 'PER_KG' ? 'selected' : ''}>Por Kg</option>
           <option value="PER_DOCUMENT" ${fee.chargeType === 'PER_DOCUMENT' ? 'selected' : ''}>Por Documento</option>
+          <option value="PER_CONTAINER" ${fee.chargeType === 'PER_CONTAINER' ? 'selected' : ''}>Por Contêiner</option>
           <option value="PERCENTAGE" ${fee.chargeType === 'PERCENTAGE' ? 'selected' : ''}>Percentual</option>
         </select>
         ${fee.chargeType === 'PERCENTAGE' ? `
@@ -8043,29 +8060,18 @@ function updateTreeFee(type, index, field, value) {
   if (field === 'sortOrder') parsed = Number(value);
   else if (field === 'value') parsed = value === '' ? '' : Number(value);
   else if (field === 'minValue') parsed = value === '' ? null : Number(value);
-  const list = type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees;
-  list[index][field] = parsed;
+  getTreeFeeList(type)[index][field] = parsed;
 }
 
 function addTreeFee(type) {
   const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
-  if (type === 'ORIGIN') {
-    window.currentIncotermTree.originFees.push(newFee);
-    renderTreeFees('ORIGIN', 'tree-origin-fees-container');
-  } else {
-    window.currentIncotermTree.destinationFees.push(newFee);
-    renderTreeFees('DESTINATION', 'tree-destination-fees-container');
-  }
+  getTreeFeeList(type).push(newFee);
+  renderTreeFees(type, TREE_FEE_CONTAINER_ID[type]);
 }
 
 function removeTreeFee(type, index) {
-  if (type === 'ORIGIN') {
-    window.currentIncotermTree.originFees.splice(index, 1);
-    renderTreeFees('ORIGIN', 'tree-origin-fees-container');
-  } else {
-    window.currentIncotermTree.destinationFees.splice(index, 1);
-    renderTreeFees('DESTINATION', 'tree-destination-fees-container');
-  }
+  getTreeFeeList(type).splice(index, 1);
+  renderTreeFees(type, TREE_FEE_CONTAINER_ID[type]);
 }
 
 async function saveIncotermTree() {
@@ -8078,7 +8084,8 @@ async function saveIncotermTree() {
     direction,
     modal,
     originFees: window.currentIncotermTree.originFees.filter(f => f.feeName),
-    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.feeName)
+    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.feeName),
+    freightFees: window.currentIncotermTree.freightFees.filter(f => f.feeName)
   };
 
   try {

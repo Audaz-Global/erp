@@ -96,8 +96,34 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
 }
 
 /**
+ * Resolve o valor de frete a usar num cálculo: se já veio um valor real (>0), usa ele.
+ * Senão, procura uma regra de Incoterm com feeType FREIGHT (cadastrada na Árvore de
+ * Incoterms) e usa o valor dela como fallback — desde que não esteja marcada "A cotar".
+ */
+export async function resolveFreightValue(
+  incoterm: string,
+  modal: string,
+  direction: string = 'ALL',
+  providedValue: number,
+  providedCurrency: string = 'USD',
+  context: FeeCalculationContext = {}
+): Promise<{ value: number; currency: string; fromFallback: boolean }> {
+  if (providedValue && providedValue > 0) {
+    return { value: providedValue, currency: providedCurrency, fromFallback: false };
+  }
+
+  const rules = await getRulesForIncoterm(incoterm, modal, direction, context);
+  const freightRule = rules.find(r => r.feeType === 'FREIGHT');
+  if (freightRule && (freightRule as any).pricingStatus !== 'ON_REQUEST') {
+    return { value: freightRule.value, currency: freightRule.currency, fromFallback: true };
+  }
+
+  return { value: providedValue || 0, currency: providedCurrency, fromFallback: false };
+}
+
+/**
  * Calcula as taxas de origem e destino baseadas nas regras do Incoterm.
- * 
+ *
  * @param incoterm - Ex: "EXW", "FCA", "FOB"
  * @param modal - Ex: "AIR", "SEA_FCL", "SEA_LCL"
  * @param chargableWeight - Peso taxável em kg

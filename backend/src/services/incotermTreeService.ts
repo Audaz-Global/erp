@@ -33,6 +33,7 @@ export interface IncotermTreePayload {
   modal: string;
   originFees: IncotermTreeFeePayload[];
   destinationFees: IncotermTreeFeePayload[];
+  freightFees: IncotermTreeFeePayload[];
 }
 
 export async function getIncotermTree(incoterm: string, direction: string, modal: string) {
@@ -51,18 +52,23 @@ export async function getIncotermTree(incoterm: string, direction: string, modal
     direction: directionUpper,
     modal: modalUpper,
     originFees: rules.filter(r => r.feeType === 'ORIGIN'),
-    destinationFees: rules.filter(r => r.feeType === 'DESTINATION')
+    destinationFees: rules.filter(r => r.feeType === 'DESTINATION'),
+    freightFees: rules.filter(r => r.feeType === 'FREIGHT')
   };
 }
 
 export async function updateIncotermTree(payload: IncotermTreePayload) {
-  const { incoterm, direction, modal, originFees = [], destinationFees = [] } = payload;
-  
+  const { incoterm, direction, modal, originFees = [], destinationFees = [], freightFees = [] } = payload;
+
   const incotermUpper = incoterm.toUpperCase();
   const directionUpper = direction.toUpperCase();
   const modalUpper = modal.toUpperCase();
 
-  const allFees = [...originFees.map(f => ({ ...f, feeType: 'ORIGIN' })), ...destinationFees.map(f => ({ ...f, feeType: 'DESTINATION' }))];
+  const allFees = [
+    ...originFees.map(f => ({ ...f, feeType: 'ORIGIN' })),
+    ...destinationFees.map(f => ({ ...f, feeType: 'DESTINATION' })),
+    ...freightFees.map(f => ({ ...f, feeType: 'FREIGHT' }))
+  ];
 
   return prisma.$transaction(async tx => {
     // Lock rule ordering table to prevent concurrent order conflicts globally if desired, 
