@@ -8529,7 +8529,7 @@ function renderTreeFees(type, containerId) {
     return;
   }
 
-  let html = '<table class="k-table" style="min-width: 1100px;"><thead><tr><th>Ordem</th><th>Nome da Taxa</th><th>Tipo de Cobrança</th><th>Valor</th><th>Moeda</th><th>Mínimo</th><th>Base %</th><th>Aplicabilidade</th><th>Condição</th><th>Grupo Financeiro</th><th>Remover</th></tr></thead><tbody>';
+  let html = '<table class="k-table" style="min-width: 800px;"><thead><tr><th>Ordem</th><th>Nome da Taxa</th><th>Tipo de Cobrança</th><th>Valor</th><th>Aplicabilidade</th><th>Remover</th></tr></thead><tbody>';
 
   fees.forEach((fee, index) => {
     const isOnRequest = fee.pricingStatus === 'ON_REQUEST';
@@ -8543,27 +8543,33 @@ function renderTreeFees(type, containerId) {
           <option value="PER_DOCUMENT" ${fee.chargeType === 'PER_DOCUMENT' ? 'selected' : ''}>Por Documento</option>
           <option value="PERCENTAGE" ${fee.chargeType === 'PERCENTAGE' ? 'selected' : ''}>Percentual</option>
         </select>
+        ${fee.chargeType === 'PERCENTAGE' ? `
+        <select style="margin-top:4px;" onchange="updateTreeFee('${type}', ${index}, 'percentBase', this.value)">
+          <option value="FREIGHT" ${(fee.percentBase || 'FREIGHT') === 'FREIGHT' ? 'selected' : ''}>Base: Frete</option>
+          <option value="FREIGHT_PLUS_ORIGIN" ${fee.percentBase === 'FREIGHT_PLUS_ORIGIN' ? 'selected' : ''}>Base: Frete + Origem</option>
+        </select>
+        ` : ''}
       </td>
-      <td>
-        <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 90px;" ${isOnRequest ? 'disabled' : ''} onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
-        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">
-          <input type="checkbox" ${isOnRequest ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'pricingStatus', this.checked ? 'ON_REQUEST' : 'PRICED'); renderTreeFees('${type}', '${containerId}')"> A cotar
-        </label>
-      </td>
-      <td>
+      <td style="min-width:170px;">
+        ${isOnRequest ? `
         <select style="width: 80px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
           <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
           <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
         </select>
-      </td>
-      <td><input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 80px;" placeholder="—" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)"></td>
-      <td>
-        ${fee.chargeType === 'PERCENTAGE' ? `
-        <select onchange="updateTreeFee('${type}', ${index}, 'percentBase', this.value)">
-          <option value="FREIGHT" ${(fee.percentBase || 'FREIGHT') === 'FREIGHT' ? 'selected' : ''}>Sobre o Frete</option>
-          <option value="FREIGHT_PLUS_ORIGIN" ${fee.percentBase === 'FREIGHT_PLUS_ORIGIN' ? 'selected' : ''}>Frete + Origem</option>
-        </select>
-        ` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
+        <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">sem valor fixo</span>
+        ` : `
+        <div style="display:flex;gap:6px;">
+          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 90px;" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+          <select style="width: 70px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
+            <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
+        </div>
+        <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+        `}
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">
+          <input type="checkbox" ${isOnRequest ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'pricingStatus', this.checked ? 'ON_REQUEST' : 'PRICED'); renderTreeFees('${type}', '${containerId}')"> A cotar
+        </label>
       </td>
       <td>
         <select onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value); renderTreeFees('${type}', '${containerId}')">
@@ -8572,22 +8578,12 @@ function renderTreeFees(type, containerId) {
           <option value="CONDITIONAL" ${fee.applicability === 'CONDITIONAL' ? 'selected' : ''}>Condicional</option>
           <option value="NOT_APPLICABLE" ${fee.applicability === 'NOT_APPLICABLE' ? 'selected' : ''}>Não Aplicável</option>
         </select>
-      </td>
-      <td>
         ${fee.applicability === 'CONDITIONAL' ? `
-        <select onchange="updateTreeFeeCondition('${type}', ${index}, this.value)">
-          <option value="">-- Selecione --</option>
+        <select style="margin-top:4px;" onchange="updateTreeFeeCondition('${type}', ${index}, this.value)">
+          <option value="">-- Selecione a condição --</option>
           ${Object.entries(INCOTERM_CONDITION_LABELS).map(([val, label]) => `<option value="${val}" ${treeFeeConditionType(fee) === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
-        ` : '<span style="color:var(--text-muted);font-size:12px;">—</span>'}
-      </td>
-      <td>
-        <select onchange="updateTreeFee('${type}', ${index}, 'financialGroup', this.value)">
-          <option value="">--</option>
-          <option value="ORIGIN_CHARGE" ${fee.financialGroup === 'ORIGIN_CHARGE' ? 'selected' : ''}>Taxa de origem</option>
-          <option value="DESTINATION_CHARGE" ${fee.financialGroup === 'DESTINATION_CHARGE' ? 'selected' : ''}>Taxa de destino</option>
-          <option value="DG_CHARGE" ${fee.financialGroup === 'DG_CHARGE' ? 'selected' : ''}>Taxa DG</option>
-        </select>
+        ` : ''}
       </td>
       <td><button class="action-btn danger" onclick="removeTreeFee('${type}', ${index})">❌</button></td>
     </tr>`;
@@ -8607,7 +8603,7 @@ function updateTreeFee(type, index, field, value) {
 }
 
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE', financialGroup: '' };
+  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
   if (type === 'ORIGIN') {
     window.currentIncotermTree.originFees.push(newFee);
     renderTreeFees('ORIGIN', 'tree-origin-fees-container');
