@@ -557,23 +557,6 @@ model IncotermRule {
   @@index([incoterm, modal, direction])
 }
 
-model IncotermFieldRule {
-  id        String   @id @default(uuid())
-  incoterm  String
-  modal     String
-  direction String   @default("ALL")
-  stage     String   @default("ALL")
-  fieldKey  String
-  behavior  String
-  reason    String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([incoterm, modal, direction, stage, fieldKey])
-  @@index([incoterm, modal, direction, stage])
-}
-
 model AgentDraftEmailSettings {
   id              String   @id @default(uuid())
   subjectTemplate String   @default("{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}")

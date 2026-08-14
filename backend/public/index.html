@@ -2001,7 +2001,6 @@
 
         <li class="nav-section-title">REGRAS</li>
         <li data-tab="knowledge" onclick="switchSettingsTab('knowledge')">IA</li>
-        <li class="nav-sub-item" data-tab="incotermRules" onclick="switchSettingsTab('incotermRules'); setTimeout(()=>document.getElementById('incotermFieldRulesTableContainer')?.scrollIntoView({behavior:'smooth'}), 120)">Comportamento de Campos</li>
         <li data-tab="carrierProfiles" onclick="window.marineCommercialSection='';switchSettingsTab('carrierProfiles')">Cadastro de Armadores</li>
 
         <li class="nav-section-title">TAXAS</li>
@@ -3166,8 +3165,7 @@ function fillReviewForm(d, mode) {
       if (window.updateIncotermPreview && d.route.incoterm) {
         window.updateIncotermPreview(d.route.incoterm);
       }
-      applyIncotermFieldRules(d.route.incoterm, normalizeFieldRuleModal(document.getElementById('r-type').value, document.getElementById('r-type').value), 'REQUEST', true);
-      
+
       document.getElementById('r-origin').value = d.route.origin_city || d.route.origin || '';
       document.getElementById('conf-origin').innerHTML = renderConf(d.route.origin_city || d.route.origin, d.route.confidence);
       document.getElementById('r-origin-country').value = d.route.origin_country || '';
@@ -4656,7 +4654,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-customs-clearance').checked = false;
     document.getElementById('rev-customs-value').value = '900.00';
 
-    await applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true, document.getElementById('rev-direction').value || 'IMPORT');
     // Exibir o modal
     document.getElementById('pdfReviewOverlay').style.display = 'block';
     document.body.style.overflow = 'hidden';
@@ -5191,7 +5188,6 @@ async function loadPendingQuotationData() {
     const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
     returnIncotermRules = [...specificRules, ...complementaryRules];
     applyReturnIncotermRules(q, true);
-    applyIncotermFieldRules(incoterm, modal, 'RETURN', true, q.direction || 'IMPORT');
   } catch (e) {
     console.error('Erro ao prefixar taxas do Incoterm:', e);
   }
@@ -5680,7 +5676,7 @@ function switchSettingsTab(tab) {
   localStorage.setItem('audaz_settings_tab', tab);
   const feeTabs = ['standardFees','fixedFeesAir','taxes','pricingSettings','carrierRates'];
   const registrationTabs = ['carrierProfiles','deconsolidators','agentDraftEmail','users'];
-  const automationTabs = ['knowledge','incotermRules'];
+  const automationTabs = ['knowledge'];
   const activeGroup = feeTabs.includes(tab) ? 'fees' : registrationTabs.includes(tab) ? 'registrations' : automationTabs.includes(tab) ? 'automation' : 'overview';
   document.querySelectorAll('.settings-quick-nav button').forEach(button => button.classList.toggle('active', button.dataset.group === activeGroup));
 
@@ -5888,134 +5884,10 @@ function switchSettingsTab(tab) {
             <button class="btn btn-secondary" onclick="addTreeFee('DESTINATION')" style="margin-top: 12px;">+ Adicionar Taxa de Destino</button>
           </div>
 
-          <div class="settings-section" style="margin-bottom: 24px;">
-            <h3>Regras de Campos</h3>
-            <div id="tree-field-rules-container" style="overflow-x: auto;"></div>
-            <button class="btn btn-secondary" onclick="addTreeFieldRule()" style="margin-top: 12px;">+ Adicionar Regra de Campo</button>
-          </div>
-
           <button class="btn btn-primary" onclick="saveIncotermTree()" style="width: 100%; justify-content: center;">💾 Salvar Árvore Completa</button>
         </div>
       `;
       loadStandardFeesList();
-      break;
-
-    case 'incotermRules':
-      content.innerHTML = `
-        <div class="sc-title">Comportamento de Campos</div>
-        <p class="sc-desc">Configure travas e comportamentos operacionais dos campos por Incoterm, modal, direção e etapa. Taxas e suas aplicações são administradas em uma única tela no menu Taxas.</p>
-        <div class="settings-section" style="border-color:rgba(245,166,35,.5);margin-bottom:20px;">
-          <h3 style="margin:0 0 12px">Contexto operacional</h3>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-            <div class="form-group" style="margin:0"><label>Incoterm</label><select id="ctx-incoterm" onchange="syncIncotermConfigurationContext()"><option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB" selected>FOB</option><option value="CFR">CFR</option><option value="CIF">CIF</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option></select></div>
-            <div class="form-group" style="margin:0"><label>Modal</label><select id="ctx-modal" onchange="syncIncotermConfigurationContext()"><option value="AIR">Aéreo</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="ALL">Todos</option></select></div>
-            <div class="form-group" style="margin:0"><label>Direção</label><select id="ctx-direction" onchange="syncIncotermConfigurationContext()"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div>
-          </div>
-        </div>
-        
-        <div class="settings-section" id="incotermRuleEditor" style="margin-bottom: 24px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h3 id="incotermRuleEditorTitle" style="margin:0;">Vincular taxa a um contexto</h3>
-            <button class="btn btn-secondary" onclick="seedIncotermRules()" style="padding: 8px 12px; font-size: 12px;">🌱 Popular Regras Padrão</button>
-          </div>
-          
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div class="form-group" style="margin:0;display:none"><label>Incoterm</label>
-              <select id="ir-incoterm">
-                <option value="EXW">EXW</option><option value="FCA">FCA</option><option value="FOB">FOB</option>
-                <option value="CIF">CIF</option><option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;display:none"><label>Modal</label>
-              <select id="ir-modal">
-                <option value="AIR">Aéreo (AIR)</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="ALL">Todos</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Taxa Local</label>
-              <select id="ir-standardFeeId">
-                <option value="">Carregando taxas...</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;"><label>Ordem</label><input type="number" id="ir-linkSortOrder" value="1" min="1" step="1" required placeholder="1" oninput="clearIncotermRuleOrderError()"></div>
-            <div class="form-group" style="margin:0"><label>Aplicação cadastrada na taxa</label><div id="ir-feeTypeInfo" style="min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:13px;">Selecione uma taxa</div></div>
-            <div class="form-group" style="margin:0"><label>Aplicabilidade</label>
-              <select id="ir-applicability" onchange="updateIncotermConditionVisibility()">
-                <option value="APPLICABLE">Applicable — entra se houver valor</option>
-                <option value="REQUIRED">Required — esperada, alerta se ausente</option>
-                <option value="CONDITIONAL">Conditional — só entra se a condição for atendida</option>
-                <option value="NOT_APPLICABLE">Not applicable — não é oferecida automaticamente</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0"><label>Grupo financeiro</label>
-              <select id="ir-financialGroup">
-                <option value="">— não usar como critério —</option>
-                <option value="INTERNATIONAL_FREIGHT">Frete internacional</option>
-                <option value="FREIGHT_COMPONENT">Componente do frete</option>
-                <option value="ORIGIN_CHARGE">Taxa de origem</option>
-                <option value="DESTINATION_CHARGE">Taxa de destino</option>
-                <option value="DG_CHARGE">Taxa DG</option>
-                <option value="CUSTOMS_CHARGE">Taxa aduaneira</option>
-                <option value="INSURANCE">Seguro</option>
-                <option value="TAX_IOF">Impostos / IOF</option>
-                <option value="PROFIT">Profit</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0" id="ir-conditionGroup"><label>Condição (quando Conditional)</label>
-              <select id="ir-condition">
-                <option value="">—</option>
-                <option value="DG_ONLY">Somente carga DG</option>
-                <option value="NOT_DG">Somente carga não-DG</option>
-                <option value="INSURANCE_REQUESTED">Somente se seguro foi solicitado</option>
-                <option value="CUSTOMS_CLEARANCE_CONTRACTED">Somente se desembaraço foi contratado</option>
-                <option value="IMPORT_ONLY">Somente importação</option>
-                <option value="EXPORT_ONLY">Somente exportação</option>
-                <option value="FCL_ONLY">Somente FCL</option>
-                <option value="LCL_ONLY">Somente LCL</option>
-                <option value="NOT_INCLUDED_IN_FREIGHT">Somente se não incluída no frete</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin:0;grid-column:span 2;"><label>Justificativa da regra</label><input id="ir-reason" placeholder="Ex: no FOB a despesa de origem é responsabilidade do vendedor"></div>
-          </div>
-          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">Taxas já extraídas de e-mail ou digitadas manualmente nunca são removidas por esta regra — elas continuam no cálculo e na proposta, apenas recebem um alerta interno de revisão.</p>
-          <input type="hidden" id="ir-direction" value="ALL">
-          <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 14px;">1. Escolha o contexto operacional. 2. Selecione uma taxa já criada no Catálogo Central. A origem ou o destino são definidos exclusivamente no cadastro da taxa; a regra informa apenas quando ela se aplica.</p>
-          <input type="hidden" id="ir-id">
-          <button class="btn btn-primary" id="btnSaveIr" onclick="saveIncotermRule()">Salvar vínculo</button>
-          <button class="btn btn-secondary" id="btnCancelIr" onclick="cancelEditIr()" style="display:none;">Cancelar Edição</button>
-        </div>
-
-        <div class="settings-section" style="margin-bottom:24px; border-color:rgba(245,166,35,.35);">
-          <h3 style="margin:0 0 6px;">Comportamento de Campos</h3>
-          <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Configure o comportamento operacional. Nenhuma trava é inferida automaticamente apenas pelo nome do Incoterm.</p>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;">
-            <div class="form-group" style="margin:0;display:none"><label>Incoterm</label><select id="ifr-incoterm"><option>EXW</option><option>FCA</option><option>FOB</option><option>CFR</option><option>CIF</option><option>CPT</option><option>CIP</option><option>DAP</option><option>DPU</option><option>DDP</option></select></div>
-            <div class="form-group" style="margin:0;display:none"><label>Modal</label><select id="ifr-modal"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div>
-            <div class="form-group" style="margin:0"><label>Etapa</label><select id="ifr-stage"><option value="ALL">Todas</option><option value="REQUEST">Solicitação</option><option value="RETURN">Retorno do parceiro</option><option value="FINAL">Revisão final</option></select></div>
-            <div class="form-group" style="margin:0"><label>Campo / Grupo</label><select id="ifr-field"><option value="INTERNATIONAL_FREIGHT">Frete internacional</option><option value="ORIGIN_INLAND">Inland de origem</option><option value="ORIGIN_FEES">Taxas locais de origem</option><option value="INSURANCE">Seguro</option><option value="DESTINATION_FEES">Taxas locais de destino</option><option value="NATIONAL_INLAND">Transporte nacional</option><option value="CUSTOMS_CLEARANCE">Desembaraço</option></select></div>
-            <div class="form-group" style="margin:0"><label>Comportamento</label><select id="ifr-behavior"><option value="EDITABLE">Editável</option><option value="REQUIRED">Obrigatório</option><option value="SUGGESTED">Sugerido</option><option value="LOCKED">Bloqueado</option><option value="HIDDEN">Oculto</option><option value="NOT_APPLICABLE">Não aplicável</option><option value="RETURN_ONLY">Somente no retorno</option></select></div>
-            <div class="form-group" style="margin:0"><label>Justificativa</label><input id="ifr-reason" placeholder="Motivo comercial da trava"></div>
-          </div>
-          <input type="hidden" id="ifr-direction" value="ALL">
-          <input type="hidden" id="ifr-id">
-          <button class="btn btn-primary" onclick="saveIncotermFieldRule()">💾 Salvar Trava</button>
-          <button class="btn btn-secondary" id="btnCancelIfr" onclick="cancelEditIfr()" style="display:none">Cancelar</button>
-          <div id="incotermFieldRulesTableContainer" style="overflow-x:auto;margin-top:16px;"></div>
-        </div>
-
-        <div class="settings-section">
-          <h3 style="margin:0 0 14px;">Configuração deste contexto</h3>
-          <input type="hidden" id="ir-filter" value="FOB">
-          <div id="incotermRulesTableContainer" style="overflow-x: auto; width: 100%;"><p style="color:var(--text-muted);font-size:13px;">Carregando...</p></div>
-        </div>
-      `;
-      loadIncotermFeeOptions();
-      syncIncotermConfigurationContext();
-      loadIncotermRulesTable();
-      loadIncotermFieldRulesTable();
-      document.getElementById('incotermRuleEditor').style.display = 'none';
-      document.getElementById('incotermRulesTableContainer').closest('.settings-section').style.display = 'none';
-      const fieldBehaviorSection = content.querySelector('#incotermFieldRulesTableContainer')?.closest('.settings-section');
-      if (fieldBehaviorSection) fieldBehaviorSection.style.display = '';
       break;
 
     case 'agentDraftEmail':
@@ -7637,315 +7509,6 @@ async function applyStandardFees(type, targetId) {
   }
 }
 
-// ═══ REGRAS POR INCOTERM ═══
-let incotermRulesContextCache = [];
-
-async function syncIncotermConfigurationContext() {
-  const incoterm = document.getElementById('ctx-incoterm')?.value || 'FOB';
-  const modal = document.getElementById('ctx-modal')?.value || 'SEA_FCL';
-  const direction = document.getElementById('ctx-direction')?.value || 'IMPORT';
-  ['ir-incoterm', 'ifr-incoterm', 'ir-filter'].forEach(id => { const field = document.getElementById(id); if (field) field.value = incoterm; });
-  ['ir-modal', 'ifr-modal'].forEach(id => { const field = document.getElementById(id); if (field) field.value = modal; });
-  ['ir-direction', 'ifr-direction'].forEach(id => { const field = document.getElementById(id); if (field) field.value = direction; });
-  await Promise.all([
-    loadIncotermFeeOptions(),
-    loadIncotermRulesTable(),
-    loadIncotermFieldRulesTable()
-  ]);
-}
-
-async function loadIncotermFeeOptions(selectedId = '') {
-  const select = document.getElementById('ir-standardFeeId');
-  if (!select) return;
-  try {
-    const res = await fetch(API + '/standard-fees');
-    if (!res.ok) throw new Error('Falha ao carregar taxas locais.');
-    const fees = await res.json();
-    const ruleModal = document.getElementById('ir-modal')?.value || 'ALL';
-    const activeFees = fees.filter(f => {
-      const scopes = String(f.modalScope || 'ALL').split(',');
-      return (f.active || f.id === selectedId) && (ruleModal === 'ALL' || scopes.includes('ALL') || scopes.includes(ruleModal) || f.id === selectedId);
-    });
-    select.innerHTML = '<option value="">-- Selecione a taxa local --</option>' + activeFees.map(f => {
-      const side = f.type === 'ORIGIN' ? 'Origem' : 'Destino';
-      const format = ({ FIXED: 'Fixo', PER_KG: 'Por Kg', PER_TON: 'Por tonelada', PER_WM: 'Por tonelada-metro (W/M)', PER_CBM: 'Por m³', PER_CONTAINER: 'Por contêiner', PER_DOCUMENT: 'Por Doc', PERCENTAGE: '%' })[f.chargeType] || f.chargeType;
-      return `<option value="${f.id}" data-fee-type="${f.type}">${side} - ${f.name} (${f.pricingStatus === 'ON_REQUEST' ? 'A cotar' : format})</option>`;
-    }).join('');
-    if (selectedId) select.value = selectedId;
-    select.onchange = () => {
-      updateIncotermFeeTypeInfo();
-      suggestNextIncotermRuleOrder();
-    };
-    updateIncotermFeeTypeInfo();
-  } catch (e) {
-    select.innerHTML = '<option value="">Erro ao carregar taxas</option>';
-  }
-}
-
-function updateIncotermFeeTypeInfo() {
-  const selected = document.getElementById('ir-standardFeeId')?.selectedOptions?.[0];
-  const info = document.getElementById('ir-feeTypeInfo');
-  if (!info) return;
-  const type = selected?.dataset?.feeType;
-  info.textContent = type === 'DESTINATION' ? 'Destino' : type === 'ORIGIN' ? 'Origem' : 'Selecione uma taxa';
-  info.style.color = type ? 'var(--text-primary)' : 'var(--text-muted)';
-}
-
-function updateIncotermConditionVisibility() {
-  const group = document.getElementById('ir-conditionGroup');
-  const applicability = document.getElementById('ir-applicability')?.value;
-  if (group) group.style.display = applicability === 'CONDITIONAL' ? '' : 'none';
-}
-
-function clearIncotermRuleOrderError() {
-  const input = document.getElementById('ir-linkSortOrder');
-  if (!input) return;
-  input.classList.remove('error');
-  input.setCustomValidity('');
-}
-
-function suggestNextIncotermRuleOrder() {
-  const input = document.getElementById('ir-linkSortOrder');
-  const selected = document.getElementById('ir-standardFeeId')?.selectedOptions?.[0];
-  if (!input || !selected?.value || document.getElementById('ir-id')?.value) return;
-  const feeType = selected.dataset.feeType;
-  const used = new Set(incotermRulesContextCache
-    .filter(rule => rule.feeType === feeType && Number.isInteger(Number(rule.sortOrder)) && Number(rule.sortOrder) >= 1)
-    .map(rule => Number(rule.sortOrder)));
-  let nextOrder = 1;
-  while (used.has(nextOrder)) nextOrder++;
-  input.value = String(nextOrder);
-  clearIncotermRuleOrderError();
-}
-
-function validateIncotermRuleOrder() {
-  const input = document.getElementById('ir-linkSortOrder');
-  const selected = document.getElementById('ir-standardFeeId')?.selectedOptions?.[0];
-  if (!input) return false;
-  clearIncotermRuleOrderError();
-  const order = Number(input.value);
-  let message = '';
-  if (!Number.isInteger(order) || order < 1) {
-    message = 'A ordem deve ser um número inteiro maior ou igual a 1.';
-  } else if (selected?.dataset?.feeType) {
-    const editingId = document.getElementById('ir-id')?.value || '';
-    const conflict = incotermRulesContextCache.find(rule =>
-      rule.id !== editingId && rule.feeType === selected.dataset.feeType && Number(rule.sortOrder) === order
-    );
-    if (conflict) message = `A ordem ${order} já está sendo usada pela taxa ${conflict.feeName} neste contexto.`;
-  }
-  if (!message) return true;
-  input.classList.add('error');
-  input.setCustomValidity(message);
-  input.reportValidity();
-  input.focus();
-  toast('❌ ' + message);
-  return false;
-}
-
-function ensureIncotermRuleDirectionControl() {
-  const modal = document.getElementById('ir-modal');
-  if (modal && !document.getElementById('ir-direction')) {
-    modal.closest('.form-group').insertAdjacentHTML('afterend', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ir-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div>');
-  }
-}
-
-async function loadIncotermRulesTable() {
-  ensureIncotermRuleDirectionControl();
-  try {
-    const filter = document.getElementById('ir-filter');
-    const incotermParam = filter ? filter.value : '';
-    const contextModal = document.getElementById('ctx-modal')?.value || '';
-    const contextDirection = document.getElementById('ctx-direction')?.value || '';
-    const params = new URLSearchParams();
-    if (incotermParam) params.set('incoterm', incotermParam);
-    if (contextModal) params.set('modal', contextModal);
-    if (contextDirection) params.set('direction', contextDirection);
-    const url = params.toString() ? `/api/incoterm-rules?${params}` : '/api/incoterm-rules';
-    const res = await fetch(url);
-    const allRules = await res.json();
-    incotermRulesContextCache = Array.isArray(allRules) ? allRules : [];
-    suggestNextIncotermRuleOrder();
-    const focusedFeeId = window.incotermRuleFeeFocus || '';
-    const rules = focusedFeeId ? allRules.filter(rule => rule.standardFeeId === focusedFeeId) : allRules;
-    const container = document.getElementById('incotermRulesTableContainer');
-    if (!container) return;
-    if (!rules.length) {
-      container.innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${focusedFeeId ? 'Esta taxa ainda não possui vínculo de aplicação. Selecione o contexto acima e salve o vínculo.' : 'Nenhuma regra cadastrada. Clique em "Popular Regras Padrão" para começar.'}</p>`;
-      return;
-    }
-    let html = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Direção</th><th>Obrigatória</th><th>Aplicabilidade</th><th>Aplicação</th><th>Taxa</th><th>Ordem</th><th>Cobrança</th><th>Valor</th><th>Mínimo</th><th>Moeda</th><th>Ações</th></tr></thead><tbody>';
-    const applicabilityColor = { REQUIRED:'var(--info)', APPLICABLE:'var(--text-muted)', CONDITIONAL:'var(--warning)', NOT_APPLICABLE:'var(--error)', TO_CONFIRM:'var(--warning)' };
-    const applicabilityLabel = { REQUIRED:'Required', APPLICABLE:'Applicable', CONDITIONAL:'Conditional', NOT_APPLICABLE:'Not applicable', TO_CONFIRM:'To confirm' };
-    for (const r of rules) {
-      const chargeLabel = {FIXED:'Fixo', PER_KG:'Por Kg', PER_TON:'Por tonelada', PER_WM:'Por tonelada-metro (W/M)', PER_CBM:'Por m³', PER_CONTAINER:'Por contêiner', PER_DOCUMENT:'Por Doc', PERCENTAGE:'%'}[r.chargeType] || r.chargeType;
-      const modalLabel = {AIR:'Aéreo', SEA_FCL:'Mar. FCL', SEA_LCL:'Mar. LCL', ALL:'Todos'}[r.modal] || r.modal;
-      const typeLabel = r.feeType === 'ORIGIN' ? '<span style="color:var(--info)">Origem</span>' : '<span style="color:var(--warning)">Destino</span>';
-      const applicability = r.applicability || 'APPLICABLE';
-      html += `<tr>
-        <td><strong style="color:var(--gold)">${r.incoterm}</strong></td>
-        <td>${modalLabel}</td>
-        <td>${r.direction === 'IMPORT' ? 'Importação' : r.direction === 'EXPORT' ? 'Exportação' : 'Todas'}</td>
-        <td>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="required-status ${r.required ? 'required' : 'optional'}">${r.required ? '✓ Obrigatória' : 'Opcional'}</span>
-            <button class="rule-action-btn primary" onclick="editIncotermRule('${r.id}')" title="Editar obrigatoriedade, ordem e contexto">Editar aplicação</button>
-          </div>
-        </td>
-        <td><span style="color:${applicabilityColor[applicability] || 'var(--text-muted)'}" title="${r.reason || ''}">${applicabilityLabel[applicability] || applicability}</span></td>
-        <td>${typeLabel}</td>
-        <td>
-          <div style="min-width:160px;"><span>${r.feeName}</span></div>
-        </td>
-        <td><strong>${r.sortOrder}</strong></td>
-        <td>${chargeLabel}</td>
-        <td>${r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.value.toFixed(2)}</td>
-        <td>${r.minValue != null ? r.minValue.toFixed(2) : '—'}</td>
-        <td>${r.currency}</td>
-        <td style="white-space:nowrap;">
-          <button class="rule-action-btn" onclick="editIncotermLinkedFee('${r.standardFeeId}')" title="Editar nome, valor e cobrança da taxa">Editar cadastro da taxa</button>
-          <button onclick="deleteIncotermRule('${r.id}')" style="background:none;border:none;cursor:pointer;color:var(--error);font-size:14px;margin-left:4px;" title="Excluir vínculo" aria-label="Excluir vínculo">🗑️</button>
-        </td></tr>`;
-    }
-    html += '</tbody></table>';
-    container.innerHTML = (focusedFeeId ? '<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Exibindo somente os vínculos desta taxa. <button class="action-btn" onclick="window.incotermRuleFeeFocus=\'\';loadIncotermRulesTable()">Ver todos</button></div>' : '') + html;
-  } catch (e) {
-    console.error('Erro ao carregar regras de incoterm:', e);
-  }
-}
-
-async function saveIncotermRule() {
-  const id = document.getElementById('ir-id').value;
-  if (!validateIncotermRuleOrder()) return;
-  const data = {
-    incoterm: document.getElementById('ir-incoterm').value,
-    modal: document.getElementById('ir-modal').value,
-    direction: document.getElementById('ir-direction').value,
-    standardFeeId: document.getElementById('ir-standardFeeId').value,
-    sortOrder: Number(document.getElementById('ir-linkSortOrder').value),
-    applicability: document.getElementById('ir-applicability').value,
-    financialGroup: document.getElementById('ir-financialGroup').value || null,
-    condition: document.getElementById('ir-applicability').value === 'CONDITIONAL' && document.getElementById('ir-condition').value
-      ? JSON.stringify({ type: document.getElementById('ir-condition').value }) : null,
-    reason: document.getElementById('ir-reason').value || null
-  };
-  if (!data.standardFeeId) {
-    toast('Selecione uma Taxa Local.');
-    return;
-  }
-  try {
-    let res;
-    if (id) {
-      res = await fetch(`/api/incoterm-rules/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-    } else {
-      res = await fetch('/api/incoterm-rules', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-    }
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({}));
-      throw new Error(error.error || 'Erro ao salvar vinculo.');
-    }
-    toast(id ? '✅ Regra atualizada!' : '✅ Regra criada!');
-    cancelEditIr();
-    loadIncotermRulesTable();
-  } catch (e) {
-    toast('❌ ' + e.message);
-  }
-}
-
-async function editIncotermRule(id) {
-  try {
-    const res = await fetch('/api/incoterm-rules');
-    const rules = await res.json();
-    const rule = rules.find(r => r.id === id);
-    if (!rule) return;
-    document.getElementById('ctx-incoterm').value = rule.incoterm;
-    document.getElementById('ctx-modal').value = rule.modal;
-    document.getElementById('ctx-direction').value = rule.direction || 'ALL';
-    await syncIncotermConfigurationContext();
-    document.getElementById('ir-id').value = rule.id;
-    document.getElementById('ir-incoterm').value = rule.incoterm;
-    document.getElementById('ir-modal').value = rule.modal;
-    ensureIncotermRuleDirectionControl();
-    document.getElementById('ir-direction').value = rule.direction || 'ALL';
-    await loadIncotermFeeOptions(rule.standardFeeId);
-    document.getElementById('ir-linkSortOrder').value = rule.sortOrder;
-    document.getElementById('ir-applicability').value = rule.applicability || 'APPLICABLE';
-    document.getElementById('ir-financialGroup').value = rule.financialGroup || '';
-    let parsedCondition = null;
-    try { parsedCondition = rule.condition ? JSON.parse(rule.condition) : null; } catch (e) { parsedCondition = null; }
-    document.getElementById('ir-condition').value = parsedCondition?.type || '';
-    document.getElementById('ir-reason').value = rule.reason || '';
-    updateIncotermConditionVisibility();
-    clearIncotermRuleOrderError();
-    document.getElementById('btnSaveIr').innerText = '💾 Atualizar aplicação';
-    document.getElementById('btnCancelIr').style.display = '';
-    const editor = document.getElementById('incotermRuleEditor');
-    const editorTitle = document.getElementById('incotermRuleEditorTitle');
-    if (editorTitle) editorTitle.textContent = `Editar aplicação: ${rule.feeName}`;
-    if (editor) {
-      editor.classList.remove('rule-editor-highlight');
-      void editor.offsetWidth;
-      editor.classList.add('rule-editor-highlight');
-    }
-    document.getElementById('ir-applicability')?.closest('.form-group')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } catch (e) { toast('❌ Erro ao carregar regra.'); }
-}
-
-async function deleteIncotermRule(id) {
-  if (!confirm('Excluir esta regra?')) return;
-  try {
-    await fetch(`/api/incoterm-rules/${id}`, { method: 'DELETE' });
-    toast('✅ Regra excluída!');
-    loadIncotermRulesTable();
-  } catch (e) { toast('❌ Erro ao excluir.'); }
-}
-
-async function editIncotermLinkedFee(standardFeeId) {
-  if (!standardFeeId) {
-    toast('Esta regra ainda precisa ser vinculada a uma Taxa Local.');
-    return;
-  }
-  try {
-    const res = await fetch(API + '/standard-fees');
-    if (!res.ok) throw new Error('Falha ao carregar a taxa local.');
-    const fees = await res.json();
-    const fee = fees.find(item => item.id === standardFeeId);
-    if (!fee) throw new Error('Taxa local nao encontrada.');
-    switchSettingsTab('standardFees');
-    editStandardFee(fee);
-    document.getElementById('sf-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } catch (e) {
-    toast('Erro: ' + e.message);
-  }
-}
-
-function cancelEditIr() {
-  document.getElementById('ir-id').value = '';
-  document.getElementById('ir-standardFeeId').value = '';
-  document.getElementById('ir-linkSortOrder').value = '1';
-  clearIncotermRuleOrderError();
-  document.getElementById('ir-applicability').value = 'APPLICABLE';
-  document.getElementById('ir-financialGroup').value = '';
-  document.getElementById('ir-condition').value = '';
-  document.getElementById('ir-reason').value = '';
-  updateIncotermConditionVisibility();
-  updateIncotermFeeTypeInfo();
-  document.getElementById('btnSaveIr').innerText = 'Salvar vínculo';
-  document.getElementById('btnCancelIr').style.display = 'none';
-  const editorTitle = document.getElementById('incotermRuleEditorTitle');
-  if (editorTitle) editorTitle.textContent = 'Vincular taxa a um contexto';
-  document.getElementById('incotermRuleEditor')?.classList.remove('rule-editor-highlight');
-}
-
-async function seedIncotermRules() {
-  if (!confirm('Popular regras padrão por Incoterm? (regras existentes serão mantidas)')) return;
-  try {
-    const res = await fetch('/api/incoterm-rules/seed', { method: 'POST' });
-    const data = await res.json();
-    toast('✅ ' + data.message);
-    loadIncotermRulesTable();
-  } catch (e) { toast('❌ Erro ao popular regras.'); }
-}
 
 let agentDraftTemplatesCache=[];
 const DRAFT_TEMPLATE_SAMPLE=`Olá,\n\nFavor cotar o embarque abaixo:\n\nRota: {origin} para {destination}\nModal: Marítimo FCL\nIncoterm: {incoterm}\nEquipamento: {equipment}\nPeso bruto: {grossWeight} kg\nValor da carga: {cargoValue}\nCarga IMO: {imoStatus}\n\nRequisitos específicos:\n- Embarque direto: {directService}\n- Free time: {freeTime}\n\nFavor informar na cotação:\n- Shipping line name\n- Valor do frete (all-in)\n- Transit time\n- Validade da cotação\n- Free time demurrage\n- Route\n\nAtenciosamente,`;
@@ -8088,7 +7651,6 @@ async function seedDraftEmailFieldRules() {
   } catch (e) { toast('❌ ' + e.message); }
 }
 
-const IFR_FIELD_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', ORIGIN_INLAND:'Inland de origem', ORIGIN_FEES:'Taxas locais de origem', INSURANCE:'Seguro', DESTINATION_FEES:'Taxas locais de destino', NATIONAL_INLAND:'Transporte nacional', CUSTOMS_CLEARANCE:'Desembaraço' };
 const CARRIER_FIELD_LABELS={TRANSSHIPMENTS:'Transbordos',VESSEL_VOYAGE:'Navio e viagem',FREE_TIME:'Free time',RATE_VALIDITY:'Validade da tarifa',CONTRACT_NUMBER:'Contrato'};
 const carrierControlState={};
 function formatTransshipments(value){let list=value;if(typeof value==='string'){try{list=JSON.parse(value)}catch{return value}}if(!Array.isArray(list))return'';return list.map(t=>[t.port,t.locode,t.eta,t.etd,t.vessel,t.voyage,t.notes].map(v=>v||'').join(' | ')).join('\n');}
@@ -8124,7 +7686,6 @@ async function loadCarrierRatesTable(){const el=document.getElementById('carrier
 async function saveCarrierRate(id,status){const val=x=>document.getElementById(x)?.value||'';const data={portScope:val('cr-port-'+id),equipment:val('cr-equipment-'+id),amount:Number(val('cr-amount-'+id)),currency:val('cr-currency-'+id),unitBasis:val('cr-unit-'+id),effectiveFrom:val('cr-from-'+id)||undefined,effectiveTo:val('cr-to-'+id)||undefined,conditional:Boolean(document.getElementById('cr-conditional-'+id)?.checked),status};const res=await fetch('/api/carrier-rates/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const body=await res.json().catch(()=>({}));if(!res.ok){toast('❌ '+(body.error||'Erro ao atualizar tarifa.'));return;}toast(status==='APPROVED'?'✅ Tarifa aprovada para automação!':'✅ Tarifa atualizada.');loadCarrierRatesSettings();}
 async function importDanielCarrierRates(event){const file=event.target.files?.[0];if(!file)return;const form=new FormData();form.append('file',file);toast('⏳ Importando e validando a base...');const res=await fetch('/api/carrier-rates/import-daniel',{method:'POST',body:form});const body=await res.json().catch(()=>({}));event.target.value='';if(!res.ok){toast('❌ '+(body.error||'Falha na importação.'));return;}toast(`✅ ${body.summary.importedRows} tarifas importadas como referência; ${body.summary.skippedRows} ignoradas.`);loadCarrierRatesSettings();}
 const IFR_BEHAVIOR_LABELS = { EDITABLE:'Editável', REQUIRED:'Obrigatório', SUGGESTED:'Sugerido', LOCKED:'Bloqueado', HIDDEN:'Oculto', NOT_APPLICABLE:'Não aplicável', RETURN_ONLY:'Somente no retorno' };
-const IFR_STAGE_LABELS = { ALL:'Todas', REQUEST:'Solicitação', RETURN:'Retorno', FINAL:'Revisão final' };
 const INCOTERM_CONDITION_LABELS = {
   DG_ONLY: 'Somente carga DG',
   NOT_DG: 'Somente carga não-DG',
@@ -8149,106 +7710,11 @@ function updateTreeFeeCondition(type, index, value) {
   const fee = (type === 'ORIGIN' ? window.currentIncotermTree.originFees : window.currentIncotermTree.destinationFees)[index];
   fee.condition = value ? JSON.stringify({ type: value }) : null;
 }
-let incotermFieldRuleCache = [];
-
 function ifrEscape(value) {
   return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function ensureIncotermFieldRuleDirectionControl() {
-  const stage = document.getElementById('ifr-stage');
-  if (stage && !document.getElementById('ifr-direction')) {
-    stage.closest('.form-group').insertAdjacentHTML('beforebegin', '<div class="form-group" style="margin:0"><label>Direção</label><select id="ifr-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div>');
-  }
-}
-
-async function loadIncotermFieldRulesTable() {
-  ensureIncotermFieldRuleDirectionControl();
-  const container = document.getElementById('incotermFieldRulesTableContainer');
-  if (!container) return;
-  try {
-    const res = await fetch('/api/incoterm-field-rules');
-    const rules = await res.json();
-    const contextIncoterm = document.getElementById('ctx-incoterm')?.value || '';
-    const contextModal = document.getElementById('ctx-modal')?.value || '';
-    const contextDirection = document.getElementById('ctx-direction')?.value || '';
-    incotermFieldRuleCache = (Array.isArray(rules) ? rules : []).filter(rule =>
-      (!contextIncoterm || rule.incoterm === contextIncoterm) &&
-      (!contextModal || rule.modal === contextModal || rule.modal === 'ALL') &&
-      (!contextDirection || rule.direction === contextDirection || rule.direction === 'ALL')
-    );
-    if (!incotermFieldRuleCache.length) {
-      container.innerHTML = '<p style="color:var(--text-muted);font-size:12px;">Nenhuma trava cadastrada. Os campos continuam editáveis.</p>';
-      return;
-    }
-    container.innerHTML = '<table class="k-table"><thead><tr><th>Incoterm</th><th>Modal</th><th>Etapa</th><th>Campo</th><th>Comportamento</th><th>Justificativa</th><th>Ações</th></tr></thead><tbody>' + incotermFieldRuleCache.map(r => `<tr><td><strong style="color:var(--gold)">${ifrEscape(r.incoterm)}</strong></td><td>${ifrEscape(r.modal)}</td><td>${IFR_STAGE_LABELS[r.stage] || r.stage}</td><td>${IFR_FIELD_LABELS[r.fieldKey] || r.fieldKey}</td><td>${IFR_BEHAVIOR_LABELS[r.behavior] || r.behavior}</td><td>${ifrEscape(r.reason) || '—'}</td><td><button class="action-btn" onclick="editIncotermFieldRule('${r.id}')">✏️</button><button class="action-btn danger" onclick="deleteIncotermFieldRule('${r.id}')">🗑️</button></td></tr>`).join('') + '</tbody></table>';
-  } catch (e) {
-    container.innerHTML = '<p style="color:var(--error)">Erro ao carregar travas.</p>';
-  }
-}
-
-async function saveIncotermFieldRule() {
-  const id = document.getElementById('ifr-id').value;
-  const data = { incoterm:document.getElementById('ifr-incoterm').value, modal:document.getElementById('ifr-modal').value, direction:document.getElementById('ifr-direction').value, stage:document.getElementById('ifr-stage').value, fieldKey:document.getElementById('ifr-field').value, behavior:document.getElementById('ifr-behavior').value, reason:document.getElementById('ifr-reason').value || null };
-  try {
-    const res = await fetch('/api/incoterm-field-rules' + (id ? '/' + id : ''), { method:id ? 'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Erro ao salvar trava.'); }
-    toast(id ? '✅ Trava atualizada!' : '✅ Trava criada!');
-    cancelEditIfr();
-    loadIncotermFieldRulesTable();
-  } catch (e) { toast('❌ ' + e.message); }
-}
-
-function editIncotermFieldRule(id) {
-  const r = incotermFieldRuleCache.find(item => item.id === id); if (!r) return;
-  document.getElementById('ctx-incoterm').value=r.incoterm;
-  document.getElementById('ctx-modal').value=r.modal;
-  document.getElementById('ctx-direction').value=r.direction || 'ALL';
-  syncIncotermConfigurationContext();
-  ensureIncotermFieldRuleDirectionControl();
-  document.getElementById('ifr-direction').value=r.direction || 'ALL';
-  document.getElementById('ifr-id').value=r.id; document.getElementById('ifr-incoterm').value=r.incoterm; document.getElementById('ifr-modal').value=r.modal; document.getElementById('ifr-stage').value=r.stage; document.getElementById('ifr-field').value=r.fieldKey; document.getElementById('ifr-behavior').value=r.behavior; document.getElementById('ifr-reason').value=r.reason || ''; document.getElementById('btnCancelIfr').style.display='';
-}
-function cancelEditIfr() { document.getElementById('ifr-id').value=''; document.getElementById('ifr-reason').value=''; document.getElementById('btnCancelIfr').style.display='none'; }
-async function deleteIncotermFieldRule(id) { if (!confirm('Excluir esta trava?')) return; const res=await fetch('/api/incoterm-field-rules/'+id,{method:'DELETE'}); if(res.ok){toast('✅ Trava excluída!');loadIncotermFieldRulesTable();}else toast('❌ Erro ao excluir trava.'); }
-
-const IFR_TARGETS = {
-  REQUEST: { ORIGIN_INLAND:['r-needs-origin-inland','r-origin-inland-route'], INSURANCE:['r-insurance'], NATIONAL_INLAND:['r-needs-transport','r-transport-route','r-trucker-email','r-trucker-send-email'] },
-  RETURN: { INTERNATIONAL_FREIGHT:['r-freight','r-freight-currency','r-freight-unit'], ORIGIN_INLAND:['r-agent-origin-inland-route','r-agent-origin-inland-value','r-agent-origin-inland-currency','r-agent-origin-inland-transit'], ORIGIN_FEES:['r-agent-origin-services'], DESTINATION_FEES:['r-agent-destination-services','r-storage','r-services','r-taxes'], CUSTOMS_CLEARANCE:['r-customs-clearance-included'] },
-  FINAL: { INTERNATIONAL_FREIGHT:['rev-freight','rev-freight-currency','rev-freight-unit'], ORIGIN_INLAND:['rev-origin-inland-route','rev-origin-inland-value','rev-origin-inland-currency','rev-origin-inland-transit'], ORIGIN_FEES:['rev-origin-services'], INSURANCE:['rev-insurance'], DESTINATION_FEES:['rev-destination-services','rev-storage','rev-services','rev-taxes'], CUSTOMS_CLEARANCE:['rev-customs-clearance'] }
-};
-
 function normalizeFieldRuleModal(modal, loadType='') { const m=String(modal||'').toUpperCase(), l=String(loadType||'').toUpperCase(); if(m==='AIR'||l.includes('AIR')) return 'AIR'; return l.includes('LCL')?'SEA_LCL':'SEA_FCL'; }
-function fieldRuleHasValue(el) { return el.type==='checkbox' ? el.checked : String(el.value||'').trim()!=='' && el.value!=='false'; }
-function clearFieldRuleValue(el) { if(el.type==='checkbox') el.checked=false; else if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; el.dispatchEvent(new Event('change',{bubbles:true})); }
-function resetFieldRuleTargets(stage) {
-  Object.values(IFR_TARGETS[stage]||{}).flat().forEach(id=>{ const el=document.getElementById(id); if(!el)return; if(el.dataset.ifrDisabled!==undefined)el.disabled=el.dataset.ifrDisabled==='true'; if(el.dataset.ifrRequired!==undefined)el.required=el.dataset.ifrRequired==='true'; el.style.outline=''; el.title=''; const box=el.closest('.form-group')||el.parentElement; if(box&&box.dataset.ifrHidden==='true'){box.style.display=box.dataset.ifrDisplay||'';delete box.dataset.ifrHidden;} });
-}
-
-async function applyIncotermFieldRules(incoterm, modal, stage, confirmRemoval=false, direction='ALL') {
-  if(!incoterm||!stage) return [];
-  resetFieldRuleTargets(stage);
-  const res=await fetch(`/api/incoterm-field-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&stage=${encodeURIComponent(stage)}&direction=${encodeURIComponent(direction)}`);
-  if(!res.ok)return [];
-  const all=(await res.json()).filter(r=>r.active!==false);
-  const ranked=[...all].sort((a,b)=>((a.modal==='ALL'?0:4)+(a.direction==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:4)+(b.direction==='ALL'?0:2)+(b.stage==='ALL'?0:1)));
-  const effective=new Map(); ranked.forEach(r=>effective.set(r.fieldKey,r));
-  for(const rule of effective.values()) {
-    let behavior=rule.behavior; if(behavior==='RETURN_ONLY') behavior=stage==='REQUEST'?'HIDDEN':'EDITABLE';
-    const elements=(IFR_TARGETS[stage]?.[rule.fieldKey]||[]).map(id=>document.getElementById(id)).filter(Boolean);
-    if(behavior==='NOT_APPLICABLE' && elements.some(fieldRuleHasValue) && confirmRemoval && !confirm(`${IFR_FIELD_LABELS[rule.fieldKey]} possui dados preenchidos. Aplicar a trava e remover esses valores?`)) continue;
-    elements.forEach(el=>{
-      if(el.dataset.ifrDisabled===undefined)el.dataset.ifrDisabled=String(el.disabled);
-      if(el.dataset.ifrRequired===undefined)el.dataset.ifrRequired=String(el.required);
-      const box=el.closest('.form-group')||el.parentElement;
-      if(behavior==='LOCKED') el.disabled=true;
-      if(behavior==='REQUIRED') el.required=true;
-      if(behavior==='SUGGESTED'){el.style.outline='2px solid var(--warning)';el.title=rule.reason||'Preenchimento sugerido pela regra do Incoterm';}
-      if(behavior==='HIDDEN'||behavior==='NOT_APPLICABLE'){if(box){box.dataset.ifrDisplay=box.style.display||'';box.dataset.ifrHidden='true';box.style.display='none';} if(behavior==='NOT_APPLICABLE')clearFieldRuleValue(el);}
-    });
-  }
-  return [...effective.values()];
-}
 
 // Auto-aplicação de regras ao mudar o Incoterm na revisão
 window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rules-preview') {
@@ -8373,18 +7839,6 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
     console.error('Erro ao buscar regras de incoterm:', e);
   }
 
-  try {
-    const modal = normalizeFieldRuleModal(document.getElementById('r-type')?.value, document.getElementById('r-type')?.value);
-    const fieldStage = targetId === 'incoterm-rules-preview-panel3' ? 'RETURN' : 'REQUEST';
-    const fieldRes = await fetch(`/api/incoterm-field-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&stage=${fieldStage}`);
-    const fieldRules = fieldRes.ok ? (await fieldRes.json()).filter(r => r.active !== false && r.behavior !== 'EDITABLE') : [];
-    if (fieldRules.length) {
-      html += '<div style="margin-top:14px;padding-top:14px;border-top:1px dashed rgba(245,166,35,.3)"><div style="font-weight:700;color:var(--gold);margin-bottom:6px">Travas de campos configuradas:</div>';
-      fieldRules.forEach(r => { html += `<div style="color:var(--text-muted);margin-bottom:3px">• ${IFR_FIELD_LABELS[r.fieldKey] || r.fieldKey}: <strong>${IFR_BEHAVIOR_LABELS[r.behavior] || r.behavior}</strong>${r.reason ? ' — ' + ifrEscape(r.reason) : ''}</div>`; });
-      html += '</div>';
-    }
-  } catch (e) { console.error('Erro ao buscar travas de campos:', e); }
-  
   html += '</div>';
   preview.innerHTML = html;
   preview.style.display = 'block';
@@ -8464,15 +7918,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.updateIncotermPreview) {
         window.updateIncotermPreview(this.value);
       }
-      applyIncotermFieldRules(this.value, normalizeFieldRuleModal(document.getElementById('r-type').value, document.getElementById('r-type').value), 'REQUEST', true);
     });
   }
-  const requestModal = document.getElementById('r-type');
-  if (requestModal) requestModal.addEventListener('change', () => applyIncotermFieldRules(document.getElementById('r-incoterm').value, normalizeFieldRuleModal(requestModal.value, requestModal.value), 'REQUEST', true));
-  ['rev-incoterm','rev-modal','rev-load-type'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('change', () => applyIncotermFieldRules(document.getElementById('rev-incoterm').value, normalizeFieldRuleModal(document.getElementById('rev-modal').value, document.getElementById('rev-load-type').value), 'FINAL', true));
-  });
   const returnCarrier=document.getElementById('r-agent-carrier');
   if(returnCarrier)returnCarrier.addEventListener('change',()=>{const q=allQuotations.find(x=>x.id===document.getElementById('pending-quotations').value);applyCarrierProfile('r',returnCarrier.value,'RETURN',q?.modal||'',q?.loadType||'',true);});
   const finalCarrier=document.getElementById('rev-carrier');
@@ -8480,7 +7927,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // === ÁRVORE DE INCOTERMS LOGIC ===
-window.currentIncotermTree = { originFees: [], destinationFees: [], fieldRules: [] };
+window.currentIncotermTree = { originFees: [], destinationFees: [] };
 window.standardFeesList = [];
 
 async function loadStandardFeesList() {
@@ -8506,14 +7953,12 @@ async function fetchIncotermTree() {
     const data = await res.json();
     window.currentIncotermTree = {
       originFees: data.originFees || [],
-      destinationFees: data.destinationFees || [],
-      fieldRules: data.fieldRules || []
+      destinationFees: data.destinationFees || []
     };
-    
+
     document.getElementById('tree-editor').style.display = 'block';
     renderTreeFees('ORIGIN', 'tree-origin-fees-container');
     renderTreeFees('DESTINATION', 'tree-destination-fees-container');
-    renderTreeFieldRules();
     toast('Árvore carregada.');
   } catch (e) {
     toast('Erro: ' + e.message);
@@ -8623,61 +8068,6 @@ function removeTreeFee(type, index) {
   }
 }
 
-function renderTreeFieldRules() {
-  const container = document.getElementById('tree-field-rules-container');
-  const rules = window.currentIncotermTree.fieldRules;
-  
-  if (rules.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted); font-size:12px;">Nenhuma regra de campo cadastrada.</p>';
-    return;
-  }
-
-  let html = '<table class="k-table"><thead><tr><th>Campo</th><th>Comportamento</th><th>Etapa</th><th>Justificativa</th><th>Remover</th></tr></thead><tbody>';
-  
-  rules.forEach((rule, index) => {
-    html += `<tr>
-      <td>
-        <select onchange="updateTreeFieldRule(${index}, 'fieldKey', this.value)">
-          <option value="">-- Selecione o campo --</option>
-          ${Object.entries(IFR_FIELD_LABELS).map(([val, label]) => `<option value="${val}" ${rule.fieldKey === val ? 'selected' : ''}>${label}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <select onchange="updateTreeFieldRule(${index}, 'behavior', this.value)">
-          ${Object.entries(IFR_BEHAVIOR_LABELS).map(([val, label]) => `<option value="${val}" ${rule.behavior === val ? 'selected' : ''}>${label}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <select onchange="updateTreeFieldRule(${index}, 'stage', this.value)">
-          <option value="ALL" ${rule.stage === 'ALL' ? 'selected' : ''}>Todas</option>
-          <option value="REQUEST" ${rule.stage === 'REQUEST' ? 'selected' : ''}>Solicitação</option>
-          <option value="RETURN" ${rule.stage === 'RETURN' ? 'selected' : ''}>Retorno</option>
-          <option value="FINAL" ${rule.stage === 'FINAL' ? 'selected' : ''}>Final</option>
-        </select>
-      </td>
-      <td><input type="text" value="${rule.reason || ''}" onchange="updateTreeFieldRule(${index}, 'reason', this.value)"></td>
-      <td><button class="action-btn danger" onclick="removeTreeFieldRule(${index})">❌</button></td>
-    </tr>`;
-  });
-  
-  html += '</tbody></table>';
-  container.innerHTML = html;
-}
-
-function updateTreeFieldRule(index, field, value) {
-  window.currentIncotermTree.fieldRules[index][field] = value;
-}
-
-function addTreeFieldRule() {
-  window.currentIncotermTree.fieldRules.push({ fieldKey: '', behavior: 'EDITABLE', stage: 'ALL', reason: '' });
-  renderTreeFieldRules();
-}
-
-function removeTreeFieldRule(index) {
-  window.currentIncotermTree.fieldRules.splice(index, 1);
-  renderTreeFieldRules();
-}
-
 async function saveIncotermTree() {
   const incoterm = document.getElementById('tree-incoterm').value;
   const direction = document.getElementById('tree-direction').value;
@@ -8688,8 +8078,7 @@ async function saveIncotermTree() {
     direction,
     modal,
     originFees: window.currentIncotermTree.originFees.filter(f => f.feeName),
-    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.feeName),
-    fieldRules: window.currentIncotermTree.fieldRules.filter(r => r.fieldKey)
+    destinationFees: window.currentIncotermTree.destinationFees.filter(f => f.feeName)
   };
 
   try {

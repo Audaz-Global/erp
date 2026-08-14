@@ -4,7 +4,6 @@ import { generatePdf } from '../services/pdfService';
 import axios from 'axios';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, applyMinLclStorage, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForController } from '../services/incotermRuleService';
-import { enforceIncotermFieldRules, IncotermFieldRuleError } from '../services/incotermFieldRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
 import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
@@ -39,7 +38,6 @@ export const createQuotation = async (req: Request, res: Response) => {
     // Extract non-quotation fields
     const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
     normalizeDangerousGoodsPayload(quotationData);
-    if (ruleStage) await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase());
     if (ruleStage) await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase());
 
     // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided
@@ -113,7 +111,7 @@ export const createQuotation = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
-    res.status(error instanceof IncotermFieldRuleError || error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
+    res.status(error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
   }
 };
 
@@ -168,7 +166,6 @@ export const updateQuotation = async (req: Request, res: Response) => {
     } = req.body;
 
     if (ruleStage) {
-      await enforceIncotermFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
     }
 
@@ -224,7 +221,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     res.json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
-    res.status(error instanceof IncotermFieldRuleError || error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
+    res.status(error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
   }
 };
 

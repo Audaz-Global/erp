@@ -27,22 +27,12 @@ export interface IncotermTreeFeePayload {
   active?: boolean;
 }
 
-export interface IncotermTreeFieldRulePayload {
-  id?: string;
-  fieldKey: string;
-  behavior: string;
-  reason?: string;
-  active?: boolean;
-  stage?: string;
-}
-
 export interface IncotermTreePayload {
   incoterm: string;
   direction: string;
   modal: string;
   originFees: IncotermTreeFeePayload[];
   destinationFees: IncotermTreeFeePayload[];
-  fieldRules: IncotermTreeFieldRulePayload[];
 }
 
 export async function getIncotermTree(incoterm: string, direction: string, modal: string) {
@@ -56,23 +46,17 @@ export async function getIncotermTree(incoterm: string, direction: string, modal
     orderBy: [{ feeType: 'asc' }, { sortOrder: 'asc' }]
   });
 
-  const fieldRules = await prisma.incotermFieldRule.findMany({
-    where: { incoterm: incotermUpper, direction: directionUpper, modal: modalUpper },
-    orderBy: [{ fieldKey: 'asc' }]
-  });
-
   return {
     incoterm: incotermUpper,
     direction: directionUpper,
     modal: modalUpper,
     originFees: rules.filter(r => r.feeType === 'ORIGIN'),
-    destinationFees: rules.filter(r => r.feeType === 'DESTINATION'),
-    fieldRules
+    destinationFees: rules.filter(r => r.feeType === 'DESTINATION')
   };
 }
 
 export async function updateIncotermTree(payload: IncotermTreePayload) {
-  const { incoterm, direction, modal, originFees = [], destinationFees = [], fieldRules = [] } = payload;
+  const { incoterm, direction, modal, originFees = [], destinationFees = [] } = payload;
   
   const incotermUpper = incoterm.toUpperCase();
   const directionUpper = direction.toUpperCase();
@@ -87,10 +71,6 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
 
     // Delete all existing rules for this specific tree node
     await tx.incotermRule.deleteMany({
-      where: { incoterm: incotermUpper, direction: directionUpper, modal: modalUpper }
-    });
-
-    await tx.incotermFieldRule.deleteMany({
       where: { incoterm: incotermUpper, direction: directionUpper, modal: modalUpper }
     });
 
@@ -129,22 +109,6 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
           sortOrder: parseIncotermRuleSortOrder(feeData.sortOrder) || sortOrderCounter++,
           active: feeData.active !== undefined ? feeData.active : true
         } as any
-      });
-    }
-
-    // Recreate field rules
-    for (const fr of fieldRules) {
-      await tx.incotermFieldRule.create({
-        data: {
-          incoterm: incotermUpper,
-          direction: directionUpper,
-          modal: modalUpper,
-          stage: String(fr.stage || 'ALL').toUpperCase(),
-          fieldKey: String(fr.fieldKey).toUpperCase(),
-          behavior: String(fr.behavior || 'EDITABLE').toUpperCase(),
-          reason: fr.reason ? String(fr.reason).trim() : null,
-          active: fr.active !== false
-        }
       });
     }
 

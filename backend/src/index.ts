@@ -33,7 +33,6 @@ import standardFeeRoutes from './routes/standardFee';
 import incotermRuleRoutes from './routes/incotermRule';
 import incotermTreeRoutes from './routes/incotermTree';
 import outlookRoutes from './routes/outlookRoutes';
-import incotermFieldRuleRoutes from './routes/incotermFieldRule';
 import carrierProfileRoutes from './routes/carrierProfile';
 import carrierRateRoutes from './routes/carrierRate';
 
@@ -54,7 +53,6 @@ app.use('/api/standard-fees', standardFeeRoutes);
 app.use('/api/incoterm-rules', incotermRuleRoutes);
 app.use('/api/incoterm-tree', incotermTreeRoutes);
 app.use('/api/outlook', outlookRoutes);
-app.use('/api/incoterm-field-rules', incotermFieldRuleRoutes);
 app.use('/api/carrier-profiles', carrierProfileRoutes);
 app.use('/api/carrier-rates', carrierRateRoutes);
 app.use('/api/agent-draft-email-settings', agentDraftEmailSettingsRoutes);
