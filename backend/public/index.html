@@ -450,6 +450,8 @@
     vertical-align: middle;
   }
   .k-table tbody tr:hover { background: rgba(245,166,35,0.03); }
+  .k-table input, .k-table select { background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px; }
+  .k-table select option { background: #111929; color: var(--text); }
   .k-toggle {
     width: 40px; height: 22px; border-radius: 12px; border: none;
     cursor: pointer; position: relative; transition: background 0.3s;
@@ -8521,11 +8523,11 @@ function renderTreeFees(type, containerId) {
       </td>
       <td>
         <select onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value)">
-          <option value="APPLICABLE" ${fee.applicability === 'APPLICABLE' ? 'selected' : ''}>Applicable</option>
-          <option value="REQUIRED" ${fee.applicability === 'REQUIRED' ? 'selected' : ''}>Required</option>
-          <option value="CONDITIONAL" ${fee.applicability === 'CONDITIONAL' ? 'selected' : ''}>Conditional</option>
-          <option value="NOT_APPLICABLE" ${fee.applicability === 'NOT_APPLICABLE' ? 'selected' : ''}>Not Applicable</option>
-          <option value="TO_CONFIRM" ${fee.applicability === 'TO_CONFIRM' ? 'selected' : ''}>To Confirm</option>
+          <option value="APPLICABLE" ${fee.applicability === 'APPLICABLE' ? 'selected' : ''}>Aplicável</option>
+          <option value="REQUIRED" ${fee.applicability === 'REQUIRED' ? 'selected' : ''}>Obrigatória</option>
+          <option value="CONDITIONAL" ${fee.applicability === 'CONDITIONAL' ? 'selected' : ''}>Condicional</option>
+          <option value="NOT_APPLICABLE" ${fee.applicability === 'NOT_APPLICABLE' ? 'selected' : ''}>Não Aplicável</option>
+          <option value="TO_CONFIRM" ${fee.applicability === 'TO_CONFIRM' ? 'selected' : ''}>A Confirmar</option>
         </select>
       </td>
       <td>
