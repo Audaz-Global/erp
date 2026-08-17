@@ -49,16 +49,21 @@ export async function backfillPartnerLinks(prisma: PrismaClient) {
     if (row.partnerId !== agent.id) { await prisma.deconsolidator.update({ where: { id: row.id }, data: { partnerId: agent.id } }); linked++; }
   }
 
-  const fees = await prisma.fixedFee.findMany({ where: { partnerId: null, carrier: { not: null } } });
+  const fees = await prisma.fixedFee.findMany({ where: { carrier: { not: null } } });
   for (const fee of fees) {
-    let agent = fee.carrier ? findAgent(fee.carrier) : undefined;
+    let agent = fee.partnerId ? refreshedAgents.find(item => item.id === fee.partnerId) : fee.carrier ? findAgent(fee.carrier) : undefined;
     const carrierName = String(fee.carrier || '').trim();
     if (!agent && carrierName && !['GERAL', 'ALL', 'PADRAO', 'PADRÃO'].includes(carrierName.toUpperCase())) {
       const role = fee.modal === 'AIR' ? 'CIA_AEREA' : fee.modal.startsWith('SEA') ? 'ARMADOR' : 'AGENTE';
       agent = await prisma.agent.create({ data: { name: carrierName, type: role, types: JSON.stringify([role]), modals: fee.modal, origins: 'Global', destinations: 'Brasil', active: fee.active } });
       refreshedAgents.push(agent); linked++;
     }
-    if (agent) { await prisma.fixedFee.update({ where: { id: fee.id }, data: { partnerId: agent.id } }); linked++; }
+    if (agent) {
+      const expectedRole = fee.modal === 'AIR' ? 'CIA_AEREA' : fee.modal.startsWith('SEA') ? 'ARMADOR' : null;
+      const types = parseTypes(agent.types, agent.type);
+      if (expectedRole && !types.includes(expectedRole)) { types.push(expectedRole); await prisma.agent.update({ where: { id: agent.id }, data: { types: JSON.stringify(types) } }); agent.types = JSON.stringify(types); linked++; }
+      if (fee.partnerId !== agent.id) { await prisma.fixedFee.update({ where: { id: fee.id }, data: { partnerId: agent.id } }); linked++; }
+    }
   }
 
   for (const agent of refreshedAgents) {
