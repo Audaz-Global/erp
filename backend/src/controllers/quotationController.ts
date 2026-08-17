@@ -5,6 +5,7 @@ import axios from 'axios';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, applyMinLclStorage, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForController, resolveFreightValue } from '../services/incotermRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
+import { enforcePartnerRules, PartnerRuleError } from '../services/partnerRuleService';
 import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
@@ -38,7 +39,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     // Extract non-quotation fields
     const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
     normalizeDangerousGoodsPayload(quotationData);
-    if (ruleStage) await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase());
+    if (ruleStage) { await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase()); await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase()); }
 
     // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided
     let reference = quotationData.reference;
@@ -111,7 +112,7 @@ export const createQuotation = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
-    res.status(error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
+    res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
   }
 };
 
@@ -167,6 +168,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
 
     if (ruleStage) {
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
+      await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase(), current);
     }
 
     const updateData: any = normalizeDangerousGoodsPayload({ ...quotationData }, current);
@@ -221,7 +223,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     res.json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
-    res.status(error instanceof CarrierFieldRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
+    res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
   }
 };
 

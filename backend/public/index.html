@@ -896,6 +896,15 @@
   .partner-type-checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
   .partner-type-checks label { display:flex; align-items:center; gap:7px; min-height:38px; margin:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); font-size:12px; font-weight:600; }
   .partner-type-checks input { width:15px; height:15px; }
+  .partner-detail-tabs { display:flex; gap:6px; margin:18px 0; padding-bottom:10px; overflow-x:auto; border-bottom:1px solid var(--border); }
+  .partner-detail-tab { flex:0 0 auto; padding:8px 12px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--text-muted); cursor:pointer; font-size:12px; font-weight:700; }
+  .partner-detail-tab.active { color:var(--text); border-color:rgba(245,166,35,.3); background:rgba(245,166,35,.09); }
+  .partner-detail-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+  .partner-detail-block { padding:16px; border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,.12); }
+  .partner-detail-block h3 { margin:0 0 12px; font-size:13px; }
+  .partner-detail-kv small { display:block; color:var(--text-muted); font-size:10px; text-transform:uppercase; }
+  .partner-detail-kv strong { display:block; margin-top:4px; font-size:13px; overflow-wrap:anywhere; }
+  .partner-profile-form { display:grid; grid-template-columns:repeat(4,minmax(130px,1fr)); gap:10px; align-items:end; margin-bottom:16px; }
 
   @media (max-width:900px) {
     .partners-workspace { grid-template-columns:1fr; }
@@ -926,6 +935,7 @@
     .partner-overview-grid { grid-template-columns:1fr; }
     .partners-page-head { flex-direction:column; }
     .partner-type-checks { grid-template-columns:1fr; }
+    .partner-detail-grid, .partner-profile-form { grid-template-columns:1fr; }
     .settings-modal { display:block; overflow:hidden; }
     .settings-sidebar { width:100%; height:58px; padding:7px 10px; flex-direction:row; border-right:0; border-bottom:1px solid rgba(255,255,255,.08); }
     .settings-sidebar .ss-header { width:42px; min-height:42px; padding:0; margin:0 8px 0 0; border:0; }
@@ -1606,7 +1616,6 @@
               <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
                 <input type="file" id="agentCsvInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="importAgentCsv(event)">
                 <input type="file" id="carrierExcelInput" accept=".xlsx,.xls" style="display:none;" onchange="syncCarriersFromExcel(event)">
-                <button class="btn btn-secondary" id="partnerRatesShortcut" onclick="openPartnerRates()">Taxas e regras</button>
                 <button class="btn btn-secondary" onclick="document.getElementById('agentCsvInput').click()">📥 Importar</button>
                 <button class="btn btn-primary" onclick="openAgentModal(null,currentPartnerFilter)">➕ Novo</button>
               </div>
@@ -1618,6 +1627,22 @@
                 <tbody id="agentsTbody"></tbody>
               </table>
             </div>
+          </div>
+
+          <div class="partners-view" id="partnerDetailView" hidden>
+            <div class="partners-page-head">
+              <div><button class="document-delete" onclick="closePartnerProfile()" style="margin-bottom:8px">← Voltar para a lista</button><h2 id="partnerProfileTitle">Ficha do parceiro</h2><p id="partnerProfileSubtitle"></p></div>
+              <button class="btn btn-secondary" onclick="editCurrentPartner()">✏️ Editar cadastro</button>
+            </div>
+            <div class="partner-detail-tabs" id="partnerDetailTabs">
+              <button class="partner-detail-tab active" data-profile-tab="registration" onclick="showPartnerProfileTab('registration')">Cadastro</button>
+              <button class="partner-detail-tab" data-profile-tab="contacts" onclick="showPartnerProfileTab('contacts')">Contatos</button>
+              <button class="partner-detail-tab" data-profile-tab="coverage" onclick="showPartnerProfileTab('coverage')">Atuação</button>
+              <button class="partner-detail-tab" data-profile-tab="fees" onclick="showPartnerProfileTab('fees')">Taxas e fretes</button>
+              <button class="partner-detail-tab" data-profile-tab="rules" onclick="showPartnerProfileTab('rules')">Regras</button>
+              <button class="partner-detail-tab" data-profile-tab="history" onclick="showPartnerProfileTab('history')">Histórico</button>
+            </div>
+            <div id="partnerProfileContent"><p style="color:var(--text-muted)">Carregando ficha...</p></div>
           </div>
         </section>
       </div>
@@ -2047,18 +2072,13 @@
 
         <li class="nav-section-title">REGRAS</li>
         <li data-tab="knowledge" onclick="switchSettingsTab('knowledge')">IA</li>
-        <li data-tab="carrierProfiles" onclick="window.marineCommercialSection='';switchSettingsTab('carrierProfiles')">Cadastro de Armadores</li>
 
         <li class="nav-section-title">TAXAS</li>
         <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Árvore de Incoterms</li>
-        <li class="nav-sub-header">Tarifas Específicas</li>
-        <li class="nav-sub-item" data-tab="fixedFeesAir" onclick="switchSettingsTab('fixedFeesAir')">Companhias Aéreas</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
-        <li data-tab="carrierRates" onclick="switchSettingsTab('carrierRates')">Base de Fretes Marítimos</li>
 
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
-        <li data-tab="deconsolidators" onclick="switchSettingsTab('deconsolidators')">Desconsolidadores</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
         <li data-tab="users" onclick="switchSettingsTab('users')" style="opacity:0.6; cursor:not-allowed;">
           Usuários
@@ -2074,7 +2094,7 @@
         <div class="settings-topbar-title"><small>Audaz Global</small><strong>Administração</strong></div>
         <nav class="settings-quick-nav" aria-label="Atalhos de administração">
           <button data-group="overview" onclick="switchSettingsTab('company')">Visão geral</button>
-          <button data-group="registrations" onclick="switchSettingsTab('carrierProfiles')">Cadastros</button>
+          <button data-group="registrations" onclick="closeSettings();switchTab('agents')">Parceiros</button>
           <button data-group="fees" onclick="switchSettingsTab('standardFees')">Taxas</button>
           <button data-group="automation" onclick="switchSettingsTab('knowledge')">Automações</button>
         </nav>
@@ -5679,7 +5699,9 @@ switchTab = function(name) {
 function openSettings() {
   document.getElementById('settingsOverlay').classList.add('active');
   document.body.classList.add('settings-open');
-  switchSettingsTab(localStorage.getItem('audaz_settings_tab') || 'standardFees');
+  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','agentDraftEmail','users'];
+  const savedTab = localStorage.getItem('audaz_settings_tab') || 'standardFees';
+  switchSettingsTab(allowedTabs.includes(savedTab) ? savedTab : 'standardFees');
 }
 function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('active');
@@ -5729,8 +5751,8 @@ function switchSettingsTab(tab) {
   });
 
   localStorage.setItem('audaz_settings_tab', tab);
-  const feeTabs = ['standardFees','fixedFeesAir','taxes','pricingSettings','carrierRates'];
-  const registrationTabs = ['carrierProfiles','deconsolidators','agentDraftEmail','users'];
+  const feeTabs = ['standardFees','taxes','pricingSettings'];
+  const registrationTabs = ['agentDraftEmail','users'];
   const automationTabs = ['knowledge'];
   const activeGroup = feeTabs.includes(tab) ? 'fees' : registrationTabs.includes(tab) ? 'registrations' : automationTabs.includes(tab) ? 'automation' : 'overview';
   document.querySelectorAll('.settings-quick-nav button').forEach(button => button.classList.toggle('active', button.dataset.group === activeGroup));
@@ -6345,6 +6367,8 @@ function setPartnerSection(section) {
   document.querySelectorAll('[data-partner-section]').forEach(button => button.classList.toggle('active', button.dataset.partnerSection === section));
   const overview = document.getElementById('partnersOverviewView');
   const list = document.getElementById('partnersListView');
+  const detail = document.getElementById('partnerDetailView');
+  if (detail) detail.hidden = true;
   if (overview) overview.hidden = section !== 'OVERVIEW';
   if (list) list.hidden = section === 'OVERVIEW';
   if (section === 'OVERVIEW') {
@@ -6354,7 +6378,6 @@ function setPartnerSection(section) {
   const meta = PARTNER_META[section] || { label: 'Parceiros', description: 'Gerencie os parceiros desta categoria.' };
   document.getElementById('partnerListTitle').textContent = meta.label;
   document.getElementById('partnerListDescription').textContent = meta.description;
-  document.getElementById('partnerRatesShortcut').textContent = section === 'ARMADOR' ? 'Taxas e regras do armador' : section === 'DESCONSOLIDADOR' ? 'Taxas de desconsolidação' : 'Taxas e regras';
   renderAgentsTable();
 }
 
@@ -6417,10 +6440,160 @@ async function loadPartnerOperationalStats() {
 }
 
 function openPartnerRates() {
-  if (currentPartnerFilter === 'ARMADOR') { openSettings(); switchSettingsTab('carrierProfiles'); return; }
-  if (currentPartnerFilter === 'DESCONSOLIDADOR') { openSettings(); switchSettingsTab('deconsolidators'); return; }
-  if (currentPartnerFilter === 'CIA_AEREA') { openSettings(); switchSettingsTab('fixedFeesAir'); return; }
-  openSettings(); switchSettingsTab('standardFees');
+  toast('Abra a ficha de um parceiro para gerenciar suas taxas, fretes e regras.');
+}
+
+let currentPartnerProfileId = null;
+let currentPartnerProfileData = null;
+let currentPartnerProfileTab = 'registration';
+
+async function openPartnerProfile(id, tab = 'registration') {
+  currentPartnerProfileId = id;
+  currentPartnerProfileTab = tab;
+  document.getElementById('partnersOverviewView').hidden = true;
+  document.getElementById('partnersListView').hidden = true;
+  document.getElementById('partnerDetailView').hidden = false;
+  document.getElementById('partnerProfileContent').innerHTML = '<p style="color:var(--text-muted)">Carregando ficha...</p>';
+  const response = await fetch(`${API}/agents/profile/${id}`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) { toast('❌ ' + (data.error || 'Erro ao abrir ficha.')); closePartnerProfile(); return; }
+  currentPartnerProfileData = data;
+  document.getElementById('partnerProfileTitle').textContent = data.partner.name;
+  document.getElementById('partnerProfileSubtitle').textContent = partnerTypesOf(data.partner).map(type => PARTNER_META[type]?.singular || type).join(' · ');
+  showPartnerProfileTab(tab);
+}
+
+function closePartnerProfile() {
+  currentPartnerProfileId = null;
+  currentPartnerProfileData = null;
+  document.getElementById('partnerDetailView').hidden = true;
+  document.getElementById('partnersListView').hidden = currentPartnerFilter === 'OVERVIEW';
+  document.getElementById('partnersOverviewView').hidden = currentPartnerFilter !== 'OVERVIEW';
+}
+
+function editCurrentPartner() {
+  if (currentPartnerProfileData?.partner) editAgent(currentPartnerProfileData.partner);
+}
+
+function profileValue(value) { return value === null || value === undefined || value === '' ? '—' : ifrEscape(Array.isArray(value) ? value.join(', ') : value); }
+function profileDate(value) { return value ? new Date(value).toLocaleDateString('pt-BR') : '—'; }
+function profileContacts(partner) { try { return Array.isArray(partner.contacts) ? partner.contacts : JSON.parse(partner.contacts || '[]'); } catch { return []; } }
+
+function showPartnerProfileTab(tab) {
+  if (!currentPartnerProfileData) return;
+  currentPartnerProfileTab = tab;
+  document.querySelectorAll('[data-profile-tab]').forEach(button => button.classList.toggle('active', button.dataset.profileTab === tab));
+  const content = document.getElementById('partnerProfileContent');
+  if (tab === 'registration') content.innerHTML = renderPartnerRegistration();
+  else if (tab === 'contacts') content.innerHTML = renderPartnerContacts();
+  else if (tab === 'coverage') content.innerHTML = renderPartnerCoverage();
+  else if (tab === 'fees') content.innerHTML = renderPartnerFees();
+  else if (tab === 'rules') content.innerHTML = renderPartnerRules();
+  else content.innerHTML = renderPartnerHistory();
+}
+
+function renderPartnerRegistration() {
+  const { partner, carrierProfile } = currentPartnerProfileData;
+  return `<div class="partner-detail-grid"><div class="partner-detail-block"><h3>Identificação</h3><div class="partner-detail-kv"><small>Nome</small><strong>${profileValue(partner.name)}</strong></div><div class="partner-detail-kv" style="margin-top:12px"><small>Papéis</small><strong>${profileValue(partnerTypesOf(partner).map(type => PARTNER_META[type]?.singular || type))}</strong></div></div><div class="partner-detail-block"><h3>Contato principal</h3><div class="partner-detail-kv"><small>E-mail</small><strong>${profileValue(partner.email)}</strong></div><div class="partner-detail-kv" style="margin-top:12px"><small>Telefone</small><strong>${profileValue(partner.phone)}</strong></div></div><div class="partner-detail-block"><h3>Status</h3><span class="status-badge ${partner.active ? 'approved' : 'expired'}">${partner.active ? 'Ativo' : 'Inativo'}</span><div class="partner-detail-kv" style="margin-top:12px"><small>Site</small><strong>${profileValue(partner.website)}</strong></div></div></div><div class="partner-detail-block" style="margin-top:14px"><h3>Identidade operacional</h3><div class="partner-profile-form"><div class="form-group" style="margin:0"><label>SCAC / IATA / Código</label><input id="pp-code" value="${ifrEscape(partner.code || carrierProfile?.code || '')}"></div><div class="form-group" style="margin:0"><label>Aliases</label><input id="pp-aliases" value="${ifrEscape((partner.aliases || []).join(', ') || carrierAliasesText(carrierProfile || {}))}"></div><div class="form-group" style="margin:0"><label>Equipamentos / faixas</label><input id="pp-equipment" value="${ifrEscape((partner.equipmentScopes || carrierEquipmentScopes(carrierProfile?.equipmentScopes)).join(', '))}"></div><button class="btn btn-primary" onclick="savePartnerOperational()">Salvar dados operacionais</button></div></div>`;
+}
+
+function renderPartnerContacts() {
+  const partner = currentPartnerProfileData.partner, contacts = profileContacts(partner);
+  const rows = contacts.length ? contacts.map(contact => `<tr><td>${profileValue(contact.name)}</td><td>${profileValue(contact.role)}</td><td>${profileValue(contact.email)}</td><td>${profileValue(contact.phone)}</td></tr>`).join('') : '<tr><td colspan="4" style="color:var(--text-muted)">Nenhum contato adicional cadastrado.</td></tr>';
+  return `<div class="partner-detail-block"><div style="display:flex;justify-content:space-between;align-items:center"><h3>Contatos</h3><button class="btn btn-secondary" onclick="editCurrentPartner()">Editar contatos</button></div><table class="q-table"><thead><tr><th>Nome</th><th>Cargo</th><th>E-mail</th><th>Telefone</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderPartnerCoverage() {
+  const partner = currentPartnerProfileData.partner;
+  return `<div class="partner-detail-grid"><div class="partner-detail-block"><h3>Modais</h3><div class="partner-detail-kv"><strong>${profileValue(partner.modals)}</strong></div></div><div class="partner-detail-block"><h3>Origens</h3><div class="partner-detail-kv"><strong>${profileValue(partner.origins)}</strong></div></div><div class="partner-detail-block"><h3>Destinos</h3><div class="partner-detail-kv"><strong>${profileValue(partner.destinations)}</strong></div></div><div class="partner-detail-block"><h3>Networks</h3><div class="partner-detail-kv"><strong>${profileValue(partner.networks)}</strong></div></div><div class="partner-detail-block" style="grid-column:span 2"><h3>Endereço</h3><div class="partner-detail-kv"><strong>${profileValue(partner.address)}</strong></div></div></div>`;
+}
+
+function renderPartnerFees() {
+  const data = currentPartnerProfileData, types = partnerTypesOf(data.partner), isCarrier = types.includes('ARMADOR'), isDecon = types.includes('DESCONSOLIDADOR');
+  const kindOptions = `<option value="LOCAL">Taxa local</option>${isCarrier ? '<option value="FREIGHT">Frete internacional marítimo</option>' : ''}${isDecon ? '<option value="DESCONSOLIDATION">Taxa de desconsolidação</option>' : ''}`;
+  const fees = [
+    ...data.fixedFees.map(item => ({ source:'FIXED_FEE', id:item.id, kind:'Taxa local', name:item.name, scope:`${item.modal} / ${item.type}`, value:`${item.currency} ${Number(item.value).toFixed(2)}`, validity:`${profileDate(item.effectiveFrom)} → ${profileDate(item.effectiveTo)}`, status:item.active?'Ativa':'Inativa' })),
+    ...data.carrierRates.map(item => ({ source:'CARRIER_RATE', id:item.id, kind:'Frete marítimo', name:item.chargeCatalog?.standardizedName || item.originalDescription || 'Frete', scope:`${item.portScope || 'ALL'} / ${item.equipment || 'ALL'}`, value:`${item.currency} ${Number(item.amount).toFixed(2)}`, validity:`${profileDate(item.effectiveFrom)} → ${profileDate(item.effectiveTo)}`, status:item.status })),
+    ...data.deconsolidationRates.map(item => ({ source:'DECONSOLIDATION', id:item.id, kind:'Desconsolidação', name:item.location || item.name, scope:item.modal, value:`${item.currency} ${Number(item.value).toFixed(2)}`, validity:`${profileDate(item.effectiveFrom)} → ${profileDate(item.effectiveTo)}`, status:item.active?'Ativa':'Inativa' }))
+  ];
+  const rows = fees.length ? fees.map(item => `<tr><td><small>${item.kind}</small><br><strong>${profileValue(item.name)}</strong></td><td>${profileValue(item.scope)}</td><td>${item.value}</td><td>${item.validity}</td><td>${profileValue(item.status)}</td><td><button class="action-btn" onclick="editPartnerProfileFee('${item.source}','${item.id}')">✏️</button><button class="action-btn danger" onclick="deletePartnerProfileItem('${item.source}','${item.id}')">🗑️</button></td></tr>`).join('') : '<tr><td colspan="6" style="color:var(--text-muted)">Nenhuma taxa ou frete cadastrado.</td></tr>';
+  return `<div class="partner-detail-block"><h3>Nova taxa ou frete</h3><div class="partner-profile-form"><div class="form-group" style="margin:0"><label>Tipo</label><select id="ppf-kind">${kindOptions}</select></div><div class="form-group" style="margin:0"><label>Nome da taxa</label><input id="ppf-name" placeholder="Ex.: THC ou Frete Santos"></div><div class="form-group" style="margin:0"><label>Modal</label><select id="ppf-modal"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL">Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option></select></div><div class="form-group" style="margin:0"><label>Origem/Destino</label><select id="ppf-type"><option value="DESTINATION">Destino</option><option value="ORIGIN">Origem</option></select></div><div class="form-group" style="margin:0"><label>Local / porto</label><input id="ppf-location" placeholder="ALL, Santos, GRU..."></div><div class="form-group" style="margin:0"><label>Equipamento / faixa</label><input id="ppf-equipment" placeholder="20GP, 40HC, +100kg..."></div><div class="form-group" style="margin:0"><label>Valor</label><input id="ppf-value" type="number" step="0.01"></div><div class="form-group" style="margin:0"><label>Moeda</label><select id="ppf-currency"><option>USD</option><option>BRL</option><option>EUR</option></select></div><div class="form-group" style="margin:0"><label>Unidade</label><input id="ppf-unit" value="PER SHIPMENT"></div><div class="form-group" style="margin:0"><label>Início</label><input id="ppf-from" type="date"></div><div class="form-group" style="margin:0"><label>Fim</label><input id="ppf-to" type="date"></div><div class="form-group" style="margin:0"><label>Evidência</label><input id="ppf-evidence" placeholder="E-mail, contrato, tabela..."></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="savePartnerProfileFee()">Salvar taxa/frete</button>${isCarrier ? '<input type="file" id="partnerCarrierRateFile" accept=".xlsx,.xls" style="display:none" onchange="importPartnerCarrierRates(event)"><button class="btn btn-secondary" onclick="document.getElementById(\'partnerCarrierRateFile\').click()">📥 Importar planilha marítima</button>' : ''}</div></div><div class="partner-detail-block" style="margin-top:14px;overflow:auto"><h3>Taxas e fretes cadastrados</h3><table class="q-table" style="min-width:900px"><thead><tr><th>Tipo / Nome</th><th>Escopo</th><th>Valor</th><th>Vigência</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderPartnerRules() {
+  const data = currentPartnerProfileData;
+  const generic = data.partnerRules.map(rule => `<tr><td><strong>${profileValue(rule.name)}</strong><br><small>${profileValue(rule.reason)}</small></td><td>${rule.modal} / ${rule.direction}</td><td>${rule.incoterm}</td><td>${rule.behavior}</td><td>${rule.priority}</td><td><button class="action-btn" onclick="editPartnerProfileRule('${rule.id}')">✏️</button><button class="action-btn danger" onclick="deletePartnerProfileItem('PARTNER_RULE','${rule.id}')">🗑️</button></td></tr>`);
+  const carrier = data.carrierFieldRules.map(rule => `<tr><td><strong>${profileValue(rule.fieldKey)}</strong><br><small>${profileValue(rule.reason)}</small></td><td>${rule.modal} / ${rule.stage}</td><td>Todos</td><td>${rule.behavior}</td><td>—</td><td><button class="action-btn danger" title="Remover regra operacional" onclick="deletePartnerProfileItem('CARRIER_FIELD_RULE','${rule.id}')">🗑️</button></td></tr>`);
+  const rows = [...generic, ...carrier].join('') || '<tr><td colspan="6" style="color:var(--text-muted)">Nenhuma regra cadastrada.</td></tr>';
+  return `<div class="partner-detail-block"><h3>Nova regra do parceiro</h3><div class="partner-profile-form"><div class="form-group" style="margin:0"><label>Nome</label><input id="ppr-name" placeholder="Ex.: Validade obrigatória"></div><div class="form-group" style="margin:0"><label>Modal</label><select id="ppr-modal"><option value="ALL">Todos</option><option value="AIR">Aéreo</option><option value="SEA_FCL">FCL</option><option value="SEA_LCL">LCL</option></select></div><div class="form-group" style="margin:0"><label>Direção</label><select id="ppr-direction"><option value="ALL">Todas</option><option value="IMPORT">Importação</option><option value="EXPORT">Exportação</option></select></div><div class="form-group" style="margin:0"><label>Incoterm</label><input id="ppr-incoterm" value="ALL"></div><div class="form-group" style="margin:0"><label>Campo controlado</label><select id="ppr-field"><option value="INFORMATIONAL">Somente informativa</option><option value="AGENT_EMAIL">E-mail do parceiro</option><option value="CARRIER">Cia aérea / armador</option><option value="FREIGHT_VALUE">Valor do frete</option><option value="RATE_VALIDITY">Validade da tarifa</option><option value="FREE_TIME">Free time</option><option value="CONTRACT_NUMBER">Contrato</option><option value="VESSEL_VOYAGE">Navio e viagem</option><option value="TRANSSHIPMENTS">Transbordos</option></select></div><div class="form-group" style="margin:0"><label>Comportamento</label><select id="ppr-behavior"><option value="SUGGESTED">Sugerido</option><option value="REQUIRED">Obrigatório</option><option value="LOCKED">Bloqueado</option><option value="NOT_APPLICABLE">Não aplicável</option></select></div><div class="form-group" style="margin:0"><label>Prioridade</label><input id="ppr-priority" type="number" value="0"></div><div class="form-group" style="margin:0"><label>Justificativa / instrução</label><input id="ppr-reason"></div></div><button class="btn btn-primary" onclick="savePartnerProfileRule()">Salvar regra</button></div><div class="partner-detail-block" style="margin-top:14px;overflow:auto"><h3>Regras cadastradas</h3><table class="q-table"><thead><tr><th>Regra</th><th>Escopo</th><th>Incoterm</th><th>Comportamento</th><th>Prioridade</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderPartnerHistory() {
+  const { partner, fixedFees, carrierRates, deconsolidationRates, partnerRules } = currentPartnerProfileData;
+  return `<div class="partner-detail-grid"><div class="partner-detail-block"><h3>Cadastro criado</h3><strong>${profileDate(partner.createdAt)}</strong></div><div class="partner-detail-block"><h3>Última alteração</h3><strong>${profileDate(partner.updatedAt)}</strong></div><div class="partner-detail-block"><h3>Registros vinculados</h3><strong>${fixedFees.length + carrierRates.length + deconsolidationRates.length} taxas/fretes · ${partnerRules.length + currentPartnerProfileData.carrierFieldRules.length} regras</strong></div></div>`;
+}
+
+async function savePartnerOperational() {
+  const payload = { code: document.getElementById('pp-code').value, aliases: document.getElementById('pp-aliases').value, equipmentScopes: document.getElementById('pp-equipment').value.split(',').map(value => value.trim()).filter(Boolean) };
+  const response = await fetch(`${API}/agents/profile/${currentPartnerProfileId}/operational`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  if (!response.ok) return toast('❌ Erro ao salvar dados operacionais.');
+  toast('✅ Dados operacionais salvos.'); await openPartnerProfile(currentPartnerProfileId, 'registration'); loadAgents();
+}
+
+function editPartnerProfileFee(source, id) {
+  const data = currentPartnerProfileData;
+  const item = source === 'FIXED_FEE' ? data.fixedFees.find(row => row.id === id) : source === 'CARRIER_RATE' ? data.carrierRates.find(row => row.id === id) : data.deconsolidationRates.find(row => row.id === id);
+  if (!item) return;
+  const kind = document.getElementById('ppf-kind'); kind.dataset.editSource = source; kind.dataset.editId = id;
+  kind.value = source === 'CARRIER_RATE' ? 'FREIGHT' : source === 'DECONSOLIDATION' ? 'DESCONSOLIDATION' : 'LOCAL';
+  document.getElementById('ppf-name').value = source === 'CARRIER_RATE' ? item.chargeCatalog?.standardizedName || item.originalDescription || 'Frete' : source === 'DECONSOLIDATION' ? 'Desconsolidação' : item.name;
+  document.getElementById('ppf-modal').value = item.modal || 'ALL'; document.getElementById('ppf-type').value = item.type || 'DESTINATION';
+  document.getElementById('ppf-location').value = item.portScope || item.location || ''; document.getElementById('ppf-equipment').value = item.equipment || item.containerSize || '';
+  document.getElementById('ppf-value').value = item.amount ?? item.value ?? ''; document.getElementById('ppf-currency').value = item.currency || 'USD'; document.getElementById('ppf-unit').value = item.unitBasis || item.billingUnit || 'PER SHIPMENT';
+  document.getElementById('ppf-from').value = item.effectiveFrom ? String(item.effectiveFrom).slice(0,10) : ''; document.getElementById('ppf-to').value = item.effectiveTo ? String(item.effectiveTo).slice(0,10) : ''; document.getElementById('ppf-evidence').value = item.evidence || item.evidences?.[0]?.sourceRef || '';
+  document.getElementById('ppf-name').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function savePartnerProfileFee() {
+  const value = Number(document.getElementById('ppf-value').value), kind = document.getElementById('ppf-kind').value;
+  if (!Number.isFinite(value)) return toast('⚠️ Informe um valor válido.');
+  const payload = { kind, name:document.getElementById('ppf-name').value || 'Taxa', modal:document.getElementById('ppf-modal').value, type:document.getElementById('ppf-type').value, location:document.getElementById('ppf-location').value, portScope:document.getElementById('ppf-location').value || 'ALL', equipment:document.getElementById('ppf-equipment').value || 'ALL', value, amount:value, currency:document.getElementById('ppf-currency').value, billingUnit:document.getElementById('ppf-unit').value, unitBasis:document.getElementById('ppf-unit').value, effectiveFrom:document.getElementById('ppf-from').value || undefined, effectiveTo:document.getElementById('ppf-to').value || undefined, evidence:document.getElementById('ppf-evidence').value };
+  let url = `${API}/agents/profile/${currentPartnerProfileId}/fees`;
+  const kindElement = document.getElementById('ppf-kind'), editSource = kindElement.dataset.editSource, editId = kindElement.dataset.editId;
+  let method = 'POST';
+  if (editSource && editId) { url = `${API}/agents/profile/${currentPartnerProfileId}/items/${editSource}/${editId}`; method = 'PUT'; }
+  else if (kind === 'FREIGHT') { if (!currentPartnerProfileData.carrierProfile) return toast('⚠️ Salve primeiro os dados operacionais do armador.'); url = API + '/carrier-rates'; payload.carrierProfileId = currentPartnerProfileData.carrierProfile.id; payload.chargeName = payload.name; payload.status = payload.effectiveFrom && payload.effectiveTo ? 'APPROVED' : 'REFERENCE'; }
+  const response = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  const body = await response.json().catch(() => ({})); if (!response.ok) return toast('❌ ' + (body.error || 'Erro ao salvar taxa.'));
+  toast('✅ Taxa/frete salvo.'); await openPartnerProfile(currentPartnerProfileId, 'fees');
+}
+
+async function savePartnerProfileRule() {
+  const payload = { name:document.getElementById('ppr-name').value, modal:document.getElementById('ppr-modal').value, direction:document.getElementById('ppr-direction').value, incoterm:document.getElementById('ppr-incoterm').value || 'ALL', fieldKey:document.getElementById('ppr-field').value, behavior:document.getElementById('ppr-behavior').value, priority:Number(document.getElementById('ppr-priority').value || 0), reason:document.getElementById('ppr-reason').value };
+  if (!payload.name) return toast('⚠️ Informe o nome da regra.');
+  const nameElement = document.getElementById('ppr-name'), editId = nameElement.dataset.editId;
+  const url = editId ? `${API}/agents/profile/${currentPartnerProfileId}/items/PARTNER_RULE/${editId}` : `${API}/agents/profile/${currentPartnerProfileId}/rules`;
+  const response = await fetch(url, { method:editId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  if (!response.ok) return toast('❌ Erro ao salvar regra.'); toast('✅ Regra salva.'); await openPartnerProfile(currentPartnerProfileId, 'rules');
+}
+
+function editPartnerProfileRule(id) {
+  const rule = currentPartnerProfileData.partnerRules.find(item => item.id === id); if (!rule) return;
+  const name = document.getElementById('ppr-name'); name.dataset.editId = id; name.value = rule.name || '';
+  document.getElementById('ppr-modal').value = rule.modal || 'ALL'; document.getElementById('ppr-direction').value = rule.direction || 'ALL'; document.getElementById('ppr-incoterm').value = rule.incoterm || 'ALL'; document.getElementById('ppr-field').value = rule.fieldKey || 'INFORMATIONAL'; document.getElementById('ppr-behavior').value = rule.behavior || 'SUGGESTED'; document.getElementById('ppr-priority').value = rule.priority || 0; document.getElementById('ppr-reason').value = rule.reason || ''; name.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function deletePartnerProfileItem(source, id) {
+  if (!confirm('Remover este registro da ficha do parceiro?')) return;
+  const response = await fetch(`${API}/agents/profile/${currentPartnerProfileId}/items/${source}/${id}`, { method:'DELETE' });
+  if (!response.ok) return toast('❌ Erro ao remover registro.'); toast('✅ Registro removido.'); await openPartnerProfile(currentPartnerProfileId, currentPartnerProfileTab);
+}
+
+async function importPartnerCarrierRates(event) {
+  const file = event.target.files?.[0]; if (!file) return;
+  const form = new FormData(); form.append('file', file); toast('⏳ Importando base marítima...');
+  const response = await fetch(API + '/carrier-rates/import-daniel', { method:'POST', body:form }); const body = await response.json().catch(() => ({})); event.target.value='';
+  if (!response.ok) return toast('❌ ' + (body.error || 'Falha na importação.')); toast(`✅ ${body.summary?.importedRows || 0} tarifas importadas.`); await openPartnerProfile(currentPartnerProfileId, 'fees');
 }
 
 function renderAgentsTable() {
@@ -6450,6 +6623,7 @@ function renderAgentsTable() {
         <td><span class="status-badge ${a.active ? 'approved' : 'expired'}">${a.active ? 'Ativo' : 'Inativo'}</span></td>
         <td>
           <div class="action-btns">
+            <button class="action-btn" onclick="openPartnerProfile('${a.id}')" title="Abrir ficha">📂</button>
             <button class="action-btn" onclick="editAgentById('${a.id}')" title="Editar">✏️</button>
             <button class="action-btn danger" onclick="deleteAgent('${a.id}')" title="Excluir">🗑️</button>
           </div>

@@ -70,8 +70,13 @@ async function upsertCarrier(nameValue: any) {
     const candidates = [profile.name, profile.code, ...jsonArray(profile.aliases)].map(canonical);
     return candidates.includes(canonical(name));
   });
-  if (existing) return existing;
-  return prisma.carrierProfile.create({ data: { name, code: CARRIER_CODES[canonical(name)] || null, aliases: '[]', modal: 'SEA', active: true } });
+  let profile = existing || await prisma.carrierProfile.create({ data: { name, code: CARRIER_CODES[canonical(name)] || null, aliases: '[]', modal: 'SEA', active: true } });
+  if (!profile.partnerId) {
+    let partner = await prisma.agent.findFirst({ where: { name: { equals: profile.name, mode: 'insensitive' } } });
+    if (!partner) partner = await prisma.agent.create({ data: { name: profile.name, type: 'ARMADOR', types: JSON.stringify(['ARMADOR']), code: profile.code, aliases: profile.aliases, equipmentScopes: profile.equipmentScopes, modals: 'SEA_FCL, SEA_LCL', origins: 'Global', destinations: 'Brasil', active: true } });
+    profile = await prisma.carrierProfile.update({ where: { id: profile.id }, data: { partnerId: partner.id } });
+  }
+  return profile;
 }
 
 async function upsertCatalog(nameValue: any, acronymValue?: any, descriptionValue?: any, aliasesToAdd: string[] = []) {

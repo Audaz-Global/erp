@@ -338,6 +338,9 @@ model Agent {
   email        String?
   type         String  @default("AGENTE") // AGENTE, COLOADER, ARMADOR
   types        String? // JSON array de papéis; type permanece como papel principal por compatibilidade
+  code         String?
+  aliases      String? // JSON array de nomes alternativos
+  equipmentScopes String? // JSON array de equipamentos/faixas atendidas
   networks     String? // Ex: "WCA, JCtrans"
   address      String?
   phone        String?
@@ -374,8 +377,13 @@ model FixedFee {
   updatedAt        DateTime        @updatedAt
   carrierProfileId String?
   carrierProfile   CarrierProfile? @relation(fields: [carrierProfileId], references: [id])
+  partnerId        String?
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  evidence         String?
 
   @@index([carrierProfileId])
+  @@index([partnerId])
 }
 
 model CarrierProfile {
@@ -386,6 +394,7 @@ model CarrierProfile {
   modal           String   @default("SEA")
   equipmentScopes String?  @default("[\"20GP\",\"40GP\",\"40HC\"]") // JSON array de equipamentos habilitados
   active          Boolean  @default(true)
+  partnerId       String?  @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -611,8 +620,37 @@ model Deconsolidator {
   value     Float
   currency  String   @default("BRL")
   active    Boolean  @default(true)
+  partnerId String?
+  effectiveFrom DateTime?
+  effectiveTo DateTime?
+  evidence String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([modal])
+  @@index([partnerId])
+}
+
+model PartnerRule {
+  id            String   @id @default(uuid())
+  partnerId     String
+  name          String
+  modal         String   @default("ALL")
+  direction     String   @default("ALL")
+  incoterm      String   @default("ALL")
+  route         String?
+  equipment     String?
+  stage         String   @default("ALL")
+  fieldKey      String?
+  behavior      String   @default("SUGGESTED")
+  reason        String?
+  priority      Int      @default(0)
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([partnerId, active])
+  @@index([modal, direction, incoterm])
 }

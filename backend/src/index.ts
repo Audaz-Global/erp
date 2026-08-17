@@ -7,6 +7,7 @@ import { prisma } from './prisma';
 import { backfillIncotermRuleStandardFees } from './services/standardFeeLinkService';
 import { normalizeIncotermRuleSortOrders } from './services/incotermRuleOrderService';
 import { backfillQuotationHistory } from './services/quotationHistoryService';
+import { backfillPartnerLinks } from './services/partnerLinkService';
 export { prisma };
 
 const app = express();
@@ -103,6 +104,13 @@ async function startServer() {
 
   const historyRecords = await backfillQuotationHistory(prisma);
   if (historyRecords > 0) console.log(`✅ ${historyRecords} registro(s) histórico(s) reconstruído(s).`);
+
+  try {
+    const partnerLinks = await backfillPartnerLinks(prisma);
+    if (partnerLinks > 0) console.log(`✅ ${partnerLinks} cadastro(s), taxa(s) ou perfil(is) vinculados à Central de Parceiros.`);
+  } catch (error) {
+    console.error('A Central de Parceiros iniciou, mas alguns vínculos legados precisam de revisão:', error);
+  }
 
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
