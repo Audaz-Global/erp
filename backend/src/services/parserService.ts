@@ -48,22 +48,37 @@ function safeIsoDate(value: any): string | undefined {
 
 export function extractContactFromSignature(body: string, senderName = '', senderEmail = '') {
   const lines = String(body || '').replace(/\r/g, '').split('\n').map(line => line.trim()).filter(Boolean);
-  const signatureStart = lines.findIndex(line => /^(atenciosamente|cordialmente|obrigad[oa]|best regards|kind regards|regards|sincerely|thanks(?: and regards)?|many thanks)[,!]?$/i.test(line));
-  const signatureLines = (signatureStart >= 0 ? lines.slice(signatureStart + 1) : lines.slice(-12)).slice(0, 12);
+  const signoffPattern = /^(atenciosamente|cordialmente|obrigad[oa]|best regards|kind regards|regards|sincerely|thanks(?: and regards)?|many thanks)[,!]?$/i;
+  let signatureStart = -1;
+  // O corpo pode terminar com "Obrigada" e a assinatura ainda conter "Best Regards".
+  // A última despedida é o início correto da assinatura.
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (signoffPattern.test(lines[index] || '')) { signatureStart = index; break; }
+  }
+  const signatureLines = (signatureStart >= 0 ? lines.slice(signatureStart + 1) : lines.slice(-20)).slice(0, 20);
   const evidence = signatureLines.join(' | ');
-  const phoneMatch = evidence.match(/(?:tel(?:ephone)?|phone|mobile|cell|whatsapp|fone|cel(?:ular)?)?\s*[:.]?\s*(\+?\d[\d() .-]{6,}\d)(?:\s*(?:ext\.?|ramal|x)\s*\d+)?/i);
+  const phonePattern = /(?:tel(?:ephone)?|phone|mobile|cell|whatsapp|fone|cel(?:ular)?)?\s*[:.]?\s*(\+?\d[\d() .-]{6,}\d)(?:\s*(?:ext\.?|ramal|x)\s*\d+)?/gi;
+  const phoneMatches = [...evidence.matchAll(phonePattern)].map(match => {
+    const phone = normalizePhone(match[1] || '');
+    const digits = phone.replace(/\D/g, '');
+    const context = evidence.slice(Math.max(0, (match.index || 0) - 24), (match.index || 0) + match[0].length).toLowerCase();
+    const explicitlyMobile = /whatsapp|mobile|cell|celular/.test(context);
+    const brazilianMobile = (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') || (digits.length === 11 && digits[2] === '9');
+    return { phone, score: (explicitlyMobile ? 4 : 0) + (brazilianMobile ? 2 : 0) };
+  }).filter(item => item.phone).sort((a, b) => b.score - a.score);
   const emailMatch = evidence.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   const nameLine = signatureLines.find(line => {
     const compact = line.replace(/[|•·]/g, ' ').trim();
     return compact.length >= 3 && compact.length <= 80
       && !/@/.test(compact)
-      && !/(tel|phone|mobile|cell|whatsapp|www\.|http|ltd|inc\.|logistics|cargo|freight|comercial|sales)/i.test(compact)
-      && /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' .-]+$/.test(compact);
+      && !signoffPattern.test(compact)
+      && !/(tel|phone|mobile|cell|whatsapp|www\.|http|ltd|inc\.|logistics|cargo|freight|comercial|sales|supervisor|manager|director|coordinator|analyst|foreign trade|import|export|comex)/i.test(compact)
+      && /^\p{L}+(?:['.-]\p{L}+)*(?:\s+\p{L}+(?:['.-]\p{L}+)*){1,5}$/u.test(compact);
   });
   const name = nameLine || senderName || '';
-  const phone = phoneMatch?.[1] ? normalizePhone(phoneMatch[1]) : '';
+  const phone = phoneMatches[0]?.phone || '';
   const email = emailMatch?.[0] || senderEmail || '';
-  const source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'NOT_FOUND' = signatureLines.length && (nameLine || phoneMatch || emailMatch) ? 'SIGNATURE_TEXT' : (senderName || senderEmail ? 'SENDER_HEADER' : 'NOT_FOUND');
+  const source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'NOT_FOUND' = signatureLines.length && (nameLine || phoneMatches.length || emailMatch) ? 'SIGNATURE_TEXT' : (senderName || senderEmail ? 'SENDER_HEADER' : 'NOT_FOUND');
   const confidence = source === 'SIGNATURE_TEXT' ? (name && phone ? 0.9 : 0.75) : (name || email ? 0.55 : 0);
   return { name, phone, email, source, confidence, evidence: evidence.slice(0, 600) };
 }
