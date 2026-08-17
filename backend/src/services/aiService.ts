@@ -217,13 +217,13 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 origin_city: { type: 'string', description: 'Local Inicial de coleta da carga (Cidade/Estado/País)' },
                 origin_country: { type: 'string', description: 'País do porto ou aeroporto de origem' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem (formato IATA para aeroporto, ex: WNZ - Wenzhou)' },
-                destination_city: { type: 'string', description: 'Destino Final de entrega da carga (Cidade/Estado/País)' },
+                destination_city: { type: 'string', description: 'Destino final explicitamente informado. Não deduza usando assinatura, telefone ou endereço conhecido da empresa; sem destino final expresso, use o porto/aeroporto de destino.' },
                 destination_country: { type: 'string', description: 'País do porto ou aeroporto de destino' },
                 destination_airport: { type: 'string', description: 'Porto ou Aeroporto de Destino (formato IATA para aeroporto, ex: GRU - Guarulhos)' },
                 connections: { type: 'string', description: 'Conexões do voo (ex: via MIA) ou escalas de porto (ex: transbordo em Algeciras). Retorne string vazia se for direto.' },
                 needs_origin_inland: { type: 'boolean', description: 'Verdadeiro quando é necessário cotar a coleta terrestre na origem, normalmente em EXW ou FCA quando o local inicial é diferente do porto/aeroporto de embarque.' },
                 origin_inland_route: { type: 'string', description: 'Rota da coleta na origem no formato "Local de coleta → Porto/Aeroporto". Retorne string vazia quando needs_origin_inland for false.' },
-                needs_transport: { type: 'boolean', description: 'Defina como true se a operação exigir transporte rodoviário terrestre nacional no Brasil (ex: coleta na origem se for EXW/FCA e a origem for no Brasil, ou entrega no destino se for DAP/DDP/DDU/Door e o destino for no Brasil, ou se houver pedido explícito de frete terrestre nacional no Brasil). Caso contrário, retorne false.' },
+                needs_transport: { type: 'boolean', description: 'True somente quando o cliente pedir explicitamente transporte rodoviário nacional, entrega local/final ou coleta nacional no texto da solicitação. Incoterm, assinatura ou endereço da empresa isoladamente não autorizam marcar.' },
                 transport_route: { type: 'string', description: 'O trecho rodoviário nacional do Brasil necessário (ex: "Santos x Itatiba/SP", "Guarulhos x Jacareí/SP"). Retorne string vazia se needs_transport for false.' },
                 confidence: { type: 'number' }
               },
@@ -315,7 +315,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - **Origem (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de origem do frete principal. Se modal for Aéreo, infira o aeroporto internacional no formato "IATA - Nome do Aeroporto" (ex: "SZX - Shenzhen Bao'an International", "PRG - Prague Ruzyne International"). Se modal for Marítimo, identifique o porto de embarque internacional. Salve em "origin_airport".
     - **Destino (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de destino. Se modal for Aéreo, infira no formato "IATA - Nome do Aeroporto" (ex: "GRU - Aeroporto Internacional Guarulhos"). Se modal for Marítimo, identifique o porto de descarga (ex: "Santos"). Salve em "destination_airport".
     - **Local Inicial (Cidade/Estado/País)**: Identifique a cidade, estado e país onde a carga está localizada e será coletada inicialmente no fornecedor (ex: "Pribyslav, República Tcheca" ou "Shenzhen, China"). Salve em "origin_city".
-    - **Destino Final (Cidade/Estado/País)**: Identifique a cidade, estado e país final de entrega da mercadoria para o importador (ex: "Jacareí, SP, Brasil"). Salve em "destination_city".
+    - **Destino Final (Cidade/Estado/País)**: Use uma cidade final apenas quando ela estiver explicitamente informada no pedido (ex: "entrega em Jacareí"). NUNCA deduza o destino final por assinatura, telefone, cadastro ou endereço conhecido da empresa. Sem destino final expresso, repita o porto/aeroporto de destino em "destination_city".
     - **País**: Extraia o nome do país de origem e de destino correspondente à origem e destino principais no exterior/Brasil por extenso (ex: "CHINA" e "BRASIL"). Salve em "origin_country" e "destination_country".
     - **Conexões do Voo ou do Porto**: Identifique se há menção a escalas, aeroportos de conexão intermediários (ex: via MIA, via FRA) ou portos de escala/transbordo (ex: transbordo em Algeciras). Salve essa informação em "connections". Caso o embarque seja direto e sem conexões, retorne string vazia "".
     - **Inland de Origem / Coleta (needs_origin_inland e origin_inland_route)**:
@@ -324,7 +324,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
       3. Preencha origin_inland_route como "[Local inicial] → [Porto/Aeroporto de origem]". Não invente valor de coleta.
       4. Esta coleta internacional de origem é diferente do transporte rodoviário nacional no Brasil.
     - **Necessidade de Transporte Rodoviário (needs_transport e transport_route)**:
-      1. Defina "needs_transport" como true se a operação necessitar de transporte terrestre rodoviário nacional no Brasil. Isso é obrigatório se o Incoterm indicar que o importador é responsável pela coleta/entrega final no Brasil (ex: se o destino final for no Brasil e o Incoterm for DAP, DDP, DDU, Door-to-door, ou se a origem for no Brasil e o Incoterm for EXW ou FCA, ou se o e-mail do cliente pedir explicitamente "entrega local", "rodoviário nacional", "entrega em Itatiba", "coleta na fábrica Y", etc.).
+      1. Defina "needs_transport" como true SOMENTE se o texto do cliente pedir explicitamente "entrega local", "transporte/frete rodoviário", "entrega em [cidade]", "coleta nacional", "door-to-door" ou equivalente. Incoterm isolado, cidade da assinatura e endereço cadastral não bastam.
       2. No campo "transport_route", preencha a rota terrestre nacional necessária no formato "[Origem] x [Destino]" (ex: "Santos x Itatiba/SP" se vier via Porto de Santos, ou "Guarulhos x Jacareí/SP" se vier via Aeroporto de Guarulhos). Se needs_transport for false, retorne string vazia "".
 
     Instruções Importantes para Carga/Equipamento Especial:

@@ -630,6 +630,9 @@
   .btn-secondary { background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.11); }
   .btn-secondary:hover { background:rgba(255,255,255,.075); border-color:rgba(255,255,255,.18); }
   .btn-row { gap:10px; }
+  .partner-type-selector { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+  .partner-type-selector .btn { min-width:0; padding:10px; font-size:13px; white-space:normal; }
+  .partner-type-selector .btn:disabled { opacity:.38; cursor:not-allowed; border-color:var(--border); }
 
   .status-strip { border-width:1px; font-size:13px; }
   .toast { left:50%; right:auto; bottom:22px; transform:translateX(-50%); min-width:min(420px,calc(100vw - 32px)); text-align:center; background:#151e2d; border-color:#34415a; box-shadow:var(--shadow-lg); }
@@ -692,6 +695,7 @@
     .review-section { padding:16px 13px; }
     .btn-row { display:grid; grid-template-columns:1fr; }
     .btn-row .btn { width:100%; justify-content:center; }
+    .partner-type-selector { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .history-toolbar { display:grid; grid-template-columns:1fr; gap:8px; }
     .history-toolbar .search-box { min-width:0; }
     .summary-cards { grid-template-columns:1fr 1fr; gap:8px; }
@@ -1147,7 +1151,7 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div class="form-group">
                 <label>Tipo <span id="conf-type"></span></label>
-                <select id="r-type" class="req">
+                <select id="r-type" class="req" onchange="syncPartnerTypesForModal()">
                   <option value="LCL">LCL</option>
                   <option value="FCL_20">FCL 20'</option>
                   <option value="FCL_40">FCL 40'</option>
@@ -1202,10 +1206,11 @@
 
       <div class="form-group" style="margin-top: 24px;">
         <label>Tipo de Parceiro</label>
-        <div class="partner-type-selector" style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <button type="button" class="btn btn-secondary active" id="partner-type-agent" onclick="setPartnerType('AGENTE')" style="flex: 1; padding: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">👥 Agente</button>
-          <button type="button" class="btn btn-secondary" id="partner-type-coloader" onclick="setPartnerType('COLOADER')" style="flex: 1; padding: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">🤝 Coloader</button>
-          <button type="button" class="btn btn-secondary" id="partner-type-carrier" onclick="setPartnerType('ARMADOR')" style="flex: 1; padding: 10px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">🚢 Armador</button>
+        <div class="partner-type-selector">
+          <button type="button" class="btn btn-secondary active" id="partner-type-agent" onclick="setPartnerType('AGENTE')">👥 Agente</button>
+          <button type="button" class="btn btn-secondary" id="partner-type-coloader" onclick="setPartnerType('COLOADER')">🤝 Coloader</button>
+          <button type="button" class="btn btn-secondary" id="partner-type-carrier" onclick="setPartnerType('ARMADOR')">🚢 Armador</button>
+          <button type="button" class="btn btn-secondary" id="partner-type-airline" onclick="setPartnerType('CIA_AEREA')" disabled title="Disponível para cotações aéreas.">✈️ Companhia Aérea</button>
         </div>
       </div>
 
@@ -1215,6 +1220,7 @@
           <select id="r-agent-email" onchange="onAgentSelectChange()" style="margin: 0;">
             <option value="">Nenhum parceiro encontrado</option>
           </select>
+          <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;width:100%;margin-top:8px;">Cadastrar parceiro</button>
         </div>
         <div class="form-group" style="margin: 0;">
           <label>E-mail de Envio (Destinatário)</label>
@@ -1243,6 +1249,7 @@
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border);">
         <input type="checkbox" id="r-needs-transport" onchange="toggleTransportSection(this.checked)" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
         <label for="r-needs-transport" style="margin: 0; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">🚚 Solicitar Transporte Terrestre Nacional para esta cotação?</label>
+        <small id="r-transport-decision" style="flex-basis:100%;display:none;margin-left:26px;color:var(--text-muted);"></small>
       </div>
 
       <!-- Seção de Transporte Terrestre Nacional -->
@@ -2999,26 +3006,56 @@ function markRateValidityManual(prefix) {
 let currentPartnerType = 'AGENTE';
 
 function setPartnerType(type) {
+  const targetButton = {
+    AGENTE: 'partner-type-agent', COLOADER: 'partner-type-coloader',
+    ARMADOR: 'partner-type-carrier', CIA_AEREA: 'partner-type-airline'
+  }[type];
+  if (!targetButton || document.getElementById(targetButton)?.disabled) return;
   currentPartnerType = type;
   
   document.getElementById('partner-type-agent').classList.toggle('active', type === 'AGENTE');
   document.getElementById('partner-type-coloader').classList.toggle('active', type === 'COLOADER');
   document.getElementById('partner-type-carrier').classList.toggle('active', type === 'ARMADOR');
+  document.getElementById('partner-type-airline').classList.toggle('active', type === 'CIA_AEREA');
   
   const label = document.getElementById('partner-select-label');
   if (label) {
     if (type === 'AGENTE') label.textContent = 'Selecione o Agente';
     else if (type === 'COLOADER') label.textContent = 'Selecione o Coloader';
     else if (type === 'ARMADOR') label.textContent = 'Selecione o Armador';
+    else if (type === 'CIA_AEREA') label.textContent = 'Selecione a Companhia Aérea';
   }
   
   const originCountry = document.getElementById('r-origin-country').value || '';
   populateAgentDropdown(originCountry);
 }
 
+function syncPartnerTypesForModal() {
+  const isAir = document.getElementById('r-type')?.value === 'AIR_GENERAL';
+  const carrierButton = document.getElementById('partner-type-carrier');
+  const airlineButton = document.getElementById('partner-type-airline');
+  if (!carrierButton || !airlineButton) return;
+
+  carrierButton.disabled = isAir;
+  carrierButton.title = isAir ? 'Disponível para cotações marítimas.' : '';
+  airlineButton.disabled = !isAir;
+  airlineButton.title = isAir ? '' : 'Disponível para cotações aéreas.';
+
+  if (isAir && currentPartnerType === 'ARMADOR') setPartnerType('CIA_AEREA');
+  else if (!isAir && currentPartnerType === 'CIA_AEREA') setPartnerType('ARMADOR');
+}
+
+function openMissingPartnerRegistration() {
+  switchTab('agents');
+  setPartnerSection(currentPartnerType);
+  openAgentModal(null, currentPartnerType);
+}
+
 async function populateAgentDropdown(originCountry) {
   const select = document.getElementById('r-agent-email');
+  const emptyAction = document.getElementById('partner-empty-action');
   if (!select) return;
+  if (emptyAction) emptyAction.style.display = 'none';
   select.innerHTML = '<option value="">Buscando parceiros...</option>';
   
   if (!window.globalAgentsList) {
@@ -3062,7 +3099,7 @@ async function populateAgentDropdown(originCountry) {
      
      if (!partnerHasType(a, currentPartnerType)) return false;
      
-     if (currentPartnerType === 'ARMADOR') return true;
+     if (currentPartnerType === 'ARMADOR' || currentPartnerType === 'CIA_AEREA') return true;
      
      if (!countryLower) return false;
      if (!a.origins) return false;
@@ -3071,7 +3108,13 @@ async function populateAgentDropdown(originCountry) {
   });
 
   if (matchingAgents.length === 0) {
-    select.innerHTML = '<option value="">Nenhum parceiro encontrado para ' + (currentPartnerType === 'ARMADOR' ? 'atuação' : 'a origem ' + (originCountry||'Desconhecida')) + '</option>';
+    const unrestrictedType = currentPartnerType === 'ARMADOR' || currentPartnerType === 'CIA_AEREA';
+    select.innerHTML = '<option value="">Nenhum parceiro encontrado para ' + (unrestrictedType ? 'atuação' : 'a origem ' + (originCountry||'Desconhecida')) + '</option>';
+    if (emptyAction) {
+      const singular = currentPartnerType === 'CIA_AEREA' ? 'Companhia Aérea' : currentPartnerType.charAt(0) + currentPartnerType.slice(1).toLowerCase();
+      emptyAction.textContent = '+ Cadastrar ' + singular;
+      emptyAction.style.display = 'block';
+    }
     return;
   }
 
@@ -3261,6 +3304,13 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-needs-transport').checked = !!needsT;
         toggleTransportSection(!!needsT);
         document.getElementById('r-transport-route').value = d.route.transport_route || '';
+        const decision = document.getElementById('r-transport-decision');
+        if (decision) {
+          decision.style.display = 'block';
+          decision.textContent = needsT && d.route.transport_evidence
+            ? 'Marcado com base no pedido: "' + d.route.transport_evidence + '"'
+            : 'Não marcado automaticamente: nenhuma solicitação explícita de transporte foi encontrada.';
+        }
       } else {
         document.getElementById('r-needs-transport').checked = false;
         toggleTransportSection(false);
@@ -3289,6 +3339,7 @@ function fillReviewForm(d, mode) {
       } else if (typeVal.includes('40')) {
         document.getElementById('r-type').value = 'FCL_40';
       }
+      syncPartnerTypesForModal();
       document.getElementById('conf-type').innerHTML = renderConf(d.cargo.type, d.cargo.confidence);
       
       document.getElementById('r-weight').value = d.cargo.gross_weight_kg || '';
@@ -3740,6 +3791,7 @@ async function generateDraftEmail() {
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
       truckerEmail: document.getElementById('r-trucker-email').value || null,
+      operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
     let resCreate;
@@ -3759,6 +3811,7 @@ async function generateDraftEmail() {
     const qData = await readApiJson(resCreate, 'O salvamento da cotação');
     if (!qData.id) throw new Error('O servidor não retornou o identificador da cotação.');
     currentQuotationId = qData.id;
+    if (qData.reference) document.getElementById('r-reference').value = qData.reference;
     await uploadPendingQuotationDocuments();
     await loadQuotationDocuments();
 
@@ -3779,6 +3832,7 @@ async function generateDraftEmail() {
     const draftData = await readApiJson(resDraft, 'A geração do rascunho');
 
     if (draftData.quotation && draftData.quotation.id) {
+      if (draftData.quotation.reference) document.getElementById('r-reference').value = draftData.quotation.reference;
       const itemIndex = allQuotations.findIndex(x => x.id === draftData.quotation.id);
       if (itemIndex >= 0) {
         allQuotations[itemIndex] = { ...allQuotations[itemIndex], ...draftData.quotation };
@@ -3992,6 +4046,7 @@ async function saveAsAwaitingAgent() {
       needsTransport: document.getElementById('r-needs-transport').checked,
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
       truckerEmail: document.getElementById('r-trucker-send-email').value.trim() || null,
+      operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
 
@@ -4007,6 +4062,7 @@ async function saveAsAwaitingAgent() {
       }
       const qData = await resCreate.json();
       currentQuotationId = qData.id;
+      if (qData.reference) document.getElementById('r-reference').value = qData.reference;
     } else {
       // Se já foi criada (ex: gerou rascunho antes), atualizamos a cotação e a fase
       await fetch(API + `/quotations/${currentQuotationId}`, {

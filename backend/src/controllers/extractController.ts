@@ -8,6 +8,7 @@ import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService
 import { findAgentDraftEmailTemplate } from '../services/agentDraftEmailTemplateService';
 import { applyRateValidityPolicy } from '../services/rateValidityService';
 import { resolveFeeQuantities } from '../services/feeCalculationService';
+import { applyDomesticTransportEvidencePolicy } from '../utils/quotationRequestPolicy';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -25,6 +26,13 @@ function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any
     source('Incoterm', data?.route?.incoterm, data?.route?.confidence),
     source('Origem', data?.route?.origin_city, data?.route?.confidence),
     source('Destino', data?.route?.destination_city, data?.route?.confidence),
+    {
+      field: 'Transporte rodoviário nacional',
+      value: data?.route?.needs_transport ? data?.route?.transport_route || 'Solicitado' : 'Não solicitado',
+      source: data?.route?.transport_source || 'NOT_REQUESTED',
+      confidence: data?.route?.needs_transport ? 1 : 0,
+      evidence: data?.route?.transport_evidence || ''
+    },
     source('Peso bruto', data?.cargo?.gross_weight_kg, data?.cargo?.confidence),
     source('Dimensões', data?.cargo?.dimensions?.join('; '), data?.cargo?.confidence)
   ];
@@ -130,6 +138,7 @@ export const extractData = async (req: Request, res: Response) => {
     let aiResult;
     if (mode === 'CLIENT') {
       aiResult = await extractClientData(combinedText, contextRules, mediaParts);
+      aiResult = applyDomesticTransportEvidencePolicy(aiResult, combinedText);
       const signatureContact = emailRecords.map(item => item.extractedContact).find(item => item?.source === 'SIGNATURE_TEXT' && (item.name || item.phone));
       if (signatureContact) {
         aiResult.client = aiResult.client || {};

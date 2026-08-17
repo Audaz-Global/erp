@@ -38,6 +38,7 @@ export const createQuotation = async (req: Request, res: Response) => {
 
     // Extract non-quotation fields
     const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
+    if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
     normalizeDangerousGoodsPayload(quotationData);
     if (ruleStage) { await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase()); await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase()); }
 
@@ -163,8 +164,16 @@ export const updateQuotation = async (req: Request, res: Response) => {
       clientContactPhone,
       sourceEmails,
       ruleStage,
+      operatorInitials,
       ...quotationData 
     } = req.body;
+
+    // Um campo vazio na tela nunca pode apagar a referência oficial já gerada.
+    if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
+    if (!quotationData.reference) delete quotationData.reference;
+    if (!current.reference && !quotationData.reference && operatorInitials) {
+      quotationData.reference = await generateReference(operatorInitials);
+    }
 
     if (ruleStage) {
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
