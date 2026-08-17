@@ -867,7 +867,43 @@
   .timeline-item small { color:#778294; font-size:10px; }
   .timeline-change { margin-top:5px; color:#9da6b4; font-size:10px; }
 
+  .partners-workspace { display:grid; grid-template-columns:230px minmax(0,1fr); gap:18px; align-items:start; }
+  .partners-sidebar { position:sticky; top:18px; padding:12px; border:1px solid var(--border); border-radius:14px; background:rgba(0,0,0,.16); }
+  .partners-sidebar-title { padding:8px 10px 12px; color:var(--text-muted); font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+  .partner-nav-item { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:40px; margin:2px 0; padding:9px 11px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--text-muted); cursor:pointer; font:inherit; font-size:12px; font-weight:650; text-align:left; }
+  .partner-nav-item:hover { color:var(--text); background:rgba(255,255,255,.035); }
+  .partner-nav-item.active { color:var(--text); border-color:rgba(245,166,35,.25); background:rgba(245,166,35,.09); }
+  .partner-nav-count { min-width:24px; padding:2px 7px; border-radius:999px; background:rgba(255,255,255,.07); color:var(--text-muted); font-size:10px; text-align:center; }
+  .partner-nav-item.active .partner-nav-count { background:rgba(245,166,35,.17); color:var(--gold); }
+  .partners-main { min-width:0; }
+  .partners-view[hidden] { display:none !important; }
+  .partners-page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px; }
+  .partners-page-head h2 { margin:0 0 5px; }
+  .partners-page-head p { margin:0; color:var(--text-muted); font-size:12px; }
+  .partner-overview-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+  .partner-overview-card { min-height:104px; padding:16px; border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,.13); }
+  .partner-overview-card small { display:block; color:var(--text-muted); font-size:10px; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
+  .partner-overview-card strong { display:block; margin-top:9px; color:var(--text); font-size:25px; line-height:1; }
+  .partner-overview-card span { display:block; margin-top:8px; color:var(--text-muted); font-size:10px; }
+  .partner-overview-columns { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr); gap:14px; }
+  .partner-overview-panel { padding:17px; border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,.12); }
+  .partner-overview-panel h3 { margin:0 0 12px; font-size:13px; }
+  .partner-category-row, .partner-pending-row { display:grid; grid-template-columns:minmax(130px,1fr) repeat(3,72px); gap:8px; align-items:center; padding:9px 4px; border-top:1px solid rgba(255,255,255,.06); font-size:11px; }
+  .partner-category-row:first-child, .partner-pending-row:first-child { border-top:0; }
+  .partner-category-row span:not(:first-child) { color:var(--text-muted); text-align:right; }
+  .partner-pending-row { grid-template-columns:minmax(0,1fr) auto; }
+  .partner-pending-row button { padding:5px 8px; }
+  .partner-type-checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .partner-type-checks label { display:flex; align-items:center; gap:7px; min-height:38px; margin:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); font-size:12px; font-weight:600; }
+  .partner-type-checks input { width:15px; height:15px; }
+
   @media (max-width:900px) {
+    .partners-workspace { grid-template-columns:1fr; }
+    .partners-sidebar { position:static; display:flex; gap:5px; overflow-x:auto; }
+    .partners-sidebar-title { display:none; }
+    .partner-nav-item { flex:0 0 auto; width:auto; white-space:nowrap; }
+    .partner-overview-grid { grid-template-columns:1fr 1fr; }
+    .partner-overview-columns { grid-template-columns:1fr; }
     .settings-sidebar { width:72px; padding-inline:8px; }
     .settings-sidebar .ss-header { justify-content:center; }
     .settings-sidebar .ss-header h2 { font-size:0; }
@@ -887,6 +923,9 @@
     #standardFeesTableContainer .k-table td { padding:7px 0; border:0; }
   }
   @media (max-width:620px) {
+    .partner-overview-grid { grid-template-columns:1fr; }
+    .partners-page-head { flex-direction:column; }
+    .partner-type-checks { grid-template-columns:1fr; }
     .settings-modal { display:block; overflow:hidden; }
     .settings-sidebar { width:100%; height:58px; padding:7px 10px; flex-direction:row; border-right:0; border-bottom:1px solid rgba(255,255,255,.08); }
     .settings-sidebar .ss-header { width:42px; min-height:42px; padding:0; margin:0 8px 0 0; border:0; }
@@ -1034,7 +1073,7 @@
           <div class="review-section">
             <div class="review-section-title">Rota Comercial</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-              <div class="form-group" style="grid-column: 1 / -1;">
+              <div class="form-group">
                 <label>Incoterm <span id="conf-incoterm"></span></label>
                 <select id="r-incoterm" class="req">
                   <option value="">Selecione...</option>
@@ -1048,6 +1087,13 @@
                   <option value="DPU">DPU</option>
                   <option value="DDP">DDP</option>
                   <option value="FCA">FCA</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Direção <span id="conf-direction"></span></label>
+                <select id="r-direction" class="req">
+                  <option value="IMPORT">Importação (IMPORT)</option>
+                  <option value="EXPORT">Exportação (EXPORT)</option>
                 </select>
               </div>
               <div class="form-group" style="grid-column: 1 / -1;">
@@ -1526,57 +1572,54 @@
     </div>
   </div>
 
-  <!-- ════════════ PAINEL 5: AGENTES ════════════ -->
+  <!-- ════════════ PAINEL 5: PARCEIROS ════════════ -->
   <div class="panel" id="panel-agents">
     <div class="card" style="padding: 20px 24px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <div>
-          <h2><span class="emoji">👥</span> Gestão de Agentes</h2>
-          <p class="desc" style="margin-bottom:0;">Gerencie sua base de parceiros (Agent List). A IA usará essa lista para recomendar agentes durante a cotação.</p>
-        </div>
-        <div style="display: flex; gap: 12px;">
-          <input type="file" id="agentCsvInput" accept=".csv" style="display:none;" onchange="importAgentCsv(event)">
-          <input type="file" id="carrierExcelInput" accept=".xlsx,.xls" style="display:none;" onchange="syncCarriersFromExcel(event)">
-          <button class="btn btn-secondary" onclick="document.getElementById('carrierExcelInput').click()" style="padding: 10px 16px; font-size: 13px;">🚢 Sincronizar Armadores</button>
-          <button class="btn btn-secondary" onclick="document.getElementById('agentCsvInput').click()" style="padding: 10px 16px; font-size: 13px;">📥 Importar CSV</button>
-          <button class="btn btn-primary" onclick="openAgentModal()" style="padding: 10px 16px; font-size: 13px;">➕ Novo Agente</button>
-        </div>
-      </div>
-      
-      <!-- Filtro de Categorias de Parceiros -->
-      <div class="partner-filter-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
-        <button type="button" class="btn btn-secondary active" id="partner-filter-all" onclick="setPartnerFilter('ALL')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">Todos</button>
-        <button type="button" class="btn btn-secondary" id="partner-filter-agent" onclick="setPartnerFilter('AGENTE')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">👥 Agentes</button>
-        <button type="button" class="btn btn-secondary" id="partner-filter-coloader" onclick="setPartnerFilter('COLOADER')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🤝 Coloaders</button>
-        <button type="button" class="btn btn-secondary" id="partner-filter-carrier" onclick="setPartnerFilter('ARMADOR')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚢 Armadores</button>
-        <button type="button" class="btn btn-secondary" id="partner-filter-trucker" onclick="setPartnerFilter('TRANSPORTADORA')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">🚚 Transportadoras</button>
-        <button type="button" class="btn btn-secondary" id="partner-filter-airline" onclick="setPartnerFilter('CIA_AEREA')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px;">✈️ Cias Aéreas</button>
-      </div>
-      
-      <div class="history-toolbar" style="margin-bottom: 20px;">
-        <div class="search-box">
-          <input type="text" id="agentSearch" placeholder="🔍 Buscar agente, e-mail, origem ou destino..." oninput="filterAgents()">
-        </div>
-      </div>
-      
-      <div style="overflow-x: auto;">
-        <table class="q-table" id="agentsTable">
-          <thead>
-            <tr>
-              <th>Parceiro</th>
-              <th>E-mail</th>
-              <th>Tipo</th>
-              <th>Modais</th>
-              <th>Origens (Atuação)</th>
-              <th>Destinos</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="agentsTbody">
-            <!-- Preenchido via JS -->
-          </tbody>
-        </table>
+      <div class="partners-workspace">
+        <aside class="partners-sidebar" aria-label="Categorias de parceiros">
+          <div class="partners-sidebar-title">Parceiros</div>
+          <button class="partner-nav-item active" data-partner-section="OVERVIEW" onclick="setPartnerSection('OVERVIEW')"><span>Visão geral</span></button>
+          <button class="partner-nav-item" data-partner-section="AGENTE" onclick="setPartnerSection('AGENTE')"><span>Agentes</span><span class="partner-nav-count" data-partner-count="AGENTE">0</span></button>
+          <button class="partner-nav-item" data-partner-section="COLOADER" onclick="setPartnerSection('COLOADER')"><span>Coloaders</span><span class="partner-nav-count" data-partner-count="COLOADER">0</span></button>
+          <button class="partner-nav-item" data-partner-section="DESCONSOLIDADOR" onclick="setPartnerSection('DESCONSOLIDADOR')"><span>Desconsolidadores</span><span class="partner-nav-count" data-partner-count="DESCONSOLIDADOR">0</span></button>
+          <button class="partner-nav-item" data-partner-section="ARMADOR" onclick="setPartnerSection('ARMADOR')"><span>Armadores</span><span class="partner-nav-count" data-partner-count="ARMADOR">0</span></button>
+          <button class="partner-nav-item" data-partner-section="CIA_AEREA" onclick="setPartnerSection('CIA_AEREA')"><span>Companhias aéreas</span><span class="partner-nav-count" data-partner-count="CIA_AEREA">0</span></button>
+          <button class="partner-nav-item" data-partner-section="TRANSPORTADORA" onclick="setPartnerSection('TRANSPORTADORA')"><span>Transportadoras</span><span class="partner-nav-count" data-partner-count="TRANSPORTADORA">0</span></button>
+        </aside>
+
+        <section class="partners-main">
+          <div class="partners-view" id="partnersOverviewView">
+            <div class="partners-page-head">
+              <div><h2>Visão geral de parceiros</h2><p>Cadastros, cobertura e pendências que precisam de atenção.</p></div>
+              <button class="btn btn-primary" onclick="openAgentModal()">➕ Novo Parceiro</button>
+            </div>
+            <div class="partner-overview-grid" id="partnerOverviewCards"></div>
+            <div class="partner-overview-columns">
+              <div class="partner-overview-panel"><h3>Resumo por categoria</h3><div id="partnerCategorySummary"></div></div>
+              <div class="partner-overview-panel"><h3>Pendências cadastrais</h3><div id="partnerPendingSummary"></div></div>
+            </div>
+          </div>
+
+          <div class="partners-view" id="partnersListView" hidden>
+            <div class="partners-page-head">
+              <div><h2 id="partnerListTitle">Parceiros</h2><p id="partnerListDescription">Gerencie os parceiros desta categoria.</p></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                <input type="file" id="agentCsvInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="importAgentCsv(event)">
+                <input type="file" id="carrierExcelInput" accept=".xlsx,.xls" style="display:none;" onchange="syncCarriersFromExcel(event)">
+                <button class="btn btn-secondary" id="partnerRatesShortcut" onclick="openPartnerRates()">Taxas e regras</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('agentCsvInput').click()">📥 Importar</button>
+                <button class="btn btn-primary" onclick="openAgentModal(null,currentPartnerFilter)">➕ Novo</button>
+              </div>
+            </div>
+            <div class="history-toolbar" style="margin-bottom: 20px;"><div class="search-box"><input type="text" id="agentSearch" placeholder="🔍 Buscar nome, e-mail, origem ou destino..." oninput="filterAgents()"></div></div>
+            <div style="overflow-x:auto">
+              <table class="q-table" id="agentsTable">
+                <thead><tr><th>Parceiro</th><th>E-mail</th><th>Papéis</th><th>Modais</th><th>Origens</th><th>Destinos</th><th>Status</th><th>Ações</th></tr></thead>
+                <tbody id="agentsTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -2076,14 +2119,16 @@
     </div>
 
     <div class="form-group">
-      <label>Tipo de Parceiro *</label>
-      <select id="agent-type" style="width: 100%;">
-        <option value="AGENTE">👥 Agente</option>
-        <option value="COLOADER">🤝 Coloader</option>
-        <option value="ARMADOR">🚢 Armador</option>
-        <option value="TRANSPORTADORA">🚚 Transportadora</option>
-        <option value="CIA_AEREA">✈️ Cia Aérea</option>
-      </select>
+      <label>Papéis do Parceiro *</label>
+      <div class="partner-type-checks" id="agent-types">
+        <label><input type="checkbox" name="agent-type" value="AGENTE"> Agente</label>
+        <label><input type="checkbox" name="agent-type" value="COLOADER"> Coloader</label>
+        <label><input type="checkbox" name="agent-type" value="DESCONSOLIDADOR"> Desconsolidador</label>
+        <label><input type="checkbox" name="agent-type" value="ARMADOR"> Armador</label>
+        <label><input type="checkbox" name="agent-type" value="CIA_AEREA"> Companhia aérea</label>
+        <label><input type="checkbox" name="agent-type" value="TRANSPORTADORA"> Transportadora</label>
+      </div>
+      <small style="display:block;margin-top:7px;color:var(--text-muted)">Uma empresa pode exercer mais de um papel.</small>
     </div>
     
     <div class="form-group">
@@ -2144,12 +2189,12 @@
     
     <div class="form-group" style="display:flex; align-items:center; gap:8px;">
       <input type="checkbox" id="agent-active" checked style="width:16px;height:16px;">
-      <label for="agent-active" style="margin:0; font-size:13px; font-weight:600;">Agente Ativo</label>
+      <label for="agent-active" style="margin:0; font-size:13px; font-weight:600;">Parceiro ativo</label>
     </div>
     
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
       <button onclick="closeAgentModal()" class="btn btn-secondary">Cancelar</button>
-      <button onclick="saveAgent()" class="btn btn-primary" id="btnSaveAgent">Salvar Agente</button>
+      <button onclick="saveAgent()" class="btn btn-primary" id="btnSaveAgent">Salvar Parceiro</button>
     </div>
   </div>
 </div>
@@ -2387,6 +2432,10 @@ function switchTab(name) {
   }
   if (name === 'draft') {
     loadRecentQuotations();
+  }
+  if (name === 'agents') {
+    setPartnerSection(currentPartnerFilter || 'OVERVIEW');
+    loadAgents();
   }
 }
 
@@ -2991,8 +3040,7 @@ async function populateAgentDropdown(originCountry) {
   const matchingAgents = window.globalAgentsList.filter(a => {
      if (!a.active) return false;
      
-     const agentType = a.type || 'AGENTE';
-     if (agentType !== currentPartnerType) return false;
+     if (!partnerHasType(a, currentPartnerType)) return false;
      
      if (currentPartnerType === 'ARMADOR') return true;
      
@@ -3096,7 +3144,7 @@ async function populateTruckerDropdown() {
     }
   }
   
-  const truckers = partners.filter(p => p.active && p.type === 'TRANSPORTADORA');
+  const truckers = partners.filter(p => p.active && partnerHasType(p, 'TRANSPORTADORA'));
   
   if (truckers.length === 0) {
     select.innerHTML = '<option value="">Nenhuma transportadora ativa cadastrada</option>';
@@ -3168,6 +3216,9 @@ function fillReviewForm(d, mode) {
       if (window.updateIncotermPreview && d.route.incoterm) {
         window.updateIncotermPreview(d.route.incoterm);
       }
+
+      if (d.route.direction) document.getElementById('r-direction').value = d.route.direction;
+      document.getElementById('conf-direction').innerHTML = renderConf(d.route.direction, d.route.confidence);
 
       document.getElementById('r-origin').value = d.route.origin_city || d.route.origin || '';
       document.getElementById('conf-origin').innerHTML = renderConf(d.route.origin_city || d.route.origin, d.route.confidence);
@@ -3628,7 +3679,7 @@ async function generateDraftEmail() {
     // Salva a cotação inicial no banco
     const body = {
       reference: document.getElementById('r-reference').value,
-      direction: 'IMPORT',
+      direction: document.getElementById('r-direction').value || 'IMPORT',
       modal: document.getElementById('r-type').value === 'AIR_GENERAL' ? 'AIR' : 'SEA',
       loadType: document.getElementById('r-type').value,
       incoterm: document.getElementById('r-incoterm').value,
@@ -3879,7 +3930,7 @@ async function saveAsAwaitingAgent() {
     
     const body = {
       reference: document.getElementById('r-reference').value,
-      direction: 'IMPORT',
+      direction: document.getElementById('r-direction').value || 'IMPORT',
       modal: document.getElementById('r-type').value === 'AIR_GENERAL' ? 'AIR' : 'SEA',
       loadType: document.getElementById('r-type').value,
       incoterm: document.getElementById('r-incoterm').value,
@@ -6221,7 +6272,28 @@ function initTagify() {
   }
 }
 
-function openAgentModal(id = null) {
+const PARTNER_META = {
+  AGENTE: { label: 'Agentes', singular: 'Agente', description: 'Parceiros internacionais e representantes de origem ou destino.' },
+  COLOADER: { label: 'Coloaders', singular: 'Coloader', description: 'Consolidadores usados nas operações de carga compartilhada.' },
+  DESCONSOLIDADOR: { label: 'Desconsolidadores', singular: 'Desconsolidador', description: 'Parceiros responsáveis pela desconsolidação no destino.' },
+  ARMADOR: { label: 'Armadores', singular: 'Armador', description: 'Companhias marítimas, perfis operacionais e suas regras.' },
+  CIA_AEREA: { label: 'Companhias aéreas', singular: 'Companhia aérea', description: 'Transportadores do modal aéreo e sua cobertura.' },
+  TRANSPORTADORA: { label: 'Transportadoras', singular: 'Transportadora', description: 'Parceiros de coleta e entrega rodoviária.' }
+};
+
+function partnerTypesOf(partner) {
+  if (Array.isArray(partner?.types)) return partner.types;
+  if (typeof partner?.types === 'string' && partner.types.trim()) {
+    try { const parsed = JSON.parse(partner.types); if (Array.isArray(parsed)) return parsed; } catch {}
+    const split = partner.types.split(',').map(value => value.trim()).filter(Boolean);
+    if (split.length) return split;
+  }
+  return [partner?.type || 'AGENTE'];
+}
+
+function partnerHasType(partner, type) { return partnerTypesOf(partner).includes(type); }
+
+function openAgentModal(id = null, preferredType = null) {
   initTagify();
   document.getElementById('agentModal').style.display = 'block';
   if (!id) {
@@ -6229,7 +6301,7 @@ function openAgentModal(id = null) {
     document.getElementById('agent-id').value = '';
     document.getElementById('agent-name').value = '';
     document.getElementById('agent-email').value = '';
-    document.getElementById('agent-type').value = 'AGENTE';
+    document.querySelectorAll('input[name="agent-type"]').forEach(input => { input.checked = input.value === (preferredType && PARTNER_META[preferredType] ? preferredType : 'AGENTE'); });
     document.getElementById('agent-address').value = '';
     document.getElementById('agent-phone').value = '';
     document.getElementById('agent-website').value = '';
@@ -6266,17 +6338,89 @@ function filterAgents() {
   });
 }
 
-let currentPartnerFilter = 'ALL';
+let currentPartnerFilter = 'OVERVIEW';
 
-function setPartnerFilter(filter) {
-  currentPartnerFilter = filter;
-  document.getElementById('partner-filter-all').classList.toggle('active', filter === 'ALL');
-  document.getElementById('partner-filter-agent').classList.toggle('active', filter === 'AGENTE');
-  document.getElementById('partner-filter-coloader').classList.toggle('active', filter === 'COLOADER');
-  document.getElementById('partner-filter-carrier').classList.toggle('active', filter === 'ARMADOR');
-  document.getElementById('partner-filter-trucker').classList.toggle('active', filter === 'TRANSPORTADORA');
-  document.getElementById('partner-filter-airline').classList.toggle('active', filter === 'CIA_AEREA');
+function setPartnerSection(section) {
+  currentPartnerFilter = section;
+  document.querySelectorAll('[data-partner-section]').forEach(button => button.classList.toggle('active', button.dataset.partnerSection === section));
+  const overview = document.getElementById('partnersOverviewView');
+  const list = document.getElementById('partnersListView');
+  if (overview) overview.hidden = section !== 'OVERVIEW';
+  if (list) list.hidden = section === 'OVERVIEW';
+  if (section === 'OVERVIEW') {
+    renderPartnerOverview();
+    return;
+  }
+  const meta = PARTNER_META[section] || { label: 'Parceiros', description: 'Gerencie os parceiros desta categoria.' };
+  document.getElementById('partnerListTitle').textContent = meta.label;
+  document.getElementById('partnerListDescription').textContent = meta.description;
+  document.getElementById('partnerRatesShortcut').textContent = section === 'ARMADOR' ? 'Taxas e regras do armador' : section === 'DESCONSOLIDADOR' ? 'Taxas de desconsolidação' : 'Taxas e regras';
   renderAgentsTable();
+}
+
+function setPartnerFilter(filter) { setPartnerSection(filter === 'ALL' ? 'OVERVIEW' : filter); }
+
+function updatePartnerNavigationCounts(partners) {
+  Object.keys(PARTNER_META).forEach(type => {
+    const element = document.querySelector(`[data-partner-count="${type}"]`);
+    if (element) element.textContent = partners.filter(partner => partnerHasType(partner, type)).length;
+  });
+}
+
+function partnerIsIncomplete(partner) {
+  const types = partnerTypesOf(partner);
+  const emailOptional = types.every(type => ['ARMADOR', 'CIA_AEREA', 'TRANSPORTADORA'].includes(type));
+  return (!emailOptional && !partner.email) || !partner.modals || !partner.origins;
+}
+
+function renderPartnerOverview() {
+  const partners = window.allPartnersList || [];
+  const active = partners.filter(partner => partner.active !== false);
+  const incomplete = active.filter(partnerIsIncomplete);
+  const multiRole = partners.filter(partner => partnerTypesOf(partner).length > 1);
+  const stats = window.partnerOperationalStats || {};
+  const cards = document.getElementById('partnerOverviewCards');
+  if (cards) cards.innerHTML = [
+    ['Parceiros ativos', active.length, `${partners.length - active.length} inativos`],
+    ['Cadastro incompleto', incomplete.length, 'Sem contato, modal ou atuação'],
+    ['Taxas cadastradas', stats.totalFees ?? '—', stats.expiredRates ? `${stats.expiredRates} tarifas vencidas` : 'Base operacional consolidada'],
+    ['Múltiplos papéis', multiRole.length, 'Empresas em mais de uma categoria']
+  ].map(([label,value,detail]) => `<div class="partner-overview-card"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('');
+
+  const summary = document.getElementById('partnerCategorySummary');
+  if (summary) summary.innerHTML = Object.entries(PARTNER_META).map(([type, meta]) => {
+    const rows = partners.filter(partner => partnerHasType(partner, type));
+    const activeCount = rows.filter(partner => partner.active !== false).length;
+    const pendingCount = rows.filter(partnerIsIncomplete).length;
+    return `<div class="partner-category-row"><button class="document-delete" style="text-align:left;color:var(--text)" onclick="setPartnerSection('${type}')">${meta.label}</button><span>${rows.length} total</span><span>${activeCount} ativos</span><span>${pendingCount} pend.</span></div>`;
+  }).join('');
+
+  const pending = document.getElementById('partnerPendingSummary');
+  if (pending) pending.innerHTML = incomplete.length ? incomplete.slice(0, 8).map(partner => `<div class="partner-pending-row"><span><strong>${ifrEscape(partner.name)}</strong><br><small style="color:var(--text-muted)">Complete contato, modal ou atuação</small></span><button class="action-btn" onclick="editAgentById('${partner.id}')">✏️</button></div>`).join('') : '<p style="color:var(--text-muted);font-size:12px">Nenhuma pendência cadastral.</p>';
+}
+
+async function loadPartnerOperationalStats() {
+  try {
+    const [fixedFeesRes, ratesRes, deconsolidatorsRes] = await Promise.all([
+      fetch(API + '/fixed-fees'), fetch(API + '/carrier-rates'), fetch(API + '/deconsolidators')
+    ]);
+    const fixedFees = fixedFeesRes.ok ? await fixedFeesRes.json() : [];
+    const rates = ratesRes.ok ? await ratesRes.json() : [];
+    const deconsolidators = deconsolidatorsRes.ok ? await deconsolidatorsRes.json() : [];
+    const now = Date.now();
+    window.partnerOperationalStats = {
+      totalFees: fixedFees.length + rates.length + deconsolidators.length,
+      expiredRates: rates.filter(rate => rate.effectiveTo && new Date(rate.effectiveTo).getTime() < now).length
+    };
+    renderPartnerOverview();
+  } catch { window.partnerOperationalStats = {}; }
+}
+
+function openPartnerRates() {
+  if (currentPartnerFilter === 'ARMADOR') { openSettings(); switchSettingsTab('carrierProfiles'); return; }
+  if (currentPartnerFilter === 'DESCONSOLIDADOR') { openSettings(); switchSettingsTab('deconsolidators'); return; }
+  if (currentPartnerFilter === 'CIA_AEREA') { openSettings(); switchSettingsTab('fixedFeesAir'); return; }
+  openSettings(); switchSettingsTab('standardFees');
 }
 
 function renderAgentsTable() {
@@ -6284,9 +6428,8 @@ function renderAgentsTable() {
   if (!tbody || !window.allPartnersList) return;
   
   const filtered = window.allPartnersList.filter(p => {
-    if (currentPartnerFilter === 'ALL') return true;
-    const type = p.type || 'AGENTE';
-    return type === currentPartnerFilter;
+    if (currentPartnerFilter === 'OVERVIEW') return true;
+    return partnerHasType(p, currentPartnerFilter);
   });
   
   if (filtered.length === 0) {
@@ -6295,7 +6438,7 @@ function renderAgentsTable() {
   }
   
   tbody.innerHTML = filtered.map(a => {
-    const typeLabel = a.type === 'COLOADER' ? '🤝 Coloader' : a.type === 'ARMADOR' ? '🚢 Armador' : a.type === 'TRANSPORTADORA' ? '🚚 Transportadora' : a.type === 'CIA_AEREA' ? '✈️ Cia Aérea' : '👥 Agente';
+    const typeLabel = partnerTypesOf(a).map(type => PARTNER_META[type]?.singular || type).join(', ');
     return `
       <tr>
         <td style="font-weight:600;">${a.name}</td>
@@ -6307,7 +6450,7 @@ function renderAgentsTable() {
         <td><span class="status-badge ${a.active ? 'approved' : 'expired'}">${a.active ? 'Ativo' : 'Inativo'}</span></td>
         <td>
           <div class="action-btns">
-            <button class="action-btn" onclick='editAgent(${JSON.stringify(a).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+            <button class="action-btn" onclick="editAgentById('${a.id}')" title="Editar">✏️</button>
             <button class="action-btn danger" onclick="deleteAgent('${a.id}')" title="Excluir">🗑️</button>
           </div>
         </td>
@@ -6322,8 +6465,10 @@ async function loadAgents() {
     const agents = await res.json();
     window.allPartnersList = agents;
     window.globalAgentsList = agents;
-    
+    updatePartnerNavigationCounts(agents);
     renderAgentsTable();
+    renderPartnerOverview();
+    loadPartnerOperationalStats();
     populateTruckerDropdown();
   } catch (e) {
     console.error('Erro ao carregar agentes', e);
@@ -6336,7 +6481,8 @@ function editAgent(agent) {
   document.getElementById('agent-id').value = agent.id;
   document.getElementById('agent-name').value = agent.name;
   document.getElementById('agent-email').value = agent.email || '';
-  document.getElementById('agent-type').value = agent.type || 'AGENTE';
+  const agentTypes = partnerTypesOf(agent);
+  document.querySelectorAll('input[name="agent-type"]').forEach(input => { input.checked = agentTypes.includes(input.value); });
   document.getElementById('agent-address').value = agent.address || '';
   document.getElementById('agent-phone').value = agent.phone || '';
   document.getElementById('agent-website').value = agent.website || '';
@@ -6363,6 +6509,11 @@ function editAgent(agent) {
   document.getElementById('agent-active').checked = agent.active;
 }
 
+function editAgentById(id) {
+  const partner = (window.allPartnersList || []).find(item => item.id === id);
+  if (partner) editAgent(partner);
+}
+
 async function saveAgent() {
   const id = document.getElementById('agent-id').value;
   const btn = document.getElementById('btnSaveAgent');
@@ -6371,7 +6522,8 @@ async function saveAgent() {
   
   const name = document.getElementById('agent-name').value;
   const email = document.getElementById('agent-email').value;
-  const type = document.getElementById('agent-type').value;
+  const types = Array.from(document.querySelectorAll('input[name="agent-type"]:checked')).map(input => input.value);
+  const type = types[0];
   
   if (!name) {
     toast('⚠️ Nome do parceiro é obrigatório.');
@@ -6379,31 +6531,39 @@ async function saveAgent() {
     btn.innerText = 'Salvar Parceiro';
     return;
   }
+
+  if (!types.length) {
+    toast('⚠️ Selecione ao menos um papel para o parceiro.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Parceiro';
+    return;
+  }
   
-  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && type !== 'CIA_AEREA' && !email) {
-    toast('⚠️ E-mail é obrigatório para agentes e coloaders.');
+  const requiresCoverage = types.some(value => ['AGENTE', 'COLOADER', 'DESCONSOLIDADOR'].includes(value));
+  if (requiresCoverage && !email) {
+    toast('⚠️ E-mail é obrigatório para agentes, coloaders e desconsolidadores.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
   
   const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
-  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && type !== 'CIA_AEREA' && selectedModals.length === 0) {
+  if (requiresCoverage && selectedModals.length === 0) {
     toast('⚠️ Por favor, selecione ao menos um Modal Atendido.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const modalsStr = (type === 'ARMADOR' || type === 'TRANSPORTADORA' || type === 'CIA_AEREA') && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
+  const modalsStr = !requiresCoverage && selectedModals.length === 0 ? 'ALL' : (selectedModals.length === 4 ? 'ALL' : selectedModals.join(', '));
   
   const originsStr = tagifyOrigins.value.map(t => t.value).join(', ');
-  if (type !== 'ARMADOR' && type !== 'TRANSPORTADORA' && type !== 'CIA_AEREA' && !originsStr) {
+  if (requiresCoverage && !originsStr) {
     toast('⚠️ Por favor, selecione ao menos um país de Origem de Atuação.');
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  const finalOrigins = (type === 'ARMADOR' || type === 'TRANSPORTADORA' || type === 'CIA_AEREA') && !originsStr ? 'Global' : originsStr;
+  const finalOrigins = !requiresCoverage && !originsStr ? 'Global' : originsStr;
   
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
   const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
@@ -6423,6 +6583,7 @@ async function saveAgent() {
     name,
     email: email || null,
     type,
+    types,
     networks: networksStr,
     address: document.getElementById('agent-address').value,
     phone: document.getElementById('agent-phone').value,
@@ -6438,11 +6599,15 @@ async function saveAgent() {
     const url = id ? API + '/agents/' + id : API + '/agents';
     const method = id ? 'PUT' : 'POST';
     
-    await fetch(url, {
+    const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Não foi possível salvar o parceiro.');
+    }
     
     toast('✅ Parceiro salvo com sucesso!');
     closeAgentModal();
@@ -6450,7 +6615,7 @@ async function saveAgent() {
     window.globalAgentsList = null;
     loadAgents();
   } catch(e) {
-    toast('❌ Erro ao salvar parceiro.');
+    toast('❌ ' + (e.message || 'Erro ao salvar parceiro.'));
   } finally {
     btn.disabled = false;
     btn.innerText = 'Salvar Parceiro';
@@ -6460,7 +6625,8 @@ async function saveAgent() {
 async function deleteAgent(id) {
   if (!confirm('Tem certeza que deseja excluir este parceiro permanentemente?')) return;
   try {
-    await fetch(API + '/agents/' + id, { method: 'DELETE' });
+    const response = await fetch(API + '/agents/' + id, { method: 'DELETE' });
+    if (!response.ok) throw new Error('Não foi possível excluir o parceiro.');
     toast('🗑️ Parceiro excluído.');
     window.globalAgentsList = null;
     loadAgents();
@@ -7300,6 +7466,7 @@ async function loadQuotationIntoDraft() {
         },
         route: {
           incoterm: quotation.incoterm,
+          direction: quotation.direction,
           origin: quotation.originCity,
           origin_country: quotation.originCountry,
           origin_airport: quotation.originPort,

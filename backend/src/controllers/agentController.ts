@@ -4,6 +4,27 @@ import * as xlsx from 'xlsx';
 import * as path from 'path';
 import * as fs from 'fs';
 
+const PARTNER_TYPES = new Set(['AGENTE', 'COLOADER', 'DESCONSOLIDADOR', 'ARMADOR', 'CIA_AEREA', 'TRANSPORTADORA']);
+
+const normalizePartnerTypes = (data: any): string[] => {
+  let values: unknown[] = [];
+  if (Array.isArray(data?.types)) values = data.types;
+  else if (typeof data?.types === 'string') {
+    try { values = JSON.parse(data.types); }
+    catch { values = data.types.split(','); }
+  }
+  if (!values.length && data?.type) values = [data.type];
+  const normalized = [...new Set(values.map(value => String(value).trim().toUpperCase()).filter(value => PARTNER_TYPES.has(value)))];
+  return normalized.length ? normalized : ['AGENTE'];
+};
+
+const syncCarrierProfile = async (name: string, types: string[]) => {
+  if (!types.includes('ARMADOR')) return;
+  const existing = await prisma.carrierProfile.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+  if (existing) await prisma.carrierProfile.update({ where: { id: existing.id }, data: { active: true } });
+  else await prisma.carrierProfile.create({ data: { name, aliases: '[]', modal: 'SEA', active: true } });
+};
+
 export const getAgents = async (req: Request, res: Response) => {
   try {
     const agents = await prisma.agent.findMany({
@@ -18,11 +39,13 @@ export const getAgents = async (req: Request, res: Response) => {
 export const createAgent = async (req: Request, res: Response) => {
   try {
     const data = req.body;
+    const types = normalizePartnerTypes(data);
     const agent = await prisma.agent.create({
       data: {
         name: data.name,
         email: data.email || null,
-        type: data.type || 'AGENTE',
+        type: types[0],
+        types: JSON.stringify(types),
         networks: data.networks || null,
         address: data.address || null,
         phone: data.phone || null,
@@ -34,6 +57,7 @@ export const createAgent = async (req: Request, res: Response) => {
         active: data.active !== undefined ? data.active : true,
       }
     });
+    await syncCarrierProfile(agent.name, types);
     res.status(201).json(agent);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -44,12 +68,14 @@ export const updateAgent = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const data = req.body;
+    const types = normalizePartnerTypes(data);
     const agent = await prisma.agent.update({
       where: { id },
       data: {
         name: data.name,
         email: data.email || null,
-        type: data.type,
+        type: types[0],
+        types: JSON.stringify(types),
         networks: data.networks,
         address: data.address,
         phone: data.phone,
@@ -61,6 +87,7 @@ export const updateAgent = async (req: Request, res: Response) => {
         active: data.active,
       }
     });
+    await syncCarrierProfile(agent.name, types);
     res.json(agent);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -141,6 +168,8 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
               data: {
                 name: String(name).trim().substring(0, 255),
                 email: String(email).trim().substring(0, 255),
+                type: 'AGENTE',
+                types: JSON.stringify(['AGENTE']),
                 modals: modalsField ? String(row[modalsField]).trim() : null,
                 origins: originsField ? String(row[originsField]).trim() : null,
                 destinations: destinationsField ? String(row[destinationsField]).trim() : null,
@@ -174,6 +203,8 @@ export const importAgents = async (req: Request, res: Response): Promise<void> =
               data: {
                 name: currentCompany.substring(0, 255),
                 email: Array.from(companyEmails).join('; ').substring(0, 255),
+                type: 'AGENTE',
+                types: JSON.stringify(['AGENTE']),
                 origins: sheetName,
                 destinations: sheetName,
                 modals: 'ALL',
@@ -351,17 +382,16 @@ export const syncCarriers = async (req: Request, res: Response) => {
       if (!carrierName || ['guide', 'summary', 'capa', 'resumo'].includes(carrierName.toLowerCase())) continue;
 
       // 1. Procurar se já existe no banco de dados como ARMADOR
-      const existing = await prisma.agent.findFirst({
-        where: {
-          name: { equals: carrierName, mode: 'insensitive' as const },
-          type: 'ARMADOR'
-        }
-      });
+      const existing = await prisma.agent.findFirst({ where: { name: { equals: carrierName, mode: 'insensitive' as const } } });
 
       if (existing) {
+        const existingTypes = normalizePartnerTypes(existing);
+        const types = [...new Set([...existingTypes, 'ARMADOR'])];
         await prisma.agent.update({
           where: { id: existing.id },
           data: {
+            type: existing.type || types[0],
+            types: JSON.stringify(types),
             active: true,
             modals: 'SEA_FCL, SEA_LCL',
             origins: 'Global',
@@ -375,6 +405,7 @@ export const syncCarriers = async (req: Request, res: Response) => {
             name: carrierName,
             email: null,
             type: 'ARMADOR',
+            types: JSON.stringify(['ARMADOR']),
             modals: 'SEA_FCL, SEA_LCL',
             origins: 'Global',
             destinations: 'Brasil',
@@ -383,6 +414,7 @@ export const syncCarriers = async (req: Request, res: Response) => {
         });
         createdCount++;
       }
+      await syncCarrierProfile(carrierName, ['ARMADOR']);
 
       // 2. Importar as taxas locais da aba do armador correspondente para a tabela FixedFee
       const sheet = workbook.Sheets[sheetName];

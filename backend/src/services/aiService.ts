@@ -210,6 +210,10 @@ export const extractClientData = async (text: string, contextRules: string = '',
               type: 'object',
               properties: {
                 incoterm: { type: 'string', description: 'O incoterm solicitado (ex: EXW, FCA, FOB, DAP) extraído da solicitação, tabela de resumo de informações básicas ou do corpo do e-mail.' },
+                direction: {
+                  type: 'string', enum: ['IMPORT', 'EXPORT'],
+                  description: 'Direção do embarque do ponto de vista do cliente brasileiro. EXPORT quando a origem/coleta for no Brasil e o destino final for no exterior. IMPORT quando a origem/coleta for no exterior e o destino final for no Brasil. Na dúvida, use IMPORT.'
+                },
                 origin_city: { type: 'string', description: 'Local Inicial de coleta da carga (Cidade/Estado/País)' },
                 origin_country: { type: 'string', description: 'País do porto ou aeroporto de origem' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem (formato IATA para aeroporto, ex: WNZ - Wenzhou)' },
@@ -225,6 +229,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
               },
               required: [
                 'incoterm',
+                'direction',
                 'origin_city',
                 'origin_country',
                 'origin_airport',
@@ -306,6 +311,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
     - **Incoterm — PRIORIDADE CRÍTICA**: Identifique e extraia OBRIGATORIAMENTE o Incoterm (ex: EXW, FCA, FOB, CIF, DAP, etc) de qualquer lugar dos documentos, seja do texto corrido do e-mail, de imagens coladas, de tabelas de informações básicas, Invoices ou formulários anexados (ex: "FCA Planta do Fornecedor"). Se as palavras FCA, EXW, FOB ou similar aparecerem, capture-as imediatamente.
     - **Incoterm — Regra geral**: Analise se há um endereço de coleta detalhado (fábrica/fornecedor) no exterior. Em caso afirmativo (especialmente se o modal for Aéreo), defina o Incoterm como **EXW** ou **FCA** — nunca use "FOB" genérico de planilha de valor comercial.
+    - **Direção (direction)**: Determine se a operação é uma Importação ou Exportação do ponto de vista do cliente brasileiro. Se a coleta/origem da carga for no Brasil e o destino final for em outro país, defina "EXPORT". Se a coleta/origem for no exterior e o destino final for no Brasil, defina "IMPORT". Use os países/cidades de origin_city e destination_city para decidir. Se não houver informação suficiente, defina "IMPORT" como padrão.
     - **Origem (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de origem do frete principal. Se modal for Aéreo, infira o aeroporto internacional no formato "IATA - Nome do Aeroporto" (ex: "SZX - Shenzhen Bao'an International", "PRG - Prague Ruzyne International"). Se modal for Marítimo, identifique o porto de embarque internacional. Salve em "origin_airport".
     - **Destino (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de destino. Se modal for Aéreo, infira no formato "IATA - Nome do Aeroporto" (ex: "GRU - Aeroporto Internacional Guarulhos"). Se modal for Marítimo, identifique o porto de descarga (ex: "Santos"). Salve em "destination_airport".
     - **Local Inicial (Cidade/Estado/País)**: Identifique a cidade, estado e país onde a carga está localizada e será coletada inicialmente no fornecedor (ex: "Pribyslav, República Tcheca" ou "Shenzhen, China"). Salve em "origin_city".

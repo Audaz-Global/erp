@@ -337,6 +337,7 @@ model Agent {
   name         String
   email        String?
   type         String  @default("AGENTE") // AGENTE, COLOADER, ARMADOR
+  types        String? // JSON array de papéis; type permanece como papel principal por compatibilidade
   networks     String? // Ex: "WCA, JCtrans"
   address      String?
   phone        String?
