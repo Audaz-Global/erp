@@ -24,6 +24,13 @@ export interface CalculatedFee {
   quantity?: number | null;
   totalValue?: number;
   quantitySource?: string;
+  minValue?: number;
+  percentBase?: string | null;
+  percentageBaseValue?: number | null;
+  classificationSource?: string;
+  provenanceType?: string;
+  provenanceLabel?: string;
+  evidence?: string | null;
   needsReview?: boolean;
 }
 
@@ -287,6 +294,13 @@ export function calculateFee(
     quantity: typeof qty === 'number' ? qty : null,
     totalValue: value,
     quantitySource: rule.chargeType === 'PER_CONTAINER' ? 'CONTAINER_COUNT' : rule.chargeType === 'PER_KG' ? 'CHARGEABLE_WEIGHT' : rule.chargeType === 'PER_CBM' ? 'CARGO_CBM' : 'INCOTERM_RULE',
+    minValue: rule.minValue || 0,
+    percentBase: rule.percentBase || null,
+    percentageBaseValue: rule.chargeType === 'PERCENTAGE' ? (rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freightValue + totalOrigin : freightValue) : null,
+    classificationSource: 'RULE',
+    provenanceType: 'SYSTEM_RULE',
+    provenanceLabel: 'Regra do sistema · Incoterm',
+    evidence: rule.description || null,
     needsReview: rule.chargeType === 'PER_DG_PRODUCT' && Number(qty) <= 0
   };
 }

@@ -158,19 +158,33 @@
   .review-section { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .review-section-title { font-size: 13px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
   .cost-bases-grid { display:grid; grid-template-columns:1fr; gap:14px; }
-  .cost-base-card { border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,.16); overflow:hidden; }
-  .cost-base-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 14px; border-bottom:1px solid var(--border); }
+  .cost-base-card { border:1px solid rgba(255,255,255,.09); border-radius:12px; background:var(--bg-card); overflow:hidden; box-shadow:0 5px 18px rgba(0,0,0,.12); }
+  .cost-base-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); }
   .cost-base-title { font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
   .cost-base-subtotal { font-size:11px; color:var(--text-muted); text-align:right; }
-  .cost-lines { padding:10px; display:flex; flex-direction:column; gap:9px; min-height:80px; }
-  .cost-line { display:grid; grid-template-columns:minmax(145px,1.7fr) minmax(105px,1.15fr) 60px 68px 82px 72px 72px 92px 34px; gap:7px; align-items:end; padding:9px; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:rgba(255,255,255,.025); }
-  .cost-line label { display:block; font-size:9px; color:var(--text-muted); margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
-  .cost-line input,.cost-line select { width:100%; height:34px; padding:5px 7px; font-size:11px; }
+  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(170px,1.8fr) minmax(120px,1.15fr) 62px 72px 88px 76px 76px 104px 42px; gap:8px; }
+  .cost-columns-head { padding:8px 12px; background:rgba(255,255,255,.025); border-bottom:1px solid rgba(255,255,255,.07); color:var(--text-muted); font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+  .cost-lines { display:flex; flex-direction:column; min-height:58px; }
+  .cost-line { align-items:center; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.065); background:transparent; transition:background .15s ease; }
+  .cost-line:last-child { border-bottom:0; }
+  .cost-line:hover { background:rgba(255,255,255,.025); }
+  .cost-line label { display:none; }
+  .cost-line input,.cost-line select { width:100%; height:34px; padding:5px 7px; font-size:11px; background:#111827; border-color:rgba(255,255,255,.12); }
+  .cost-description-cell { min-width:0; }
+  .cost-description-cell input { font-weight:600; }
+  .cost-source-row { display:flex;align-items:center;gap:6px;margin-top:5px;min-width:0; }
+  .cost-source-badge { display:inline-flex;align-items:center;max-width:100%;padding:2px 7px;border-radius:999px;font-size:9px;font-weight:700;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid rgba(96,165,250,.25);background:rgba(96,165,250,.08);color:#93c5fd; }
+  .cost-source-badge.system { border-color:rgba(245,166,35,.3);background:rgba(245,166,35,.08);color:#f5c36a; }
+  .cost-source-badge.manual { border-color:rgba(156,163,175,.25);background:rgba(156,163,175,.08);color:#cbd5e1; }
+  .cost-source-badge.calculated { border-color:rgba(52,211,153,.25);background:rgba(52,211,153,.08);color:#6ee7b7; }
   .cost-line-total { height:34px; display:flex; align-items:center; justify-content:flex-end; font:700 11px monospace; white-space:nowrap; }
-  .cost-line-remove { height:34px; width:34px; border:1px solid rgba(239,68,68,.35); border-radius:7px; background:rgba(239,68,68,.08); color:#f87171; cursor:pointer; }
+  .cost-line-static { height:34px;display:flex;align-items:center;padding:0 8px;color:var(--text-muted);font-size:12px; }
+  .cost-line-remove { height:34px; width:34px; border:1px solid rgba(239,68,68,.35); border-radius:7px; background:rgba(239,68,68,.08); color:#f87171; cursor:pointer; font-size:18px; display:flex;align-items:center;justify-content:center; }
+  .cost-line-remove:hover { background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.55); }
   .cost-add-line { width:calc(100% - 20px); margin:0 10px 10px; padding:8px; border:1px dashed rgba(245,166,35,.45); border-radius:8px; background:rgba(245,166,35,.05); color:var(--gold); cursor:pointer; font-size:11px; font-weight:700; }
-  .cost-grand-total { display:flex; justify-content:space-between; gap:14px; align-items:center; margin-top:14px; padding:14px 16px; border:1px solid rgba(245,166,35,.35); border-radius:10px; background:rgba(245,166,35,.06); }
-  .cost-grand-values { font:800 13px monospace; color:var(--gold); text-align:right; }
+  .cost-grand-total { display:flex; justify-content:space-between; gap:14px; align-items:center; margin-top:14px; padding:16px 18px; border:1px solid rgba(245,166,35,.3); border-radius:12px; background:linear-gradient(90deg,rgba(245,166,35,.08),rgba(245,166,35,.025)); }
+  .cost-grand-values { font:800 14px monospace; color:var(--gold); text-align:right; }
+  .cost-grand-values small { display:block;margin-top:4px;font:500 10px var(--font,Arial);color:var(--text-muted); }
   
   .form-group { margin-bottom: 16px; position: relative; }
   .form-group label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
@@ -348,8 +362,10 @@
 
   @media (max-width: 900px) {
     .cost-bases-grid { grid-template-columns:1fr; }
-    .cost-lines { overflow-x:auto; }
-    .cost-line { min-width:900px; grid-template-columns:1.6fr 1fr 60px 68px 82px 72px 72px 88px 34px; }
+    .cost-base-card { overflow-x:auto; }
+    .cost-lines { overflow:visible; }
+    .cost-columns-head,.cost-line { min-width:980px; grid-template-columns:1.6fr 1fr 60px 68px 82px 72px 72px 96px 38px; }
+    .cost-add-line { min-width:960px; }
     .summary-cards { grid-template-columns: repeat(2, 1fr); }
     .detail-content { grid-template-columns: 1fr; }
     .settings-sidebar { width: 200px; }
@@ -1681,7 +1697,7 @@
 
 <!-- ════════════ MODAL DE REVISÃO ANTES DO PDF ════════════ -->
 <div id="pdfReviewOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9000; overflow-y:auto; padding:20px;">
-  <div style="max-width:820px; margin:0 auto; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:36px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+  <div style="width:min(1180px,calc(100vw - 32px)); max-width:none; margin:0 auto; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:30px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
     <button onclick="closePdfReviewModal()" style="position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.08);border:none;color:var(--text-muted);font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Fechar">✕</button>
     
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border);">
@@ -1932,9 +1948,9 @@
         <div style="font-size:10px;color:var(--text-muted);text-align:right;">Valor total = quantidade × valor unitário</div>
       </div>
       <div id="review-cost-editor" class="cost-bases-grid">
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
       </div>
       <div class="cost-grand-total"><div><strong>Total da proposta por moeda</strong><div style="font-size:10px;color:var(--text-muted);margin-top:3px;">Sem conversão silenciosa entre moedas</div></div><div id="cost-grand-values" class="cost-grand-values">—</div></div>
       <details style="margin-top:14px;">
@@ -2887,6 +2903,11 @@ function parseFeeLine(line) {
   const groupSegment = segments.find(value => /^GROUP\s+/i.test(value));
   const natureSegment = segments.find(value => /^NATURE\s+/i.test(value));
   const sourceSegment = segments.find(value => /^SOURCE\s+/i.test(value));
+  const provenanceSegment = segments.find(value => /^PROVENANCE\s+/i.test(value));
+  const sourceLabelSegment = segments.find(value => /^SOURCELABEL\s+/i.test(value));
+  const evidenceSegment = segments.find(value => /^EVIDENCE\s+/i.test(value));
+  const percentBaseSegment = segments.find(value => /^PERCENTBASE\s+/i.test(value));
+  const baseValueSegment = segments.find(value => /^BASEVALUE\s+/i.test(value));
   let ispsClassification = ispsSegment ? ispsSegment.replace(/^ISPS\s+/i, '').trim().toUpperCase() : null;
   if (isIsps && !['ISPS_CARRIER','ISPS_TERMINAL'].includes(ispsClassification)) {
     const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(name);
@@ -2900,12 +2921,17 @@ function parseFeeLine(line) {
   const financialGroup = groupSegment ? groupSegment.replace(/^GROUP\s+/i, '').trim().toUpperCase() : inferredClassification.financialGroup;
   const chargeNature = natureSegment ? natureSegment.replace(/^NATURE\s+/i, '').trim().toUpperCase() : inferredClassification.chargeNature;
   const classificationSource = sourceSegment ? sourceSegment.replace(/^SOURCE\s+/i, '').trim().toUpperCase() : 'RULE';
+  const provenanceType = provenanceSegment ? provenanceSegment.replace(/^PROVENANCE\s+/i, '').trim().toUpperCase() : null;
+  const provenanceLabel = sourceLabelSegment ? sourceLabelSegment.replace(/^SOURCELABEL\s+/i, '').trim() : null;
+  const evidence = evidenceSegment ? evidenceSegment.replace(/^EVIDENCE\s+/i, '').trim() : null;
+  const percentBase = percentBaseSegment ? percentBaseSegment.replace(/^PERCENTBASE\s+/i, '').trim().toUpperCase() : null;
+  const percentageBaseValue = baseValueSegment ? parseFloat(baseValueSegment.replace(/^BASEVALUE\s+/i, '').trim().replace(',','.')) : null;
   const ispsUnclassified = isIsps && ispsClassification === 'ISPS_UNCLASSIFIED';
   const ispsInclusionPending = isIsps && includedInFreight !== 'NOT_INCLUDED';
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, needsReview, reviewReasons };
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -2931,7 +2957,10 @@ function formatFeeLine(fee) {
   const ispsDetails = isIsps ? ` | ISPS ${fee.ispsClassification || inferredIsps} | SCOPE ${fee.applicationScope || fee.feeType || 'UNKNOWN'} | FREIGHT ${fee.includedInFreight || 'TO_CONFIRM'}${fee.chargedBy ? ` | CHARGEDBY ${fee.chargedBy}` : ''}` : '';
   const classification = inferFeeClassification(fee.name, fee.applicationScope || fee.feeType, fee.ispsClassification || inferredIsps, fee.chargedBy);
   const classificationDetails = ` | GROUP ${fee.financialGroup || classification.financialGroup} | NATURE ${fee.chargeNature || classification.chargeNature} | SOURCE ${fee.classificationSource || 'RULE'}`;
-  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${classificationDetails}${ispsDetails}`;
+  const cleanMeta = value => String(value || '').replace(/[|\r\n]+/g,' ').trim().slice(0,300);
+  const inferredProvenance = fee.provenanceType || (fee.source === 'PARTNER' || fee.classificationSource === 'AI' ? 'AGENT_EMAIL' : fee.source === 'INCOTERM' ? 'SYSTEM_RULE' : fee.classificationSource === 'MANUAL' ? 'MANUAL' : 'SYSTEM_RULE');
+  const provenanceDetails = ` | PROVENANCE ${cleanMeta(inferredProvenance)}${fee.provenanceLabel ? ` | SOURCELABEL ${cleanMeta(fee.provenanceLabel)}` : ''}${fee.evidence ? ` | EVIDENCE ${cleanMeta(fee.evidence)}` : ''}${fee.percentBase ? ` | PERCENTBASE ${cleanMeta(fee.percentBase)}` : ''}${Number(fee.percentageBaseValue) > 0 ? ` | BASEVALUE ${Number(fee.percentageBaseValue).toFixed(4)}` : ''}`;
+  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${classificationDetails}${provenanceDetails}${ispsDetails}`;
 }
 
 const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
@@ -2939,9 +2968,38 @@ window.reviewCostLines = { freight: [], origin: [], destination: [] };
 
 function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
-function reviewCostTotal(line) { const raw=reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); const minimum=reviewCostNumber(line.minValue); const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(Math.max(raw,minimum),maximum) : Math.max(raw,minimum); }
+function reviewCostWithLimits(raw, line) { const minimum=reviewCostNumber(line.minValue); const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(Math.max(raw,minimum),maximum) : Math.max(raw,minimum); }
+function reviewConvertCost(value, fromCurrency, toCurrency) { const from=String(fromCurrency||'USD').toUpperCase(), to=String(toCurrency||'USD').toUpperCase(); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
+function reviewPercentageBase(line) {
+  const configured=String(line.percentBase || '').toUpperCase();
+  const targetCurrency=line.currency || 'USD';
+  const freight=(window.reviewCostLines?.freight || []).filter(item=>item.special==='MAIN_FREIGHT').reduce((sum,item)=>sum+reviewConvertCost(reviewCostNumber(item.quantity,0)*reviewCostNumber(item.unitValue,0),item.currency,targetCurrency),0);
+  const origin=(window.reviewCostLines?.origin || []).filter(item=>item.billingUnit!=='PERCENTAGE').reduce((sum,item)=>sum+reviewConvertCost(reviewCostWithLimits(reviewCostNumber(item.quantity,0)*reviewCostNumber(item.unitValue,0),item),item.currency,targetCurrency),0);
+  if (configured === 'FREIGHT_PLUS_ORIGIN') return freight + origin;
+  if (configured === 'FREIGHT') return freight;
+  const savedBase=reviewCostNumber(line.percentageBaseValue); return savedBase > 0 ? savedBase : freight;
+}
+function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostWithLimits(raw,line); }
 
-function reviewMainFreightLine() {
+function reviewCostProvenance(line) {
+  const raw=String(line.provenanceType || line.source || line.classificationSource || '').toUpperCase();
+  let type='SYSTEM_RULE', label=line.provenanceLabel || 'Regra do sistema', css='system';
+  if (/AGENT|EMAIL|PARTNER|AI/.test(raw)) { type='AGENT_EMAIL'; label=line.provenanceLabel || 'E-mail do agente'; css='email'; }
+  else if (/FIXED|TARIFF|PARTNER_RATE|SYSTEM_RATE/.test(raw)) { type='SYSTEM_RATE'; label=line.provenanceLabel || 'Cadastro do sistema'; css='system'; }
+  else if (/MANUAL/.test(raw)) { type='MANUAL'; label=line.provenanceLabel || 'Inserida manualmente'; css='manual'; }
+  else if (/CALCULATED|AUTOMATIC/.test(raw)) { type='CALCULATED'; label=line.provenanceLabel || 'Cálculo automático'; css='calculated'; }
+  if (line.editedManually && type !== 'MANUAL') label += ' · editada';
+  return { type, label, css, evidence:line.evidence || line.sourceEvidence || '' };
+}
+
+function quotationFreightEvidence(quotation) {
+  let data=window.lastExtractedAgentData;
+  if (!data && quotation?.costsData) { try { data=JSON.parse(quotation.costsData); } catch(e) {} }
+  const evidence=(data?.costs?.field_evidence || []).find(item=>/freight_(value|usd)|frete/i.test(item.field || ''))?.evidence || '';
+  return { hasAgent:Boolean(data?.costs && (data.costs.freight_value != null || data.costs.freight_usd != null)), evidence };
+}
+
+function reviewMainFreightLine(quotation = {}) {
   const loadType = String(document.getElementById('rev-load-type')?.value || '').toUpperCase();
   const gross = reviewCostNumber(document.getElementById('rev-weight')?.value);
   const packages = parseInt(document.getElementById('rev-packages')?.value) || 1;
@@ -2952,32 +3010,33 @@ function reviewMainFreightLine() {
   else if (loadType.includes('LCL')) { quantity = cbm || 1; billingUnit = 'PER_CBM'; }
   else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); quantity = containerMatch ? Number(containerMatch[1]) : 1; billingUnit = 'PER_CONTAINER'; }
   const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
-  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue:quantity > 0 ? total / quantity : total, currency:document.getElementById('rev-freight-currency')?.value || 'USD', financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT' };
+  const source=quotationFreightEvidence(quotation);
+  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue:quantity > 0 ? total / quantity : total, currency:document.getElementById('rev-freight-currency')?.value || 'USD', financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?'AGENT_EMAIL':'MANUAL', evidence:source.evidence };
 }
 
 function initializeReviewCostEditor(quotation = {}) {
-  const origin = parseFeeText(document.getElementById('rev-origin-services')?.value || '');
-  const destination = parseFeeText(document.getElementById('rev-destination-services')?.value || '');
+  const origin = enrichFeeMetadata(parseFeeText(document.getElementById('rev-origin-services')?.value || ''), window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
+  const destination = enrichFeeMetadata(parseFeeText(document.getElementById('rev-destination-services')?.value || ''), window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
   const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
   const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
-  const decorate = (fee, scope) => ({ ...fee, id:reviewCostId(), quantity:reviewCostNumber(fee.quantity, 1), unitValue:reviewCostNumber(fee.unitValue ?? fee.value), minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), currency:String(fee.currency || 'USD').toUpperCase(), applicationScope:scope });
+  const decorate = (fee, scope) => { const unitValue=reviewCostNumber(fee.unitValue ?? fee.value); const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value); const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0); return { ...fee, id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):unitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?'AGENT_EMAIL':fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:String(fee.currency || 'USD').toUpperCase(), applicationScope:scope }; };
   window.reviewCostLines = {
-    freight: [reviewMainFreightLine(), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
+    freight: [reviewMainFreightLine(quotation), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
     destination: cleanDestination.map(fee => decorate(fee, 'DESTINATION'))
   };
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:1, billingUnit:'PERCENTAGE', unitValue:iof, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX' });
+  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:3.5, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue:iof/0.035, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
-  if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE' });
+  if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
   const storageRequested = document.getElementById('rev-storage')?.dataset.requested === 'true';
-  if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:quotation.destinationStorageSource === 'MINIMUM_FALLBACK' ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:quotation.destinationStorageCurrency || 'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE' });
+  if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:quotation.destinationStorageSource === 'MINIMUM_FALLBACK' ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:quotation.destinationStorageCurrency || 'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:quotation.destinationStorageSource==='AGENT_RESPONSE'?'AGENT_EMAIL':quotation.destinationStorageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL', evidence:quotation.storageRequestEvidence || '' });
   const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
-  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'TAX_IOF', chargeNature:'TAX' });
-  if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS' });
-  if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION' });
+  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
+  if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION', provenanceType:'MANUAL' });
   renderReviewCostEditor();
   window.reviewCostEditorReady = true;
 }
@@ -2994,22 +3053,23 @@ function refreshReviewMainFreightBasis() {
 
 function costUnitOptions(selected) { return COST_EDITOR_UNITS.map(unit => `<option value="${unit}" ${unit === selected ? 'selected' : ''}>${escapeFeeHtml(FEE_UNIT_LABELS[unit] || unit)}</option>`).join(''); }
 function costCurrencyOptions(selected) { return ['USD','EUR','BRL'].map(currency => `<option value="${currency}" ${currency === selected ? 'selected' : ''}>${currency}</option>`).join(''); }
+function reviewCostAmount(value) { return Number(value || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 function renderReviewCostEditor() {
   ['freight','origin','destination'].forEach(group => {
     const target = document.getElementById(`cost-lines-${group}`); if (!target) return;
     const lines = window.reviewCostLines[group] || [];
-    target.innerHTML = lines.length ? lines.map(line => `<div class="cost-line" data-cost-id="${line.id}">
-      <div><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"></div>
+    target.innerHTML = lines.length ? lines.map(line => { const source=reviewCostProvenance(line); return `<div class="cost-line" data-cost-id="${line.id}">
+      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div></div>
       <div><label>Base de cálculo</label><select ${(line.locked || line.fixedDefinition) ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
-      <div><label>Qtd.</label><input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)"></div>
+      <div><label>Qtd.</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
       <div><label>Unitário</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
-      <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostTotal(line).toFixed(2)}</div></div>
+      <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div></div>
       <div><label>Ação</label>${line.locked ? '<div style="height:34px"></div>' : `<button type="button" title="Excluir linha" class="cost-line-remove" onclick="removeReviewCostLine('${group}','${line.id}')">×</button>`}</div>
-    </div>`).join('') : '<div style="padding:16px 8px;text-align:center;color:var(--text-muted);font-size:11px;">Nenhuma linha nesta base.</div>';
+    </div>`; }).join('') : '<div style="padding:16px 8px;text-align:center;color:var(--text-muted);font-size:11px;">Nenhuma linha nesta base.</div>';
   });
   syncReviewCostEditor();
 }
@@ -3017,15 +3077,16 @@ function renderReviewCostEditor() {
 function updateReviewCostLine(group, id, field, value) {
   const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
   line[field] = ['quantity','unitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : value;
+  if (!line.locked || ['unitValue','currency','minValue','maxValue'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
   const row = document.querySelector(`[data-cost-id="${id}"]`);
-  const total = row?.querySelector('.cost-line-total'); if (total) total.textContent = `${line.currency || 'USD'} ${reviewCostTotal(line).toFixed(2)}`;
+  const total = row?.querySelector('.cost-line-total'); if (total) total.textContent = `${line.currency || 'USD'} ${reviewCostAmount(reviewCostTotal(line))}`;
   syncReviewCostEditor();
 }
 
 function addReviewCostLine(group) {
   const defaults = { freight:{name:'Novo componente de frete',scope:'FREIGHT',financialGroup:'FREIGHT_COMPONENT'}, origin:{name:'Nova taxa de origem',scope:'ORIGIN',financialGroup:'ORIGIN_CHARGE'}, destination:{name:'Nova taxa de destino',scope:'DESTINATION',financialGroup:'DESTINATION_CHARGE'} }[group];
-  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', quantitySource:'MANUAL' });
+  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL' });
   renderReviewCostEditor();
   setTimeout(() => document.querySelector(`#cost-lines-${group} .cost-line:last-child input`)?.focus(), 0);
 }
@@ -3039,6 +3100,7 @@ function removeReviewCostLine(group, id) {
 
 function syncReviewCostEditor() {
   const all = Object.values(window.reviewCostLines).flat();
+  all.forEach(line => { const row=document.querySelector(`[data-cost-id="${line.id}"]`); const total=row?.querySelector('.cost-line-total'); if(total) total.textContent=`${line.currency || 'USD'} ${reviewCostAmount(reviewCostTotal(line))}`; const badge=row?.querySelector('.cost-source-badge'); if(badge){const source=reviewCostProvenance(line); badge.textContent=source.label; badge.className=`cost-source-badge ${source.css}`; badge.title=source.evidence || source.label;} });
   const main = window.reviewCostLines.freight.find(line => line.special === 'MAIN_FREIGHT');
   if (main) { document.getElementById('rev-freight').value = reviewCostTotal(main).toFixed(2); document.getElementById('rev-freight-currency').value = main.currency; document.getElementById('rev-freight-unit').value = reviewCostNumber(main.unitValue).toFixed(2); }
   const specialValue = special => reviewCostTotal(all.find(line => line.special === special) || {});
@@ -3048,7 +3110,7 @@ function syncReviewCostEditor() {
   const inland = all.find(line => line.special === 'ORIGIN_INLAND');
   if (inland) { document.getElementById('rev-origin-inland-value').value = reviewCostTotal(inland).toFixed(2); document.getElementById('rev-origin-inland-currency').value = inland.currency; }
   else { document.getElementById('rev-origin-inland-value').value = ''; }
-  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:'MANUAL', classificationSource:'MANUAL', needsReview:false, reviewReasons:[] });
+  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (line.provenanceType==='AGENT_EMAIL'?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] });
   const originFees = window.reviewCostLines.origin.filter(line => !line.special).map(line => toFee(line,'ORIGIN',line.financialGroup || 'ORIGIN_CHARGE'));
   const destinationFees = window.reviewCostLines.destination.filter(line => !line.special || line.special === 'CUSTOMS').map(line => toFee(line,'DESTINATION',line.financialGroup || 'DESTINATION_CHARGE'));
   window.reviewCostLines.freight.filter(line => !line.special).forEach(line => destinationFees.push(toFee(line,'FREIGHT','FREIGHT_COMPONENT')));
@@ -3062,21 +3124,22 @@ function syncReviewCostEditor() {
   ['freight','origin','destination'].forEach(group => {
     const totals = {};
     (window.reviewCostLines[group] || []).forEach(line => { const currency=line.currency || 'USD'; totals[currency]=(totals[currency]||0)+reviewCostTotal(line); });
-    const label = Object.entries(totals).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${value.toFixed(2)}`).join(' | ') || '—';
+    const label = Object.entries(totals).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${reviewCostAmount(value)}`).join(' | ') || '—';
     const el=document.getElementById(`cost-subtotal-${group}`); if(el) el.textContent=label;
   });
   const grand = {};
   all.forEach(line => { const currency=line.currency || 'USD'; grand[currency]=(grand[currency]||0)+reviewCostTotal(line); });
-  const grandLabel=Object.entries(grand).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${value.toFixed(2)}`).join(' | ') || '—';
-  const grandEl=document.getElementById('cost-grand-values'); if(grandEl) grandEl.textContent=grandLabel;
-  document.getElementById('r-total').value = all.reduce((sum,line)=>sum+brlValue(line),0).toFixed(2);
+  const grandLabel=Object.entries(grand).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${reviewCostAmount(value)}`).join(' | ') || '—';
+  const equivalentBrl=all.reduce((sum,line)=>sum+brlValue(line),0);
+  const grandEl=document.getElementById('cost-grand-values'); if(grandEl) grandEl.innerHTML=`${escapeFeeHtml(grandLabel)}<small>Equivalente estimado: BRL ${reviewCostAmount(equivalentBrl)} · USD 5,05 · EUR 5,50</small>`;
+  document.getElementById('r-total').value = equivalentBrl.toFixed(2);
 }
 
 function syncCustomsPanelToCostEditor() {
   if (!window.reviewCostEditorReady) return;
   const enabled = document.getElementById('rev-customs-clearance').checked;
   const current = window.reviewCostLines.destination.find(line => line.special === 'CUSTOMS');
-  if (enabled && !current) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value,900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS' });
+  if (enabled && !current) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value,900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
   if (!enabled && current) window.reviewCostLines.destination = window.reviewCostLines.destination.filter(line => line.special !== 'CUSTOMS');
   if (enabled && current) current.unitValue = reviewCostNumber(document.getElementById('rev-customs-value')?.value,900);
   renderReviewCostEditor();
@@ -4438,7 +4501,7 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
   destFeesTextarea.value = lines.join('\n');
   if (window.reviewCostEditorReady && document.getElementById('pdfReviewOverlay')?.style.display === 'block') {
     window.reviewCostLines.destination = (window.reviewCostLines.destination || []).filter(line => !/seguro internacional/i.test(line.name || ''));
-    if (requiresIns) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Seguro Internacional', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-insurance-val')?.value), currency:'USD', applicationScope:'DESTINATION', financialGroup:'INSURANCE', chargeNature:'INSURANCE', classificationSource:'MANUAL', quantitySource:'MANUAL' });
+    if (requiresIns) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Seguro Internacional', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-insurance-val')?.value), currency:'USD', applicationScope:'DESTINATION', financialGroup:'INSURANCE', chargeNature:'INSURANCE', classificationSource:'RULE', provenanceType:'CALCULATED', quantitySource:'MANUAL' });
     renderReviewCostEditor();
   }
   recalculateModalDestinationServicesTotal();
@@ -4627,7 +4690,7 @@ function applySmartProfit() {
     
     destFeesTextarea.value = lines.join('\n');
     window.reviewCostLines.destination = (window.reviewCostLines.destination || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
-    window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Spread / Profit', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:profitValUsd, currency:'USD', applicationScope:'DESTINATION', financialGroup:'PROFIT', chargeNature:'PROFIT', classificationSource:'MANUAL', quantitySource:'MANUAL' });
+    window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Spread / Profit', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:profitValUsd, currency:'USD', applicationScope:'DESTINATION', financialGroup:'PROFIT', chargeNature:'PROFIT', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL' });
     renderReviewCostEditor();
     recalculateModalDestinationServicesTotal();
     alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado nas Taxas de Destino!`);
@@ -5417,7 +5480,8 @@ function calculateReturnRuleFees(q) {
     const quantityMap = { FIXED:1, PER_DOCUMENT:1, PER_KG:taxable, PER_TON:grossTons, PER_CBM:cbm, PER_WM:Math.max(grossTons, cbm), PER_CONTAINER:containerQty, PER_DG_PRODUCT:Number(q.dangerousGoodsProductCount)||null };
     const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
     const quantity = quantityMap[rule.chargeType] ?? null;
-    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:rule.currency||'USD', billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, needsReview:billingUnit==='UNKNOWN' };
+    const percentageBaseValue = rule.chargeType === 'PERCENTAGE' && Number(rule.value) > 0 ? totalValue * 100 / Number(rule.value) : null;
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:rule.currency||'USD', billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra do sistema · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN' };
   };
 
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
