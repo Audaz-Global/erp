@@ -51,8 +51,27 @@ export async function backfillPartnerLinks(prisma: PrismaClient) {
 
   const fees = await prisma.fixedFee.findMany({ where: { partnerId: null, carrier: { not: null } } });
   for (const fee of fees) {
-    const agent = fee.carrier ? findAgent(fee.carrier) : undefined;
+    let agent = fee.carrier ? findAgent(fee.carrier) : undefined;
+    const carrierName = String(fee.carrier || '').trim();
+    if (!agent && carrierName && !['GERAL', 'ALL', 'PADRAO', 'PADRÃO'].includes(carrierName.toUpperCase())) {
+      const role = fee.modal === 'AIR' ? 'CIA_AEREA' : fee.modal.startsWith('SEA') ? 'ARMADOR' : 'AGENTE';
+      agent = await prisma.agent.create({ data: { name: carrierName, type: role, types: JSON.stringify([role]), modals: fee.modal, origins: 'Global', destinations: 'Brasil', active: fee.active } });
+      refreshedAgents.push(agent); linked++;
+    }
     if (agent) { await prisma.fixedFee.update({ where: { id: fee.id }, data: { partnerId: agent.id } }); linked++; }
+  }
+
+  for (const agent of refreshedAgents) {
+    const types = parseTypes(agent.types, agent.type);
+    if (!types.includes('ARMADOR')) continue;
+    const profile = await prisma.carrierProfile.findFirst({ where: { OR: [{ partnerId: agent.id }, { name: { equals: agent.name, mode: 'insensitive' } }] } });
+    if (!profile) {
+      await prisma.carrierProfile.create({ data: { partnerId: agent.id, name: agent.name, code: agent.code, aliases: agent.aliases || '[]', equipmentScopes: agent.equipmentScopes || '["20GP","40GP","40HC"]', modal: 'SEA', active: agent.active } });
+      linked++;
+    } else if (!profile.partnerId) {
+      const conflict = await prisma.carrierProfile.findFirst({ where: { partnerId: agent.id, id: { not: profile.id } } });
+      if (!conflict) { await prisma.carrierProfile.update({ where: { id: profile.id }, data: { partnerId: agent.id } }); linked++; }
+    }
   }
   return linked;
 }
