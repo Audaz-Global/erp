@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForPdf, resolveFreightValue } from '../services/incotermRuleService';
 import { normalizeFee } from './feeCalculationService';
+import { storageEstimatePdfFee } from './storageEstimateService';
 
 function safeToFixed(num: any, digits: number = 2): string {
   const n = parseFloat(num);
@@ -1369,6 +1370,15 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       });
     }
 
+    const airStorageFee = storageEstimatePdfFee({
+      requested: quotationData.requiresStorageEstimate,
+      value: quotationData.destinationStorage,
+      source: quotationData.destinationStorageSource
+    });
+    if (airStorageFee && !detailedFeesDestino.some(fee => /armazenagem|storage/i.test(String(fee.name || '')))) {
+      detailedFeesDestino.push(airStorageFee);
+    }
+
     // Componentes do frete não devem aparecer como taxas locais, ainda que tenham
     // sido encontrados nas seções de origem/destino do retorno do agente.
     detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino]
@@ -1668,20 +1678,6 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                 calculatedUsdTotal += iV;
               }
 
-              // Adicionar armazenagem se houver
-              const storage = parseFloat(quotationData.destinationStorage) || 0;
-              if (storage > 0) {
-                detailedFees.push({
-                  name: 'Estimativa de Armazenagem',
-                  qty: 1,
-                  unit: 'Fixo',
-                  valueUnit: storage.toFixed(2),
-                  currency: 'BRL',
-                  total: `BRL ${storage.toFixed(2)}`, financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE'
-                });
-                calculatedBrlTotal += storage;
-              }
-
               // Adicionar impostos se houver
               const taxes = parseFloat(quotationData.destinationTaxes) || 0;
               if (taxes > 0) {
@@ -1808,6 +1804,18 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       }
     }
 
+    // Armazenagem é independente do tipo de carga e da existência de outras
+    // taxas detalhadas. Antes ela só entrava no ramo FCL/Excel e desaparecia no LCL.
+    const storageFee = storageEstimatePdfFee({
+      requested: quotationData.requiresStorageEstimate,
+      value: quotationData.destinationStorage,
+      source: quotationData.destinationStorageSource
+    });
+    if (storageFee && !detailedFees.some(fee => /armazenagem|storage/i.test(String(fee.name || '')))) {
+      detailedFees.push(storageFee);
+      hasDetailedFees = true;
+    }
+
     // Mantém a etapa explícita quando há ISPS tanto na origem quanto no destino.
     detailedFees.forEach((fee: any) => {
       if (String(fee.name || '').toUpperCase().includes('ISPS') && !String(fee.name).toUpperCase().includes('DESTINO')) fee.name = 'ISPS - Destino';
@@ -1838,7 +1846,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     if (hasDetailedFees) {
       detailedFees.forEach(f => {
-        const val = parseFloat(f.valueUnit) * (f.qty || 1);
+        const val = (parseFloat(f.valueUnit) || 0) * (f.qty || 1);
         const curr = (f.currency || 'BRL').toUpperCase();
         if (curr === 'BRL') sumDestinoBrl += val;
         else if (curr === 'USD') sumDestinoUsd += val;

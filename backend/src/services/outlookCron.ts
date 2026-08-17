@@ -275,6 +275,7 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
         });
         updateData.destinationStorage = applyMinLclStorage(c.storage_brl, quotation.modal, quotation.loadType, pricingSettings.minLclStorageBrl);
         updateData.destinationStorageCurrency = 'BRL';
+        updateData.destinationStorageSource = Number(c.storage_brl) > 0 ? 'AGENT_RESPONSE' : (quotation.modal === 'SEA' && quotation.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null);
       }
       if (has('services_brl') && c.services_brl != null) updateData.destinationServicesTotal = c.services_brl;
       if (has('taxes_brl') && c.taxes_brl != null) {

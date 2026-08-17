@@ -9,6 +9,7 @@ import { findAgentDraftEmailTemplate } from '../services/agentDraftEmailTemplate
 import { applyRateValidityPolicy } from '../services/rateValidityService';
 import { resolveFeeQuantities } from '../services/feeCalculationService';
 import { applyDomesticTransportEvidencePolicy } from '../utils/quotationRequestPolicy';
+import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from '../services/storageEstimateService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -36,6 +37,13 @@ function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any
     source('Peso bruto', data?.cargo?.gross_weight_kg, data?.cargo?.confidence),
     source('Dimensões', data?.cargo?.dimensions?.join('; '), data?.cargo?.confidence)
   ];
+  entries.push({
+    field: 'Estimativa de armazenagem',
+    value: data?.cargo?.requires_storage_estimate ? 'Solicitada' : 'Não solicitada',
+    source: data?.cargo?.storage_request_source || 'NOT_REQUESTED',
+    confidence: data?.cargo?.requires_storage_estimate ? 1 : 0,
+    evidence: data?.cargo?.storage_request_evidence || ''
+  });
   entries.push({ field: 'Nome do contato', value: contact?.name || data?.client?.contact_name || '', source: contact?.source || (data?.client?.contact_name ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND'), confidence: contact?.name ? contact.confidence : numericConfidence(data?.client?.confidence) || 0, evidence: contact?.evidence || '' });
   entries.push({ field: 'Telefone do contato', value: contact?.phone || data?.client?.contact_phone || '', source: contact?.source || (data?.client?.contact_phone ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND'), confidence: contact?.phone ? contact.confidence : numericConfidence(data?.client?.confidence) || 0, evidence: contact?.evidence || '' });
   return { version: 1, processedAt: new Date().toISOString(), emails: emailRecords, fields: entries, signatureOcr };
@@ -139,6 +147,7 @@ export const extractData = async (req: Request, res: Response) => {
     if (mode === 'CLIENT') {
       aiResult = await extractClientData(combinedText, contextRules, mediaParts);
       aiResult = applyDomesticTransportEvidencePolicy(aiResult, combinedText);
+      aiResult = applyStorageEstimateRequestPolicy(aiResult, combinedText);
       const signatureContact = emailRecords.map(item => item.extractedContact).find(item => item?.source === 'SIGNATURE_TEXT' && (item.name || item.phone));
       if (signatureContact) {
         aiResult.client = aiResult.client || {};
@@ -298,7 +307,8 @@ export const generateDraft = async (req: Request, res: Response) => {
       grossWeight: payload.totalGrossWeightKg != null ? String(payload.totalGrossWeightKg) : 'Não informado', cargoValue: payload.commercialValue != null ? `${payload.commercialCurrency || ''} ${payload.commercialValue}`.trim() : 'Não informado',
       imoStatus: payload.dangerousGoodsStatus === 'CONFIRMED' ? 'Sim' : payload.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A confirmar' : 'Não', directService: payload.connections ? 'Conforme rota informada' : 'Quando aplicável', freeTime: 'Quando aplicável', client: payload.clientName || '', clientReference: payload.clientReferenceNumber || ''
     };
-    const draftText = selectedTemplate ? renderDraftBody(selectedTemplate.bodyTemplate, bodyTokens) : await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
+    const generatedDraftText = selectedTemplate ? renderDraftBody(selectedTemplate.bodyTemplate, bodyTokens) : await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
+    const draftText = ensureStorageEstimateRequest(generatedDraftText, payload.requiresStorageEstimate);
 
     const emailSettings = await prisma.agentDraftEmailSettings.upsert({
       where: { id: SINGLETON_ID },

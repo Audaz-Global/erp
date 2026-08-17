@@ -25,7 +25,7 @@ const trackedFields = [
   'status', 'agentEmail', 'agentName', 'incoterm', 'modal', 'loadType', 'originCity', 'originPort',
   'destinationCity', 'destinationPort', 'totalGrossWeightKg', 'totalCbm', 'totalPackages', 'commercialValue',
   'freightValue', 'freightCurrency', 'carrier', 'vesselName', 'voyageNumber', 'freeTimeDays', 'rateValidUntil',
-  'destinationStorage', 'destinationServicesTotal', 'destinationTaxes', 'originServicesTotal', 'originInlandValue',
+  'destinationStorage', 'destinationStorageSource', 'requiresStorageEstimate', 'destinationServicesTotal', 'destinationTaxes', 'originServicesTotal', 'originInlandValue',
   'totalBrl', 'totalUsd', 'expectedProfit', 'customsClearanceIncluded', 'requiresInsurance', 'needsTransport',
   'isImo', 'dangerousGoodsStatus', 'msdsStatus', 'unNumber', 'dangerousGoodsClass', 'packingGroup',
   'dangerousGoodsProductCount', 'dangerousPackagesCount', 'unNumberCount'

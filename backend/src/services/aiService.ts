@@ -283,9 +283,14 @@ export const extractClientData = async (text: string, contextRules: string = '',
                   type: 'boolean', 
                   description: 'Se o cliente solicitou ou mencionou seguro no e-mail (ex: "com seguro", "frete com seguro"). Se disser "sem seguro" ou não houver menção, retorne false.' 
                 },
+                requires_storage_estimate: {
+                  type: 'boolean',
+                  description: 'True quando o cliente pedir explicitamente estimativa, valor, custo ou cotação de armazenagem.'
+                },
+                storage_request_evidence: { type: 'string', description: 'Trecho exato que solicita armazenagem; vazio quando não solicitado.' },
                 confidence: { type: 'number' }
               },
-              required: ['type', 'gross_weight_kg', 'packages_count', 'dimensions']
+              required: ['type', 'gross_weight_kg', 'packages_count', 'dimensions', 'requires_storage_estimate', 'storage_request_evidence']
             }
           },
           required: ['client', 'route', 'cargo']
@@ -307,6 +312,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     ${safeSourceText}
 
     - **Referência do Cliente (client.reference)**: Identifique se o cliente menciona uma referência/PO/número de pedido PRÓPRIO dele para este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order", "PO#"). Essa é diferente de qualquer referência interna da Audaz. Se não houver, retorne string vazia.
+    - **Estimativa de armazenagem**: Se o cliente pedir estimativa, valor, custo ou cotação de armazenagem, defina cargo.requires_storage_estimate=true e copie a frase de suporte em cargo.storage_request_evidence. Não confunda menção genérica a terminal com uma solicitação de armazenagem.
 
     Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
     - **Incoterm — PRIORIDADE CRÍTICA**: Identifique e extraia OBRIGATORIAMENTE o Incoterm (ex: EXW, FCA, FOB, CIF, DAP, etc) de qualquer lugar dos documentos, seja do texto corrido do e-mail, de imagens coladas, de tabelas de informações básicas, Invoices ou formulários anexados (ex: "FCA Planta do Fornecedor"). Se as palavras FCA, EXW, FOB ou similar aparecerem, capture-as imediatamente.
@@ -410,6 +416,8 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - UN / Classe de risco: ${data.unNumber || 'Não informado'} / ${data.dangerousGoodsClass || 'Não informada'}
     - Produtos perigosos distintos: ${data.dangerousGoodsProductCount ?? 'Não informado'}
     - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
+    - Estimativa de armazenagem solicitada: ${data.requiresStorageEstimate ? 'SIM' : 'NÃO'}
+    - Evidência da solicitação de armazenagem: ${data.storageRequestEvidence || 'Não aplicável'}
     ${data.reference ? `- Referência: ${data.reference}` : ''}`;
 }
 
@@ -457,6 +465,7 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     3. Caso haja siglas no e-mail original explicadas nas regras (por exemplo, siglas indicando container Open Top (OT) e/ou High Cube (HC), como "4 x 40' OT HC" ou "OP e HC"), e o modal for Marítimo, certifique-se de aplicar essa regra e solicitar os tipos corretos de equipamentos (containers) no e-mail (por exemplo, especificando container Open Top High Cube ou OP e HC) no lugar de um contêiner Dry comum.
     4. Analise as Dimensões/CBM nos DADOS EXTRAÍDOS DA CARGA. Se o modal for Marítimo e contiver qualquer menção a tipos especiais de containers (como "OT", "HC", "Open Top", "High Cube", "OP", etc.), incorpore essa exigência no e-mail de cotação.
     5. Se "Inland de Origem necessário" for SIM, solicite separadamente o valor e o prazo da coleta terrestre na origem para a rota informada. Não misture esse custo com AWB, handling, THC ou outras taxas locais.
+    5.1. Se "Estimativa de armazenagem solicitada" for SIM, solicite obrigatoriamente a estimativa de armazenagem no destino, com base de cálculo, período considerado e free time. Não omita esse item.
     5. **Rota com UN/LOCODE**: Ao citar a rota do embarque (Origem e Destino) no e-mail, identifique e coloque o respectivo código de porto ou aeroporto (UN/LOCODE) correspondente ao lado do nome da cidade (por exemplo: "Shanghai (CNSHA)" e "Santos (BRSSZ)"), caso o local de origem ou destino seja conhecido.
     6. **Prazo de Resposta com Antecedência (12h)**: Se o cliente ou o e-mail original estipular uma data, hora ou prazo limite (deadline) para a entrega da proposta de cotação, calcule um limite de tempo para o retorno do agente que seja exatamente **12 horas antes** desse prazo original e mencione de forma clara no e-mail (por exemplo: se o cliente pediu retorno até dia 28 às 18h, peça ao agente até o dia 28 às 06h).
     7. **Omitir Taxas de Destino Silenciosamente**: Se houver regras sobre taxas de destino (como não pedi-las para agentes da origem), simplesmente **não as peça** no e-mail (solicite apenas o frete e taxas locais de origem, ex: THC, documentação, etc.). **NUNCA escreva frases negativas no e-mail dizendo que não precisa de taxas de destino** (ex: NÃO escreva "não precisamos das taxas de destino" ou "não enviar taxas de destino"). Apenas ignore as taxas de destino silenciosamente no e-mail.

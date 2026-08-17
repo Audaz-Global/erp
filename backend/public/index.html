@@ -1199,6 +1199,10 @@
                 <label>Seguro Incluso? <span id="conf-insurance"></span></label>
                 <select id="r-insurance"><option value="false">Não</option><option value="true">Sim</option></select>
               </div>
+              <div class="form-group" style="grid-column:1/-1;padding:11px 12px;border:1px solid var(--border);border-radius:8px;">
+                <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;"><input type="checkbox" id="r-storage-request" style="width:17px;height:17px;margin:0;"> Solicitar estimativa de armazenagem ao parceiro</label>
+                <small id="r-storage-request-evidence" style="display:none;margin-top:6px;color:var(--text-muted);"></small>
+              </div>
             </div>
           </div>
         </div>
@@ -1938,6 +1942,7 @@
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Armazenagem Destino (BRL)</label>
           <input type="number" id="rev-storage" step="0.01" placeholder="0.00">
+          <small id="rev-storage-status" style="display:none;margin-top:5px;color:var(--text-muted);"></small>
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Serviços Destino (BRL)</label>
@@ -3362,6 +3367,14 @@ function fillReviewForm(d, mode) {
 
       document.getElementById('r-insurance').value = d.cargo.requires_insurance ? "true" : "false";
       document.getElementById('conf-insurance').innerHTML = renderConf(d.cargo.requires_insurance, d.cargo.confidence);
+      const storageRequest = document.getElementById('r-storage-request');
+      const storageEvidence = document.getElementById('r-storage-request-evidence');
+      storageRequest.checked = !!d.cargo.requires_storage_estimate;
+      storageRequest.dataset.evidence = d.cargo.storage_request_evidence || '';
+      storageEvidence.style.display = storageRequest.checked ? 'block' : 'none';
+      storageEvidence.textContent = storageRequest.checked && storageRequest.dataset.evidence
+        ? 'Identificado no pedido: "' + storageRequest.dataset.evidence + '"'
+        : '';
 
       document.getElementById('r-commercial-value').value = d.cargo.commercial_value_usd || '';
       document.getElementById('conf-commercial-value').innerHTML = renderConf(d.cargo.commercial_value_usd, d.cargo.confidence);
@@ -3774,6 +3787,8 @@ async function generateDraftEmail() {
       dangerousPackagesCount: parseInt(document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount) || null,
       unNumberCount: parseInt(document.getElementById('r-dg-product-count').dataset.unNumberCount) || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
+      requiresStorageEstimate: document.getElementById('r-storage-request').checked,
+      storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'SOLICITADO',
@@ -4028,6 +4043,8 @@ async function saveAsAwaitingAgent() {
       dangerousPackagesCount: parseInt(document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount) || null,
       unNumberCount: parseInt(document.getElementById('r-dg-product-count').dataset.unNumberCount) || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
+      requiresStorageEstimate: document.getElementById('r-storage-request').checked,
+      storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'AGUARDANDO_AGENTE',
@@ -4777,6 +4794,20 @@ async function validateAndGeneratePDF(qIdParam = null) {
     }
 
     // Calcular o seguro e injetar inicialmente
+    const storageInput = document.getElementById('rev-storage');
+    const storageStatus = document.getElementById('rev-storage-status');
+    storageInput.dataset.requested = String(!!q.requiresStorageEstimate);
+    storageInput.dataset.source = q.destinationStorageSource || '';
+    if (q.requiresStorageEstimate) {
+      storageStatus.style.display = 'block';
+      storageStatus.style.color = q.destinationStorageSource === 'MINIMUM_FALLBACK' ? 'var(--warning)' : 'var(--success)';
+      storageStatus.textContent = q.destinationStorageSource === 'MINIMUM_FALLBACK'
+        ? 'Solicitada pelo cliente. Valor atual: piso mínimo LCL configurado; confirme se o parceiro não informou outra estimativa.'
+        : 'Estimativa solicitada pelo cliente' + (q.storageRequestEvidence ? ': "' + q.storageRequestEvidence + '"' : '.');
+    } else {
+      storageStatus.style.display = 'none';
+      storageStatus.textContent = '';
+    }
     calculateAndInjectInsurance(false);
     updateBuyVsSellTable();
 
@@ -4808,6 +4839,8 @@ async function confirmAndGeneratePDF() {
     return;
   }
   if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
+  const storageInput = document.getElementById('rev-storage');
+  if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
   const reviewedFees = [...parseFeeText(document.getElementById('rev-origin-services').value), ...parseFeeText(document.getElementById('rev-destination-services').value)];
   const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING'));
   if (missingQuantity.length) {
@@ -7714,6 +7747,8 @@ async function loadQuotationIntoDraft() {
           packages_count: quotation.totalPackages,
           is_imo: quotation.isImo,
           requires_insurance: quotation.requiresInsurance,
+          requires_storage_estimate: quotation.requiresStorageEstimate,
+          storage_request_evidence: quotation.storageRequestEvidence,
           commercial_value_usd: quotation.commercialValue,
           dimensions: quotation.packages,
           confidence: 1

@@ -351,7 +351,10 @@ export const updatePhase = async (req: Request, res: Response) => {
         update: {},
         create: { id: PRICING_SETTINGS_ID }
       });
-      updateData.destinationStorage = applyMinLclStorage(costs.storage_brl, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
+      const informedStorage = Number(costs.storage_brl || 0);
+      updateData.destinationStorage = applyMinLclStorage(informedStorage, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
+      updateData.destinationStorageCurrency = 'BRL';
+      updateData.destinationStorageSource = informedStorage > 0 ? 'MANUAL' : (quotationForStorage?.modal === 'SEA' && quotationForStorage?.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null);
       updateData.destinationServicesTotal = costs.services_brl;
       updateData.destinationTaxes = costs.taxes_brl;
       updateData.totalBrl = costs.total_brl;

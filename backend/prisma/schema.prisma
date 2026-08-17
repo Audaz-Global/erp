@@ -131,6 +131,7 @@ model Quotation {
   transshipments             String? // JSON array estruturado
   destinationStorage         Float?
   destinationStorageCurrency String?
+  destinationStorageSource   String? // AGENT_RESPONSE, MANUAL, MINIMUM_FALLBACK
   destinationServicesTotal   Float?
   destinationServices        String? // JSON string
   destinationTaxes           Float?
@@ -164,6 +165,8 @@ model Quotation {
   smartcomexSynced         Boolean @default(false)
   customsClearanceIncluded Boolean @default(false)
   requiresInsurance        Boolean @default(false)
+  requiresStorageEstimate  Boolean @default(false)
+  storageRequestEvidence   String?
 
   // Transporte Terrestre Nacional
   needsTransport     Boolean   @default(false)

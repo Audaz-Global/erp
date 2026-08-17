@@ -30,6 +30,8 @@ export interface DraftPayload {
   dangerousGoodsClass: string | null;
   dangerousGoodsProductCount: number | null;
   requiresInsurance: boolean;
+  requiresStorageEstimate: boolean;
+  storageRequestEvidence: string | null;
   needsOriginInland: boolean;
   originInlandRoute: string | null;
   transportRoute: string | null;
@@ -73,6 +75,8 @@ export function buildDraftPayload(quotation: QuotationWithClient, originalEmailT
     dangerousGoodsClass: quotation.dangerousGoodsClass,
     dangerousGoodsProductCount: quotation.dangerousGoodsProductCount,
     requiresInsurance: quotation.requiresInsurance,
+    requiresStorageEstimate: quotation.requiresStorageEstimate,
+    storageRequestEvidence: quotation.storageRequestEvidence,
     needsOriginInland: quotation.needsOriginInland,
     originInlandRoute: quotation.originInlandRoute,
     transportRoute: quotation.transportRoute,
