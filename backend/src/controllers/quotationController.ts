@@ -12,6 +12,7 @@ import { quotationChanges, recordQuotationEvent } from '../services/quotationHis
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
 import { withIncotermApplicability } from '../services/incotermApplicabilityService';
 import { normalizeFee } from '../services/feeCalculationService';
+import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -316,9 +317,10 @@ export const updatePhase = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const current = await prisma.quotation.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, freightDisplayMode } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, freightDisplayMode, costCompositionReviewed } = req.body;
 
     const updateData: any = { status };
+    if (costCompositionReviewed !== undefined) updateData.costCompositionReviewed = Boolean(costCompositionReviewed);
     if (agentEmail) updateData.agentEmail = agentEmail;
     if (freightDisplayMode !== undefined) {
       updateData.freightDisplayMode = freightDisplayMode === 'ITEMIZED' ? 'ITEMIZED' : 'ALL_IN';
@@ -352,9 +354,12 @@ export const updatePhase = async (req: Request, res: Response) => {
         create: { id: PRICING_SETTINGS_ID }
       });
       const informedStorage = Number(costs.storage_brl || 0);
-      updateData.destinationStorage = applyMinLclStorage(informedStorage, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
+      updateData.destinationStorage = costCompositionReviewed ? informedStorage : applyMinLclStorage(informedStorage, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
       updateData.destinationStorageCurrency = 'BRL';
-      updateData.destinationStorageSource = informedStorage > 0 ? 'MANUAL' : (quotationForStorage?.modal === 'SEA' && quotationForStorage?.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null);
+      const storageUnchanged = Number(current.destinationStorage || 0) === informedStorage;
+      updateData.destinationStorageSource = storageUnchanged
+        ? current.destinationStorageSource
+        : (informedStorage > 0 ? 'MANUAL' : (!costCompositionReviewed && quotationForStorage?.modal === 'SEA' && quotationForStorage?.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null));
       updateData.destinationServicesTotal = costs.services_brl;
       updateData.destinationTaxes = costs.taxes_brl;
       updateData.totalBrl = costs.total_brl;
@@ -501,12 +506,14 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
     const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0, insuranceRequested: Boolean(quotation.requiresInsurance), customsClearanceContracted: Boolean(quotation.customsClearanceIncluded) };
 
-    const resolvedFreight = await resolveFreightValue(incotermStr, modalForRules, quotation.direction, fVal, fCurr, feeContext);
+    const resolvedFreight = shouldHydrateAutomaticCosts(quotation)
+      ? await resolveFreightValue(incotermStr, modalForRules, quotation.direction, fVal, fCurr, feeContext)
+      : { value:fVal, currency:fCurr, fromFallback:false, items:[] as any[] };
     fVal = resolvedFreight.value;
     fCurr = resolvedFreight.currency;
     let fTotalBrl = getBrlValue(fVal, fCurr);
 
-    if (detailedFeesOrigem.length === 0) {
+    if (shouldHydrateAutomaticCosts(quotation) && detailedFeesOrigem.length === 0) {
       try {
         const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         if (originFees.length > 0) {
@@ -528,7 +535,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       });
     }
 
-    if (detailedFeesDestino.length === 0) {
+    if (shouldHydrateAutomaticCosts(quotation) && detailedFeesDestino.length === 0) {
       try {
         const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
         if (destinationFees.length > 0) {
@@ -537,7 +544,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para destino:', err);
       }
-    } else {
+    } else if (shouldHydrateAutomaticCosts(quotation)) {
       // Complementar taxas faltantes com regras do banco
       try {
           const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);

@@ -7,6 +7,7 @@ import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extr
 import { getFeesForIncoterm, formatFeesForPdf, resolveFreightValue } from '../services/incotermRuleService';
 import { normalizeFee } from './feeCalculationService';
 import { storageEstimatePdfFee } from './storageEstimateService';
+import { shouldHydrateAutomaticCosts } from './costCompositionService';
 
 function safeToFixed(num: any, digits: number = 2): string {
   const n = parseFloat(num);
@@ -361,7 +362,7 @@ const defaultTemplate = `
         <td class="t-center">{{freightQtyRich}}</td>
         <td>{{freightCalculationType}}</td>
         <td class="t-right">{{freightCurrency}} {{freightUnitValueRich}}</td>
-        <td class="t-right">{{freightCurrency}} {{freightUnitValueRich}}</td>
+        <td class="t-right">0,00</td>
         <td class="t-right">0,00</td>
         <td class="t-right">{{freightCurrency}} {{freightTotalRich}}</td>
       </tr>
@@ -371,8 +372,8 @@ const defaultTemplate = `
         <td class="t-center">{{this.qty}}</td>
         <td>{{this.unit}}</td>
         <td class="t-right">{{this.currency}} {{this.valueUnit}}</td>
-        <td class="t-right">0,00</td>
-        <td class="t-right">0,00</td>
+        <td class="t-right">{{this.min}}</td>
+        <td class="t-right">{{this.max}}</td>
         <td class="t-right">{{this.total}}</td>
       </tr>
       {{/each}}
@@ -398,7 +399,7 @@ const defaultTemplate = `
     {{#each originServiceRows}}
     <tr>
       <td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td>
-      <td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">0,00</td><td class="t-right">0,00</td>
+      <td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.min}}</td><td class="t-right">{{this.max}}</td>
       <td class="t-right">{{this.total}}</td>
     </tr>
     {{/each}}</tbody>
@@ -426,8 +427,8 @@ const defaultTemplate = `
             <td class="t-center">{{this.qty}}</td>
             <td>{{this.unit}}</td>
             <td class="t-right">{{this.currency}} {{this.valueUnit}}</td>
-            <td class="t-right">0,00</td>
-            <td class="t-right">0,00</td>
+            <td class="t-right">{{this.min}}</td>
+            <td class="t-right">{{this.max}}</td>
             <td class="t-right">{{this.total}}</td>
           </tr>
         {{/each}}
@@ -858,7 +859,7 @@ const defaultAirTemplate = `
       {{#each detailedFeesFreightComponents}}
         <tr>
           <td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td>
-          <td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.min}}</td><td class="t-right">0,00</td><td class="t-right">{{this.total}}</td>
+          <td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.min}}</td><td class="t-right">{{this.max}}</td><td class="t-right">{{this.total}}</td>
         </tr>
       {{/each}}
       {{#if subtotalFrete}}
@@ -891,7 +892,7 @@ const defaultAirTemplate = `
           <td>{{this.unit}}</td>
           <td class="t-right">{{this.currency}} {{this.valueUnit}}</td>
           <td class="t-right">{{this.min}}</td>
-          <td class="t-right">0,00</td>
+          <td class="t-right">{{this.max}}</td>
           <td class="t-right">{{this.total}}</td>
         </tr>
       {{/each}}
@@ -925,7 +926,7 @@ const defaultAirTemplate = `
           <td>{{this.unit}}</td>
           <td class="t-right">{{this.currency}} {{this.valueUnit}}</td>
           <td class="t-right">{{this.min}}</td>
-          <td class="t-right">0,00</td>
+          <td class="t-right">{{this.max}}</td>
           <td class="t-right">{{this.total}}</td>
         </tr>
       {{/each}}
@@ -1214,7 +1215,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               qty: f.quantity ?? 1,
               unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
               valueUnit: unitVal.toFixed(2),
-              min: '0,00',
+              min: safeToFixed(f.minValue, 2),
+              max: safeToFixed(f.maxValue, 2),
               currency: curr,
               total: `${curr} ${val.toFixed(2)}`,
               financialGroup: normalizeFee({ ...f, applicationScope:'ORIGIN' }).financialGroup,
@@ -1234,7 +1236,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
     const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0), insuranceRequested: Boolean(quotationData.requiresInsurance), customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded) };
 
-    if (!isTestCase) {
+    if (!isTestCase && shouldHydrateAutomaticCosts(quotationData)) {
       const resolvedFreight = await resolveFreightValue(incotermStr, modalForRules, quotationData.direction, fVal, fCurr, feeContext);
       fVal = resolvedFreight.value;
       fCurr = resolvedFreight.currency;
@@ -1242,7 +1244,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     freightTotalValue = `${fCurr} ${fVal.toFixed(2)}`;
     freightUnitValue = chargableWeight > 0 ? `${fCurr} ${(fVal / chargableWeight).toFixed(2)}` : `${fCurr} 0.00`;
 
-    if (detailedFeesOrigem.length === 0) {
+    if (shouldHydrateAutomaticCosts(quotationData) && detailedFeesOrigem.length === 0) {
       try {
         const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         if (originFees.length > 0) {
@@ -1304,7 +1306,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               qty: f.quantity ?? 1,
               unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
               valueUnit: unitVal.toFixed(2),
-              min: '0,00',
+              min: safeToFixed(f.minValue, 2),
+              max: safeToFixed(f.maxValue, 2),
               currency: curr,
               total: `${curr} ${val.toFixed(2)}`,
               financialGroup: normalizeFee({ ...f, applicationScope:'DESTINATION' }).financialGroup,
@@ -1318,7 +1321,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     }
 
     // Aplicar regras de Incoterm para destino se não há taxas salvas
-    if (detailedFeesDestino.length === 0) {
+    if (shouldHydrateAutomaticCosts(quotationData) && detailedFeesDestino.length === 0) {
       try {
         const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
         if (destinationFees.length > 0) {
@@ -1327,7 +1330,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para destino (PDF):', err);
       }
-    } else {
+    } else if (shouldHydrateAutomaticCosts(quotationData)) {
       // Complementar taxas faltantes do banco
       try {
         const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
@@ -1347,6 +1350,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               unit: ruleFee.unit,
               valueUnit: ruleFee.valueUnit,
               min: ruleFee.min,
+              max: '0,00',
               currency: ruleFee.currency,
               total: ruleFee.total
             });
@@ -1358,13 +1362,14 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     }
 
     // Desembaraço (Condicional ao flag — independente do Incoterm)
-    if (quotationData.customsClearanceIncluded) {
+    if (quotationData.customsClearanceIncluded && !detailedFeesDestino.some(f => /desembaraço|customs clearance/i.test(String(f.name || '')))) {
       detailedFeesDestino.push({ 
         name: 'Desembaraço', 
         qty: 1, 
         unit: 'Por documento', 
         valueUnit: '900.00', 
-        min: '0,00', 
+        min: '0,00',
+        max: '0,00',
         currency: 'BRL', 
         total: `BRL 900.00`, financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS'
       });
@@ -1600,7 +1605,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     const isFcl = String(quotationData.loadType).startsWith('FCL') || pkgsText.toLowerCase().includes('container');
     const isImport = String(quotationData.direction).toUpperCase() === 'IMPORT';
 
-    if (carrier && isFcl && isImport) {
+    if (shouldHydrateAutomaticCosts(quotationData) && carrier && isFcl && isImport) {
       const excelPath = getExcelPath();
       if (excelPath) {
         try {
@@ -1650,6 +1655,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                 qty,
                 unit: isPerContainer ? (containerType === "20'" ? "Por CNTR 20'" : "Por CNTR 40'") : "Por documento",
                 valueUnit: unitValue.toFixed(2),
+                min: '0,00',
+                max: '0,00',
                 currency,
                 total: `${currency} ${totalVal.toFixed(2)}`,
                 ...normalizeFee({ name:taxName, currency, applicationScope:'DESTINATION', chargedBy:carrier })
@@ -1716,7 +1723,9 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       insuranceRequested: Boolean(quotationData.requiresInsurance),
       customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded)
     };
-    const resolvedFreightSea = await resolveFreightValue(incotermStrSea, modalForRulesSea, quotationData.direction, fV, fCurr, seaFeeContext);
+    const resolvedFreightSea = shouldHydrateAutomaticCosts(quotationData)
+      ? await resolveFreightValue(incotermStrSea, modalForRulesSea, quotationData.direction, fV, fCurr, seaFeeContext)
+      : { value:fV, currency:fCurr, fromFallback:false, items:[] };
     fV = resolvedFreightSea.value;
     fCurr = resolvedFreightSea.currency;
     if (quotationData.freightDisplayMode === 'ITEMIZED' && resolvedFreightSea.fromFallback && resolvedFreightSea.items.length > 1) {
@@ -1790,6 +1799,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                 qty: f.quantity ?? 1,
                 unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
                 valueUnit: safeToFixed(parseFloat(f.unitValue ?? f.value) || 0, 2),
+                min: safeToFixed(f.minValue, 2),
+                max: safeToFixed(f.maxValue, 2),
                 currency: curr,
                 total: `${curr} ${safeToFixed(val, 2)}`,
                 ...normalizeFee({ ...f, applicationScope:'DESTINATION' })
@@ -1823,7 +1834,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     // A posição comercial é definida pelo grupo financeiro, não pelo nome ou
     // pela seção do documento onde a cobrança foi encontrada.
-    detailedFees = detailedFees.map((fee:any) => ({ ...fee, ...normalizeFee({ ...fee, applicationScope:fee.applicationScope || 'DESTINATION' }) }));
+    detailedFees = detailedFees.map((fee:any) => ({ ...fee, min:fee.min || '0,00', max:fee.max || '0,00', ...normalizeFee({ ...fee, applicationScope:fee.applicationScope || 'DESTINATION' }) }));
     const isFreightAccessory = (fee: any) => fee.financialGroup === 'FREIGHT_COMPONENT';
     const freightAccessories = detailedFees.filter(isFreightAccessory);
     const maritimeAdditionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
@@ -2013,7 +2024,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
           const currency = String(fee.currency || 'USD').toUpperCase();
           const name = String(fee.name || 'Taxa de Origem');
           const normalized = normalizeFee({ ...fee, applicationScope:'ORIGIN' });
-          const row = { ...normalized, name: name.toUpperCase().includes('ISPS') && !name.toUpperCase().includes('ORIGEM') ? 'ISPS - Origem' : name, qty: fee.quantity ?? fee.qty ?? 1, unit: fee.originalUnit || fee.billingUnit || fee.unit || 'Fixo', valueUnit: safeToFixed(unitValue, 2), currency, total: `${currency} ${safeToFixed(totalValue, 2)}`, _alreadyInOriginTotal:true };
+          const row = { ...normalized, name: name.toUpperCase().includes('ISPS') && !name.toUpperCase().includes('ORIGEM') ? 'ISPS - Origem' : name, qty: fee.quantity ?? fee.qty ?? 1, unit: fee.originalUnit || fee.billingUnit || fee.unit || 'Fixo', valueUnit: safeToFixed(unitValue, 2), min:safeToFixed(fee.minValue,2), max:safeToFixed(fee.maxValue,2), currency, total: `${currency} ${safeToFixed(totalValue, 2)}`, _alreadyInOriginTotal:true };
           if (normalized.financialGroup === 'FREIGHT_COMPONENT') freightAccessories.push(row);
           else if (maritimeAdditionalGroups.has(normalized.financialGroup)) detailedFeesAdditionalGroups.push({ ...row, financialGroupLabel:maritimeAdditionalLabels[normalized.financialGroup] || normalized.financialGroup });
           else originServiceRows.push(row);

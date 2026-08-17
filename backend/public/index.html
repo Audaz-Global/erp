@@ -157,6 +157,20 @@
   .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .review-section { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .review-section-title { font-size: 13px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .cost-bases-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+  .cost-base-card { border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,.16); overflow:hidden; }
+  .cost-base-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 14px; border-bottom:1px solid var(--border); }
+  .cost-base-title { font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+  .cost-base-subtotal { font-size:11px; color:var(--text-muted); text-align:right; }
+  .cost-lines { padding:10px; display:flex; flex-direction:column; gap:9px; min-height:80px; }
+  .cost-line { display:grid; grid-template-columns:minmax(145px,1.7fr) minmax(105px,1.15fr) 60px 68px 82px 72px 72px 92px 34px; gap:7px; align-items:end; padding:9px; border:1px solid rgba(255,255,255,.08); border-radius:9px; background:rgba(255,255,255,.025); }
+  .cost-line label { display:block; font-size:9px; color:var(--text-muted); margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+  .cost-line input,.cost-line select { width:100%; height:34px; padding:5px 7px; font-size:11px; }
+  .cost-line-total { height:34px; display:flex; align-items:center; justify-content:flex-end; font:700 11px monospace; white-space:nowrap; }
+  .cost-line-remove { height:34px; width:34px; border:1px solid rgba(239,68,68,.35); border-radius:7px; background:rgba(239,68,68,.08); color:#f87171; cursor:pointer; }
+  .cost-add-line { width:calc(100% - 20px); margin:0 10px 10px; padding:8px; border:1px dashed rgba(245,166,35,.45); border-radius:8px; background:rgba(245,166,35,.05); color:var(--gold); cursor:pointer; font-size:11px; font-weight:700; }
+  .cost-grand-total { display:flex; justify-content:space-between; gap:14px; align-items:center; margin-top:14px; padding:14px 16px; border:1px solid rgba(245,166,35,.35); border-radius:10px; background:rgba(245,166,35,.06); }
+  .cost-grand-values { font:800 13px monospace; color:var(--gold); text-align:right; }
   
   .form-group { margin-bottom: 16px; position: relative; }
   .form-group label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
@@ -333,6 +347,9 @@
   .pagination .page-btn.active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
 
   @media (max-width: 900px) {
+    .cost-bases-grid { grid-template-columns:1fr; }
+    .cost-lines { overflow-x:auto; }
+    .cost-line { min-width:900px; grid-template-columns:1.6fr 1fr 60px 68px 82px 72px 72px 88px 34px; }
     .summary-cards { grid-template-columns: repeat(2, 1fr); }
     .detail-content { grid-template-columns: 1fr; }
     .settings-sidebar { width: 200px; }
@@ -1776,7 +1793,7 @@
           <input type="text" id="rev-carrier" placeholder="Ex: American Airlines, KLM, COSCO">
           <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Validade da tarifa</label><input type="date" id="rev-rate-valid-until"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
         </div>
-        <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
+        <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
           <textarea id="rev-origin-services" rows="4" placeholder="AWB & CGC: 16.00 USD&#10;Terminal charges: 20.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
           <div id="rev-origin-fees-preview" style="margin-top:8px;overflow:auto;"></div>
@@ -1790,7 +1807,7 @@
             <div class="form-group" style="margin:0;"><label style="font-size:11px;">Prazo</label><input type="text" id="rev-origin-inland-transit" placeholder="Ex: 1 dia"></div>
           </div>
         </div>
-        <div class="form-group" style="margin:0;grid-column:1/-1;margin-top:12px;">
+        <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Destino (Itemizadas)</label>
           <textarea id="rev-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
           <div id="rev-destination-fees-preview" style="margin-top:8px;overflow:auto;"></div>
@@ -1910,6 +1927,18 @@
 
     <!-- CUSTOS -->
     <div style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;gap:14px;align-items:end;margin-bottom:12px;">
+        <div><div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;">Composição da Cotação</div><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Estas são as mesmas linhas e bases que serão apresentadas no PDF.</div></div>
+        <div style="font-size:10px;color:var(--text-muted);text-align:right;">Valor total = quantidade × valor unitário</div>
+      </div>
+      <div id="review-cost-editor" class="cost-bases-grid">
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
+      </div>
+      <div class="cost-grand-total"><div><strong>Total da proposta por moeda</strong><div style="font-size:10px;color:var(--text-muted);margin-top:3px;">Sem conversão silenciosa entre moedas</div></div><div id="cost-grand-values" class="cost-grand-values">—</div></div>
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer;color:var(--text-muted);font-size:11px;">Parâmetros complementares de cálculo e operação</summary>
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">💰 Custos e Frete</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
         <div class="form-group" style="margin:0;">
@@ -1972,6 +2001,7 @@
           </select>
         </div>
       </div>
+      </details>
     </div>
 
     <!-- SMART PROFIT (COMPRA VS VENDA) -->
@@ -2842,6 +2872,8 @@ function parseFeeLine(line) {
   const quantityMatch = segments.find(value => /^(QTY|QTD)\s+/i.test(value))?.match(/(?:QTY|QTD)\s+([\d.,]+)/i);
   const quantityPending = segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value));
   const totalMatch = segments.find(value => /^TOTAL\s+/i.test(value))?.match(/TOTAL\s+([\d.,]+)/i);
+  const minimumMatch = segments.find(value => /^MIN\s+/i.test(value))?.match(/MIN\s+([\d.,]+)/i);
+  const maximumMatch = segments.find(value => /^MAX\s+/i.test(value))?.match(/MAX\s+([\d.,]+)/i);
   const quantity = quantityMatch ? parseFloat(quantityMatch[1].replace(',', '.')) : (quantityPending ? null : (['TOTAL_SHIPMENT','PER_SHIPMENT','UNKNOWN'].includes(billingUnit) ? 1 : null));
   const explicitTotal = totalMatch ? parseFloat(totalMatch[1].replace(',', '.')) : null;
   const totalValue = Number.isFinite(explicitTotal) ? explicitTotal : (Number.isFinite(quantity) ? unitValue * quantity : unitValue);
@@ -2873,7 +2905,7 @@ function parseFeeLine(line) {
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, needsReview, reviewReasons };
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, needsReview, reviewReasons };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -2899,7 +2931,155 @@ function formatFeeLine(fee) {
   const ispsDetails = isIsps ? ` | ISPS ${fee.ispsClassification || inferredIsps} | SCOPE ${fee.applicationScope || fee.feeType || 'UNKNOWN'} | FREIGHT ${fee.includedInFreight || 'TO_CONFIRM'}${fee.chargedBy ? ` | CHARGEDBY ${fee.chargedBy}` : ''}` : '';
   const classification = inferFeeClassification(fee.name, fee.applicationScope || fee.feeType, fee.ispsClassification || inferredIsps, fee.chargedBy);
   const classificationDetails = ` | GROUP ${fee.financialGroup || classification.financialGroup} | NATURE ${fee.chargeNature || classification.chargeNature} | SOURCE ${fee.classificationSource || 'RULE'}`;
-  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${classificationDetails}${ispsDetails}`;
+  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${classificationDetails}${ispsDetails}`;
+}
+
+const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
+window.reviewCostLines = { freight: [], origin: [], destination: [] };
+
+function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+function reviewCostTotal(line) { const raw=reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); const minimum=reviewCostNumber(line.minValue); const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(Math.max(raw,minimum),maximum) : Math.max(raw,minimum); }
+
+function reviewMainFreightLine() {
+  const loadType = String(document.getElementById('rev-load-type')?.value || '').toUpperCase();
+  const gross = reviewCostNumber(document.getElementById('rev-weight')?.value);
+  const packages = parseInt(document.getElementById('rev-packages')?.value) || 1;
+  const dimensions = document.getElementById('rev-dimensions')?.value || '';
+  const cbm = calculateCbmLocal(dimensions, packages) || reviewCostNumber(document.getElementById('rev-calc-cbm')?.textContent);
+  let quantity = 1, billingUnit = 'TOTAL_SHIPMENT';
+  if (loadType.includes('AIR')) { quantity = getLocalTaxavel(dimensions, packages, gross, loadType, cbm, document.getElementById('rev-weight-break')?.value || 'normal') || 1; billingUnit = 'PER_CHARGEABLE_WEIGHT'; }
+  else if (loadType.includes('LCL')) { quantity = cbm || 1; billingUnit = 'PER_CBM'; }
+  else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); quantity = containerMatch ? Number(containerMatch[1]) : 1; billingUnit = 'PER_CONTAINER'; }
+  const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
+  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue:quantity > 0 ? total / quantity : total, currency:document.getElementById('rev-freight-currency')?.value || 'USD', financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT' };
+}
+
+function initializeReviewCostEditor(quotation = {}) {
+  const origin = parseFeeText(document.getElementById('rev-origin-services')?.value || '');
+  const destination = parseFeeText(document.getElementById('rev-destination-services')?.value || '');
+  const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
+  const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
+  const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
+  const decorate = (fee, scope) => ({ ...fee, id:reviewCostId(), quantity:reviewCostNumber(fee.quantity, 1), unitValue:reviewCostNumber(fee.unitValue ?? fee.value), minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), currency:String(fee.currency || 'USD').toUpperCase(), applicationScope:scope });
+  window.reviewCostLines = {
+    freight: [reviewMainFreightLine(), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
+    origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
+    destination: cleanDestination.map(fee => decorate(fee, 'DESTINATION'))
+  };
+  const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
+  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:1, billingUnit:'PERCENTAGE', unitValue:iof, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX' });
+  const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
+  if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE' });
+  const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
+  const storageRequested = document.getElementById('rev-storage')?.dataset.requested === 'true';
+  if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:quotation.destinationStorageSource === 'MINIMUM_FALLBACK' ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:quotation.destinationStorageCurrency || 'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE' });
+  const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
+  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'TAX_IOF', chargeNature:'TAX' });
+  if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS' });
+  if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION' });
+  renderReviewCostEditor();
+  window.reviewCostEditorReady = true;
+}
+
+function refreshReviewMainFreightBasis() {
+  if (!window.reviewCostEditorReady) return;
+  const current = window.reviewCostLines.freight.find(line => line.special === 'MAIN_FREIGHT'); if (!current) return;
+  const calculated = reviewMainFreightLine();
+  current.quantity = calculated.quantity;
+  current.billingUnit = calculated.billingUnit;
+  current.unitValue = calculated.unitValue;
+  renderReviewCostEditor();
+}
+
+function costUnitOptions(selected) { return COST_EDITOR_UNITS.map(unit => `<option value="${unit}" ${unit === selected ? 'selected' : ''}>${escapeFeeHtml(FEE_UNIT_LABELS[unit] || unit)}</option>`).join(''); }
+function costCurrencyOptions(selected) { return ['USD','EUR','BRL'].map(currency => `<option value="${currency}" ${currency === selected ? 'selected' : ''}>${currency}</option>`).join(''); }
+
+function renderReviewCostEditor() {
+  ['freight','origin','destination'].forEach(group => {
+    const target = document.getElementById(`cost-lines-${group}`); if (!target) return;
+    const lines = window.reviewCostLines[group] || [];
+    target.innerHTML = lines.length ? lines.map(line => `<div class="cost-line" data-cost-id="${line.id}">
+      <div><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"></div>
+      <div><label>Base de cálculo</label><select ${(line.locked || line.fixedDefinition) ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
+      <div><label>Qtd.</label><input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)"></div>
+      <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
+      <div><label>Unitário</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
+      <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
+      <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
+      <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostTotal(line).toFixed(2)}</div></div>
+      <div><label>Ação</label>${line.locked ? '<div style="height:34px"></div>' : `<button type="button" title="Excluir linha" class="cost-line-remove" onclick="removeReviewCostLine('${group}','${line.id}')">×</button>`}</div>
+    </div>`).join('') : '<div style="padding:16px 8px;text-align:center;color:var(--text-muted);font-size:11px;">Nenhuma linha nesta base.</div>';
+  });
+  syncReviewCostEditor();
+}
+
+function updateReviewCostLine(group, id, field, value) {
+  const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
+  line[field] = ['quantity','unitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : value;
+  if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
+  const row = document.querySelector(`[data-cost-id="${id}"]`);
+  const total = row?.querySelector('.cost-line-total'); if (total) total.textContent = `${line.currency || 'USD'} ${reviewCostTotal(line).toFixed(2)}`;
+  syncReviewCostEditor();
+}
+
+function addReviewCostLine(group) {
+  const defaults = { freight:{name:'Novo componente de frete',scope:'FREIGHT',financialGroup:'FREIGHT_COMPONENT'}, origin:{name:'Nova taxa de origem',scope:'ORIGIN',financialGroup:'ORIGIN_CHARGE'}, destination:{name:'Nova taxa de destino',scope:'DESTINATION',financialGroup:'DESTINATION_CHARGE'} }[group];
+  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', quantitySource:'MANUAL' });
+  renderReviewCostEditor();
+  setTimeout(() => document.querySelector(`#cost-lines-${group} .cost-line:last-child input`)?.focus(), 0);
+}
+
+function removeReviewCostLine(group, id) {
+  const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
+  if (reviewCostTotal(line) > 0 && !window.confirm(`Excluir "${line.name}" da cotação e do PDF?`)) return;
+  window.reviewCostLines[group] = window.reviewCostLines[group].filter(item => item.id !== id);
+  renderReviewCostEditor();
+}
+
+function syncReviewCostEditor() {
+  const all = Object.values(window.reviewCostLines).flat();
+  const main = window.reviewCostLines.freight.find(line => line.special === 'MAIN_FREIGHT');
+  if (main) { document.getElementById('rev-freight').value = reviewCostTotal(main).toFixed(2); document.getElementById('rev-freight-currency').value = main.currency; document.getElementById('rev-freight-unit').value = reviewCostNumber(main.unitValue).toFixed(2); }
+  const specialValue = special => reviewCostTotal(all.find(line => line.special === special) || {});
+  document.getElementById('rev-iof').value = specialValue('IOF').toFixed(2);
+  document.getElementById('rev-storage').value = specialValue('STORAGE').toFixed(2);
+  document.getElementById('rev-taxes').value = specialValue('DESTINATION_TAXES').toFixed(2);
+  const inland = all.find(line => line.special === 'ORIGIN_INLAND');
+  if (inland) { document.getElementById('rev-origin-inland-value').value = reviewCostTotal(inland).toFixed(2); document.getElementById('rev-origin-inland-currency').value = inland.currency; }
+  else { document.getElementById('rev-origin-inland-value').value = ''; }
+  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:'MANUAL', classificationSource:'MANUAL', needsReview:false, reviewReasons:[] });
+  const originFees = window.reviewCostLines.origin.filter(line => !line.special).map(line => toFee(line,'ORIGIN',line.financialGroup || 'ORIGIN_CHARGE'));
+  const destinationFees = window.reviewCostLines.destination.filter(line => !line.special || line.special === 'CUSTOMS').map(line => toFee(line,'DESTINATION',line.financialGroup || 'DESTINATION_CHARGE'));
+  window.reviewCostLines.freight.filter(line => !line.special).forEach(line => destinationFees.push(toFee(line,'FREIGHT','FREIGHT_COMPONENT')));
+  document.getElementById('rev-origin-services').value = originFees.map(formatFeeLine).join('\n');
+  document.getElementById('rev-destination-services').value = destinationFees.map(formatFeeLine).join('\n');
+  const brlValue = fee => fee.currency === 'BRL' ? reviewCostTotal(fee) : fee.currency === 'EUR' ? reviewCostTotal(fee) * 5.50 : reviewCostTotal(fee) * 5.05;
+  document.getElementById('rev-services').value = destinationFees.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT').reduce((sum,fee)=>sum+brlValue(fee),0).toFixed(2);
+  const customs = all.find(line => line.special === 'CUSTOMS');
+  document.getElementById('rev-customs-clearance').checked = Boolean(customs);
+  if (customs) document.getElementById('rev-customs-value').value = reviewCostTotal(customs).toFixed(2);
+  ['freight','origin','destination'].forEach(group => {
+    const totals = {};
+    (window.reviewCostLines[group] || []).forEach(line => { const currency=line.currency || 'USD'; totals[currency]=(totals[currency]||0)+reviewCostTotal(line); });
+    const label = Object.entries(totals).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${value.toFixed(2)}`).join(' | ') || '—';
+    const el=document.getElementById(`cost-subtotal-${group}`); if(el) el.textContent=label;
+  });
+  const grand = {};
+  all.forEach(line => { const currency=line.currency || 'USD'; grand[currency]=(grand[currency]||0)+reviewCostTotal(line); });
+  const grandLabel=Object.entries(grand).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${value.toFixed(2)}`).join(' | ') || '—';
+  const grandEl=document.getElementById('cost-grand-values'); if(grandEl) grandEl.textContent=grandLabel;
+  document.getElementById('r-total').value = all.reduce((sum,line)=>sum+brlValue(line),0).toFixed(2);
+}
+
+function syncCustomsPanelToCostEditor() {
+  if (!window.reviewCostEditorReady) return;
+  const enabled = document.getElementById('rev-customs-clearance').checked;
+  const current = window.reviewCostLines.destination.find(line => line.special === 'CUSTOMS');
+  if (enabled && !current) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value,900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS' });
+  if (!enabled && current) window.reviewCostLines.destination = window.reviewCostLines.destination.filter(line => line.special !== 'CUSTOMS');
+  if (enabled && current) current.unitValue = reviewCostNumber(document.getElementById('rev-customs-value')?.value,900);
+  renderReviewCostEditor();
 }
 
 function escapeFeeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
@@ -4256,6 +4436,11 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
   }
 
   destFeesTextarea.value = lines.join('\n');
+  if (window.reviewCostEditorReady && document.getElementById('pdfReviewOverlay')?.style.display === 'block') {
+    window.reviewCostLines.destination = (window.reviewCostLines.destination || []).filter(line => !/seguro internacional/i.test(line.name || ''));
+    if (requiresIns) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Seguro Internacional', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-insurance-val')?.value), currency:'USD', applicationScope:'DESTINATION', financialGroup:'INSURANCE', chargeNature:'INSURANCE', classificationSource:'MANUAL', quantitySource:'MANUAL' });
+    renderReviewCostEditor();
+  }
   recalculateModalDestinationServicesTotal();
   updateBuyVsSellTable();
 }
@@ -4428,6 +4613,9 @@ function applySmartProfit() {
     else if (freightCurrency === 'BRL') profitConverted = profitValUsd * usdRate;
 
     document.getElementById('rev-freight').value = (freightVal + profitConverted).toFixed(2);
+    const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
+    if (mainFreight) mainFreight.unitValue = (freightVal + profitConverted) / (reviewCostNumber(mainFreight.quantity, 1) || 1);
+    renderReviewCostEditor();
     alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado no Frete Internacional!`);
   } else {
     const destFeesTextarea = document.getElementById('rev-destination-services');
@@ -4438,6 +4626,9 @@ function applySmartProfit() {
     lines.push(formatFeeLine({ name:'Spread / Profit', unitValue:profitValUsd, value:profitValUsd, currency:'USD', billingUnit:'PER_SHIPMENT', quantity:1, totalValue:profitValUsd }));
     
     destFeesTextarea.value = lines.join('\n');
+    window.reviewCostLines.destination = (window.reviewCostLines.destination || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
+    window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Spread / Profit', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:profitValUsd, currency:'USD', applicationScope:'DESTINATION', financialGroup:'PROFIT', chargeNature:'PROFIT', classificationSource:'MANUAL', quantitySource:'MANUAL' });
+    renderReviewCostEditor();
     recalculateModalDestinationServicesTotal();
     alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado nas Taxas de Destino!`);
   }
@@ -4450,6 +4641,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
   if (!qId) { alert('Selecione uma cotação primeiro.'); return; }
 
   currentPdfQuotationId = qId;
+  window.reviewCostEditorReady = false;
 
   // Buscar dados atuais da cotação para pré-preencher o modal de revisão
   try {
@@ -4687,11 +4879,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-freight').value = tot.toFixed(2);
       document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
       updateModalCalculatedWeights();
+      refreshReviewMainFreightBasis();
     };
 
     const onCargoFieldsChange = function() {
       updateModalCalculatedWeights();
       recalculateModalFreight();
+      refreshReviewMainFreightBasis();
     };
 
     // Remove event listeners anteriores se existirem e adiciona
@@ -4791,7 +4985,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
     if (document.getElementById('rev-customs-clearance')) {
       document.getElementById('rev-customs-clearance').removeEventListener('change', updateBuyVsSellTable);
       document.getElementById('rev-customs-clearance').addEventListener('change', updateBuyVsSellTable);
+      document.getElementById('rev-customs-clearance').removeEventListener('change', syncCustomsPanelToCostEditor);
+      document.getElementById('rev-customs-clearance').addEventListener('change', syncCustomsPanelToCostEditor);
     }
+    document.getElementById('rev-customs-value').removeEventListener('input', syncCustomsPanelToCostEditor);
+    document.getElementById('rev-customs-value').addEventListener('input', syncCustomsPanelToCostEditor);
 
     // Calcular o seguro e injetar inicialmente
     const storageInput = document.getElementById('rev-storage');
@@ -4808,12 +5006,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
       storageStatus.style.display = 'none';
       storageStatus.textContent = '';
     }
-    calculateAndInjectInsurance(false);
-    updateBuyVsSellTable();
-
-    // Desembaraço: sempre desmarcado por padrão, valor pré-fixado R$ 900,00
-    document.getElementById('rev-customs-clearance').checked = false;
+    document.getElementById('rev-customs-clearance').checked = Boolean(q.customsClearanceIncluded);
     document.getElementById('rev-customs-value').value = '900.00';
+    calculateAndInjectInsurance(false);
+    initializeReviewCostEditor(q);
+    updateBuyVsSellTable();
 
     // Exibir o modal
     document.getElementById('pdfReviewOverlay').style.display = 'block';
@@ -4831,6 +5028,7 @@ function closePdfReviewModal() {
 async function confirmAndGeneratePDF() {
   const qId = currentPdfQuotationId;
   if (!qId) return;
+  syncReviewCostEditor();
 
   const validityInput = document.getElementById('rev-rate-valid-until');
   if (!validityInput.value) {
@@ -4841,6 +5039,16 @@ async function confirmAndGeneratePDF() {
   if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   const storageInput = document.getElementById('rev-storage');
   if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
+  const invalidCostLines = Object.values(window.reviewCostLines).flat().filter(line => !String(line.name || '').trim() || !(Number(line.quantity) >= 0) || !(Number(line.unitValue) >= 0) || !line.currency || !line.billingUnit);
+  if (invalidCostLines.length) {
+    alert('Revise as linhas de custo: descrição, base de cálculo, quantidade, moeda e valor unitário são obrigatórios.');
+    return;
+  }
+  const invalidLimits = Object.values(window.reviewCostLines).flat().filter(line => Number(line.maxValue) > 0 && Number(line.maxValue) < Number(line.minValue || 0));
+  if (invalidLimits.length) {
+    alert(`O valor máximo não pode ser menor que o mínimo: ${invalidLimits.map(line => line.name).join(', ')}.`);
+    return;
+  }
   const reviewedFees = [...parseFeeText(document.getElementById('rev-origin-services').value), ...parseFeeText(document.getElementById('rev-destination-services').value)];
   const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING'));
   if (missingQuantity.length) {
@@ -4898,7 +5106,7 @@ async function confirmAndGeneratePDF() {
       });
     }
     originServicesList = enrichFeeMetadata(originServicesList, window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
-    const originServicesStr = originServicesList.length > 0 ? JSON.stringify(originServicesList) : null;
+    const originServicesStr = JSON.stringify(originServicesList);
 
     const destinationServicesRaw = document.getElementById('rev-destination-services').value || '';
     let destinationServicesList = [];
@@ -4937,7 +5145,7 @@ async function confirmAndGeneratePDF() {
       });
     }
     destinationServicesList = enrichFeeMetadata(destinationServicesList, window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
-    const destinationServicesStr = destinationServicesList.length > 0 ? JSON.stringify(destinationServicesList) : null;
+    const destinationServicesStr = JSON.stringify(destinationServicesList);
 
     const targetServicesBrl = destinationServicesList.length > 0 ? destinationServicesTotalBrl : (parseFloat(document.getElementById('rev-services').value) || 0);
     const originInlandValue = parseFloat(document.getElementById('rev-origin-inland-value').value);
@@ -4947,6 +5155,7 @@ async function confirmAndGeneratePDF() {
 
     const body = {
       status: 'APPROVED',
+      costCompositionReviewed: true,
       customsClearanceIncluded: customsClearance,
       transitTimeDays: parseInt(document.getElementById('rev-transit-time').value) || null,
       frequency: frequencyValue,
@@ -5049,6 +5258,7 @@ async function confirmAndGeneratePDF() {
         originServicesTotal: originServicesTotal || null,
         destinationServices: destinationServicesStr,
         destinationServicesTotal: destinationServicesTotal || null,
+        costCompositionReviewed: true,
         expectedProfit: parseFloat(document.getElementById('rev-profit').value) || 0,
         costsData: window.lastExtractedAgentData ? JSON.stringify(window.lastExtractedAgentData) : undefined,
         salesData: JSON.stringify(body)

@@ -301,6 +301,7 @@ export function formatFeesForPdf(fees: CalculatedFee[]): any[] {
     unit: f.unit,
     valueUnit: f.valueUnit,
     min: f.min,
+    max: '0,00',
     currency: f.currency,
     total: f.total
   }));

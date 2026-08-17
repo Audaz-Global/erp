@@ -24,7 +24,7 @@ export type QuotationEventInput = {
 const trackedFields = [
   'status', 'agentEmail', 'agentName', 'incoterm', 'modal', 'loadType', 'originCity', 'originPort',
   'destinationCity', 'destinationPort', 'totalGrossWeightKg', 'totalCbm', 'totalPackages', 'commercialValue',
-  'freightValue', 'freightCurrency', 'carrier', 'vesselName', 'voyageNumber', 'freeTimeDays', 'rateValidUntil',
+  'freightValue', 'freightCurrency', 'freightDisplayMode', 'costCompositionReviewed', 'carrier', 'vesselName', 'voyageNumber', 'freeTimeDays', 'rateValidUntil',
   'destinationStorage', 'destinationStorageSource', 'requiresStorageEstimate', 'destinationServicesTotal', 'destinationTaxes', 'originServicesTotal', 'originInlandValue',
   'totalBrl', 'totalUsd', 'expectedProfit', 'customsClearanceIncluded', 'requiresInsurance', 'needsTransport',
   'isImo', 'dangerousGoodsStatus', 'msdsStatus', 'unNumber', 'dangerousGoodsClass', 'packingGroup',

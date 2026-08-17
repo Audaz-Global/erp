@@ -116,6 +116,7 @@ model Quotation {
   freightValue               Float?
   freightCurrency            String?
   freightDisplayMode         String?  @default("ALL_IN") // ALL_IN, ITEMIZED
+  costCompositionReviewed    Boolean  @default(false) // PDF usa exatamente as linhas aprovadas pelo operador
   iofUsd                     Float?
   carrier                    String?
   carrierProfileId           String?
