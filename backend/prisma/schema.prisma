@@ -115,6 +115,7 @@ model Quotation {
   // Costs
   freightValue               Float?
   freightCurrency            String?
+  freightDisplayMode         String?  @default("ALL_IN") // ALL_IN, ITEMIZED
   iofUsd                     Float?
   carrier                    String?
   carrierProfileId           String?

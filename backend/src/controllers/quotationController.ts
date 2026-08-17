@@ -305,10 +305,13 @@ export const updatePhase = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const current = await prisma.quotation.findUnique({ where: { id } });
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, freightDisplayMode } = req.body;
 
     const updateData: any = { status };
     if (agentEmail) updateData.agentEmail = agentEmail;
+    if (freightDisplayMode !== undefined) {
+      updateData.freightDisplayMode = freightDisplayMode === 'ITEMIZED' ? 'ITEMIZED' : 'ALL_IN';
+    }
     if (customsClearanceIncluded !== undefined) {
       updateData.customsClearanceIncluded = customsClearanceIncluded;
     }
@@ -487,7 +490,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const resolvedFreight = await resolveFreightValue(incotermStr, modalForRules, quotation.direction, fVal, fCurr, feeContext);
     fVal = resolvedFreight.value;
     fCurr = resolvedFreight.currency;
-    const fTotalBrl = getBrlValue(fVal, fCurr);
+    let fTotalBrl = getBrlValue(fVal, fCurr);
 
     if (detailedFeesOrigem.length === 0) {
       try {
@@ -550,6 +553,26 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     // Desembaraço (Condicional ao flag — independente do Incoterm)
     if (quotation.customsClearanceIncluded && !detailedFeesDestino.some(f => f.name.toLowerCase().includes('desembaraço'))) {
       detailedFeesDestino.push({ name: 'Desembaraço Aduaneiro', val: 900.00, currency: 'BRL', brl: 900.00, financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS' });
+    }
+
+    // Frete detalhado: se o fallback da árvore trouxe mais de um item e o modo
+    // escolhido é "itemizado", mostra só o primeiro como frete principal e o
+    // restante entra como componentes de frete (mesmo grupo já usado quando uma
+    // taxa extraída é classificada como acessório de frete).
+    if (quotation.freightDisplayMode === 'ITEMIZED' && resolvedFreight.fromFallback && resolvedFreight.items.length > 1) {
+      const [mainItem, ...accessoryItems] = resolvedFreight.items;
+      accessoryItems.forEach(item => {
+        detailedFeesDestino.push({
+          name: item.name,
+          val: item.value,
+          currency: item.currency,
+          brl: getBrlValue(item.value, item.currency),
+          financialGroup: 'FREIGHT_COMPONENT'
+        });
+      });
+      fVal = mainItem!.value;
+      fCurr = mainItem!.currency;
+      fTotalBrl = getBrlValue(fVal, fCurr);
     }
 
     const detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => f.financialGroup === 'FREIGHT_COMPONENT');

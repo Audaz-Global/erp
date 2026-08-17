@@ -1539,7 +1539,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     const template = handlebars.compile(sourceHtml);
     
     // Ensure calculated formatting
-    const fV = parseFloat(quotationData.freightValue) || 0;
+    let fV = parseFloat(quotationData.freightValue) || 0;
     const iV = parseFloat(quotationData.iofUsd) || 0;
     
     quotationData.freightValue = fV.toFixed(2);
@@ -1704,7 +1704,43 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     }
 
     // 4. Formatação de Totais e Subtotais Dinâmica por Moeda
-    const fCurr = quotationData.freightCurrency || 'USD';
+    let fCurr = quotationData.freightCurrency || 'USD';
+
+    // Fallback de frete: se não há valor real informado, usa o cadastrado na
+    // Árvore de Incoterms (feeType FREIGHT). Se o modo escolhido for "itemizado"
+    // e houver mais de um item, mostra só o principal aqui e injeta o restante
+    // em detailedFees como componente de frete (mesmo grupo que a extração de
+    // e-mail já usa), pra cair no freightAccessories/subtotalFrete existentes.
+    const incotermStrSea = String(quotationData.incoterm || 'FCA').toUpperCase();
+    const modalForRulesSea = String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL';
+    const seaFeeContext = {
+      containerCount: containerQty,
+      grossWeightKg: Number(quotationData.totalGrossWeightKg || 0),
+      dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0),
+      insuranceRequested: Boolean(quotationData.requiresInsurance),
+      customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded)
+    };
+    const resolvedFreightSea = await resolveFreightValue(incotermStrSea, modalForRulesSea, quotationData.direction, fV, fCurr, seaFeeContext);
+    fV = resolvedFreightSea.value;
+    fCurr = resolvedFreightSea.currency;
+    if (quotationData.freightDisplayMode === 'ITEMIZED' && resolvedFreightSea.fromFallback && resolvedFreightSea.items.length > 1) {
+      const [mainItem, ...accessoryItems] = resolvedFreightSea.items;
+      accessoryItems.forEach(item => {
+        detailedFees.push({
+          name: item.name,
+          qty: item.qty,
+          unit: item.unit,
+          valueUnit: item.valueUnit,
+          min: '0,00',
+          currency: item.currency,
+          total: `${item.currency} ${item.value.toFixed(2)}`,
+          financialGroup: 'FREIGHT_COMPONENT'
+        });
+      });
+      fV = mainItem!.value;
+      fCurr = mainItem!.currency;
+    }
+
     let sumOrigemBrl = 0;
     let sumOrigemUsd = 0;
     let sumOrigemEur = 0;

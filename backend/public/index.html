@@ -1848,6 +1848,9 @@
               </select>
             </div>
           </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);margin-top:6px;">
+            <input type="checkbox" id="rev-freight-itemized"> Detalhar frete em itens separados no PDF (quando vier da Árvore de Incoterms)
+          </label>
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">IOF - Frete + Tx Origem (USD)</label>
@@ -4827,7 +4830,8 @@ async function confirmAndGeneratePDF() {
           (parseFloat(document.getElementById('rev-taxes').value) || 0) +
           (customsClearance ? customsValue : 0),
         customs_clearance_brl: customsClearance ? customsValue : 0
-      }
+      },
+      freightDisplayMode: document.getElementById('rev-freight-itemized')?.checked ? 'ITEMIZED' : 'ALL_IN'
     };
 
     // Atualizar dados básicos da cotação (rota, carga)

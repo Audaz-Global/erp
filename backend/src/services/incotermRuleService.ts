@@ -97,8 +97,9 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
 
 /**
  * Resolve o valor de frete a usar num cálculo: se já veio um valor real (>0), usa ele.
- * Senão, procura uma regra de Incoterm com feeType FREIGHT (cadastrada na Árvore de
- * Incoterms) e usa o valor dela como fallback — desde que não esteja marcada "A cotar".
+ * Senão, procura as regras de Incoterm com feeType FREIGHT (cadastradas na Árvore de
+ * Incoterms), calcula cada uma (reaproveitando calculateFee) e soma — desde que não
+ * estejam marcadas "A cotar". `items` traz o detalhamento, útil pra exibir separado.
  */
 export async function resolveFreightValue(
   incoterm: string,
@@ -107,18 +108,23 @@ export async function resolveFreightValue(
   providedValue: number,
   providedCurrency: string = 'USD',
   context: FeeCalculationContext = {}
-): Promise<{ value: number; currency: string; fromFallback: boolean }> {
+): Promise<{ value: number; currency: string; fromFallback: boolean; items: CalculatedFee[] }> {
   if (providedValue && providedValue > 0) {
-    return { value: providedValue, currency: providedCurrency, fromFallback: false };
+    return { value: providedValue, currency: providedCurrency, fromFallback: false, items: [] };
   }
 
   const rules = await getRulesForIncoterm(incoterm, modal, direction, context);
-  const freightRule = rules.find(r => r.feeType === 'FREIGHT');
-  if (freightRule && (freightRule as any).pricingStatus !== 'ON_REQUEST') {
-    return { value: freightRule.value, currency: freightRule.currency, fromFallback: true };
+  const freightRules = rules
+    .filter(r => r.feeType === 'FREIGHT' && (r as any).pricingStatus !== 'ON_REQUEST')
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (freightRules.length === 0) {
+    return { value: providedValue || 0, currency: providedCurrency, fromFallback: false, items: [] };
   }
 
-  return { value: providedValue || 0, currency: providedCurrency, fromFallback: false };
+  const items = freightRules.map(rule => calculateFee(rule, 0, 0, 0, context));
+  const value = items.reduce((sum, item) => sum + item.value, 0);
+  return { value, currency: items[0]!.currency, fromFallback: true, items };
 }
 
 /**
@@ -171,7 +177,7 @@ export async function getFeesForIncoterm(
 /**
  * Calcula o valor de uma taxa individual baseada na regra.
  */
-function calculateFee(
+export function calculateFee(
   rule: EffectiveIncotermRule,
   chargableWeight: number,
   freightValue: number,
