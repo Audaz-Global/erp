@@ -1235,6 +1235,15 @@
                 <label>Seguro Incluso? <span id="conf-insurance"></span></label>
                 <select id="r-insurance"><option value="false">Não</option><option value="true">Sim</option></select>
               </div>
+              <div id="r-air-chargeable-summary" style="display:none;grid-column:1/-1;padding:14px;border:1px solid rgba(96,165,250,.45);border-radius:10px;background:rgba(59,130,246,.07);">
+                <div style="font-size:12px;font-weight:800;color:#60a5fa;margin-bottom:10px;">CHARGEABLE WEIGHT — PESO TAXÁVEL AÉREO</div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">
+                  <div><small style="color:var(--text-muted);">Peso bruto</small><div id="r-calc-gross-weight" style="font-size:18px;font-weight:800;">0,00 kg</div></div>
+                  <div><small style="color:var(--text-muted);">Peso cubado</small><div id="r-calc-cubed-weight" style="font-size:18px;font-weight:800;">0,00 kg</div></div>
+                  <div><small style="color:var(--text-muted);">Peso taxável adotado</small><div id="r-calc-chargeable-weight" style="font-size:20px;font-weight:900;color:#60a5fa;">0,00 kg</div></div>
+                </div>
+                <small id="r-calc-chargeable-rule" style="display:block;margin-top:10px;color:var(--text-muted);">Maior entre peso bruto e peso cubado. Cubagem aérea: C × L × A ÷ 6.000 (aprox. 167 kg/m³).</small>
+              </div>
               <div class="form-group" style="grid-column:1/-1;padding:11px 12px;border:1px solid var(--border);border-radius:8px;">
                 <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;"><input type="checkbox" id="r-storage-request" style="width:17px;height:17px;margin:0;"> Solicitar estimativa de armazenagem ao parceiro</label>
                 <small id="r-storage-request-evidence" style="display:none;margin-top:6px;color:var(--text-muted);"></small>
@@ -2428,6 +2437,33 @@ function calculateCbmLocal(dimensionsStr, packagesCount = 1) {
   return parseFloat(totalCbm.toFixed(3));
 }
 
+function updateRequestCalculatedWeights() {
+  const summary = document.getElementById('r-air-chargeable-summary');
+  if (!summary) return;
+  const loadType = document.getElementById('r-type')?.value || '';
+  const isAir = String(loadType).toUpperCase().includes('AIR');
+  summary.style.display = isAir ? 'block' : 'none';
+  if (!isAir) return;
+
+  const gross = parseFloat(document.getElementById('r-weight')?.value) || 0;
+  const packages = parseInt(document.getElementById('r-packages')?.value, 10) || 1;
+  const dimensions = document.getElementById('r-dimensions')?.value || '';
+  const cubed = calculateAirCubadoLocal(dimensions, packages);
+  const chargeable = Math.max(gross, cubed);
+  const formatKg = value => `${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
+
+  document.getElementById('r-calc-gross-weight').textContent = formatKg(gross);
+  document.getElementById('r-calc-cubed-weight').textContent = formatKg(cubed);
+  document.getElementById('r-calc-chargeable-weight').textContent = formatKg(chargeable);
+  const rule = document.getElementById('r-calc-chargeable-rule');
+  if (rule) {
+    const reason = cubed > gross ? 'Peso cubado maior: este será usado na cotação.'
+      : gross > cubed ? 'Peso bruto maior: este será usado na cotação.'
+      : gross > 0 ? 'Peso bruto e peso cubado são iguais.' : 'Informe peso e dimensões para calcular.';
+    rule.textContent = `${reason} Cubagem aérea: C × L × A ÷ 6.000 (aprox. 167 kg/m³).`;
+  }
+}
+
 function updateModalCalculatedWeights() {
   const loadType = document.getElementById('rev-load-type').value;
   const isAir = String(loadType || '').toUpperCase().includes('AIR');
@@ -3323,6 +3359,7 @@ function syncPartnerTypesForModal() {
 
   if (isAir && currentPartnerType === 'ARMADOR') setPartnerType('CIA_AEREA');
   else if (!isAir && currentPartnerType === 'CIA_AEREA') setPartnerType('ARMADOR');
+  updateRequestCalculatedWeights();
 }
 
 function openMissingPartnerRegistration() {
@@ -3708,6 +3745,7 @@ function fillReviewForm(d, mode) {
       }
       document.getElementById('r-dimensions').value = dims;
       document.getElementById('conf-dimensions').innerHTML = renderConf(dims, d.cargo.confidence);
+      updateRequestCalculatedWeights();
       
       // Chamar IA de recomendação de agentes
       if(d.route.origin_country || d.cargo.type) {
@@ -3942,6 +3980,13 @@ function checkValidation() {
 
 document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('input', checkValidation));
 document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('change', checkValidation));
+['r-weight', 'r-packages', 'r-dimensions'].forEach(id => {
+  const field = document.getElementById(id);
+  if (field) {
+    field.addEventListener('input', updateRequestCalculatedWeights);
+    field.addEventListener('change', updateRequestCalculatedWeights);
+  }
+});
 
 // Auto-calculate IOF and Freight Unit/Total reatively
 document.getElementById('r-freight').addEventListener('input', function() {

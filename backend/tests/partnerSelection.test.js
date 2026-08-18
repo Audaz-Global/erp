@@ -85,6 +85,33 @@ test('proteção visual diferencia rascunho pendente de envio confirmado', () =>
   assert.equal(status.className, 'status-strip ok');
 });
 
+test('tela explicita o chargeable weight pelo maior entre bruto e cubado', () => {
+  const calcStart = html.indexOf('function parsePackagesLocal');
+  const calcEnd = html.indexOf('function updateModalCalculatedWeights');
+  const fields = {
+    'r-air-chargeable-summary': { style: {} },
+    'r-type': { value: 'AIR_GENERAL' },
+    'r-weight': { value: '317' },
+    'r-packages': { value: '2' },
+    'r-dimensions': { value: '2x110x110x140 cm' },
+    'r-calc-gross-weight': { textContent: '' },
+    'r-calc-cubed-weight': { textContent: '' },
+    'r-calc-chargeable-weight': { textContent: '' },
+    'r-calc-chargeable-rule': { textContent: '' }
+  };
+  const context = { document: { getElementById: id => fields[id] || null } };
+  vm.createContext(context);
+  vm.runInContext(html.slice(calcStart, calcEnd), context);
+  context.updateRequestCalculatedWeights();
+
+  assert.equal(fields['r-air-chargeable-summary'].style.display, 'block');
+  assert.match(fields['r-calc-gross-weight'].textContent, /317,00 kg/);
+  assert.match(fields['r-calc-cubed-weight'].textContent, /564,67 kg/);
+  assert.match(fields['r-calc-chargeable-weight'].textContent, /564,67 kg/);
+  assert.match(fields['r-calc-chargeable-rule'].textContent, /Peso cubado maior/);
+  assert.match(fields['r-calc-chargeable-rule'].textContent, /6\.000/);
+});
+
 test('recomendação reutiliza o mesmo filtro e seleciona um contato do dropdown', () => {
   assert.match(html, /eligiblePartners\(agents, \{ type: currentPartnerType/);
   assert.match(html, /selectRecommendedPartner\(partner\.id, contact\.email\)/);
