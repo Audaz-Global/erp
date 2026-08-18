@@ -4,8 +4,10 @@ import { replyOutlookEmail, sendOutlookEmail, searchEmails } from '../services/o
 import { marked } from 'marked';
 import { recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizePartnerType } from '../services/agentResponseService';
+import { mapWithConcurrency, normalizeBatchRecipients, splitRecipientEmails } from '../utils/outlookBatch';
 
 const router = Router();
+const activeBatchDispatches = new Set<string>();
 
 // Configuração do marked para quebrar linhas normalmente
 marked.setOptions({ breaks: true });
@@ -45,6 +47,131 @@ async function recordSuccessfulDispatch(input: {
 }
 
 // Rota para disparar o e-mail de cotação via Outlook
+router.post('/send-draft-batch', async (req: Request, res: Response) => {
+  const quotationId = String(req.body?.quotationId || '');
+  if (!quotationId) return res.status(400).json({ error: 'quotationId é obrigatório' });
+  const recipients = normalizeBatchRecipients(req.body?.recipients, req.body?.partnerType);
+  if (!recipients.length) return res.status(400).json({ error: 'Informe ao menos um destinatário válido.' });
+
+  const batchKey = `${quotationId}:${recipients.map(item => item.email).sort().join(',')}`;
+  if (activeBatchDispatches.has(batchKey)) return res.status(409).json({ error: 'Este lote já está sendo enviado. Aguarde a conclusão.' });
+  activeBatchDispatches.add(batchKey);
+
+  try {
+    const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+    if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
+
+    const attachmentIds = Array.isArray(req.body?.attachmentIds) ? req.body.attachmentIds.map(String) : [];
+    const truckerAttachmentIds = Array.isArray(req.body?.truckerAttachmentIds) ? req.body.truckerAttachmentIds.map(String) : [];
+    const reference = quotation.reference || quotation.id.substring(0, 6).toUpperCase();
+    const mailSubject = String(req.body?.subject || quotation.draftEmailSubject || `Solicitação de Cotação de Frete - REF: ${reference}`);
+    const rawMarkdown = String(req.body?.htmlBody || quotation.draftEmail || '');
+    if (!rawMarkdown.trim()) return res.status(400).json({ error: 'O rascunho do e-mail está vazio.' });
+
+    const emailStyle = `<style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#333;line-height:1.6}ul{margin-top:5px;margin-bottom:5px;padding-left:20px}strong{font-weight:600;color:#000}p{margin:0 0 10px}</style>`;
+    const finalHtmlEmail = `<html><head>${emailStyle}</head><body>${await marked.parse(rawMarkdown)}</body></html>`;
+    const selectedDocuments = await prisma.quotationDocument.findMany({
+      where: { quotationId, id: { in: attachmentIds } }, include: { blob: true }
+    });
+    const outlookAttachments = selectedDocuments.map(document => ({
+      name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
+    }));
+    const allowResend = req.body?.allowResend === true;
+    const duplicateWindow = new Date(Date.now() - 60_000);
+
+    const results = await mapWithConcurrency(recipients, 3, async recipient => {
+      try {
+        if (!allowResend) {
+          const duplicate = await prisma.quotationEmailDispatch.findFirst({
+            where: {
+              quotationId, recipientEmail: { equals: recipient.email, mode: 'insensitive' }, subject: mailSubject,
+              status: 'SENT', createdAt: { gte: duplicateWindow }
+            }, orderBy: { createdAt: 'desc' }
+          });
+          if (duplicate) return { ...recipient, status: 'SKIPPED', conversationId: duplicate.conversationId, message: 'Envio recente já confirmado.' };
+        }
+
+        const { conversationId } = await sendOutlookEmail(recipient.email, mailSubject, finalHtmlEmail,
+          recipient.ccEmail || String(req.body?.ccEmail || '') || undefined, outlookAttachments);
+        await recordSuccessfulDispatch({
+          quotationId, recipientType: recipient.partnerType, recipientEmail: recipient.email,
+          partnerName: [recipient.partnerName, recipient.contactName].filter(Boolean).join(' - ') || null,
+          subject: mailSubject, conversationId, documents: selectedDocuments
+        });
+        return { ...recipient, status: 'SENT', conversationId, message: 'Enviado com sucesso.' };
+      } catch (error: any) {
+        const errorMessage = String(error?.message || 'Falha no envio').slice(0, 1000);
+        const dispatch = await prisma.quotationEmailDispatch.create({ data: {
+          quotationId, recipientType: recipient.partnerType, recipientEmail: recipient.email, subject: mailSubject,
+          attachmentIds: JSON.stringify(attachmentIds), attachmentNames: JSON.stringify(selectedDocuments.map(item => item.originalName)),
+          status: 'FAILED', errorMessage
+        } }).catch(() => null);
+        await recordQuotationEvent(prisma, {
+          quotationId, type: 'EMAIL_SEND_FAILED', actorType: 'SYSTEM', channel: 'OUTLOOK',
+          partnerEmail: recipient.email, partnerName: recipient.partnerName,
+          sourceType: dispatch ? 'EMAIL_DISPATCH' : undefined, sourceId: dispatch?.id,
+          metadata: { error: errorMessage, recipientType: recipient.partnerType }
+        }).catch(() => undefined);
+        return { ...recipient, status: 'FAILED', conversationId: null, message: errorMessage };
+      }
+    });
+
+    const confirmed = results.filter(item => item.status === 'SENT' || item.status === 'SKIPPED');
+    const newlySent = results.filter(item => item.status === 'SENT');
+    let truckerResult: { status: string; email?: string; message?: string; conversationId?: string | null } | null = null;
+
+    if (newlySent.length && req.body?.needsTransport && req.body?.truckerEmail) {
+      const truckerEmail = String(req.body.truckerEmail).trim();
+      if (quotation.truckerSentAt && req.body?.allowTruckerResend !== true) {
+        truckerResult = { status: 'SKIPPED', email: truckerEmail, message: 'Transportadora já acionada anteriormente.' };
+      } else {
+        try {
+          const truckerHtml = `<html><head>${emailStyle}</head><body>${await marked.parse(String(quotation.truckerDraftEmail || ''))}</body></html>`;
+          const truckerDocuments = await prisma.quotationDocument.findMany({
+            where: { quotationId, id: { in: truckerAttachmentIds } }, include: { blob: true }
+          });
+          const sent = await sendOutlookEmail(truckerEmail, `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`, truckerHtml,
+            String(req.body?.truckerCcEmail || '') || undefined, truckerDocuments.map(document => ({
+              name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
+            })));
+          await recordSuccessfulDispatch({ quotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
+            partnerName: String(req.body?.truckerName || '') || null, subject: `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`,
+            conversationId: sent.conversationId, documents: truckerDocuments });
+          truckerResult = { status: 'SENT', email: truckerEmail, conversationId: sent.conversationId, message: 'Enviado com sucesso.' };
+        } catch (error: any) {
+          truckerResult = { status: 'FAILED', email: truckerEmail, message: String(error?.message || 'Falha no envio da transportadora') };
+        }
+      }
+    }
+
+    if (confirmed.length) {
+      const partnerNames = [...new Set(confirmed.map(item => item.partnerName).filter((item): item is string => Boolean(item)))];
+      const allConfirmedEmails = [...new Set([...splitRecipientEmails(quotation.agentEmail), ...confirmed.map(item => item.email)])];
+      const firstNew = newlySent[0];
+      await prisma.quotation.update({ where: { id: quotationId }, data: {
+        status: 'AGUARDANDO_AGENTE', agentEmail: allConfirmedEmails.join('; '),
+        agentName: [...new Set([...(quotation.agentName || '').split('|').map(item => item.trim()).filter(Boolean), ...partnerNames])].join(' | ') || quotation.agentName,
+        partnerType: confirmed[0]?.partnerType || quotation.partnerType,
+        draftEmail: rawMarkdown, sentAt: newlySent.length ? new Date() : quotation.sentAt,
+        sentEmailConversationId: firstNew?.conversationId || quotation.sentEmailConversationId,
+        ...(truckerResult?.status === 'SENT' ? { truckerEmail: truckerResult.email, truckerName: String(req.body?.truckerName || '') || null, truckerSentAt: new Date() } : {})
+      } });
+    }
+
+    const failed = results.filter(item => item.status === 'FAILED').length;
+    res.json({
+      success: confirmed.length > 0 && failed === 0, partial: confirmed.length > 0 && failed > 0,
+      quotationId, reference, sent: newlySent.length, skipped: results.filter(item => item.status === 'SKIPPED').length,
+      failed, results, truckerResult
+    });
+  } catch (error: any) {
+    console.error('Erro no envio múltiplo pelo Outlook:', error);
+    res.status(500).json({ error: error.message || 'Falha no envio múltiplo.' });
+  } finally {
+    activeBatchDispatches.delete(batchKey);
+  }
+});
+
 router.post('/send-draft', async (req: Request, res: Response) => {
   let auditQuotationId = String(req.body?.quotationId || '');
   try {
@@ -65,9 +192,9 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     let mailSubject = subject || `Solicitação de Cotação de Frete - REF: ${targetReference}`;
     let rawMarkdown = htmlBody || quotation.draftEmail || '';
 
-    // Lógica de Múltiplos Agentes (Duplicação)
-    // Se a cotação já tem um Agente definido e não é o mesmo
-    if (quotation.agentEmail && quotation.agentEmail !== agentEmail) {
+    // Compatibilidade temporária: a clonagem antiga só ocorre quando um cliente legado a solicita explicitamente.
+    // O painel atual sempre usa /send-draft-batch e mantém uma única cotação.
+    if (req.body?.legacyClone === true && quotation.agentEmail && quotation.agentEmail !== agentEmail) {
       // Contar quantas cópias existem
       const cloneCount = await prisma.quotation.count({
         where: { reference: { startsWith: baseReference + '-' } }

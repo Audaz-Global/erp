@@ -1274,10 +1274,22 @@
           <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;width:100%;margin-top:8px;">Cadastrar parceiro</button>
         </div>
         <div class="form-group" style="margin: 0;">
-          <label>E-mail de Envio (Destinatário)</label>
-          <input type="text" id="r-agent-send-email" placeholder="Ex: booking@agent.com" style="margin: 0;">
+          <label>E-mails do agente</label>
+          <input type="text" id="r-agent-send-email" placeholder="Um ou mais e-mails separados por ;" style="margin: 0;">
+          <small style="display:block;margin-top:6px;color:var(--text-muted);">Você pode informar vários contatos do mesmo agente.</small>
+          <button type="button" class="btn btn-secondary" onclick="addCurrentPartnerRecipients()" style="width:100%;margin-top:8px;">+ Adicionar à lista de envio</button>
         </div>
       </div>
+
+      <div id="partner-recipients-panel" style="margin:12px 0 16px;padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.015);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;">
+          <strong>Destinatários desta solicitação</strong>
+          <span id="partner-recipients-count" style="font-size:11px;color:var(--text-muted);">0 destinatários</span>
+        </div>
+        <div id="partner-recipients-list"><small style="color:var(--text-muted);">Selecione um agente e adicione um ou mais e-mails.</small></div>
+      </div>
+
+      <div id="partner-dispatch-results" style="display:none;margin:12px 0 16px;"></div>
 
       <div class="form-group">
         <label>Receber Cópia (CC) no seu E-mail da Audaz</label>
@@ -1387,7 +1399,7 @@
           🤖 Gerar Rascunho
         </button>
         <button class="btn btn-primary" style="background-color: #0078d4; color: white;" onclick="sendOutlookEmail()" id="btnSendOutlook">
-          ✉️ Disparar pelo Outlook
+          ✉️ Disparar para todos pelo Outlook
         </button>
         <button class="btn btn-secondary" onclick="saveAsAwaitingAgent()" id="btnSendAgent">
           ⏳ Só Marcar Aguardando
@@ -2845,6 +2857,10 @@ async function runExtract(mode = 'CLIENT') {
         currentQuotationId = null; // Limpa o ID se for uma cotação 100% nova
         setPartnerType('AGENTE', false);
         if (document.getElementById('partner-list-search')) document.getElementById('partner-list-search').value = '';
+        selectedPartnerRecipients = [];
+        lastPartnerDispatchResults = [];
+        renderPartnerRecipients();
+        renderPartnerDispatchResults();
         setDraftDispatchState('IDLE');
         window.lastExtractedRawText = json.rawText; // Armazena o texto original da extração
         window.lastEmailExtraction = json.emailExtraction || null;
@@ -2877,6 +2893,10 @@ function clearExtract() {
   sourceDocumentsUploadedForQuotation = null;
   window.lastExtractedRawText = null;
   window.lastEmailExtraction = null;
+  selectedPartnerRecipients = [];
+  lastPartnerDispatchResults = [];
+  renderPartnerRecipients();
+  renderPartnerDispatchResults();
   renderEmailExtractionAudit(null);
   renderQuotationDocuments();
 }
@@ -3521,6 +3541,109 @@ async function populateAgentDropdown(originCountry, includeAllCountries = false,
   onAgentSelectChange();
 }
 
+let selectedPartnerRecipients = [];
+let lastPartnerDispatchResults = [];
+
+function splitUiRecipientEmails(value) {
+  return String(value || '').split(/[;,\n]/).map(email => email.trim().toLowerCase()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+}
+
+function addCurrentPartnerRecipients() {
+  const select = document.getElementById('r-agent-email');
+  const selectedOption = select?.options?.[select.selectedIndex];
+  const emails = splitUiRecipientEmails(document.getElementById('r-agent-send-email')?.value);
+  if (!emails.length) {
+    alert('Informe ao menos um e-mail válido para adicionar.');
+    return false;
+  }
+  const partnerName = selectedOption?.dataset.agentName || 'Destinatário manual';
+  const partnerId = selectedOption?.dataset.partnerId || `manual:${normalizePartnerSearchText(partnerName)}`;
+  const selectedEmail = String(selectedOption?.value || '').toLowerCase();
+  emails.forEach(email => {
+    const existing = selectedPartnerRecipients.find(item => item.email === email);
+    const recipient = {
+      partnerId, partnerName,
+      contactName: email === selectedEmail ? (selectedOption?.dataset.contactName || 'Contato') : 'E-mail adicional',
+      partnerType: currentPartnerType, email, status: 'PENDING', message: ''
+    };
+    if (existing) Object.assign(existing, recipient);
+    else selectedPartnerRecipients.push(recipient);
+  });
+  document.getElementById('r-agent-send-email').value = '';
+  renderPartnerRecipients();
+  setDraftDispatchState(document.getElementById('r-draft-text')?.value ? 'DRAFT' : 'IDLE');
+  return true;
+}
+
+function removePartnerRecipient(email) {
+  selectedPartnerRecipients = selectedPartnerRecipients.filter(item => item.email !== email);
+  lastPartnerDispatchResults = lastPartnerDispatchResults.filter(item => item.email !== email);
+  renderPartnerRecipients();
+  renderPartnerDispatchResults();
+}
+
+function renderPartnerRecipients() {
+  const list = document.getElementById('partner-recipients-list');
+  const count = document.getElementById('partner-recipients-count');
+  if (!list || !count) return;
+  count.textContent = `${selectedPartnerRecipients.length} destinatário${selectedPartnerRecipients.length === 1 ? '' : 's'}`;
+  if (!selectedPartnerRecipients.length) {
+    list.innerHTML = '<small style="color:var(--text-muted);">Selecione um agente e adicione um ou mais e-mails.</small>';
+    return;
+  }
+  const statusLabels = { PENDING:'Pendente', SENT:'Enviado', SKIPPED:'Já enviado', FAILED:'Falhou' };
+  list.innerHTML = selectedPartnerRecipients.map(item => `
+    <div style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1fr) auto auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border);">
+      <div><strong style="font-size:12px;">${ifrEscape(item.partnerName)}</strong><small style="display:block;color:var(--text-muted);">${ifrEscape(item.contactName)}</small></div>
+      <span style="font-size:12px;">${ifrEscape(item.email)}</span>
+      <span class="status-badge ${item.status === 'FAILED' ? 'expired' : item.status === 'SENT' || item.status === 'SKIPPED' ? 'approved' : 'review'}">${statusLabels[item.status] || item.status}</span>
+      <button type="button" class="action-btn danger" onclick="removePartnerRecipient(decodeURIComponent('${encodeURIComponent(item.email)}'))" title="Remover">×</button>
+    </div>`).join('');
+}
+
+function renderPartnerDispatchResults() {
+  const panel = document.getElementById('partner-dispatch-results');
+  if (!panel) return;
+  if (!lastPartnerDispatchResults.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+  const sent = lastPartnerDispatchResults.filter(item => item.status === 'SENT').length;
+  const skipped = lastPartnerDispatchResults.filter(item => item.status === 'SKIPPED').length;
+  const failed = lastPartnerDispatchResults.filter(item => item.status === 'FAILED').length;
+  panel.style.display = 'block';
+  panel.innerHTML = `<div class="status-strip ${failed ? 'warn' : 'ok'}" style="margin-top:0;"><strong>${sent} enviados · ${skipped} já confirmados · ${failed} falharam</strong></div>`
+    + lastPartnerDispatchResults.map(item => `<div style="display:grid;grid-template-columns:1fr 1fr 100px;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;"><span>${ifrEscape(item.partnerName || 'Parceiro')}</span><span>${ifrEscape(item.email)}</span><strong style="color:${item.status === 'FAILED' ? 'var(--danger)' : 'var(--success)'}">${ifrEscape(item.status)}</strong>${item.status === 'FAILED' ? `<small style="grid-column:1/-1;color:var(--warning);">${ifrEscape(item.message || 'Falha no envio')}</small>` : ''}</div>`).join('');
+}
+
+function pendingPartnerRecipients() {
+  return selectedPartnerRecipients.filter(item => !['SENT', 'SKIPPED'].includes(item.status));
+}
+
+async function loadExistingPartnerRecipients(quotation) {
+  selectedPartnerRecipients = [];
+  lastPartnerDispatchResults = [];
+  try {
+    const response = await fetch(`${API}/quotations/${quotation.id}/timeline`);
+    const timeline = response.ok ? await response.json() : { cycles: [] };
+    (timeline.cycles || []).filter(cycle => cycle.recipientType !== 'TRUCKER').forEach(cycle => {
+      const email = String(cycle.partnerEmail || '').toLowerCase();
+      if (!email || selectedPartnerRecipients.some(item => item.email === email)) return;
+      selectedPartnerRecipients.push({
+        partnerId: `history:${email}`, partnerName: cycle.partnerName || quotation.agentName || 'Parceiro',
+        contactName: 'Histórico da cotação', partnerType: cycle.recipientType || quotation.partnerType || 'AGENTE',
+        email, status: 'SENT', message: ''
+      });
+    });
+  } catch (error) {}
+  splitUiRecipientEmails(quotation.agentEmail).forEach(email => {
+    if (selectedPartnerRecipients.some(item => item.email === email)) return;
+    selectedPartnerRecipients.push({
+      partnerId: `saved:${email}`, partnerName: quotation.agentName || 'Parceiro', contactName: 'Destinatário salvo',
+      partnerType: quotation.partnerType || 'AGENTE', email, status: quotation.sentAt ? 'SENT' : 'PENDING', message: ''
+    });
+  });
+  renderPartnerRecipients();
+  renderPartnerDispatchResults();
+}
+
 function onAgentSelectChange() {
   const select = document.getElementById('r-agent-email');
   const sendEmailInput = document.getElementById('r-agent-send-email');
@@ -3987,6 +4110,13 @@ document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof,
     field.addEventListener('change', updateRequestCalculatedWeights);
   }
 });
+window.addEventListener('beforeunload', event => {
+  const dispatchState = document.getElementById('draftDispatchStatus')?.dataset.state;
+  if (dispatchState === 'DRAFT' && pendingPartnerRecipients().length) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 
 // Auto-calculate IOF and Freight Unit/Total reatively
 document.getElementById('r-freight').addEventListener('input', function() {
@@ -4217,7 +4347,9 @@ async function generateDraftEmail() {
 
     const selectEl = document.getElementById('r-agent-email');
     const selectedOption = selectEl.options[selectEl.selectedIndex];
-    const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
+    const contactName = selectedPartnerRecipients.length === 1
+      ? selectedPartnerRecipients[0].contactName
+      : selectedPartnerRecipients.length > 1 ? '' : selectedOption ? (selectedOption.dataset.contactName || '') : '';
 
     const operatorInitials = document.getElementById('r-operator-initials').value.trim();
 
@@ -4305,13 +4437,7 @@ async function translateDraft() {
 
 async function sendOutlookEmail() {
   if (!currentQuotationId) {
-    alert('Por favor, gere o rascunho primeiro para criar a cotação.');
-    return;
-  }
-  
-  const agentEmail = document.getElementById('r-agent-send-email').value.trim();
-  if (!agentEmail) {
-    alert('Por favor, insira o E-mail de Envio do Agente/Parceiro.');
+    alert('Gere o rascunho primeiro para criar a cotação.');
     return;
   }
 
@@ -4321,31 +4447,33 @@ async function sendOutlookEmail() {
     return;
   }
 
+  const typedEmails = splitUiRecipientEmails(document.getElementById('r-agent-send-email').value);
+  if (typedEmails.length && !typedEmails.every(email => selectedPartnerRecipients.some(item => item.email === email))) {
+    if (!addCurrentPartnerRecipients()) return;
+  }
+  const recipients = pendingPartnerRecipients();
+  if (!recipients.length) {
+    alert(selectedPartnerRecipients.length ? 'Todos os destinatários desta lista já foram enviados.' : 'Adicione ao menos um destinatário à lista de envio.');
+    return;
+  }
+
   const btn = document.getElementById('btnSendOutlook');
-  const originalHtml = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Enviando para ${recipients.length} destinatário${recipients.length === 1 ? '' : 's'}...`;
   setDraftDispatchState('SENDING');
 
   try {
     await uploadPendingQuotationDocuments();
-    const selectEl = document.getElementById('r-agent-email');
-    const selectedOption = selectEl.options[selectEl.selectedIndex];
-    const contactName = selectedOption ? (selectedOption.dataset.contactName || '') : '';
-    const agentNameFromData = selectedOption ? (selectedOption.dataset.agentName || '') : 'Parceiro';
-    const finalAgentName = agentNameFromData ? `${agentNameFromData} - ${contactName}` : contactName;
-
     const ccEmail = document.getElementById('r-agent-cc-email').value.trim();
     const needsTransport = document.getElementById('r-needs-transport').checked;
-    
     let truckerEmail = null;
     let truckerName = null;
     let truckerCcEmail = null;
-    
+
     if (needsTransport) {
       truckerEmail = document.getElementById('r-trucker-send-email').value.trim();
       if (!truckerEmail) {
         alert('Por favor, preencha o E-mail de Envio da Transportadora.');
-        btn.disabled = false; btn.innerHTML = originalHtml;
+        setDraftDispatchState('DRAFT');
         return;
       }
       const selectTrucker = document.getElementById('r-trucker-email');
@@ -4358,17 +4486,17 @@ async function sendOutlookEmail() {
 
     const draftSubject = document.getElementById('r-draft-subject').value.trim();
 
-    const res = await fetch(API + '/outlook/send-draft', {
+    const res = await fetch(API + '/outlook/send-draft-batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         quotationId: currentQuotationId,
-        agentEmail: agentEmail,
-        agentName: finalAgentName,
-        partnerType: currentPartnerType,
+        recipients: recipients.map(item => ({
+          email: item.email, partnerName: item.partnerName, contactName: item.contactName,
+          partnerType: item.partnerType, ccEmail: ccEmail || null
+        })),
         subject: draftSubject || undefined,
         htmlBody: draftText,
-        ccEmail: ccEmail || null,
         needsTransport,
         truckerEmail,
         truckerName,
@@ -4377,20 +4505,35 @@ async function sendOutlookEmail() {
         truckerAttachmentIds: selectedQuotationDocumentIds('trucker')
       })
     });
-    
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Erro desconhecido');
-    }
 
-    clearExtract();
-    setDraftDispatchState('SENT', { recipient: agentEmail });
-    toast('✉️ E-mail enviado com sucesso pelo Outlook!');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
+    lastPartnerDispatchResults = Array.isArray(data.results) ? [...data.results] : [];
+    if (data.truckerResult) lastPartnerDispatchResults.push({
+      partnerName: 'Transportadora', contactName: data.truckerResult.email || '', email: data.truckerResult.email || '',
+      status: data.truckerResult.status, message: data.truckerResult.message || ''
+    });
+    lastPartnerDispatchResults.forEach(result => {
+      const recipient = selectedPartnerRecipients.find(item => item.email === result.email);
+      if (recipient) Object.assign(recipient, { status: result.status, message: result.message || '' });
+    });
+    renderPartnerRecipients();
+    renderPartnerDispatchResults();
+
+    const totalFailed = Number(data.failed || 0) + (data.truckerResult?.status === 'FAILED' ? 1 : 0);
+    if (totalFailed > 0) {
+      setDraftDispatchState('DRAFT');
+      toast(`Envio parcial: ${data.sent + data.skipped} parceiros confirmados e ${totalFailed} envio(s) com falha.`);
+    } else {
+      setDraftDispatchState('SENT', { recipient: `${data.sent + data.skipped} destinatário${data.sent + data.skipped === 1 ? '' : 's'}` });
+      toast(`E-mails enviados com sucesso para ${data.sent + data.skipped} destinatários!`);
+    }
   } catch (e) {
     setDraftDispatchState('DRAFT');
     alert('Erro ao enviar pelo Outlook: ' + e.message);
   } finally {
-    btn.disabled = false; btn.innerHTML = originalHtml;
+    btn.disabled = false;
+    btn.innerHTML = pendingPartnerRecipients().some(item => item.status === 'FAILED') ? '↻ Reenviar somente as falhas' : '✉️ Disparar para todos pelo Outlook';
   }
 }
 
@@ -4400,9 +4543,11 @@ async function saveAsAwaitingAgent() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
 
   try {
-    const agentEmail = document.getElementById('r-agent-send-email').value.trim();
+    const typedEmails = splitUiRecipientEmails(document.getElementById('r-agent-send-email').value);
+    if (typedEmails.length && !typedEmails.every(email => selectedPartnerRecipients.some(item => item.email === email))) addCurrentPartnerRecipients();
+    const agentEmail = selectedPartnerRecipients.map(item => item.email).join('; ');
     if (!agentEmail) {
-      alert('Por favor, insira o E-mail de Envio do Agente.');
+      alert('Adicione ao menos um destinatário antes de marcar como aguardando.');
       btn.disabled = false; btn.innerHTML = originalHtml;
       return;
     }
@@ -8184,6 +8329,7 @@ async function loadQuotationIntoDraft() {
       };
       
       fillReviewForm(mappedData, 'CLIENT');
+      await loadExistingPartnerRecipients(quotation);
       setDraftDispatchState(quotation.sentAt ? 'SENT' : quotation.draftEmail ? 'DRAFT' : 'IDLE', { recipient: quotation.agentEmail || '' });
       renderEmailExtractionAudit(window.lastEmailExtraction);
       toast('✅ Dados da cotação carregados!');
