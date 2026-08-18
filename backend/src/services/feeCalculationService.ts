@@ -58,6 +58,14 @@ function finite(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+export function normalizeCurrency(value: unknown) {
+  const normalized = plain(value).replace(/\s+/g, '');
+  if (['R$', 'REAL', 'REAIS', 'BRL'].includes(normalized)) return 'BRL';
+  if (['US$', 'U$', 'USD', 'DOLAR', 'DOLLAR'].includes(normalized)) return 'USD';
+  if (['€', 'EUR', 'EURO', 'EUROS'].includes(normalized)) return 'EUR';
+  return normalized || 'USD';
+}
+
 export function canonicalFeeCategory(name: unknown) {
   const value = plain(name).replace(/[^A-Z0-9]+/g, ' ').trim();
   const aliases = [
@@ -211,7 +219,7 @@ export function normalizeFee(fee: any) {
   ];
   return {
     ...source,
-    name: String(source.name || '').trim(), currency: String(source.currency || 'USD').toUpperCase(),
+    name: String(source.name || '').trim(), currency: normalizeCurrency(source.currency),
     canonicalCategory,
     unitValue: unitValue || 0, value: totalValue ?? legacyValue, billingUnit,
     originalUnit: source.originalUnit || source.unitLabel || source.application || null,

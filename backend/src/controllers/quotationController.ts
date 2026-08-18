@@ -11,7 +11,7 @@ import { applyRateValidityPolicy, rateValidityFields } from '../services/rateVal
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
 import { withIncotermApplicability } from '../services/incotermApplicabilityService';
-import { normalizeFee } from '../services/feeCalculationService';
+import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 
 const PRICING_SETTINGS_ID = 'default';
@@ -40,6 +40,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     // Extract non-quotation fields
     const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
+    if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
     normalizeDangerousGoodsPayload(quotationData);
     if (ruleStage) { await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase()); await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase()); }
 
@@ -171,6 +172,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
 
     // Um campo vazio na tela nunca pode apagar a referência oficial já gerada.
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
+    if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
     if (!quotationData.reference) delete quotationData.reference;
     if (!current.reference && !quotationData.reference && operatorInitials) {
       quotationData.reference = await generateReference(operatorInitials);
@@ -341,7 +343,7 @@ export const updatePhase = async (req: Request, res: Response) => {
     if (costs) {
       if (costs.freight_currency && costs.freight_value !== undefined) {
         updateData.freightValue = costs.freight_value;
-        updateData.freightCurrency = costs.freight_currency;
+        updateData.freightCurrency = normalizeCurrency(costs.freight_currency);
       } else {
         updateData.freightValue = costs.freight_usd;
         updateData.freightCurrency = 'USD';
@@ -354,10 +356,16 @@ export const updatePhase = async (req: Request, res: Response) => {
         create: { id: PRICING_SETTINGS_ID }
       });
       const informedStorage = Number(costs.storage_brl || 0);
-      updateData.destinationStorage = costCompositionReviewed ? informedStorage : applyMinLclStorage(informedStorage, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
+      const reportedStorageSource = String(costs.storage_source || '');
+      const storageFromPartner = /(?:AGENTE|AGENT|COLOADER|ARMADOR|CIA_AEREA|DESCONSOLIDADOR)_RESPONSE/.test(reportedStorageSource);
+      updateData.destinationStorage = (costCompositionReviewed || storageFromPartner)
+        ? informedStorage
+        : applyMinLclStorage(informedStorage, quotationForStorage?.modal, quotationForStorage?.loadType, pricingSettingsForStorage.minLclStorageBrl);
       updateData.destinationStorageCurrency = 'BRL';
       const storageUnchanged = Number(current.destinationStorage || 0) === informedStorage;
-      updateData.destinationStorageSource = storageUnchanged
+      updateData.destinationStorageSource = storageFromPartner
+        ? reportedStorageSource
+        : storageUnchanged
         ? current.destinationStorageSource
         : (informedStorage > 0 ? 'MANUAL' : (!costCompositionReviewed && quotationForStorage?.modal === 'SEA' && quotationForStorage?.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null));
       updateData.destinationServicesTotal = costs.services_brl;

@@ -3,7 +3,7 @@ import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
 import { applyRateValidityPolicy } from './rateValidityService';
 import { DG_STATUS, normalizeDangerousGoodsStatus, normalizeMsdsStatus } from './dangerousGoodsService';
-import { normalizeFeeList } from './feeCalculationService';
+import { normalizeCurrency, normalizeFeeList } from './feeCalculationService';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -581,6 +581,8 @@ export const extractAgentCosts = async (
                       billingUnit: { type: 'string', enum: ['TOTAL_SHIPMENT','PER_DG_PRODUCT','PER_ITEM','PER_PACKAGE','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_SHIPMENT','PER_CONTAINER','PER_BL','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE','UNKNOWN'] },
                       originalUnit: { type: 'string' }, quantity: { type: 'number' }, totalValue: { type: 'number' },
                       quantitySource: { type: 'string' }, evidence: { type: 'string' }, confidence: { type: 'number' }, needsReview: { type: 'boolean' },
+                      explicitZero: { type: 'boolean', description: 'True quando a fonte informou explicitamente valor zero; false para valor ausente.' },
+                      sourceOrigin: { type: 'string', enum: ['PARTNER_EMAIL','SYSTEM_CATALOG'], description: 'Origem real do valor: retorno do parceiro ou catálogo cadastrado.' },
                       ispsClassification: { type: 'string', enum: ['ISPS_CARRIER','ISPS_TERMINAL','ISPS_UNCLASSIFIED'] },
                       applicationScope: { type: 'string', enum: ['ORIGIN','DESTINATION','TRANSIT','UNKNOWN'] },
                       chargedBy: { type: 'string' },
@@ -616,6 +618,8 @@ export const extractAgentCosts = async (
                       billingUnit: { type: 'string', enum: ['TOTAL_SHIPMENT','PER_DG_PRODUCT','PER_ITEM','PER_PACKAGE','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_SHIPMENT','PER_CONTAINER','PER_BL','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE','UNKNOWN'] },
                       originalUnit: { type: 'string' }, quantity: { type: 'number' }, totalValue: { type: 'number' },
                       quantitySource: { type: 'string' }, evidence: { type: 'string' }, confidence: { type: 'number' }, needsReview: { type: 'boolean' },
+                      explicitZero: { type: 'boolean', description: 'True quando a fonte informou explicitamente valor zero; false para valor ausente.' },
+                      sourceOrigin: { type: 'string', enum: ['PARTNER_EMAIL','SYSTEM_CATALOG'], description: 'Origem real do valor: retorno do parceiro ou catálogo cadastrado.' },
                       ispsClassification: { type: 'string', enum: ['ISPS_CARRIER','ISPS_TERMINAL','ISPS_UNCLASSIFIED'] },
                       applicationScope: { type: 'string', enum: ['ORIGIN','DESTINATION','TRANSIT','UNKNOWN'] },
                       chargedBy: { type: 'string' },
@@ -674,6 +678,10 @@ export const extractAgentCosts = async (
     ${safeLocalFeesTable ? `${safeLocalFeesTable}` : ''}
 
     Instruções Gerais de Extração:
+    - **Números e moedas:** respeite a notação brasileira. Exemplos: "R$ 2.472,84" = 2472.84 BRL; "US$ 2,84" = 2.84 USD. Normalize R$ para BRL e US$ para USD. Nunca descarte o separador de milhar como se o valor fosse decimal.
+    - **Conciliação:** quando houver composição final ou total geral, confira se a soma das parcelas bate com esse total. Se houver diferença, releia primeiro separadores de milhar, moeda e coluna da parcela antes de responder.
+    - **Zero explícito:** uma taxa expressamente informada como zero deve permanecer na lista com value=0, totalValue=0 e explicitZero=true. Valor zero não é o mesmo que taxa ausente.
+    - **Procedência por taxa:** use sourceOrigin=PARTNER_EMAIL somente para valores presentes na resposta/anexo atual. Use sourceOrigin=SYSTEM_CATALOG somente para valores obtidos do catálogo cadastrado fornecido no contexto. Não atribua uma taxa do catálogo ao e-mail.
     0. **Resposta atual x histórico:** O texto pode conter blocos identificados como RESPOSTA ATUAL, ANEXOS DA RESPOSTA ATUAL e HISTÓRICO DA CONVERSA. Extraia valores somente da RESPOSTA ATUAL e de seus anexos. Use o histórico apenas para entender o contexto e nunca copie dele um preço que não tenha sido confirmado na resposta atual.
        - Preencha present_fields somente com campos realmente encontrados na resposta atual ou anexos.
        - Para cada campo presente, registre uma evidência curta em field_evidence.
@@ -748,6 +756,7 @@ export const extractAgentCosts = async (
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.costs) {
+      parsed.costs.freight_currency = normalizeCurrency(parsed.costs.freight_currency);
       parsed.costs.origin_fees = normalizeFeeList(parsed.costs.origin_fees, 'ORIGIN');
       parsed.costs.destination_fees = normalizeFeeList(parsed.costs.destination_fees, 'DESTINATION');
       const ttStr = parsed.costs.transit_time;

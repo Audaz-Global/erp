@@ -10,6 +10,7 @@ import { applyRateValidityPolicy } from '../services/rateValidityService';
 import { resolveFeeQuantities } from '../services/feeCalculationService';
 import { applyDomesticTransportEvidencePolicy } from '../utils/quotationRequestPolicy';
 import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from '../services/storageEstimateService';
+import { tagPartnerCosts } from '../services/agentResponseService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -205,7 +206,10 @@ export const extractData = async (req: Request, res: Response) => {
       }
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
-      if (aiResult?.costs) applyRateValidityPolicy(aiResult.costs);
+      if (aiResult?.costs) {
+        tagPartnerCosts(aiResult.costs, (quotation as any)?.partnerType);
+        applyRateValidityPolicy(aiResult.costs);
+      }
       if (aiResult?.costs && quotation) {
         aiResult.costs.origin_fees = resolveFeeQuantities(aiResult.costs.origin_fees, quotation);
         aiResult.costs.destination_fees = resolveFeeQuantities(aiResult.costs.destination_fees, quotation);

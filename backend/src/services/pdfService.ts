@@ -5,7 +5,7 @@ import path from 'path';
 import * as XLSX from 'xlsx';
 import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, extractContainerInfo } from '../utils/cargoUtils';
 import { getFeesForIncoterm, formatFeesForPdf, resolveFreightValue } from '../services/incotermRuleService';
-import { normalizeFee } from './feeCalculationService';
+import { normalizeCurrency, normalizeFee } from './feeCalculationService';
 import { storageEstimatePdfFee } from './storageEstimateService';
 import { shouldHydrateAutomaticCosts } from './costCompositionService';
 
@@ -1209,7 +1209,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
           detailedFeesOrigem = parsedServices.map(f => {
             const val = parseFloat(f.totalValue ?? f.value) || 0;
             const unitVal = parseFloat(f.unitValue ?? f.value) || 0;
-            const curr = f.currency || 'USD';
+            const curr = normalizeCurrency(f.currency);
             return {
               name: f.name,
               qty: f.quantity ?? 1,
@@ -1793,7 +1793,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
             const nameLower = String(f.name || '').toLowerCase().trim();
             if (!existingNames.has(nameLower)) {
               const val = parseFloat(f.totalValue ?? f.value) || 0;
-              const curr = (f.currency || 'USD').toUpperCase();
+              const curr = normalizeCurrency(f.currency);
               detailedFees.push({
                 name: f.name || 'Taxa de Destino',
                 qty: f.quantity ?? 1,
@@ -2021,7 +2021,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
         if (Array.isArray(services)) services.forEach((fee: any) => {
           const totalValue = parseFloat(fee.totalValue ?? fee.value) || 0;
           const unitValue = parseFloat(fee.unitValue ?? fee.value) || 0;
-          const currency = String(fee.currency || 'USD').toUpperCase();
+          const currency = normalizeCurrency(fee.currency);
           const name = String(fee.name || 'Taxa de Origem');
           const normalized = normalizeFee({ ...fee, applicationScope:'ORIGIN' });
           const row = { ...normalized, name: name.toUpperCase().includes('ISPS') && !name.toUpperCase().includes('ORIGEM') ? 'ISPS - Origem' : name, qty: fee.quantity ?? fee.qty ?? 1, unit: fee.originalUnit || fee.billingUnit || fee.unit || 'Fixo', valueUnit: safeToFixed(unitValue, 2), min:safeToFixed(fee.minValue,2), max:safeToFixed(fee.maxValue,2), currency, total: `${currency} ${safeToFixed(totalValue, 2)}`, _alreadyInOriginTotal:true };

@@ -5,9 +5,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+const currencyStart = html.indexOf('function normalizeCostCurrency');
+const currencyEnd = html.indexOf('function inferFeeClassification');
 const start = html.indexOf('function reviewCostNumber');
 const end = html.indexOf('function reviewCostProvenance');
-const calculationSource = html.slice(start, end);
+const calculationSource = html.slice(currencyStart, currencyEnd) + html.slice(start, end);
 
 function calculationContext(lines) {
   const context = { window: { reviewCostLines: lines } };
@@ -34,8 +36,8 @@ test('mínimo e máximo limitam o total final da linha', () => {
 
 test('editor mostra procedência e exclusão nas taxas aplicáveis', () => {
   assert.match(html, /cost-source-badge/);
-  assert.match(html, /E-mail do agente/);
-  assert.match(html, /Regra do sistema/);
+  assert.match(html, /E-mail do Agente/);
+  assert.match(html, /Regra automática · Incoterm/);
   assert.match(html, /onclick="removeReviewCostLine/);
 });
 
@@ -43,4 +45,22 @@ test('campos do editor mantêm contraste e alinhamento com a linha', () => {
   assert.match(html, /\.cost-line \{ align-items:start;/);
   assert.match(html, /\.cost-line input,\.cost-line select[^}]*color:#edf2fa;/);
   assert.match(html, /-webkit-text-fill-color:#b6c0d1/);
+});
+
+test('símbolos monetários são consolidados nos códigos ISO', () => {
+  const context = calculationContext({ freight: [], origin: [], destination: [] });
+  assert.equal(context.normalizeCostCurrency('R$'), 'BRL');
+  assert.equal(context.normalizeCostCurrency('US$'), 'USD');
+  assert.equal(context.normalizeCostCurrency('BRL'), 'BRL');
+});
+
+test('procedência diferencia coloader, regra e tabela cadastrada', () => {
+  assert.match(html, /E-mail do Coloader/);
+  assert.match(html, /Regra automática · Incoterm/);
+  assert.match(html, /Tabela cadastrada/);
+});
+
+test('descrição exibida remove o marcador de estimativa Incoterm', () => {
+  assert.doesNotMatch(html, /const label = f\.source === 'INCOTERM'/);
+  assert.match(html, /stripReturnEstimateLabel\(fee\.name\)/);
 });

@@ -7,6 +7,33 @@ export interface ReplyParts {
   signature: string;
 }
 
+export function normalizePartnerType(value: unknown) {
+  const type = String(value || 'AGENTE').trim().toUpperCase();
+  return ['AGENTE', 'COLOADER', 'ARMADOR', 'CIA_AEREA', 'DESCONSOLIDADOR'].includes(type) ? type : 'AGENTE';
+}
+
+export function partnerEmailProvenance(value: unknown) {
+  const partnerType = normalizePartnerType(value);
+  const labels: Record<string, string> = {
+    AGENTE: 'E-mail do Agente', COLOADER: 'E-mail do Coloader', ARMADOR: 'E-mail do Armador',
+    CIA_AEREA: 'E-mail da Cia. Aérea', DESCONSOLIDADOR: 'E-mail do Desconsolidador'
+  };
+  return { partnerType, provenanceType: `${partnerType}_EMAIL`, provenanceLabel: labels[partnerType] };
+}
+
+export function tagPartnerCosts(costs: any, partnerType: unknown) {
+  if (!costs || typeof costs !== 'object') return costs;
+  const provenance = partnerEmailProvenance(partnerType);
+  costs.partner_type = provenance.partnerType;
+  for (const field of ['origin_fees', 'destination_fees']) {
+    if (Array.isArray(costs[field])) costs[field] = costs[field].map((fee: any) => fee?.sourceOrigin === 'SYSTEM_CATALOG'
+      ? { ...fee, provenanceType: 'SYSTEM_RATE', provenanceLabel: 'Tabela cadastrada' }
+      : { ...fee, ...provenance });
+  }
+  if (costs.origin_inland?.quoted) costs.origin_inland = { ...costs.origin_inland, ...provenance };
+  return costs;
+}
+
 const crop = (value: string, max: number) => value.length > max ? value.slice(0, max) + '\n[conteúdo reduzido]' : value;
 
 export function splitAgentReply(body: string): ReplyParts {

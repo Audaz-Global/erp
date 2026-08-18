@@ -299,7 +299,7 @@ export function calculateFee(
     percentageBaseValue: rule.chargeType === 'PERCENTAGE' ? (rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freightValue + totalOrigin : freightValue) : null,
     classificationSource: 'RULE',
     provenanceType: 'SYSTEM_RULE',
-    provenanceLabel: 'Regra do sistema · Incoterm',
+    provenanceLabel: 'Regra automática · Incoterm',
     evidence: rule.description || null,
     needsReview: rule.chargeType === 'PER_DG_PRODUCT' && Number(qty) <= 0
   };

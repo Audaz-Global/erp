@@ -1,14 +1,13 @@
 import { fetchEmailAttachments, fetchEmailsByConversationId, fetchUnreadEmails, markEmailAsRead } from './outlookService';
 import { prisma } from '../prisma';
 import { extractAgentCosts } from './aiService';
-import { buildThreadContext, extractOutlookAttachments, mergeExtractedCosts, mergeFeeLists, splitAgentReply } from './agentResponseService';
+import { buildThreadContext, extractOutlookAttachments, mergeExtractedCosts, mergeFeeLists, splitAgentReply, tagPartnerCosts } from './agentResponseService';
 import { findRequestCycle, markCycleResponse, recordQuotationEvent } from './quotationHistoryService';
 
 const quotationChangesForAgent = (updateData: Record<string, any>) => Object.fromEntries(
   Object.entries(updateData).filter(([field]) => !['agentResponseRaw', 'costsData'].includes(field)).map(([field, value]) => [field, { to: value }])
 );
 import { applyRateValidityPolicy, rateValidityFields } from './rateValidityService';
-import { applyMinLclStorage } from '../utils/cargoUtils';
 
 const TRACKED_AGENT_FIELDS = new Set([
   'freight_value', 'freight_currency', 'freight_usd', 'iof_usd', 'storage_brl', 'services_brl', 'taxes_brl', 'total_brl',
@@ -234,6 +233,7 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
     
     if (costs && costs.costs) {
       const c = costs.costs;
+      tagPartnerCosts(c, (quotation as any).partnerType);
       applyRateValidityPolicy(c, receivedAt || new Date());
       const presentFields = new Set<string>((Array.isArray(c.present_fields) ? c.present_fields : [])
         .map((field: any) => String(field).trim().toLowerCase())
@@ -268,14 +268,9 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
       if (has('freight_usd') && c.freight_usd != null) updateData.totalUsd = c.freight_usd;
       if (has('iof_usd') && c.iof_usd != null) updateData.iofUsd = c.iof_usd;
       if (has('storage_brl') && c.storage_brl != null) {
-        const pricingSettings = await prisma.pricingSettings.upsert({
-          where: { id: 'default' },
-          update: {},
-          create: { id: 'default' }
-        });
-        updateData.destinationStorage = applyMinLclStorage(c.storage_brl, quotation.modal, quotation.loadType, pricingSettings.minLclStorageBrl);
+        updateData.destinationStorage = Number(c.storage_brl);
         updateData.destinationStorageCurrency = 'BRL';
-        updateData.destinationStorageSource = Number(c.storage_brl) > 0 ? 'AGENT_RESPONSE' : (quotation.modal === 'SEA' && quotation.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null);
+        updateData.destinationStorageSource = `${String((quotation as any).partnerType || 'AGENTE').toUpperCase()}_RESPONSE`;
       }
       if (has('services_brl') && c.services_brl != null) updateData.destinationServicesTotal = c.services_brl;
       if (has('taxes_brl') && c.taxes_brl != null) {

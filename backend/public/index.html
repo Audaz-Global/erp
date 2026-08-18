@@ -2869,6 +2869,14 @@ const FEE_UNIT_LABELS = { TOTAL_SHIPMENT:'Total do embarque', PER_DG_PRODUCT:'Pr
 const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
 const CHARGE_NATURE_LABELS = { BASE_FREIGHT:'Frete base', FUEL:'Combustível', SECURITY:'Segurança / ISPS', DG:'Carga perigosa', CUSTOMS:'Aduaneira', INSURANCE:'Seguro', TAX:'Tributo', PROFIT:'Profit', LOCAL_SERVICE:'Serviço local', OTHER:'Outra' };
 
+function normalizeCostCurrency(value) {
+  const currency=String(value || 'USD').trim().toUpperCase().replace(/\s+/g,'');
+  if (['R$','REAL','REAIS','BRL'].includes(currency)) return 'BRL';
+  if (['US$','U$','USD','DOLAR','DOLLAR'].includes(currency)) return 'USD';
+  if (['€','EUR','EURO','EUROS'].includes(currency)) return 'EUR';
+  return currency || 'USD';
+}
+
 function inferFeeClassification(name, scope, ispsClassification, chargedBy) {
   const text = `${name || ''} ${chargedBy || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
   const dg = /\b(DG|IMO|DGR|DANGEROUS GOODS|HAZMAT)\b/.test(text);
@@ -2886,7 +2894,7 @@ function parseFeeLine(line) {
   const first = segments[0].split(/\s+/);
   const unitValue = parseFloat(String(first[0] || '').replace(',', '.'));
   if (!name || !Number.isFinite(unitValue)) return null;
-  const currency = String(first[1] || 'USD').toUpperCase();
+  const currency = normalizeCostCurrency(first[1]);
   const billingUnit = String(segments[1] || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
   const quantityMatch = segments.find(value => /^(QTY|QTD)\s+/i.test(value))?.match(/(?:QTY|QTD)\s+([\d.,]+)/i);
   const quantityPending = segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value));
@@ -2963,7 +2971,8 @@ function formatFeeLine(fee) {
   const cleanMeta = value => String(value || '').replace(/[|\r\n]+/g,' ').trim().slice(0,300);
   const inferredProvenance = fee.provenanceType || (fee.source === 'PARTNER' || fee.classificationSource === 'AI' ? 'AGENT_EMAIL' : fee.source === 'INCOTERM' ? 'SYSTEM_RULE' : fee.classificationSource === 'MANUAL' ? 'MANUAL' : 'SYSTEM_RULE');
   const provenanceDetails = ` | PROVENANCE ${cleanMeta(inferredProvenance)}${fee.provenanceLabel ? ` | SOURCELABEL ${cleanMeta(fee.provenanceLabel)}` : ''}${fee.evidence ? ` | EVIDENCE ${cleanMeta(fee.evidence)}` : ''}${fee.percentBase ? ` | PERCENTBASE ${cleanMeta(fee.percentBase)}` : ''}${Number(fee.percentageBaseValue) > 0 ? ` | BASEVALUE ${Number(fee.percentageBaseValue).toFixed(4)}` : ''}`;
-  return `${fee.name}: ${unitValue.toFixed(2)} ${fee.currency || 'USD'} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${fee.currency || 'USD'}${classificationDetails}${provenanceDetails}${ispsDetails}`;
+  const currency = normalizeCostCurrency(fee.currency);
+  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${ispsDetails}`;
 }
 
 const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
@@ -2972,7 +2981,7 @@ window.reviewCostLines = { freight: [], origin: [], destination: [] };
 function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function reviewCostWithLimits(raw, line) { const minimum=reviewCostNumber(line.minValue); const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(Math.max(raw,minimum),maximum) : Math.max(raw,minimum); }
-function reviewConvertCost(value, fromCurrency, toCurrency) { const from=String(fromCurrency||'USD').toUpperCase(), to=String(toCurrency||'USD').toUpperCase(); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
+function reviewConvertCost(value, fromCurrency, toCurrency) { const from=normalizeCostCurrency(fromCurrency), to=normalizeCostCurrency(toCurrency); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
 function reviewPercentageBase(line) {
   const configured=String(line.percentBase || '').toUpperCase();
   const targetCurrency=line.currency || 'USD';
@@ -2986,9 +2995,13 @@ function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? rev
 
 function reviewCostProvenance(line) {
   const raw=String(line.provenanceType || line.source || line.classificationSource || '').toUpperCase();
-  let type='SYSTEM_RULE', label=line.provenanceLabel || 'Regra do sistema', css='system';
-  if (/AGENT|EMAIL|PARTNER|AI/.test(raw)) { type='AGENT_EMAIL'; label=line.provenanceLabel || 'E-mail do agente'; css='email'; }
-  else if (/FIXED|TARIFF|PARTNER_RATE|SYSTEM_RATE/.test(raw)) { type='SYSTEM_RATE'; label=line.provenanceLabel || 'Cadastro do sistema'; css='system'; }
+  let type='SYSTEM_RULE', label=line.provenanceLabel || 'Regra automática · Incoterm', css='system';
+  if (/COLOADER/.test(raw)) { type='COLOADER_EMAIL'; label=line.provenanceLabel || 'E-mail do Coloader'; css='email'; }
+  else if (/ARMADOR/.test(raw)) { type='ARMADOR_EMAIL'; label=line.provenanceLabel || 'E-mail do Armador'; css='email'; }
+  else if (/CIA_AEREA|AIRLINE/.test(raw)) { type='CIA_AEREA_EMAIL'; label=line.provenanceLabel || 'E-mail da Cia. Aérea'; css='email'; }
+  else if (/DESCONSOLIDADOR/.test(raw)) { type='DESCONSOLIDADOR_EMAIL'; label=line.provenanceLabel || 'E-mail do Desconsolidador'; css='email'; }
+  else if (/AGENT|AGENTE|EMAIL|PARTNER|AI/.test(raw)) { type='AGENTE_EMAIL'; label=line.provenanceLabel || 'E-mail do Agente'; css='email'; }
+  else if (/FIXED|TARIFF|PARTNER_RATE|SYSTEM_RATE/.test(raw)) { type='SYSTEM_RATE'; label=line.provenanceLabel || 'Tabela cadastrada'; css='system'; }
   else if (/MANUAL/.test(raw)) { type='MANUAL'; label=line.provenanceLabel || 'Inserida manualmente'; css='manual'; }
   else if (/CALCULATED|AUTOMATIC/.test(raw)) { type='CALCULATED'; label=line.provenanceLabel || 'Cálculo automático'; css='calculated'; }
   if (line.editedManually && type !== 'MANUAL') label += ' · editada';
@@ -3014,7 +3027,8 @@ function reviewMainFreightLine(quotation = {}) {
   else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); quantity = containerMatch ? Number(containerMatch[1]) : 1; billingUnit = 'PER_CONTAINER'; }
   const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
   const source=quotationFreightEvidence(quotation);
-  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue:quantity > 0 ? total / quantity : total, currency:document.getElementById('rev-freight-currency')?.value || 'USD', financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?'AGENT_EMAIL':'MANUAL', evidence:source.evidence };
+  const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
+  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue:quantity > 0 ? total / quantity : total, currency:normalizeCostCurrency(document.getElementById('rev-freight-currency')?.value), financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?`${partnerType}_EMAIL`:'MANUAL', evidence:source.evidence };
 }
 
 function initializeReviewCostEditor(quotation = {}) {
@@ -3023,7 +3037,8 @@ function initializeReviewCostEditor(quotation = {}) {
   const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
   const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
-  const decorate = (fee, scope) => { const unitValue=reviewCostNumber(fee.unitValue ?? fee.value); const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value); const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0); return { ...fee, id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):unitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?'AGENT_EMAIL':fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:String(fee.currency || 'USD').toUpperCase(), applicationScope:scope }; };
+  const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
+  const decorate = (fee, scope) => { const unitValue=reviewCostNumber(fee.unitValue ?? fee.value); const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value); const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0); return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):unitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope }; };
   window.reviewCostLines = {
     freight: [reviewMainFreightLine(quotation), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
@@ -3035,7 +3050,10 @@ function initializeReviewCostEditor(quotation = {}) {
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
   const storageRequested = document.getElementById('rev-storage')?.dataset.requested === 'true';
-  if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:quotation.destinationStorageSource === 'MINIMUM_FALLBACK' ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:quotation.destinationStorageCurrency || 'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:quotation.destinationStorageSource==='AGENT_RESPONSE'?'AGENT_EMAIL':quotation.destinationStorageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL', evidence:quotation.storageRequestEvidence || '' });
+  const storageWasExtracted=(window.lastExtractedAgentData?.costs?.present_fields || []).includes('storage_brl');
+  const storageSource=String(quotation.destinationStorageSource || '');
+  const storageProvenance=storageWasExtracted || /_RESPONSE$|AGENT_RESPONSE/.test(storageSource) ? `${partnerType}_EMAIL` : storageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL';
+  if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:storageSource === 'MINIMUM_FALLBACK' && !storageWasExtracted ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:normalizeCostCurrency(quotation.destinationStorageCurrency || 'BRL'), financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:storageProvenance, evidence:window.lastExtractedAgentData?.costs?.field_evidence?.find(item=>item.field==='storage_brl')?.evidence || quotation.storageRequestEvidence || '' });
   const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
   if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
   if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
@@ -3055,7 +3073,7 @@ function refreshReviewMainFreightBasis() {
 }
 
 function costUnitOptions(selected) { return COST_EDITOR_UNITS.map(unit => `<option value="${unit}" ${unit === selected ? 'selected' : ''}>${escapeFeeHtml(FEE_UNIT_LABELS[unit] || unit)}</option>`).join(''); }
-function costCurrencyOptions(selected) { return ['USD','EUR','BRL'].map(currency => `<option value="${currency}" ${currency === selected ? 'selected' : ''}>${currency}</option>`).join(''); }
+function costCurrencyOptions(selected) { const normalized=normalizeCostCurrency(selected); return ['USD','EUR','BRL'].map(currency => `<option value="${currency}" ${currency === normalized ? 'selected' : ''}>${currency}</option>`).join(''); }
 function reviewCostAmount(value) { return Number(value || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 function renderReviewCostEditor() {
@@ -3079,7 +3097,7 @@ function renderReviewCostEditor() {
 
 function updateReviewCostLine(group, id, field, value) {
   const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
-  line[field] = ['quantity','unitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : value;
+  line[field] = ['quantity','unitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : field === 'currency' ? normalizeCostCurrency(value) : value;
   if (!line.locked || ['unitValue','currency','minValue','maxValue'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
   const row = document.querySelector(`[data-cost-id="${id}"]`);
@@ -3113,25 +3131,25 @@ function syncReviewCostEditor() {
   const inland = all.find(line => line.special === 'ORIGIN_INLAND');
   if (inland) { document.getElementById('rev-origin-inland-value').value = reviewCostTotal(inland).toFixed(2); document.getElementById('rev-origin-inland-currency').value = inland.currency; }
   else { document.getElementById('rev-origin-inland-value').value = ''; }
-  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (line.provenanceType==='AGENT_EMAIL'?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] });
+  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, currency:normalizeCostCurrency(line.currency), value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (/_EMAIL$/.test(line.provenanceType||'')?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] });
   const originFees = window.reviewCostLines.origin.filter(line => !line.special).map(line => toFee(line,'ORIGIN',line.financialGroup || 'ORIGIN_CHARGE'));
   const destinationFees = window.reviewCostLines.destination.filter(line => !line.special || line.special === 'CUSTOMS').map(line => toFee(line,'DESTINATION',line.financialGroup || 'DESTINATION_CHARGE'));
   window.reviewCostLines.freight.filter(line => !line.special).forEach(line => destinationFees.push(toFee(line,'FREIGHT','FREIGHT_COMPONENT')));
   document.getElementById('rev-origin-services').value = originFees.map(formatFeeLine).join('\n');
   document.getElementById('rev-destination-services').value = destinationFees.map(formatFeeLine).join('\n');
-  const brlValue = fee => fee.currency === 'BRL' ? reviewCostTotal(fee) : fee.currency === 'EUR' ? reviewCostTotal(fee) * 5.50 : reviewCostTotal(fee) * 5.05;
+  const brlValue = fee => normalizeCostCurrency(fee.currency) === 'BRL' ? reviewCostTotal(fee) : normalizeCostCurrency(fee.currency) === 'EUR' ? reviewCostTotal(fee) * 5.50 : reviewCostTotal(fee) * 5.05;
   document.getElementById('rev-services').value = destinationFees.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT').reduce((sum,fee)=>sum+brlValue(fee),0).toFixed(2);
   const customs = all.find(line => line.special === 'CUSTOMS');
   document.getElementById('rev-customs-clearance').checked = Boolean(customs);
   if (customs) document.getElementById('rev-customs-value').value = reviewCostTotal(customs).toFixed(2);
   ['freight','origin','destination'].forEach(group => {
     const totals = {};
-    (window.reviewCostLines[group] || []).forEach(line => { const currency=line.currency || 'USD'; totals[currency]=(totals[currency]||0)+reviewCostTotal(line); });
+    (window.reviewCostLines[group] || []).forEach(line => { const currency=normalizeCostCurrency(line.currency); totals[currency]=(totals[currency]||0)+reviewCostTotal(line); });
     const label = Object.entries(totals).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${reviewCostAmount(value)}`).join(' | ') || '—';
     const el=document.getElementById(`cost-subtotal-${group}`); if(el) el.textContent=label;
   });
   const grand = {};
-  all.forEach(line => { const currency=line.currency || 'USD'; grand[currency]=(grand[currency]||0)+reviewCostTotal(line); });
+  all.forEach(line => { const currency=normalizeCostCurrency(line.currency); grand[currency]=(grand[currency]||0)+reviewCostTotal(line); });
   const grandLabel=Object.entries(grand).filter(([,value])=>value>0).map(([currency,value])=>`${currency} ${reviewCostAmount(value)}`).join(' | ') || '—';
   const equivalentBrl=all.reduce((sum,line)=>sum+brlValue(line),0);
   const grandEl=document.getElementById('cost-grand-values'); if(grandEl) grandEl.innerHTML=`${escapeFeeHtml(grandLabel)}<small>Equivalente estimado: BRL ${reviewCostAmount(equivalentBrl)} · USD 5,05 · EUR 5,50</small>`;
@@ -3656,7 +3674,7 @@ function fillReviewForm(d, mode) {
     if(d.costs) {
       const freightInput = document.getElementById('r-freight');
       const origValue = d.costs.freight_value !== undefined ? d.costs.freight_value : d.costs.freight_usd;
-      const origCurrency = d.costs.freight_currency || '';
+      const origCurrency = normalizeCostCurrency(d.costs.freight_currency || 'USD');
       
       freightInput.value = origValue || '';
       if (document.getElementById('r-freight-currency')) {
@@ -3671,7 +3689,8 @@ function fillReviewForm(d, mode) {
       }
       document.getElementById('conf-iof').innerHTML = renderConf(d.costs.iof_usd, d.costs.confidence);
 
-      document.getElementById('r-storage').value = d.costs.storage_brl || '';
+      document.getElementById('r-storage').value = d.costs.storage_brl ?? '';
+      if ((d.costs.present_fields || []).includes('storage_brl')) document.getElementById('r-storage').dataset.source = `${String(d.costs.partner_type || currentPartnerType || 'AGENTE').toUpperCase()}_RESPONSE`;
       document.getElementById('conf-storage').innerHTML = renderConf(d.costs.storage_brl, d.costs.confidence);
 
       document.getElementById('r-services').value = d.costs.services_brl || '';
@@ -4038,6 +4057,7 @@ async function generateDraftEmail() {
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'SOLICITADO',
+      partnerType: currentPartnerType,
       clientName: document.getElementById('r-client-name').value,
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
@@ -4224,6 +4244,7 @@ async function sendOutlookEmail() {
         quotationId: currentQuotationId,
         agentEmail: agentEmail,
         agentName: finalAgentName,
+        partnerType: currentPartnerType,
         subject: draftSubject || undefined,
         htmlBody: draftText,
         ccEmail: ccEmail || null,
@@ -4295,6 +4316,7 @@ async function saveAsAwaitingAgent() {
       packages: document.getElementById('r-dimensions').value || null,
       status: 'AGUARDANDO_AGENTE',
       agentEmail: agentEmail,
+      partnerType: currentPartnerType,
       clientName: document.getElementById('r-client-name').value,
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
@@ -5061,7 +5083,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     const storageInput = document.getElementById('rev-storage');
     const storageStatus = document.getElementById('rev-storage-status');
     storageInput.dataset.requested = String(!!q.requiresStorageEstimate);
-    storageInput.dataset.source = q.destinationStorageSource || '';
+    storageInput.dataset.source = q.destinationStorageSource || ((window.lastExtractedAgentData?.costs?.present_fields || []).includes('storage_brl') ? `${String(q.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase()}_RESPONSE` : '');
     if (q.requiresStorageEstimate) {
       storageStatus.style.display = 'block';
       storageStatus.style.color = q.destinationStorageSource === 'MINIMUM_FALLBACK' ? 'var(--warning)' : 'var(--success)';
@@ -5255,6 +5277,7 @@ async function confirmAndGeneratePDF() {
         freight_currency: document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD',
         iof_usd: parseFloat(document.getElementById('rev-iof').value) || 0,
         storage_brl: parseFloat(document.getElementById('rev-storage').value) || 0,
+        storage_source: document.getElementById('rev-storage').dataset.source || null,
         services_brl: targetServicesBrl,
         taxes_brl: parseFloat(document.getElementById('rev-taxes').value) || 0,
         frequency: frequencyValue,
@@ -5439,13 +5462,12 @@ function mergeReturnFees(existingFees, presetFees) {
 
 function formatReturnFees(fees) {
   return fees.map(f => {
-    const label = f.source === 'INCOTERM' ? RETURN_ESTIMATE_LABEL : '';
-    return f.pending ? `${stripReturnEstimateLabel(f.name)}${label}: A COTAR` : formatFeeLine({ ...f, name: `${stripReturnEstimateLabel(f.name)}${label}` });
+    return f.pending ? `${stripReturnEstimateLabel(f.name)}: A COTAR` : formatFeeLine({ ...f, name: stripReturnEstimateLabel(f.name) });
   }).join('\n');
 }
 
 function toReturnBrl(value, currency) {
-  const current = String(currency || 'USD').toUpperCase();
+  const current = normalizeCostCurrency(currency);
   if (current === 'BRL') return value;
   if (current === 'EUR') return value * 5.50;
   return value * 5.05;
@@ -5484,7 +5506,7 @@ function calculateReturnRuleFees(q) {
     const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
     const quantity = quantityMap[rule.chargeType] ?? null;
     const percentageBaseValue = rule.chargeType === 'PERCENTAGE' && Number(rule.value) > 0 ? totalValue * 100 / Number(rule.value) : null;
-    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:rule.currency||'USD', billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra do sistema · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN' };
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN' };
   };
 
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
@@ -5586,6 +5608,7 @@ async function loadPendingQuotationData() {
     return;
   }
   currentQuotationId = q.id;
+  if (q.partnerType) setPartnerType(q.partnerType);
   sourceDocumentsUploadedForQuotation = q.id;
   await loadQuotationDocuments();
   loadAgentResponseHistory(q.id);

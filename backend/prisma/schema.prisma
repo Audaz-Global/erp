@@ -47,6 +47,7 @@ model Quotation {
   // Agente / Coloader
   agentEmail              String?
   agentName               String?
+  partnerType             String? // AGENTE, COLOADER, ARMADOR, CIA_AEREA, DESCONSOLIDADOR
   draftEmail              String? // Rascunho do email para o agente
   draftEmailSubject       String? // Assunto gerado/traduzido do e-mail ao agente
   clientReferenceNumber   String? // Referência/PO do próprio cliente (extraído por IA ou manual)

@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { replyOutlookEmail, sendOutlookEmail, searchEmails } from '../services/outlookService';
 import { marked } from 'marked';
 import { recordQuotationEvent } from '../services/quotationHistoryService';
+import { normalizePartnerType } from '../services/agentResponseService';
 
 const router = Router();
 
@@ -47,7 +48,8 @@ async function recordSuccessfulDispatch(input: {
 router.post('/send-draft', async (req: Request, res: Response) => {
   let auditQuotationId = String(req.body?.quotationId || '');
   try {
-    const { quotationId, htmlBody, subject, agentEmail, agentName, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail, attachmentIds = [], truckerAttachmentIds = [] } = req.body;
+    const { quotationId, htmlBody, subject, agentEmail, agentName, partnerType, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail, attachmentIds = [], truckerAttachmentIds = [] } = req.body;
+    const normalizedPartnerType = normalizePartnerType(partnerType);
 
     if (!quotationId) return res.status(400).json({ error: 'quotationId é obrigatório' });
     if (!agentEmail) return res.status(400).json({ error: 'agentEmail é obrigatório' });
@@ -85,6 +87,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
           reference: targetReference,
           agentEmail: agentEmail,
           agentName: agentName,
+          partnerType: normalizedPartnerType,
           status: 'AGUARDANDO_AGENTE',
           draftEmail: rawMarkdown,
           sentAt: new Date()
@@ -137,7 +140,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
     }));
     const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail, outlookAttachments);
-    await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: 'PARTNER', recipientEmail: agentEmail,
+    await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: normalizedPartnerType, recipientEmail: agentEmail,
       partnerName: agentName, subject: mailSubject, conversationId, documents: selectedDocuments });
 
     // Se houver necessidade de transporte terrestre e o e-mail da transportadora for fornecido
@@ -171,6 +174,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         status: 'AGUARDANDO_AGENTE',
         agentEmail: agentEmail,
         agentName: agentName,
+        partnerType: normalizedPartnerType,
         draftEmail: rawMarkdown,
         sentAt: new Date(),
         sentEmailConversationId: conversationId || null,
