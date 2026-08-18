@@ -147,14 +147,17 @@ export async function extractSignatureOcr(mediaParts: any[] = []) {
       } as any
     }
   });
-  const prompt = `Analise somente as imagens fornecidas. Elas podem ser assinaturas gráficas de e-mail, logos ou ícones.
+  const prompt = `Analise somente as imagens fornecidas, na mesma ordem em que foram enviadas. Elas podem ser assinaturas gráficas de e-mail, logos ou ícones.
 Para cada imagem, transcreva apenas texto legível e extraia nome, telefone, e-mail e empresa quando existirem.
-Marque isSignature=false quando for apenas logo/ícone. Não invente dados. Retorne confiança entre 0 e 1.`;
-  const content = await buildTokenSafeContent(model, prompt, mediaParts.slice(0, 2));
+Marque isSignature=false quando for apenas logo/ícone. Não invente dados e não use texto de outras imagens para completar uma leitura. Retorne confiança entre 0 e 1.`;
+  const selectedMedia = mediaParts.slice(0, 6);
+  const content = await buildTokenSafeContent(model, prompt, selectedMedia);
   const result = await model.generateContent(content);
   const parsed = JSON.parse(result.response.text().trim());
   return Array.isArray(parsed?.readings) ? parsed.readings.map((item: any, index: number) => ({
-    ...item, filename: item.filename || mediaParts[index]?.filename || `signature_${index + 1}`,
+    ...item, filename: item.filename || selectedMedia[index]?.filename || `signature_${index + 1}`,
+    sourceEmailIndex: selectedMedia[index]?.sourceEmailIndex,
+    sourceEmailFile: selectedMedia[index]?.sourceEmailFile,
     source: 'SIGNATURE_IMAGE_OCR'
   })).filter((item: any) => item.isSignature && Number(item.confidence || 0) >= 0.45) : [];
 }

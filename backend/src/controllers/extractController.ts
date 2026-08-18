@@ -11,12 +11,13 @@ import { resolveFeeQuantities } from '../services/feeCalculationService';
 import { applyDomesticTransportEvidencePolicy } from '../utils/quotationRequestPolicy';
 import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from '../services/storageEstimateService';
 import { tagPartnerCosts } from '../services/agentResponseService';
+import { resolveFirstResponseContact } from '../services/contactResolutionService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
 
-function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any[] = []) {
-  const contact = emailRecords.map(item => item.extractedContact).find(item => item && (item.name || item.phone || item.email));
+function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any[] = [], resolvedContact: any = null) {
+  const contact = resolvedContact || emailRecords.map(item => item.extractedContact).find(item => item && (item.name || item.phone || item.email));
   const numericConfidence = (value: any) => Number.isFinite(Number(value)) ? Number(value) : null;
   const source = (field: string, value: any, fieldConfidence: any) => ({
     field, value: value ?? '', source: value ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND',
@@ -47,7 +48,7 @@ function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any
   });
   entries.push({ field: 'Nome do contato', value: contact?.name || data?.client?.contact_name || '', source: contact?.source || (data?.client?.contact_name ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND'), confidence: contact?.name ? contact.confidence : numericConfidence(data?.client?.confidence) || 0, evidence: contact?.evidence || '' });
   entries.push({ field: 'Telefone do contato', value: contact?.phone || data?.client?.contact_phone || '', source: contact?.source || (data?.client?.contact_phone ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND'), confidence: contact?.phone ? contact.confidence : numericConfidence(data?.client?.confidence) || 0, evidence: contact?.evidence || '' });
-  return { version: 1, processedAt: new Date().toISOString(), emails: emailRecords, fields: entries, signatureOcr };
+  return { version: 2, processedAt: new Date().toISOString(), emails: emailRecords, fields: entries, signatureOcr, resolvedContact };
 }
 
 function buildQuotationCode(initials: string): string {
@@ -79,7 +80,8 @@ export const extractData = async (req: Request, res: Response) => {
             const emlResult = await parseEmlWithMedia(file.buffer);
             extractedFileText += emlResult.text;
             if (emlResult.emailRecord) emailRecords.push({ ...emlResult.emailRecord, fileName: file.originalname });
-            if (emlResult.signatureMediaParts?.length) signatureMediaParts.push(...emlResult.signatureMediaParts);
+            const emailRecordIndex = emailRecords.length - 1;
+            if (emlResult.signatureMediaParts?.length) signatureMediaParts.push(...emlResult.signatureMediaParts.map(part => ({ ...part, sourceEmailIndex: emailRecordIndex, sourceEmailFile: file.originalname })));
             if (emlResult.mediaParts && emlResult.mediaParts.length > 0) {
               mediaParts.push(...emlResult.mediaParts);
             }
@@ -87,6 +89,8 @@ export const extractData = async (req: Request, res: Response) => {
             const msgResult = await parseMsg(file.buffer);
             extractedFileText += msgResult.text;
             if (msgResult.emailRecord) emailRecords.push({ ...msgResult.emailRecord, fileName: file.originalname });
+            const emailRecordIndex = emailRecords.length - 1;
+            if (msgResult.signatureMediaParts?.length) signatureMediaParts.push(...msgResult.signatureMediaParts.map(part => ({ ...part, sourceEmailIndex: emailRecordIndex, sourceEmailFile: file.originalname })));
             if (msgResult.mediaParts && msgResult.mediaParts.length > 0) {
               mediaParts.push(...msgResult.mediaParts);
             }
@@ -149,13 +153,6 @@ export const extractData = async (req: Request, res: Response) => {
       aiResult = await extractClientData(combinedText, contextRules, mediaParts);
       aiResult = applyDomesticTransportEvidencePolicy(aiResult, combinedText);
       aiResult = applyStorageEstimateRequestPolicy(aiResult, combinedText);
-      const signatureContact = emailRecords.map(item => item.extractedContact).find(item => item?.source === 'SIGNATURE_TEXT' && (item.name || item.phone));
-      if (signatureContact) {
-        aiResult.client = aiResult.client || {};
-        if (signatureContact.name) aiResult.client.contact_name = signatureContact.name;
-        if (signatureContact.phone) aiResult.client.contact_phone = signatureContact.phone;
-        if (signatureContact.email) aiResult.client.contact_email = signatureContact.email;
-      }
     } else {
       // Buscar cotação original para passar como contexto de cálculo
       const quotationId = req.body.quotationId || '';
@@ -247,10 +244,30 @@ export const extractData = async (req: Request, res: Response) => {
 
     let signatureOcr: any[] = [];
     if (mode === 'CLIENT' && signatureMediaParts.length) {
-      try { signatureOcr = await extractSignatureOcr(signatureMediaParts); }
+      const preliminaryContact = resolveFirstResponseContact(emailRecords, []);
+      const preferredEmailIndex = preliminaryContact?.emailRecordIndex;
+      const orderedSignatureParts = [...signatureMediaParts].sort((left, right) => {
+        const leftPreferred = Number(left.sourceEmailIndex) === preferredEmailIndex ? 0 : 1;
+        const rightPreferred = Number(right.sourceEmailIndex) === preferredEmailIndex ? 0 : 1;
+        return leftPreferred - rightPreferred;
+      });
+      try { signatureOcr = await extractSignatureOcr(orderedSignatureParts); }
       catch (ocrError: any) { console.warn('OCR de assinatura não concluído:', ocrError?.message || ocrError); }
     }
-    const emailExtraction = mode === 'CLIENT' ? clientExtractionAudit(aiResult, emailRecords, signatureOcr) : null;
+    const resolvedContact = mode === 'CLIENT' ? resolveFirstResponseContact(emailRecords, signatureOcr) : null;
+    if (mode === 'CLIENT' && resolvedContact) {
+      aiResult.client = aiResult.client || {};
+      // E-mail e nome vêm exclusivamente do cabeçalho oficial da primeira resposta.
+      // OCR e assinatura complementam o telefone somente quando há vínculo com o remetente.
+      if (resolvedContact.name) aiResult.client.contact_name = resolvedContact.name;
+      else delete aiResult.client.contact_name;
+      if (resolvedContact.phone) aiResult.client.contact_phone = resolvedContact.phone;
+      if (resolvedContact.email) aiResult.client.contact_email = resolvedContact.email;
+      aiResult.client.contact_confidence = resolvedContact.confidence;
+      aiResult.client.contact_needs_review = resolvedContact.needsReview;
+      aiResult.client.contact_validation = resolvedContact.nameValidation;
+    }
+    const emailExtraction = mode === 'CLIENT' ? clientExtractionAudit(aiResult, emailRecords, signatureOcr, resolvedContact) : null;
     res.json({ message: 'Extração concluída', data: aiResult, rawText: combinedText, emailExtraction });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

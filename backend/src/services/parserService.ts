@@ -18,9 +18,12 @@ export interface ParsedEmlResult {
       name?: string;
       phone?: string;
       email?: string;
-      source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'NOT_FOUND';
+      source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'SENDER_HEADER_VERIFIED' | 'NOT_FOUND';
       confidence: number;
       evidence?: string;
+      nameValidation?: 'HEADER_AND_EMAIL' | 'HEADER_ONLY' | 'SIGNATURE_AND_EMAIL' | 'NEEDS_REVIEW' | 'NOT_FOUND';
+      needsReview?: boolean;
+      signatureName?: string;
     };
   };
   mediaParts: Array<{
@@ -44,6 +47,29 @@ function normalizePhone(value: string): string {
 function safeIsoDate(value: any): string | undefined {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+const COMPANY_NAME_PATTERN = /\b(?:gmbh|ltda|limitada|s\.?\s*a\.?|sa|llc|inc\.?|corp(?:oration)?|company|co\.?|logistics?|shipping|freight|cargo|transportes?|comercio|comercial|industria|industrial|group|holding|solutions?|services?|departamento|department|sales|pricing|operations?)\b/i;
+const GENERIC_MAILBOX_PATTERN = /^(?:info|contact|contato|sales|pricing|quote|quotation|quotes|commercial|comercial|operations?|operacoes|export|import|comex|office|admin|support|logistics?|shipping|freight|booking|customer|service|supervisor(?:a)?)(?:[._+-]|$)/i;
+
+function normalizeIdentity(value: string): string {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function isLikelyPersonName(value: string): boolean {
+  const compact = String(value || '').replace(/[<>"'|•·]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (compact.length < 3 || compact.length > 80 || /@|\d|https?:|www\./i.test(compact) || COMPANY_NAME_PATTERN.test(compact)) return false;
+  const words = compact.split(/\s+/).filter(Boolean);
+  return words.length >= 2 && words.length <= 6 && words.every(word => /^\p{L}+(?:['.-]\p{L}+)*$/u.test(word));
+}
+
+export function nameMatchesSenderEmail(name: string, email: string): boolean {
+  if (!isLikelyPersonName(name) || !String(email || '').includes('@')) return false;
+  const localPart = normalizeIdentity(String(email).split('@')[0] || '').replace(/\s+/g, '');
+  if (!localPart || GENERIC_MAILBOX_PATTERN.test(localPart)) return false;
+  const tokens = normalizeIdentity(name).split(' ').filter(token => token.length >= 3);
+  const matches = tokens.filter(token => localPart.includes(token));
+  return matches.length >= Math.min(2, tokens.length);
 }
 
 export function extractContactFromSignature(body: string, senderName = '', senderEmail = '') {
@@ -72,15 +98,33 @@ export function extractContactFromSignature(body: string, senderName = '', sende
     return compact.length >= 3 && compact.length <= 80
       && !/@/.test(compact)
       && !signoffPattern.test(compact)
-      && !/(tel|phone|mobile|cell|whatsapp|www\.|http|ltd|inc\.|logistics|cargo|freight|comercial|sales|supervisor|manager|director|coordinator|analyst|foreign trade|import|export|comex)/i.test(compact)
-      && /^\p{L}+(?:['.-]\p{L}+)*(?:\s+\p{L}+(?:['.-]\p{L}+)*){1,5}$/u.test(compact);
+      && !/(tel|phone|mobile|cell|whatsapp|www\.|http|supervisor|manager|director|coordinator|analyst|foreign trade|import|export|comex)/i.test(compact)
+      && isLikelyPersonName(compact);
   });
-  const name = nameLine || senderName || '';
+  const headerIsPerson = isLikelyPersonName(senderName);
+  const signatureMatchesEmail = Boolean(nameLine && nameMatchesSenderEmail(nameLine, senderEmail));
+  // O cabeçalho From é a fonte oficial. A assinatura nunca pode trocar o
+  // remetente por uma empresa ou por um nome existente no histórico citado.
+  const name = headerIsPerson ? senderName.trim() : (signatureMatchesEmail ? String(nameLine).trim() : '');
   const phone = phoneMatches[0]?.phone || '';
-  const email = emailMatch?.[0] || senderEmail || '';
-  const source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'NOT_FOUND' = signatureLines.length && (nameLine || phoneMatches.length || emailMatch) ? 'SIGNATURE_TEXT' : (senderName || senderEmail ? 'SENDER_HEADER' : 'NOT_FOUND');
-  const confidence = source === 'SIGNATURE_TEXT' ? (name && phone ? 0.9 : 0.75) : (name || email ? 0.55 : 0);
-  return { name, phone, email, source, confidence, evidence: evidence.slice(0, 600) };
+  const email = senderEmail || '';
+  const emailMatchesHeader = headerIsPerson && nameMatchesSenderEmail(senderName, senderEmail);
+  const source: 'SIGNATURE_TEXT' | 'SENDER_HEADER' | 'SENDER_HEADER_VERIFIED' | 'NOT_FOUND' = headerIsPerson
+    ? (emailMatchesHeader || (nameLine && normalizeIdentity(nameLine) === normalizeIdentity(senderName)) ? 'SENDER_HEADER_VERIFIED' : 'SENDER_HEADER')
+    : (signatureMatchesEmail ? 'SIGNATURE_TEXT' : (senderEmail ? 'SENDER_HEADER' : 'NOT_FOUND'));
+  const nameValidation: 'HEADER_AND_EMAIL' | 'HEADER_ONLY' | 'SIGNATURE_AND_EMAIL' | 'NEEDS_REVIEW' | 'NOT_FOUND' = headerIsPerson
+    ? (emailMatchesHeader ? 'HEADER_AND_EMAIL' : 'HEADER_ONLY')
+    : (signatureMatchesEmail ? 'SIGNATURE_AND_EMAIL' : (senderName || senderEmail ? 'NEEDS_REVIEW' : 'NOT_FOUND'));
+  const needsReview = !name || nameValidation === 'HEADER_ONLY' || nameValidation === 'NEEDS_REVIEW';
+  const confidence = nameValidation === 'HEADER_AND_EMAIL' ? (phone ? 0.98 : 0.95)
+    : nameValidation === 'SIGNATURE_AND_EMAIL' ? 0.78
+      : nameValidation === 'HEADER_ONLY' ? 0.82
+        : email ? 0.45 : 0;
+  return {
+    name, phone, email, source, confidence, nameValidation, needsReview,
+    signatureName: nameLine || undefined,
+    evidence: [`From: ${senderName || '(sem nome)'} <${senderEmail || '(sem e-mail)'}>`, evidence].filter(Boolean).join(' | ').slice(0, 600)
+  };
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -197,7 +241,9 @@ ${htmlContent}
           const approximateBytes = Math.floor(base64Data.length * 0.75);
           // Pequenos data URIs costumam ser logos/ícones de assinatura. Mantemos
           // no máximo duas imagens embutidas com tamanho relevante.
-          if (approximateBytes < 20_000 || inlineCount >= 2) continue;
+          const inlineBuffer = Buffer.from(base64Data, 'base64');
+          const inlineDimensions = mimeType === 'image/png' ? getPngDimensions(inlineBuffer) : null;
+          if (approximateBytes < 4_000 || inlineCount >= 6 || (inlineDimensions && inlineDimensions.width <= 64 && inlineDimensions.height <= 64)) continue;
           inlineCount++;
           mediaParts.push({
             inlineData: {
@@ -205,6 +251,10 @@ ${htmlContent}
               mimeType
             },
             filename: `inline_image_${inlineCount}.${mimeType.split('/')[1] || 'png'}`
+          });
+          signatureMediaParts.push({
+            inlineData: { data: base64Data, mimeType },
+            filename: `inline_signature_${inlineCount}.${mimeType.split('/')[1] || 'png'}`
           });
           extractedText += `\n[Imagem Embutida #${inlineCount}]\n`;
         }
@@ -261,7 +311,7 @@ ${htmlContent}
             );
             if (isSignatureAsset) {
               extractedText += `\n[Imagem inline/assinatura ignorada: ${attachment.filename}]\n`;
-              if (imageSize >= 4_000 && imageSize <= 1_500_000 && signatureMediaParts.length < 2) {
+              if (imageSize >= 4_000 && imageSize <= 1_500_000 && signatureMediaParts.length < 6) {
                 signatureMediaParts.push({
                   inlineData: { data: attachment.content.toString('base64'), mimeType: attachment.contentType },
                   filename: attachment.filename
@@ -269,7 +319,7 @@ ${htmlContent}
               }
               continue;
             }
-            if (isSignatureCandidate && signatureMediaParts.length < 2) {
+            if (isSignatureCandidate && signatureMediaParts.length < 6) {
               signatureMediaParts.push({
                 inlineData: { data: attachment.content.toString('base64'), mimeType: attachment.contentType },
                 filename: attachment.filename
@@ -356,7 +406,7 @@ export const parseMsg = async (buffer: Buffer): Promise<ParsedEmlResult> => {
       toText = testMsg.recipients.map((r: any) => r.name || r.email || '').join(', ');
     }
 
-    const extractedText = `
+    let extractedText = `
 --- EMAIL (MSG/OUTLOOK) ---
 De: ${fromName} ${fromEmail ? '<'+fromEmail+'>' : ''}
 Para: ${toText}
@@ -367,10 +417,33 @@ Corpo do Email:
 ${testMsg.body || ''}
     `;
 
+    const mediaParts: Array<{ inlineData: { data: string; mimeType: string }; filename?: string }> = [];
+    const signatureMediaParts: Array<{ inlineData: { data: string; mimeType: string }; filename?: string }> = [];
+    const imageMimeByExtension: Record<string, string> = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp'
+    };
+    for (const attachmentRef of (testMsg.attachments || [])) {
+      try {
+        const attachment = msg.getAttachment(attachmentRef);
+        const fileName = String(attachment.fileName || (attachmentRef as any).fileName || 'imagem');
+        const extension = String((attachmentRef as any).extension || fileName.slice(fileName.lastIndexOf('.'))).toLowerCase();
+        const mimeType = imageMimeByExtension[extension];
+        if (!mimeType) continue;
+        const content = Buffer.from(attachment.content);
+        if (content.length < 4_000 || content.length > 1_500_000) continue;
+        const part = { inlineData: { data: content.toString('base64'), mimeType }, filename: fileName };
+        if (signatureMediaParts.length < 6) signatureMediaParts.push(part);
+        mediaParts.push(part);
+        extractedText += `\n[Imagem incorporada do MSG: ${fileName}]\n`;
+      } catch (attachmentError: any) {
+        console.warn('Não foi possível ler imagem incorporada do MSG:', attachmentError?.message || attachmentError);
+      }
+    }
+
     return {
       text: extractedText,
-      mediaParts: [],
-      signatureMediaParts: [],
+      mediaParts,
+      signatureMediaParts,
       emailRecord: {
         format: 'MSG', senderName: fromName, senderEmail: fromEmail, subject: testMsg.subject || '',
         receivedAt: testMsg.messageDeliveryTime ? safeIsoDate(testMsg.messageDeliveryTime) : undefined,
