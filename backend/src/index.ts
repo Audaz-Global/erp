@@ -44,6 +44,7 @@ import agentDraftEmailTemplateRoutes from './routes/agentDraftEmailTemplate';
 import draftEmailFieldRuleRoutes from './routes/draftEmailFieldRule';
 import pricingSettingsRoutes from './routes/pricingSettings';
 import deconsolidatorRoutes from './routes/deconsolidator';
+import professionalRoutes from './routes/professional';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/extract', extractRoutes);
@@ -61,6 +62,7 @@ app.use('/api/agent-draft-email-templates', agentDraftEmailTemplateRoutes);
 app.use('/api/draft-email-field-rules', draftEmailFieldRuleRoutes);
 app.use('/api/pricing-settings', pricingSettingsRoutes);
 app.use('/api/deconsolidators', deconsolidatorRoutes);
+app.use('/api/professionals', professionalRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);

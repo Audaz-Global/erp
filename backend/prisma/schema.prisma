@@ -24,6 +24,24 @@ model User {
   quotations Quotation[]
 }
 
+model ProfessionalProfile {
+  id                String   @id @default(uuid())
+  name              String
+  initials          String
+  email             String?
+  jobTitle          String?
+  phone             String?
+  active            Boolean  @default(true)
+  signatureImage    Bytes?
+  signatureMimeType String?
+  signatureFileName String?
+  signatureVersion  Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([active, name])
+}
+
 model Client {
   id           String   @id @default(uuid())
   name         String
@@ -233,6 +251,9 @@ model QuotationEmailDispatch {
   attachmentNames String? // JSON array para auditoria imutável
   status          String                 @default("SENT")
   errorMessage    String?
+  professionalId  String?
+  professionalName String?
+  signatureVersion Int?
   requestCycleId  String?
   requestCycle    QuotationRequestCycle? @relation(fields: [requestCycleId], references: [id], onDelete: SetNull)
   createdAt       DateTime               @default(now())

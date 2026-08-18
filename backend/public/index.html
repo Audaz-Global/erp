@@ -918,6 +918,16 @@
   .proposal-table th:first-child,.proposal-table td:first-child { text-align:left; position:sticky; left:0; background:var(--bg-card); z-index:1; min-width:190px; }
   .proposal-table th { color:var(--text-muted); font-size:10px; text-transform:uppercase; }
   .proposal-table tr:last-child td { border-bottom:0; }
+  .active-professional-btn { margin-left:auto; margin-right:10px; min-height:40px; padding:7px 12px; display:flex; align-items:center; gap:9px; border:1px solid var(--border); border-radius:10px; background:rgba(255,255,255,.035); color:var(--text); cursor:pointer; }
+  .active-professional-avatar { width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:rgba(245,166,35,.16); color:var(--gold); font-size:10px; font-weight:800; }
+  .professional-chooser { display:none; position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.76); padding:24px; overflow:auto; }
+  .professional-chooser.active { display:flex; align-items:center; justify-content:center; }
+  .professional-chooser-dialog { width:min(760px,100%); max-height:calc(100vh - 48px); overflow:auto; padding:24px; border:1px solid var(--border); border-radius:16px; background:var(--bg-card); box-shadow:0 24px 70px rgba(0,0,0,.55); }
+  .professional-choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:16px; }
+  .professional-choice { padding:14px; text-align:left; border:1px solid var(--border); border-radius:11px; background:rgba(255,255,255,.025); color:var(--text); cursor:pointer; }
+  .professional-choice:hover,.professional-choice.selected { border-color:var(--gold); background:rgba(245,166,35,.07); }
+  .professional-settings-grid { display:grid; grid-template-columns:minmax(260px,.8fr) minmax(320px,1.2fr); gap:18px; }
+  @media(max-width:760px){.active-professional-btn small{display:none}.professional-settings-grid{grid-template-columns:1fr}}
   .timeline-item { position:relative; padding:2px 0 15px 22px; border-left:1px solid rgba(255,255,255,.1); margin-left:5px; }
   .timeline-item::before { content:''; position:absolute; width:9px; height:9px; left:-5px; top:5px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(245,166,35,.09); }
   .timeline-item strong { display:block; color:#e7eaf0; font-size:11px; }
@@ -1048,6 +1058,9 @@
       <span class="brand-context"><small>Freight Intelligence</small><strong>Painel de Cotações</strong></span>
     </a>
   </div>
+  <button class="active-professional-btn" id="activeProfessionalButton" onclick="openProfessionalChooser()" aria-label="Escolher profissional responsável">
+    <span class="active-professional-avatar" id="activeProfessionalInitials">?</span><span><small style="display:block;color:var(--text-muted);font-size:9px;text-align:left">COTANDO COMO</small><strong id="activeProfessionalName" style="font-size:11px">Escolher profissional</strong></span>
+  </button>
   <button class="gear-btn" onclick="openSettings()" aria-label="Abrir configurações">
     <svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span>Configurações</span>
   </button>
@@ -1406,6 +1419,8 @@
       <div class="status-strip warn" id="statusStrip">
         ⚠️ Revise os dados acima antes de gerar o rascunho.
       </div>
+
+      <div id="draft-professional-panel" style="margin-top:16px;padding:13px;border:1px solid rgba(64,156,255,.32);border-radius:10px;background:rgba(64,156,255,.035)"></div>
 
       <div class="status-strip warn" id="draftDispatchStatus" data-state="IDLE" style="display:none;">
         📝 Rascunho ainda não enviado.
@@ -2186,10 +2201,7 @@
 
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
-        <li data-tab="users" onclick="switchSettingsTab('users')" style="opacity:0.6; cursor:not-allowed;">
-          Usuários
-          <span class="coming-soon">Em breve</span>
-        </li>
+        <li data-tab="users" onclick="switchSettingsTab('users')">Profissionais e assinaturas</li>
       </ul>
       <div class="ss-footer">
         <button class="btn btn-secondary" onclick="closeSettings()" style="width:100%; padding:10px; font-size:13px;">Voltar ao Painel</button>
@@ -2209,6 +2221,14 @@
         <!-- Conteúdo dinâmico renderizado pelo JS -->
       </div>
     </div>
+  </div>
+</div>
+
+<div class="professional-chooser" id="professionalChooserOverlay" onclick="if(event.target===this) closeProfessionalChooser()">
+  <div class="professional-chooser-dialog">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><h2 style="margin:0">Quem está cotando?</h2><p style="margin:5px 0 0;color:var(--text-muted);font-size:12px">A escolha define as iniciais e a assinatura JPEG usada nos próximos envios.</p></div><button class="document-delete" onclick="closeProfessionalChooser()">Fechar</button></div>
+    <div class="professional-choice-grid" id="professionalChoiceGrid"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="closeProfessionalChooser();openSettings();switchSettingsTab('users')">Gerenciar profissionais</button></div>
   </div>
 </div>
 
@@ -2585,6 +2605,7 @@ function switchTab(name) {
   }
   if (name === 'draft') {
     loadRecentQuotations();
+    renderDraftProfessional();
   }
   if (name === 'agents') {
     setPartnerSection(currentPartnerFilter || 'OVERVIEW');
@@ -4460,6 +4481,12 @@ async function sendOutlookEmail() {
     return;
   }
 
+  if (!activeProfessional?.id || !activeProfessional.active || !activeProfessional.hasSignature) {
+    alert('Selecione o profissional responsável com uma assinatura JPEG antes de enviar.');
+    openProfessionalChooser(true);
+    return;
+  }
+
   const draftText = document.getElementById('r-draft-text').value;
   if (!draftText) {
     alert('Gere o rascunho primeiro.');
@@ -4510,6 +4537,7 @@ async function sendOutlookEmail() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         quotationId: currentQuotationId,
+        professionalId: activeProfessional.id,
         recipients: recipients.map(item => ({
           email: item.email, partnerName: item.partnerName, contactName: item.contactName,
           partnerType: item.partnerType, ccEmail: ccEmail || null
@@ -6805,17 +6833,214 @@ function switchSettingsTab(tab) {
 
     case 'users':
       content.innerHTML = `
-        <div class="sc-title">👥 Gerenciamento de Usuários</div>
-        <p class="sc-desc">Controle de acesso, permissões e convites.</p>
-        <div class="settings-section">
-          <div class="empty-state" style="padding:40px">
-            <div class="es-icon">🚧</div>
-            <h3>Em Desenvolvimento</h3>
-            <p>Em breve você poderá convidar membros da equipe, definir papéis (Admin, Operador) e gerenciar permissões.</p>
+        <div class="sc-title">Profissionais e assinaturas</div>
+        <p class="sc-desc">Perfis operacionais sem senha. O profissional escolhido define as iniciais e a assinatura JPEG aplicada aos e-mails.</p>
+        <div class="professional-settings-grid">
+          <div class="settings-section"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3 style="margin:0">Profissionais</h3><button class="btn btn-primary" onclick="openProfessionalForm()">Novo</button></div><div id="professionalSettingsList" style="margin-top:12px"><p>Carregando...</p></div></div>
+          <div class="settings-section" id="professionalFormPanel" style="display:none">
+            <h3 id="professionalFormTitle">Novo profissional</h3>
+            <div class="sg-row"><div class="form-group"><label>Nome</label><input id="professional-name"></div><div class="form-group"><label>Iniciais</label><input id="professional-initials" maxlength="4" style="text-transform:uppercase" placeholder="Ex: KAT"></div></div>
+            <div class="sg-row"><div class="form-group"><label>Cargo</label><input id="professional-job-title"></div><div class="form-group"><label>E-mail corporativo</label><input id="professional-email" type="email"></div></div>
+            <div class="form-group"><label>Telefone / WhatsApp</label><input id="professional-phone"></div>
+            <div class="form-group"><label>Assinatura JPEG <span style="color:var(--text-muted)">(máx. 1 MB)</span></label><input id="professional-signature" type="file" accept="image/jpeg,.jpg,.jpeg" onchange="previewProfessionalSignature(this)"><small id="professional-signature-help" style="color:var(--text-muted)">Obrigatória no primeiro cadastro.</small></div>
+            <div id="professional-signature-preview" style="display:none;margin:10px 0;padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><img alt="Prévia da assinatura" style="display:block;max-width:100%;max-height:220px"></div>
+            <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin:10px 0"><input id="professional-active" type="checkbox" checked> Profissional ativo para seleção e envio</label>
+            <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-secondary" onclick="closeProfessionalForm()">Cancelar</button><button class="btn btn-primary" id="professional-save-btn" onclick="saveProfessional()">Salvar profissional</button></div>
           </div>
         </div>`;
+      setTimeout(loadProfessionalSettings, 0);
       break;
   }
+}
+
+let professionalProfiles = [];
+let activeProfessional = null;
+let editingProfessionalId = null;
+let professionalPreviewObjectUrl = null;
+
+function professionalEscapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+}
+
+function professionalSignatureUrl(profile) {
+  return `${API}/professionals/${encodeURIComponent(profile.id)}/signature?v=${profile.signatureVersion || 0}`;
+}
+
+async function loadProfessionals(showChooserIfMissing = false) {
+  try {
+    const response = await fetch(API + '/professionals');
+    const data = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(data.error || 'Não foi possível carregar os profissionais.');
+    professionalProfiles = Array.isArray(data) ? data : [];
+    const savedId = localStorage.getItem('audaz_active_professional_id');
+    activeProfessional = professionalProfiles.find(item => item.id === savedId && item.active && item.hasSignature) || null;
+    if (!activeProfessional && savedId) localStorage.removeItem('audaz_active_professional_id');
+    renderActiveProfessional();
+    renderDraftProfessional();
+    renderProfessionalChoices();
+    if (showChooserIfMissing && !activeProfessional) openProfessionalChooser(true);
+  } catch (error) {
+    console.error(error);
+    renderActiveProfessional();
+    renderDraftProfessional(error.message);
+  }
+}
+
+function renderActiveProfessional() {
+  const name = document.getElementById('activeProfessionalName');
+  const initials = document.getElementById('activeProfessionalInitials');
+  const button = document.getElementById('activeProfessionalButton');
+  if (name) name.textContent = activeProfessional?.name || 'Escolher profissional';
+  if (initials) initials.textContent = activeProfessional?.initials || '?';
+  if (button) button.classList.toggle('selected', Boolean(activeProfessional));
+  const operator = document.getElementById('r-operator-initials');
+  if (operator && activeProfessional) operator.value = activeProfessional.initials;
+}
+
+function renderDraftProfessional(errorMessage = '') {
+  const panel = document.getElementById('draft-professional-panel');
+  if (!panel) return;
+  if (errorMessage) {
+    panel.innerHTML = `<strong style="color:var(--error)">Profissional indisponível</strong><div style="font-size:11px;color:var(--text-muted);margin-top:3px">${professionalEscapeHtml(errorMessage)}</div>`;
+    return;
+  }
+  if (!activeProfessional) {
+    panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><strong style="color:var(--gold)">Selecione quem está cotando</strong><div style="font-size:11px;color:var(--text-muted);margin-top:3px">O envio fica bloqueado até escolher um profissional com assinatura JPEG.</div></div><button class="btn btn-primary" onclick="openProfessionalChooser(true)">Escolher profissional</button></div>`;
+    return;
+  }
+  panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap"><div style="display:flex;align-items:center;gap:11px"><span class="active-professional-avatar">${professionalEscapeHtml(activeProfessional.initials)}</span><div><strong>Cotando como ${professionalEscapeHtml(activeProfessional.name)}</strong><div style="font-size:11px;color:var(--text-muted);margin-top:3px">Assinatura JPEG cadastrada · versão ${Number(activeProfessional.signatureVersion || 1)}</div></div></div><div style="display:flex;align-items:center;gap:10px"><img src="${professionalSignatureUrl(activeProfessional)}" alt="Assinatura de ${professionalEscapeHtml(activeProfessional.name)}" style="display:block;max-width:180px;max-height:54px;padding:4px;background:#fff;border-radius:5px"><button class="btn btn-secondary" onclick="openProfessionalChooser()">Alterar</button></div></div>`;
+}
+
+function openProfessionalChooser(force = false) {
+  renderProfessionalChoices();
+  const overlay = document.getElementById('professionalChooserOverlay');
+  if (overlay) overlay.classList.add('active');
+  if (force && !professionalProfiles.some(item => item.active && item.hasSignature)) {
+    const grid = document.getElementById('professionalChoiceGrid');
+    if (grid) grid.innerHTML = `<div class="document-empty" style="grid-column:1/-1">Nenhum profissional ativo com assinatura JPEG. Use <strong>Gerenciar profissionais</strong> para fazer o primeiro cadastro.</div>`;
+  }
+}
+
+function closeProfessionalChooser() {
+  document.getElementById('professionalChooserOverlay')?.classList.remove('active');
+}
+
+function renderProfessionalChoices() {
+  const grid = document.getElementById('professionalChoiceGrid');
+  if (!grid) return;
+  const selectable = professionalProfiles.filter(item => item.active && item.hasSignature);
+  grid.innerHTML = selectable.length ? selectable.map(item => `
+    <button class="professional-choice ${activeProfessional?.id === item.id ? 'selected' : ''}" onclick="selectProfessional('${item.id}')">
+      <div style="display:flex;gap:10px;align-items:center"><span class="active-professional-avatar">${professionalEscapeHtml(item.initials)}</span><span><strong style="display:block">${professionalEscapeHtml(item.name)}</strong><small style="color:var(--text-muted)">${professionalEscapeHtml(item.jobTitle || item.email || 'Profissional de cotação')}</small></span></div>
+      <div style="margin-top:10px;font-size:10px;color:var(--success)">Assinatura JPEG pronta</div>
+    </button>`).join('') : `<div class="document-empty" style="grid-column:1/-1">Nenhum profissional ativo com assinatura JPEG.</div>`;
+}
+
+function selectProfessional(id) {
+  const profile = professionalProfiles.find(item => item.id === id && item.active && item.hasSignature);
+  if (!profile) return alert('Este profissional não está disponível para envio.');
+  activeProfessional = profile;
+  localStorage.setItem('audaz_active_professional_id', profile.id);
+  renderActiveProfessional();
+  renderDraftProfessional();
+  renderProfessionalChoices();
+  closeProfessionalChooser();
+  toast(`Cotando como ${profile.name}.`);
+}
+
+async function loadProfessionalSettings() {
+  await loadProfessionals(false);
+  renderProfessionalSettingsList();
+}
+
+function renderProfessionalSettingsList() {
+  const list = document.getElementById('professionalSettingsList');
+  if (!list) return;
+  list.innerHTML = professionalProfiles.length ? professionalProfiles.map(item => `
+    <div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0"><span class="active-professional-avatar">${professionalEscapeHtml(item.initials)}</span><span style="min-width:0"><strong style="display:block">${professionalEscapeHtml(item.name)}</strong><small style="color:${item.active && item.hasSignature ? 'var(--success)' : 'var(--text-muted)'}">${item.active ? (item.hasSignature ? 'Ativo · assinatura pronta' : 'Ativo · sem assinatura') : 'Inativo'}</small></span></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-secondary" style="padding:7px 9px" onclick="openProfessionalForm('${item.id}')">Editar</button>${item.active ? `<button class="btn btn-secondary" style="padding:7px 9px;color:var(--error)" onclick="deactivateProfessional('${item.id}')">Desativar</button>` : ''}</div>
+    </div>`).join('') : `<div class="document-empty">Cadastre Kate, Daniel ou outro profissional e envie uma assinatura JPEG para cada perfil.</div>`;
+}
+
+function openProfessionalForm(id = null) {
+  editingProfessionalId = id;
+  const profile = professionalProfiles.find(item => item.id === id) || null;
+  const panel = document.getElementById('professionalFormPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  document.getElementById('professionalFormTitle').textContent = profile ? 'Editar profissional' : 'Novo profissional';
+  document.getElementById('professional-name').value = profile?.name || '';
+  document.getElementById('professional-initials').value = profile?.initials || '';
+  document.getElementById('professional-job-title').value = profile?.jobTitle || '';
+  document.getElementById('professional-email').value = profile?.email || '';
+  document.getElementById('professional-phone').value = profile?.phone || '';
+  document.getElementById('professional-active').checked = profile ? profile.active : true;
+  document.getElementById('professional-signature').value = '';
+  document.getElementById('professional-signature-help').textContent = profile?.hasSignature ? 'Envie outro JPEG somente para substituir a assinatura atual.' : 'Obrigatória no primeiro cadastro.';
+  const preview = document.getElementById('professional-signature-preview');
+  const image = preview.querySelector('img');
+  if (profile?.hasSignature) { preview.style.display = 'block'; image.src = professionalSignatureUrl(profile); }
+  else { preview.style.display = 'none'; image.removeAttribute('src'); }
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function closeProfessionalForm() {
+  editingProfessionalId = null;
+  document.getElementById('professionalFormPanel')?.style.setProperty('display', 'none');
+  if (professionalPreviewObjectUrl) URL.revokeObjectURL(professionalPreviewObjectUrl);
+  professionalPreviewObjectUrl = null;
+}
+
+function previewProfessionalSignature(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.type !== 'image/jpeg') { input.value = ''; return alert('Selecione uma imagem JPEG (.jpg ou .jpeg).'); }
+  if (file.size > 1024 * 1024) { input.value = ''; return alert('A assinatura JPEG deve ter no máximo 1 MB.'); }
+  if (professionalPreviewObjectUrl) URL.revokeObjectURL(professionalPreviewObjectUrl);
+  professionalPreviewObjectUrl = URL.createObjectURL(file);
+  const preview = document.getElementById('professional-signature-preview');
+  preview.style.display = 'block';
+  preview.querySelector('img').src = professionalPreviewObjectUrl;
+}
+
+async function saveProfessional() {
+  const name = document.getElementById('professional-name').value.trim();
+  const initials = document.getElementById('professional-initials').value.trim().toUpperCase();
+  const signature = document.getElementById('professional-signature').files?.[0];
+  if (!name || !/^[A-Z]{2,4}$/.test(initials)) return alert('Informe o nome e iniciais com 2 a 4 letras.');
+  if (!editingProfessionalId && !signature) return alert('Envie a assinatura JPEG deste profissional.');
+  const form = new FormData();
+  form.append('name', name); form.append('initials', initials);
+  form.append('jobTitle', document.getElementById('professional-job-title').value.trim());
+  form.append('email', document.getElementById('professional-email').value.trim());
+  form.append('phone', document.getElementById('professional-phone').value.trim());
+  form.append('active', String(document.getElementById('professional-active').checked));
+  if (signature) form.append('signature', signature);
+  const button = document.getElementById('professional-save-btn');
+  button.disabled = true; button.textContent = 'Salvando...';
+  try {
+    const response = await fetch(API + '/professionals' + (editingProfessionalId ? `/${editingProfessionalId}` : ''), { method:editingProfessionalId ? 'PUT' : 'POST', body:form });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Não foi possível salvar o profissional.');
+    const selectedId = activeProfessional?.id;
+    closeProfessionalForm();
+    await loadProfessionals(false);
+    if (selectedId === data.id && data.active && data.hasSignature) selectProfessional(data.id);
+    renderProfessionalSettingsList();
+    toast('Profissional e assinatura salvos.');
+  } catch (error) { alert(error.message); }
+  finally { button.disabled = false; button.textContent = 'Salvar profissional'; }
+}
+
+async function deactivateProfessional(id) {
+  const profile = professionalProfiles.find(item => item.id === id);
+  if (!profile || !confirm(`Desativar ${profile.name}?`)) return;
+  const response = await fetch(`${API}/professionals/${id}`, { method:'DELETE' });
+  if (!response.ok) return alert('Não foi possível desativar o profissional.');
+  await loadProfessionals(false);
+  renderProfessionalSettingsList();
+  toast('Profissional desativado.');
 }
 
 // Salvar dados da empresa (localStorage)
@@ -9005,6 +9230,7 @@ function modernizeLegacyUI(root = document.body) {
 
 document.addEventListener('DOMContentLoaded', function() {
   modernizeLegacyUI(document.body);
+  loadProfessionals(true);
   ['rev-origin-services', 'rev-destination-services'].forEach(id => {
     const field = document.getElementById(id);
     if (field) field.addEventListener('input', () => { renderDangerousGoodsAlerts('rev'); renderFeeCalculationPreview(); });

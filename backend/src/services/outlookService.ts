@@ -50,14 +50,15 @@ export const getAccessToken = async (): Promise<string> => {
  * Usa fluxo draft+send para capturar o conversationId do MS Graph.
  * Retorna { conversationId } para tracking de thread.
  */
-export type OutlookAttachment = { name: string; contentType: string; content: Buffer };
+export type OutlookAttachment = { name: string; contentType: string; content: Buffer; isInline?: boolean; contentId?: string };
 
 async function addAttachmentToDraft(token: string, messageId: string, attachment: OutlookAttachment) {
   const baseUrl = `https://graph.microsoft.com/v1.0/users/${USER_EMAIL}/messages/${messageId}/attachments`;
   if (attachment.content.length < 2.8 * 1024 * 1024) {
     await axios.post(baseUrl, {
       '@odata.type': '#microsoft.graph.fileAttachment', name: attachment.name,
-      contentType: attachment.contentType, contentBytes: attachment.content.toString('base64')
+      contentType: attachment.contentType, contentBytes: attachment.content.toString('base64'),
+      ...(attachment.isInline ? { isInline:true, contentId:attachment.contentId } : {})
     }, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, maxBodyLength: Infinity });
     return;
   }

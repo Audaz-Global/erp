@@ -5,6 +5,7 @@ import { marked } from 'marked';
 import { recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizePartnerType } from '../services/agentResponseService';
 import { mapWithConcurrency, normalizeBatchRecipients, splitRecipientEmails } from '../utils/outlookBatch';
+import { appendProfessionalSignature, loadProfessionalSignature } from '../services/professionalSignatureService';
 
 const router = Router();
 const activeBatchDispatches = new Set<string>();
@@ -15,6 +16,7 @@ marked.setOptions({ breaks: true });
 async function recordSuccessfulDispatch(input: {
   quotationId: string; recipientType: string; recipientEmail: string; partnerName?: string | null;
   subject: string; conversationId: string | null; documents: Array<{ id: string; originalName: string }>;
+  professional: { id:string; name:string; signatureVersion:number };
 }) {
   const sentAt = new Date();
   return prisma.$transaction(async tx => {
@@ -34,13 +36,15 @@ async function recordSuccessfulDispatch(input: {
       quotationId: input.quotationId, recipientType: input.recipientType, recipientEmail: input.recipientEmail,
       subject: input.subject, conversationId: input.conversationId,
       attachmentIds: JSON.stringify(input.documents.map(item => item.id)),
-      attachmentNames: JSON.stringify(input.documents.map(item => item.originalName)), status: 'SENT', requestCycleId: cycle.id
+      attachmentNames: JSON.stringify(input.documents.map(item => item.originalName)), status: 'SENT', requestCycleId: cycle.id,
+      professionalId:input.professional.id, professionalName:input.professional.name, signatureVersion:input.professional.signatureVersion
     } });
     await recordQuotationEvent(tx, {
       quotationId: input.quotationId, type: isFollowUp ? 'FOLLOW_UP_SENT' : 'EMAIL_SENT', eventAt: sentAt,
       actorType: 'SYSTEM', channel: 'OUTLOOK', partnerEmail: input.recipientEmail, partnerName: input.partnerName,
       newStatus: 'AGUARDANDO_AGENTE', sourceType: 'EMAIL_DISPATCH', sourceId: dispatch.id,
-      metadata: { recipientType: input.recipientType, attachmentNames: input.documents.map(item => item.originalName), requestCycleId: cycle.id }
+      metadata: { recipientType: input.recipientType, attachmentNames: input.documents.map(item => item.originalName), requestCycleId: cycle.id,
+        professionalId:input.professional.id, professionalName:input.professional.name, signatureVersion:input.professional.signatureVersion }
     });
     return { dispatch, cycle };
   });
@@ -67,9 +71,10 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
     const mailSubject = String(req.body?.subject || quotation.draftEmailSubject || `Solicitação de Cotação de Frete - REF: ${reference}`);
     const rawMarkdown = String(req.body?.htmlBody || quotation.draftEmail || '');
     if (!rawMarkdown.trim()) return res.status(400).json({ error: 'O rascunho do e-mail está vazio.' });
+    const signature = await loadProfessionalSignature(req.body?.professionalId);
 
     const emailStyle = `<style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#333;line-height:1.6}ul{margin-top:5px;margin-bottom:5px;padding-left:20px}strong{font-weight:600;color:#000}p{margin:0 0 10px}</style>`;
-    const finalHtmlEmail = `<html><head>${emailStyle}</head><body>${await marked.parse(rawMarkdown)}</body></html>`;
+    const finalHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(rawMarkdown)}</body></html>`, signature.html);
     const selectedDocuments = await prisma.quotationDocument.findMany({
       where: { quotationId, id: { in: attachmentIds } }, include: { blob: true }
     });
@@ -92,11 +97,11 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
         }
 
         const { conversationId } = await sendOutlookEmail(recipient.email, mailSubject, finalHtmlEmail,
-          recipient.ccEmail || String(req.body?.ccEmail || '') || undefined, outlookAttachments);
+          recipient.ccEmail || String(req.body?.ccEmail || '') || undefined, [...outlookAttachments, signature.attachment]);
         await recordSuccessfulDispatch({
           quotationId, recipientType: recipient.partnerType, recipientEmail: recipient.email,
           partnerName: [recipient.partnerName, recipient.contactName].filter(Boolean).join(' - ') || null,
-          subject: mailSubject, conversationId, documents: selectedDocuments
+          subject: mailSubject, conversationId, documents: selectedDocuments, professional:signature.professional
         });
         return { ...recipient, status: 'SENT', conversationId, message: 'Enviado com sucesso.' };
       } catch (error: any) {
@@ -104,13 +109,15 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
         const dispatch = await prisma.quotationEmailDispatch.create({ data: {
           quotationId, recipientType: recipient.partnerType, recipientEmail: recipient.email, subject: mailSubject,
           attachmentIds: JSON.stringify(attachmentIds), attachmentNames: JSON.stringify(selectedDocuments.map(item => item.originalName)),
-          status: 'FAILED', errorMessage
+          status: 'FAILED', errorMessage, professionalId:signature.professional.id,
+          professionalName:signature.professional.name, signatureVersion:signature.professional.signatureVersion
         } }).catch(() => null);
         await recordQuotationEvent(prisma, {
           quotationId, type: 'EMAIL_SEND_FAILED', actorType: 'SYSTEM', channel: 'OUTLOOK',
           partnerEmail: recipient.email, partnerName: recipient.partnerName,
           sourceType: dispatch ? 'EMAIL_DISPATCH' : undefined, sourceId: dispatch?.id,
-          metadata: { error: errorMessage, recipientType: recipient.partnerType }
+          metadata: { error: errorMessage, recipientType: recipient.partnerType, professionalId:signature.professional.id,
+            professionalName:signature.professional.name, signatureVersion:signature.professional.signatureVersion }
         }).catch(() => undefined);
         return { ...recipient, status: 'FAILED', conversationId: null, message: errorMessage };
       }
@@ -126,17 +133,17 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
         truckerResult = { status: 'SKIPPED', email: truckerEmail, message: 'Transportadora já acionada anteriormente.' };
       } else {
         try {
-          const truckerHtml = `<html><head>${emailStyle}</head><body>${await marked.parse(String(quotation.truckerDraftEmail || ''))}</body></html>`;
+          const truckerHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(String(quotation.truckerDraftEmail || ''))}</body></html>`, signature.html);
           const truckerDocuments = await prisma.quotationDocument.findMany({
             where: { quotationId, id: { in: truckerAttachmentIds } }, include: { blob: true }
           });
           const sent = await sendOutlookEmail(truckerEmail, `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`, truckerHtml,
-            String(req.body?.truckerCcEmail || '') || undefined, truckerDocuments.map(document => ({
+            String(req.body?.truckerCcEmail || '') || undefined, [...truckerDocuments.map(document => ({
               name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
-            })));
+            })), signature.attachment]);
           await recordSuccessfulDispatch({ quotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
             partnerName: String(req.body?.truckerName || '') || null, subject: `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`,
-            conversationId: sent.conversationId, documents: truckerDocuments });
+            conversationId: sent.conversationId, documents: truckerDocuments, professional:signature.professional });
           truckerResult = { status: 'SENT', email: truckerEmail, conversationId: sent.conversationId, message: 'Enviado com sucesso.' };
         } catch (error: any) {
           truckerResult = { status: 'FAILED', email: truckerEmail, message: String(error?.message || 'Falha no envio da transportadora') };
@@ -174,6 +181,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
 
 router.post('/send-draft', async (req: Request, res: Response) => {
   let auditQuotationId = String(req.body?.quotationId || '');
+  let auditProfessional: any = null;
   try {
     const { quotationId, htmlBody, subject, agentEmail, agentName, partnerType, ccEmail, needsTransport, truckerEmail, truckerName, truckerCcEmail, attachmentIds = [], truckerAttachmentIds = [] } = req.body;
     const normalizedPartnerType = normalizePartnerType(partnerType);
@@ -183,6 +191,8 @@ router.post('/send-draft', async (req: Request, res: Response) => {
 
     const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
+    const signature = await loadProfessionalSignature(req.body?.professionalId);
+    auditProfessional = signature.professional;
 
     let targetQuotationId = quotation.id;
     let effectiveAttachmentIds: string[] = Array.isArray(attachmentIds) ? attachmentIds : [];
@@ -257,7 +267,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
 
     // Processa o markdown e transforma em string HTML
     const renderedHtml = await marked.parse(rawMarkdown);
-    const finalHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedHtml}</body></html>`;
+    const finalHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${renderedHtml}</body></html>`, signature.html);
 
     // Envia usando a Microsoft Graph API (draft+send para capturar conversationId)
     const selectedDocuments = await prisma.quotationDocument.findMany({
@@ -266,9 +276,9 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     const outlookAttachments = selectedDocuments.map(document => ({
       name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
     }));
-    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail, outlookAttachments);
+    const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail, [...outlookAttachments, signature.attachment]);
     await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: normalizedPartnerType, recipientEmail: agentEmail,
-      partnerName: agentName, subject: mailSubject, conversationId, documents: selectedDocuments });
+      partnerName: agentName, subject: mailSubject, conversationId, documents: selectedDocuments, professional:signature.professional });
 
     // Se houver necessidade de transporte terrestre e o e-mail da transportadora for fornecido
     let truckerConversationId = null;
@@ -277,17 +287,17 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         const truckerSubject = `Solicitação de Coleta/Entrega Rodoviária - REF: ${targetReference}`;
         const truckerMarkdown = quotation.truckerDraftEmail || '';
         const renderedTruckerHtml = await marked.parse(truckerMarkdown);
-        const finalTruckerHtmlEmail = `<html><head>${emailStyle}</head><body>${renderedTruckerHtml}</body></html>`;
+        const finalTruckerHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${renderedTruckerHtml}</body></html>`, signature.html);
         
         const selectedTruckerDocuments = await prisma.quotationDocument.findMany({
           where: { quotationId: targetQuotationId, id: { in: effectiveTruckerAttachmentIds } }, include: { blob: true }
         });
-        const truckerRes = await sendOutlookEmail(truckerEmail, truckerSubject, finalTruckerHtmlEmail, truckerCcEmail, selectedTruckerDocuments.map(document => ({
+        const truckerRes = await sendOutlookEmail(truckerEmail, truckerSubject, finalTruckerHtmlEmail, truckerCcEmail, [...selectedTruckerDocuments.map(document => ({
           name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
-        })));
+        })), signature.attachment]);
         truckerConversationId = truckerRes.conversationId;
         await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
-          partnerName: truckerName, subject: truckerSubject, conversationId: truckerConversationId, documents: selectedTruckerDocuments });
+          partnerName: truckerName, subject: truckerSubject, conversationId: truckerConversationId, documents: selectedTruckerDocuments, professional:signature.professional });
         console.log(`[Outlook] E-mail de transportadora enviado para ${truckerEmail} | REF: ${targetReference} | ConversationId: ${truckerConversationId || 'N/A'}`);
       } catch (tErr: any) {
         console.error('Erro ao enviar e-mail da transportadora pelo Outlook:', tErr);
@@ -323,11 +333,14 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       await prisma.quotationEmailDispatch.create({ data: {
         quotationId, recipientType: 'PARTNER', recipientEmail, subject: req.body?.subject || null,
         attachmentIds: JSON.stringify(Array.isArray(req.body?.attachmentIds) ? req.body.attachmentIds : []),
-        status: 'FAILED', errorMessage: String(error.message || 'Falha no envio').slice(0, 1000)
+        status: 'FAILED', errorMessage: String(error.message || 'Falha no envio').slice(0, 1000),
+        professionalId:auditProfessional?.id || null, professionalName:auditProfessional?.name || null,
+        signatureVersion:auditProfessional?.signatureVersion || null
       } }).catch(() => undefined);
       await recordQuotationEvent(prisma, {
         quotationId, type: 'EMAIL_SEND_FAILED', actorType: 'SYSTEM', channel: 'OUTLOOK', partnerEmail: recipientEmail,
-        metadata: { error: String(error.message || 'Falha no envio').slice(0, 1000) }
+        metadata: { error: String(error.message || 'Falha no envio').slice(0, 1000), professionalId:auditProfessional?.id || null,
+          professionalName:auditProfessional?.name || null, signatureVersion:auditProfessional?.signatureVersion || null }
       }).catch(() => undefined);
     }
     res.status(500).json({ error: error.message });
