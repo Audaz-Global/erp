@@ -1260,6 +1260,8 @@
           <select id="r-agent-email" onchange="onAgentSelectChange()" style="margin: 0;">
             <option value="">Nenhum parceiro encontrado</option>
           </select>
+          <input type="search" id="partner-list-search" oninput="refreshPartnerDropdownSearch()" placeholder="Buscar parceiro por nome, país ou e-mail" style="margin:8px 0 0;">
+          <button type="button" class="btn btn-secondary" id="partner-show-all-action" onclick="showAllCompatiblePartners()" style="display:none;width:100%;margin-top:8px;">Mostrar todos os parceiros compatíveis</button>
           <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;width:100%;margin-top:8px;">Cadastrar parceiro</button>
         </div>
         <div class="form-group" style="margin: 0;">
@@ -1365,6 +1367,10 @@
 
       <div class="status-strip warn" id="statusStrip">
         ⚠️ Revise os dados acima antes de gerar o rascunho.
+      </div>
+
+      <div class="status-strip warn" id="draftDispatchStatus" data-state="IDLE" style="display:none;">
+        📝 Rascunho ainda não enviado.
       </div>
 
       <div class="btn-row">
@@ -2801,6 +2807,9 @@ async function runExtract(mode = 'CLIENT') {
     if (res.ok && json.data) {
       if (mode === 'CLIENT') {
         currentQuotationId = null; // Limpa o ID se for uma cotação 100% nova
+        setPartnerType('AGENTE', false);
+        if (document.getElementById('partner-list-search')) document.getElementById('partner-list-search').value = '';
+        setDraftDispatchState('IDLE');
         window.lastExtractedRawText = json.rawText; // Armazena o texto original da extração
         window.lastEmailExtraction = json.emailExtraction || null;
         toast('🎉 Dados do cliente extraídos! Complete e gere o rascunho.');
@@ -3274,7 +3283,7 @@ function markRateValidityManual(prefix) {
 
 let currentPartnerType = 'AGENTE';
 
-function setPartnerType(type) {
+function setPartnerType(type, refresh = true) {
   const targetButton = {
     AGENTE: 'partner-type-agent', COLOADER: 'partner-type-coloader',
     ARMADOR: 'partner-type-carrier', CIA_AEREA: 'partner-type-airline'
@@ -3295,8 +3304,10 @@ function setPartnerType(type) {
     else if (type === 'CIA_AEREA') label.textContent = 'Selecione a Companhia Aérea';
   }
   
-  const originCountry = document.getElementById('r-origin-country').value || '';
-  populateAgentDropdown(originCountry);
+  if (refresh) {
+    const originCountry = document.getElementById('r-origin-country').value || '';
+    populateAgentDropdown(originCountry);
+  }
 }
 
 function syncPartnerTypesForModal() {
@@ -3320,65 +3331,145 @@ function openMissingPartnerRegistration() {
   openAgentModal(null, currentPartnerType);
 }
 
-async function populateAgentDropdown(originCountry) {
+function normalizePartnerSearchText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+const PARTNER_COUNTRY_EQUIVALENTS = [
+  ['korea', 'south korea', 'republic of korea', 'coreia do sul'],
+  ['china', 'prc', 'people s republic of china'],
+  ['brazil', 'brasil'],
+  ['united states', 'usa', 'eua', 'estados unidos'],
+  ['united kingdom', 'uk', 'england', 'reino unido', 'inglaterra'],
+  ['germany', 'alemanha'], ['italy', 'italia'], ['spain', 'espanha'],
+  ['france', 'franca'], ['netherlands', 'holanda', 'paises baixos']
+].map(group => group.map(normalizePartnerSearchText));
+
+function partnerCountryTerms(value) {
+  const normalized = normalizePartnerSearchText(value);
+  if (!normalized) return [];
+  const group = PARTNER_COUNTRY_EQUIVALENTS.find(items => items.some(item => normalized === item || normalized.includes(item) || item.includes(normalized)));
+  return group || [normalized];
+}
+
+function partnerMatchesCountry(partner, originCountry) {
+  const originTerms = partnerCountryTerms(originCountry);
+  if (!originTerms.length) return false;
+  const registered = normalizePartnerSearchText(partner?.origins);
+  if (!registered) return false;
+  const registeredTerms = partnerCountryTerms(registered);
+  return originTerms.some(term => registered.includes(term)) || registeredTerms.some(term => originTerms.includes(term));
+}
+
+function partnerSupportsModal(partner, loadType) {
+  const registered = normalizePartnerSearchText(partner?.modals);
+  if (!registered || registered.includes('all') || registered.includes('todos')) return true;
+  const requested = normalizePartnerSearchText(loadType);
+  if (!requested) return true;
+  const modal = requested.includes('air') || requested.includes('aereo') ? 'air'
+    : requested.includes('lcl') ? 'lcl' : requested.includes('fcl') ? 'fcl' : requested.includes('sea') || requested.includes('maritimo') ? 'sea' : requested;
+  return registered.includes(modal) || (modal === 'sea' && (registered.includes('fcl') || registered.includes('lcl')));
+}
+
+function eligiblePartners(partners, { type = currentPartnerType, originCountry = '', loadType = '', includeAllCountries = false } = {}) {
+  return (Array.isArray(partners) ? partners : []).filter(partner => partner?.active
+    && partnerHasType(partner, type)
+    && partnerSupportsModal(partner, loadType)
+    && (includeAllCountries || type === 'ARMADOR' || type === 'CIA_AEREA' || partnerMatchesCountry(partner, originCountry)));
+}
+
+function splitPartnerEmails(value) {
+  return String(value || '').split(/[;,]/).map(email => email.trim()).filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+}
+
+function partnerContactOptions(partner) {
+  const options = [];
+  const seen = new Set();
+  const add = (email, contactName, role = '') => {
+    splitPartnerEmails(email).forEach(address => {
+      const key = address.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      options.push({ email: address, contactName: contactName || 'Contato', role });
+    });
+  };
+  const contacts = Array.isArray(partner?.contacts) ? partner.contacts : [];
+  contacts.forEach(contact => add(contact.email, contact.name, contact.role));
+  add(partner?.email, 'Principal');
+  return options;
+}
+
+async function loadPartnerDirectory(force = false) {
+  if (!force && Array.isArray(window.globalAgentsList)) return window.globalAgentsList;
+  if (!force && window.partnerDirectoryPromise) return window.partnerDirectoryPromise;
+  window.partnerDirectoryPromise = fetch(API + '/agents').then(async response => {
+    if (!response.ok) throw new Error('Não foi possível carregar os parceiros.');
+    const partners = await response.json();
+    window.globalAgentsList = Array.isArray(partners) ? partners : [];
+    return window.globalAgentsList;
+  }).finally(() => { window.partnerDirectoryPromise = null; });
+  try { return await window.partnerDirectoryPromise; }
+  catch (error) { window.globalAgentsList = null; throw error; }
+}
+
+function appendPartnerOptions(select, partners) {
+  partners.forEach(partner => {
+    partnerContactOptions(partner).forEach(contact => {
+      const option = document.createElement('option');
+      option.value = contact.email;
+      option.dataset.contactName = contact.contactName;
+      option.dataset.agentName = partner.name;
+      option.dataset.partnerId = partner.id;
+      option.textContent = `${partner.name} - ${contact.contactName}${contact.role ? ' (' + contact.role + ')' : ''} - ${contact.email}`;
+      select.appendChild(option);
+    });
+  });
+}
+
+function partnerMatchesSearch(partner, query) {
+  const needle = normalizePartnerSearchText(query);
+  if (!needle) return true;
+  const contacts = partnerContactOptions(partner).map(contact => `${contact.contactName} ${contact.email}`).join(' ');
+  return normalizePartnerSearchText(`${partner?.name || ''} ${partner?.origins || ''} ${partner?.email || ''} ${contacts}`).includes(needle);
+}
+
+function showAllCompatiblePartners() {
+  window.partnerDropdownIncludesAll = true;
+  populateAgentDropdown(document.getElementById('r-origin-country').value, true, document.getElementById('partner-list-search')?.value || '');
+}
+
+function refreshPartnerDropdownSearch() {
+  populateAgentDropdown(document.getElementById('r-origin-country').value, Boolean(window.partnerDropdownIncludesAll), document.getElementById('partner-list-search')?.value || '');
+}
+
+async function populateAgentDropdown(originCountry, includeAllCountries = false, searchQuery = null) {
   const select = document.getElementById('r-agent-email');
   const emptyAction = document.getElementById('partner-empty-action');
+  const showAllAction = document.getElementById('partner-show-all-action');
   if (!select) return;
+  if (searchQuery == null) searchQuery = document.getElementById('partner-list-search')?.value || '';
   if (emptyAction) emptyAction.style.display = 'none';
+  if (showAllAction) showAllAction.style.display = 'none';
+  window.partnerDropdownIncludesAll = includeAllCountries;
   select.innerHTML = '<option value="">Buscando parceiros...</option>';
-  
-  if (!window.globalAgentsList) {
-    try {
-      const res = await fetch(API + '/agents');
-      window.globalAgentsList = await res.json();
-    } catch (e) {
-      window.globalAgentsList = [];
-    }
+  let partners;
+  try { partners = await loadPartnerDirectory(); }
+  catch (error) {
+    select.innerHTML = '<option value="">Falha ao carregar parceiros — tente novamente</option>';
+    if (showAllAction) { showAllAction.textContent = 'Tentar carregar novamente'; showAllAction.style.display = 'block'; }
+    return;
   }
-
-  const countryLower = (originCountry || '').toLowerCase();
-  
-  const countryAliases = {
-    'france': ['france', 'frança'],
-    'frança': ['france', 'frança'],
-    'brazil': ['brazil', 'brasil'],
-    'brasil': ['brazil', 'brasil'],
-    'united states': ['united states', 'estados unidos', 'usa', 'eua'],
-    'estados unidos': ['united states', 'estados unidos', 'usa', 'eua'],
-    'usa': ['united states', 'estados unidos', 'usa', 'eua'],
-    'eua': ['united states', 'estados unidos', 'usa', 'eua'],
-    'germany': ['germany', 'alemanha'],
-    'alemanha': ['germany', 'alemanha'],
-    'italy': ['italy', 'itália', 'italia'],
-    'itália': ['italy', 'itália', 'italia'],
-    'spain': ['spain', 'espanha'],
-    'espanha': ['spain', 'espanha'],
-    'china': ['china', 'prc'],
-    'uk': ['uk', 'united kingdom', 'reino unido', 'england', 'inglaterra'],
-    'united kingdom': ['uk', 'united kingdom', 'reino unido', 'england', 'inglaterra'],
-    'reino unido': ['uk', 'united kingdom', 'reino unido', 'england', 'inglaterra'],
-    'netherlands': ['netherlands', 'holanda', 'países baixos', 'paises baixos'],
-    'holanda': ['netherlands', 'holanda', 'países baixos', 'paises baixos']
-  };
-
-  const searchTerms = countryAliases[countryLower] || [countryLower];
-  
-  const matchingAgents = window.globalAgentsList.filter(a => {
-     if (!a.active) return false;
-     
-     if (!partnerHasType(a, currentPartnerType)) return false;
-     
-     if (currentPartnerType === 'ARMADOR' || currentPartnerType === 'CIA_AEREA') return true;
-     
-     if (!countryLower) return false;
-     if (!a.origins) return false;
-     const originsLower = a.origins.toLowerCase();
-     return searchTerms.some(term => originsLower.includes(term));
-  });
+  const loadType = document.getElementById('r-type')?.value || '';
+  const matchingAgents = eligiblePartners(partners, { originCountry, loadType, includeAllCountries }).filter(partner => partnerMatchesSearch(partner, searchQuery));
 
   if (matchingAgents.length === 0) {
     const unrestrictedType = currentPartnerType === 'ARMADOR' || currentPartnerType === 'CIA_AEREA';
     select.innerHTML = '<option value="">Nenhum parceiro encontrado para ' + (unrestrictedType ? 'atuação' : 'a origem ' + (originCountry||'Desconhecida')) + '</option>';
+    const allCompatible = eligiblePartners(partners, { originCountry, loadType, includeAllCountries: true });
+    if (!includeAllCountries && allCompatible.length && showAllAction) {
+      showAllAction.textContent = `Mostrar todos os ${allCompatible.length} parceiros compatíveis`;
+      showAllAction.style.display = 'block';
+    }
     if (emptyAction) {
       const singular = currentPartnerType === 'CIA_AEREA' ? 'Companhia Aérea' : currentPartnerType.charAt(0) + currentPartnerType.slice(1).toLowerCase();
       emptyAction.textContent = '+ Cadastrar ' + singular;
@@ -3387,43 +3478,9 @@ async function populateAgentDropdown(originCountry) {
     return;
   }
 
-  select.innerHTML = '';
-  
-  matchingAgents.forEach(agent => {
-    let contacts = [];
-    try {
-      contacts = typeof agent.contacts === 'string' ? JSON.parse(agent.contacts) : (agent.contacts || []);
-    } catch(e){}
-    
-    const mainEmail = agent.email || '';
-    
-    if (contacts.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = mainEmail;
-      opt.dataset.contactName = 'Contato';
-      opt.dataset.agentName = agent.name;
-      opt.textContent = `${agent.name} ${mainEmail ? '- Principal ('+mainEmail+')' : '(Sem e-mail cadastrado)'}`;
-      select.appendChild(opt);
-    } else {
-      contacts.forEach(c => {
-         if(!c.email) return;
-         const opt = document.createElement('option');
-         opt.value = c.email;
-         opt.dataset.contactName = c.name || 'Contato';
-         opt.dataset.agentName = agent.name;
-         opt.textContent = `${agent.name} - ${c.name || 'Contato'} (${c.role ? c.role+' - ' : ''}${c.email})`;
-         select.appendChild(opt);
-      });
-      if (mainEmail) {
-        const opt = document.createElement('option');
-        opt.value = mainEmail;
-        opt.dataset.contactName = 'Principal';
-        opt.dataset.agentName = agent.name;
-        opt.textContent = `${agent.name} - Geral (${mainEmail})`;
-        select.appendChild(opt);
-      }
-    }
-  });
+  select.innerHTML = includeAllCountries ? '<option value="">Selecione um parceiro</option>' : '';
+  appendPartnerOptions(select, matchingAgents);
+  if (select.options.length === 0) select.innerHTML = '<option value="">Parceiros encontrados, mas sem e-mail válido</option>';
   onAgentSelectChange();
 }
 
@@ -3779,51 +3836,39 @@ function fillReviewForm(d, mode) {
 async function recommendAgents(originStr, modalStr) {
   const container = document.getElementById('agentRecommendations');
   if (!container) return;
-  container.innerHTML = '<span style="font-size:12px; color:var(--text-muted);">🤖 IA buscando agentes...</span>';
-  
+  container.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Buscando agentes compatíveis...</span>';
   try {
-    const res = await fetch(API + '/agents');
-    const agents = await res.json();
-    
-    // Filtragem simples para recomendação
-    // Se o agente tiver a origem na string de origins e o modal na string de modals
-    const origin = (originStr || '').toLowerCase();
-    const modal = (modalStr || '').toLowerCase();
-    
-    let matches = agents.filter(a => {
-      if (!a.active) return false;
-      let okOrigin = true;
-      let okModal = true;
-      if (a.origins && origin) {
-        okOrigin = a.origins.toLowerCase().includes(origin) || origin.includes(a.origins.toLowerCase());
-      }
-      if (a.modals && modal) {
-        let m = modal;
-        if (modal.includes('air')) m = 'air';
-        if (modal.includes('fcl')) m = 'fcl';
-        if (modal.includes('lcl')) m = 'lcl';
-        okModal = a.modals.toLowerCase().includes(m);
-      }
-      // Se ele não cadastrou origens ou modais, a gente pode considerar ou não. Vamos dar peso maior pra quem tem match.
-      return okOrigin && okModal;
-    });
-    
-    // Se achar vazios, filtra por match exato. Se não tiver nada exato, mostra tudo.
-    if (matches.length === 0) matches = agents.filter(a => a.active).slice(0, 5); // Traz aleatório se não achar
-    
-    if (matches.length > 0) {
-      container.innerHTML = matches.slice(0, 5).map(a => 
-        `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-color: var(--gold); color: var(--gold);" 
-          onclick="document.getElementById('r-agent-email').value = '${a.email}'; checkValidation();">
-          ✨ ${a.name}
-        </button>`
-      ).join('');
-    } else {
-      container.innerHTML = '<span style="font-size:12px; color:var(--text-muted);">Nenhum agente recomendado.</span>';
-    }
-  } catch (e) {
+    const agents = await loadPartnerDirectory();
+    const matches = eligiblePartners(agents, { type: currentPartnerType, originCountry: originStr, loadType: modalStr });
     container.innerHTML = '';
+    matches.slice(0, 5).forEach(partner => {
+      const contact = partnerContactOptions(partner)[0];
+      if (!contact) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-secondary';
+      button.style.cssText = 'padding:4px 10px;font-size:11px;border-color:var(--gold);color:var(--gold);';
+      button.textContent = `${partner.name} — ${contact.contactName}`;
+      button.addEventListener('click', () => selectRecommendedPartner(partner.id, contact.email));
+      container.appendChild(button);
+    });
+    if (!container.children.length) container.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Nenhum agente recomendado para esta origem e modal.</span>';
+  } catch (error) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--warning);">Não foi possível carregar as recomendações. Tente novamente.</span>';
   }
+}
+
+async function selectRecommendedPartner(partnerId, email) {
+  const select = document.getElementById('r-agent-email');
+  let option = Array.from(select?.options || []).find(item => item.dataset.partnerId === partnerId && item.value.toLowerCase() === String(email).toLowerCase());
+  if (!option) {
+    await populateAgentDropdown(document.getElementById('r-origin-country').value, true);
+    option = Array.from(select?.options || []).find(item => item.dataset.partnerId === partnerId && item.value.toLowerCase() === String(email).toLowerCase());
+  }
+  if (!option) return toast('Contato recomendado sem e-mail disponível para envio.');
+  select.value = option.value;
+  onAgentSelectChange();
+  checkValidation();
 }
 
 function checkValidation() {
@@ -4020,6 +4065,35 @@ async function readApiJson(response, actionLabel) {
   return data;
 }
 
+function setDraftDispatchState(state, details = {}) {
+  const status = document.getElementById('draftDispatchStatus');
+  const sendButton = document.getElementById('btnSendOutlook');
+  if (!status || !sendButton) return;
+  status.dataset.state = state;
+  sendButton.style.boxShadow = '';
+  sendButton.style.outline = '';
+  if (state === 'IDLE') {
+    status.style.display = 'none';
+    sendButton.title = 'Gere o rascunho antes de disparar.';
+    return;
+  }
+  status.style.display = 'flex';
+  if (state === 'DRAFT') {
+    status.className = 'status-strip warn';
+    status.innerHTML = '📝 <strong>Rascunho gerado, mas ainda não enviado.</strong> Revise o destinatário e clique em “Disparar pelo Outlook”.';
+    sendButton.style.boxShadow = '0 0 0 3px rgba(251,191,36,.28)';
+    sendButton.style.outline = '1px solid var(--warning)';
+    sendButton.title = 'Envio pendente: o rascunho ainda não foi disparado.';
+  } else if (state === 'SENDING') {
+    status.className = 'status-strip warn';
+    status.innerHTML = '⏳ Enviando pelo Outlook. Aguarde a confirmação do servidor...';
+  } else if (state === 'SENT') {
+    status.className = 'status-strip ok';
+    status.innerHTML = `✅ <strong>E-mail enviado e confirmado pelo servidor.</strong>${details.recipient ? ' Destinatário: ' + details.recipient : ''}`;
+    sendButton.title = 'O último envio foi confirmado.';
+  }
+}
+
 async function generateDraftEmail() {
   const btn = document.getElementById('btnGenDraft');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
@@ -4128,6 +4202,7 @@ async function generateDraftEmail() {
     } else {
       document.getElementById('r-trucker-draft-text').value = '';
     }
+    setDraftDispatchState('DRAFT');
     toast('✅ Rascunho gerado com sucesso!');
   } catch(e) {
     alert('Erro ao gerar rascunho: ' + e.message);
@@ -4204,6 +4279,7 @@ async function sendOutlookEmail() {
   const btn = document.getElementById('btnSendOutlook');
   const originalHtml = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  setDraftDispatchState('SENDING');
 
   try {
     await uploadPendingQuotationDocuments();
@@ -4262,9 +4338,11 @@ async function sendOutlookEmail() {
       throw new Error(err.error || 'Erro desconhecido');
     }
 
-    toast('✉️ E-mail enviado com sucesso pelo Outlook!');
     clearExtract();
+    setDraftDispatchState('SENT', { recipient: agentEmail });
+    toast('✉️ E-mail enviado com sucesso pelo Outlook!');
   } catch (e) {
+    setDraftDispatchState('DRAFT');
     alert('Erro ao enviar pelo Outlook: ' + e.message);
   } finally {
     btn.disabled = false; btn.innerHTML = originalHtml;
@@ -8000,6 +8078,7 @@ async function loadQuotationIntoDraft() {
     
     if (quotation) {
       currentQuotationId = quotation.id;
+      setPartnerType(quotation.partnerType || 'AGENTE', false);
       sourceDocumentsUploadedForQuotation = quotation.id;
       await loadQuotationDocuments();
       window.lastExtractedRawText = null;
@@ -8020,6 +8099,10 @@ async function loadQuotationIntoDraft() {
       // Adaptar o formato do banco para o formato esperado pelo fillReviewForm
       const mappedData = {
         reference: quotation.reference,
+        draftEmail: quotation.draftEmail,
+        truckerDraftEmail: quotation.truckerDraftEmail,
+        agentEmail: quotation.agentEmail,
+        truckerEmail: quotation.truckerEmail,
         client: {
           name: quotation.client ? quotation.client.name : quotation.clientName,
           cnpj: quotation.client ? quotation.client.cnpj : quotation.clientCnpj,
@@ -8056,6 +8139,7 @@ async function loadQuotationIntoDraft() {
       };
       
       fillReviewForm(mappedData, 'CLIENT');
+      setDraftDispatchState(quotation.sentAt ? 'SENT' : quotation.draftEmail ? 'DRAFT' : 'IDLE', { recipient: quotation.agentEmail || '' });
       renderEmailExtractionAudit(window.lastEmailExtraction);
       toast('✅ Dados da cotação carregados!');
     }
