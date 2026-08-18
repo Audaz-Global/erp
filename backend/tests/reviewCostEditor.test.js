@@ -38,3 +38,9 @@ test('editor mostra procedência e exclusão nas taxas aplicáveis', () => {
   assert.match(html, /Regra do sistema/);
   assert.match(html, /onclick="removeReviewCostLine/);
 });
+
+test('campos do editor mantêm contraste e alinhamento com a linha', () => {
+  assert.match(html, /\.cost-line \{ align-items:start;/);
+  assert.match(html, /\.cost-line input,\.cost-line select[^}]*color:#edf2fa;/);
+  assert.match(html, /-webkit-text-fill-color:#b6c0d1/);
+});
