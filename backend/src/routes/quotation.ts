@@ -3,6 +3,7 @@ import { authenticate } from '../middlewares/auth';
 import multer from 'multer';
 import { uploadQuotationDocuments, listQuotationDocuments, downloadQuotationDocument, updateQuotationDocument, deleteQuotationDocument, listQuotationDispatches } from '../controllers/quotationDocumentController';
 import { getPartnerResponseMetrics, getQuotationTimeline } from '../controllers/quotationHistoryController';
+import { getProposalComparison, selectPartnerProposal } from '../controllers/proposalComparisonController';
 import { 
   createQuotation, 
   getQuotations, 
@@ -27,6 +28,8 @@ router.post('/', createQuotation);
 router.get('/', getQuotations);
 router.get('/metrics/partner-responses', getPartnerResponseMetrics);
 router.get('/:id/timeline', getQuotationTimeline);
+router.get('/:id/proposals', getProposalComparison);
+router.post('/:id/proposals/:proposalId/select', selectPartnerProposal);
 router.post('/:id/documents', documentUpload.array('files', 25), uploadQuotationDocuments);
 router.get('/:id/documents', listQuotationDocuments);
 router.get('/:id/documents/:documentId/download', downloadQuotationDocument);

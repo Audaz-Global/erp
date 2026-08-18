@@ -901,6 +901,23 @@
   .partner-metric-list { margin-top:12px; display:grid; gap:6px; }
   .partner-metric-row { display:grid; grid-template-columns:minmax(180px,1fr) repeat(4,110px); gap:8px; align-items:center; padding:8px 10px; border-top:1px solid rgba(255,255,255,.06); font-size:11px; }
   .quotation-timeline { grid-column:1/-1; }
+  .proposal-compare-panel { margin:-8px 0 20px; padding:14px; border:1px solid rgba(64,156,255,.32); border-radius:12px; background:rgba(64,156,255,.035); }
+  .proposal-compare-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .proposal-compare-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(235px,1fr)); gap:10px; margin-bottom:14px; }
+  .proposal-card { border:1px solid var(--border); border-radius:10px; padding:12px; background:rgba(255,255,255,.018); position:relative; }
+  .proposal-card.selected { border-color:var(--success); box-shadow:0 0 0 1px rgba(46,204,113,.25); }
+  .proposal-card h4 { margin:0 0 4px; font-size:13px; color:var(--text); }
+  .proposal-total { font-size:19px; font-weight:800; color:var(--gold); margin:8px 0 3px; }
+  .proposal-badges { display:flex; gap:5px; flex-wrap:wrap; margin:8px 0; }
+  .proposal-badge { font-size:9px; font-weight:800; padding:3px 6px; border-radius:999px; color:#b9d8ff; background:rgba(64,156,255,.13); border:1px solid rgba(64,156,255,.25); }
+  .proposal-badge.success { color:#8de0b0; background:rgba(46,204,113,.1); border-color:rgba(46,204,113,.25); }
+  .proposal-badge.warn { color:#ffd27a; background:rgba(245,166,35,.1); border-color:rgba(245,166,35,.28); }
+  .proposal-table-wrap { overflow:auto; border:1px solid var(--border); border-radius:10px; }
+  .proposal-table { width:100%; min-width:760px; border-collapse:collapse; font-size:11px; }
+  .proposal-table th,.proposal-table td { padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top; text-align:right; }
+  .proposal-table th:first-child,.proposal-table td:first-child { text-align:left; position:sticky; left:0; background:var(--bg-card); z-index:1; min-width:190px; }
+  .proposal-table th { color:var(--text-muted); font-size:10px; text-transform:uppercase; }
+  .proposal-table tr:last-child td { border-bottom:0; }
   .timeline-item { position:relative; padding:2px 0 15px 22px; border-left:1px solid rgba(255,255,255,.1); margin-left:5px; }
   .timeline-item::before { content:''; position:absolute; width:9px; height:9px; left:-5px; top:5px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(245,166,35,.09); }
   .timeline-item strong { display:block; color:#e7eaf0; font-size:11px; }
@@ -1419,6 +1436,7 @@
         <select id="pending-quotations" class="req" onchange="loadPendingQuotationData()"><option value="">Carregando...</option></select>
       </div>
       <div id="agent-response-history" style="display:none;margin:-8px 0 20px;padding:12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)"></div>
+      <div id="proposal-comparison-panel" class="proposal-compare-panel" style="display:none"></div>
       <div id="partner-reply-panel" style="display:none;margin:0 0 20px;padding:16px;border:1px solid rgba(245,166,35,.3);border-radius:12px;background:rgba(245,166,35,.035)">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px"><strong style="font-size:13px">Responder ao parceiro</strong><div style="display:flex;gap:8px"><label class="rule-action-btn primary" style="position:relative;overflow:hidden">Adicionar documento<input type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="uploadReplyDocuments(this)"></label><button class="document-delete" onclick="closePartnerReply()">Fechar</button></div></div>
         <textarea id="partner-reply-body" placeholder="Escreva a resposta ao parceiro..."></textarea>
@@ -5873,6 +5891,7 @@ async function loadPendingQuotationData() {
   if (!q) {
     document.getElementById('costs-review-grid').style.display = 'none';
     document.getElementById('agent-response-history').style.display = 'none';
+    document.getElementById('proposal-comparison-panel').style.display = 'none';
     checkValidation();
     return;
   }
@@ -5881,6 +5900,7 @@ async function loadPendingQuotationData() {
   sourceDocumentsUploadedForQuotation = q.id;
   await loadQuotationDocuments();
   loadAgentResponseHistory(q.id);
+  loadProposalComparison(q.id);
   
   // Mostra o formulário de revisão de custos para aguardar input do parceiro
   document.getElementById('costs-review-grid').style.display = 'block';
@@ -5926,6 +5946,73 @@ async function loadPendingQuotationData() {
   }
   
   checkValidation();
+}
+
+const proposalComparisonView = { sort:'price', differencesOnly:false, pendingOnly:false };
+
+function comparisonMoney(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '—';
+}
+
+function proposalBadgeHtml(code) {
+  const labels={BEST_PRICE:'Melhor preço',MOST_COMPLETE:'Mais completa',BEST_TRANSIT:'Melhor prazo'};
+  return `<span class="proposal-badge success">${labels[code]||code}</span>`;
+}
+
+function comparisonLineValue(proposal,lineKey) {
+  const line=(proposal.lines||[]).find(item=>item.key===lineKey);
+  if(!line)return '<span style="color:var(--warning)">Não informado</span>';
+  const original=`${line.currency} ${Number(line.value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  return `<strong>${ifrEscape(original)}</strong><div style="color:var(--text-muted);font-size:9px">${comparisonMoney(line.valueBrl)}${line.includedInFreight?' · incluso no frete':''}</div>${line.estimated?'<span class="proposal-badge warn">Estimado</span>':''}${line.needsReview?'<span class="proposal-badge warn">Revisar</span>':''}`;
+}
+
+function renderProposalComparison() {
+  const panel=document.getElementById('proposal-comparison-panel');
+  const data=window.partnerProposalComparison;
+  if(!panel||!data)return;
+  let proposals=[...(data.proposals||[])];
+  const transitDays=p=>Number(String(p.transitTime||'').match(/\d+/)?.[0]||99999);
+  if(proposalComparisonView.sort==='completeness')proposals.sort((a,b)=>b.completenessScore-a.completenessScore);
+  else if(proposalComparisonView.sort==='transit')proposals.sort((a,b)=>transitDays(a)-transitDays(b));
+  else proposals.sort((a,b)=>Number(b.compatible)-Number(a.compatible)||a.totalComparableBrl-b.totalComparableBrl);
+  if(proposalComparisonView.pendingOnly)proposals=proposals.filter(p=>p.warnings?.length);
+  if(!data.proposals?.length){panel.style.display='block';panel.innerHTML='<strong style="font-size:13px">Comparativo de propostas</strong><div style="margin-top:6px;color:var(--text-muted);font-size:11px">O comparativo aparecerá quando duas ou mais respostas com valores forem processadas. Uma resposta também será exibida para conferência individual.</div>';return;}
+  const allLineKeys=[...new Set(proposals.flatMap(p=>(p.lines||[]).map(line=>line.key)))];
+  const lineLabels={}; proposals.forEach(p=>(p.lines||[]).forEach(line=>lineLabels[line.key]=line.label));
+  const visibleLineKeys=proposalComparisonView.differencesOnly?allLineKeys.filter(key=>{
+    const values=proposals.map(p=>{const l=(p.lines||[]).find(x=>x.key===key);return l?`${l.currency}:${Number(l.value||0).toFixed(2)}`:'missing'});return new Set(values).size>1;
+  }):allLineKeys;
+  const cards=proposals.map(p=>`<div class="proposal-card ${data.selectedProposalId===p.id?'selected':''}">
+    <div style="display:flex;justify-content:space-between;gap:8px"><div><h4>${ifrEscape(p.partnerName)}</h4><small style="color:var(--text-muted)">${ifrEscape(p.partnerEmail||'')}</small></div>${data.selectedProposalId===p.id?'<span class="proposal-badge success">Selecionada</span>':''}</div>
+    <div class="proposal-total">${comparisonMoney(p.totalComparableBrl)}</div><small style="color:var(--text-muted)">Total comparável · ${p.completenessScore}% completa</small>
+    <div class="proposal-badges">${(p.badges||[]).map(proposalBadgeHtml).join('')}${p.estimatedCount?`<span class="proposal-badge warn">${p.estimatedCount} estimado(s)</span>`:''}${p.reviewCount?`<span class="proposal-badge warn">${p.reviewCount} revisar</span>`:''}</div>
+    <div style="font-size:10px;color:var(--text-muted);line-height:1.6">Frete: ${comparisonMoney(p.totals.freightBrl)} · Origem: ${comparisonMoney(p.totals.originBrl)} · Destino: ${comparisonMoney(p.totals.destinationBrl)}<br>Prazo: ${ifrEscape(p.transitTime||'não informado')} · Validade: ${ifrEscape(p.validity||'não informada')}<br>${ifrEscape(p.carrier||'Cia./armador não informado')}</div>
+    ${p.warnings?.length?`<details style="margin-top:7px"><summary style="font-size:10px;color:var(--warning);cursor:pointer">${p.warnings.length} alerta(s)</summary><ul style="font-size:10px;color:var(--text-muted);padding-left:17px">${p.warnings.map(w=>`<li>${ifrEscape(w)}</li>`).join('')}</ul></details>`:''}
+    <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:8px" onclick="selectPartnerProposal('${p.id}',${p.warnings?.length||0})">${data.selectedProposalId===p.id?'Selecionar novamente':'Selecionar proposta'}</button></div>`).join('');
+  const summaryRows=[
+    ['Total comparável',p=>`<strong style="color:var(--gold)">${comparisonMoney(p.totalComparableBrl)}</strong>`],
+    ['Frete',p=>comparisonMoney(p.totals.freightBrl)],['Taxas de origem',p=>comparisonMoney(p.totals.originBrl)],['Taxas de destino',p=>comparisonMoney(p.totals.destinationBrl)],
+    ['Prazo de trânsito',p=>ifrEscape(p.transitTime||'Não informado')],['Validade',p=>ifrEscape(p.validity||'Não informada')],['Cia. aérea / Armador',p=>ifrEscape(p.carrier||'Não informado')]
+  ];
+  const tableRows=summaryRows.map(([label,getter])=>`<tr><td><strong>${label}</strong></td>${proposals.map(p=>`<td>${getter(p)}</td>`).join('')}</tr>`).join('')+
+    visibleLineKeys.map(key=>`<tr><td>${ifrEscape(lineLabels[key]||key)}</td>${proposals.map(p=>`<td>${comparisonLineValue(p,key)}</td>`).join('')}</tr>`).join('');
+  panel.style.display='block';
+  panel.innerHTML=`<div class="proposal-compare-toolbar"><div><strong style="font-size:14px">Comparativo automático de propostas</strong><div style="font-size:10px;color:var(--text-muted)">Valores convertidos para BRL · USD ${Number(data.rates?.USD||0).toFixed(4)} · EUR ${Number(data.rates?.EUR||0).toFixed(4)}</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select onchange="proposalComparisonView.sort=this.value;renderProposalComparison()"><option value="price" ${proposalComparisonView.sort==='price'?'selected':''}>Menor preço</option><option value="completeness" ${proposalComparisonView.sort==='completeness'?'selected':''}>Mais completa</option><option value="transit" ${proposalComparisonView.sort==='transit'?'selected':''}>Menor prazo</option></select><label style="font-size:10px"><input type="checkbox" ${proposalComparisonView.differencesOnly?'checked':''} onchange="proposalComparisonView.differencesOnly=this.checked;renderProposalComparison()"> Só diferenças</label><label style="font-size:10px"><input type="checkbox" ${proposalComparisonView.pendingOnly?'checked':''} onchange="proposalComparisonView.pendingOnly=this.checked;renderProposalComparison()"> Com alertas</label></div></div><div class="proposal-compare-cards">${cards}</div><div class="proposal-table-wrap"><table class="proposal-table"><thead><tr><th>Critério / custo</th>${proposals.map(p=>`<th>${ifrEscape(p.partnerName)}</th>`).join('')}</tr></thead><tbody>${tableRows}</tbody></table></div>`;
+}
+
+async function loadProposalComparison(quotationId){
+  const panel=document.getElementById('proposal-comparison-panel');if(!panel)return;panel.style.display='block';panel.innerHTML='<small style="color:var(--text-muted)">Montando comparativo das respostas...</small>';
+  try{const res=await fetch(`${API}/quotations/${quotationId}/proposals`);const data=await res.json();if(!res.ok)throw new Error(data.error||'Falha no comparativo');window.partnerProposalComparison=data;renderProposalComparison();}
+  catch(err){panel.innerHTML=`<small style="color:var(--warning)">Não foi possível montar o comparativo: ${ifrEscape(err.message)}</small>`;}
+}
+
+async function selectPartnerProposal(proposalId,warningCount){
+  if(warningCount&&!confirm(`Esta proposta possui ${warningCount} alerta(s). Deseja selecioná-la mesmo assim?`))return;
+  const justification=prompt('Justificativa da escolha (ex.: melhor preço, prazo, rota ou proposta mais completa):','Melhor custo-benefício');
+  if(!justification?.trim())return;
+  try{const res=await fetch(`${API}/quotations/${currentQuotationId}/proposals/${proposalId}/select`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({justification:justification.trim()})});const data=await res.json();if(!res.ok)throw new Error(data.error||'Falha ao selecionar');const q=allQuotations.find(item=>item.id===currentQuotationId);if(q)Object.assign(q,data.quotation);alert('Proposta selecionada. Os custos foram carregados na revisão da cotação e a escolha foi registrada no histórico.');await loadPendingQuotationData();window.lastExtractedAgentData={costs:data.proposal.costs};fillReviewForm(window.lastExtractedAgentData,'AGENT');}
+  catch(err){alert('Erro: '+err.message);}
 }
 
 async function loadAgentResponseHistory(quotationId){const el=document.getElementById('agent-response-history');if(!el)return;el.style.display='block';el.innerHTML='<small style="color:var(--text-muted)">Carregando histórico automático...</small>';try{const res=await fetch('/api/outlook/responses/'+quotationId);if(!res.ok)throw new Error();const items=await res.json();if(!items.length){el.innerHTML='<small style="color:var(--text-muted)">Nenhum retorno automático processado nesta cotação.</small>';return;}const labels={SUCCESS:'Valores reconhecidos',NO_VALUES:'Sem valores novos',FAILED:'Falha na leitura',PROCESSING:'Processando'};el.innerHTML='<strong style="font-size:12px">Histórico de retornos do Outlook</strong>'+items.slice(0,5).map(item=>{let data={};try{data=JSON.parse(item.extractedData||'{}')}catch{}let names=[];try{names=JSON.parse(item.attachmentNames||'[]')}catch{}const evidence=Array.isArray(data.field_evidence)?data.field_evidence:[],rawConfidence=Number(item.confidence),confidence=item.confidence==null?null:(rawConfidence<=1?rawConfidence*100:rawConfidence);return`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px"><span class="status-badge">${labels[item.processingStatus]||item.processingStatus}</span> ${ifrEscape(item.subject||'Sem assunto')} — ${item.receivedAt?new Date(item.receivedAt).toLocaleString('pt-BR'):'sem data'}</summary><div style="padding:8px 12px;font-size:11px;color:var(--text-muted)"><div>Remetente: ${ifrEscape(item.senderEmail||'—')} | Confiança: ${confidence!=null?Math.round(confidence)+'%':'—'} | Tentativas: ${item.attempts}</div>${names.length?`<div>Anexos: ${names.map(ifrEscape).join(', ')}</div>`:''}${item.errorMessage?`<div style="color:var(--warning)">${ifrEscape(item.errorMessage)}</div>`:''}${evidence.length?'<ul>'+evidence.slice(0,12).map(e=>`<li><strong>${ifrEscape(e.field)}</strong>: ${ifrEscape(e.evidence)} <em>(${ifrEscape(e.source)})</em></li>`).join('')+'</ul>':''}<button class="rule-action-btn primary" style="margin:8px 0" onclick="openPartnerReply('${item.id}')">Responder com documentos</button><details><summary>Ver resposta atual isolada</summary><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${ifrEscape(item.latestText||'')}</pre></details></div></details>`}).join('');}catch{el.innerHTML='<small style="color:var(--warning)">Não foi possível carregar o histórico automático.</small>';}}
@@ -6273,6 +6360,7 @@ const TIMELINE_EVENT_LABELS = {
   EMAIL_SENT:'Solicitação enviada', FOLLOW_UP_SENT:'Follow-up enviado', EMAIL_SEND_FAILED:'Falha no envio',
   EMAIL_REPLY_SENT:'Resposta enviada ao parceiro', PARTNER_RESPONSE_RECEIVED:'Resposta recebida do parceiro',
   RESPONSE_PROCESSED_WITH_VALUES:'Resposta processada com valores', RESPONSE_PROCESSED_NO_VALUES:'Resposta processada sem valores',
+  PARTNER_PROPOSAL_SELECTED:'Proposta do parceiro selecionada',
   RESPONSE_PROCESSING_FAILED:'Falha ao processar resposta', DOCUMENTS_ADDED:'Documentos adicionados',
   DOCUMENT_REMOVED:'Documento removido', PDF_GENERATED:'PDF gerado'
 };
