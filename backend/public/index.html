@@ -148,7 +148,8 @@
   .file-drop input { display: none; }
   .file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .file-tag { background: rgba(245,166,35,0.15); border: 1px solid rgba(245,166,35,0.3); padding: 6px 14px; border-radius: 20px; font-size: 12px; color: var(--gold); display: flex; align-items: center; gap: 6px; }
-  .file-tag .remove { cursor: pointer; opacity: 0.7; }
+  .file-tag .remove { cursor: pointer; opacity: 0.7; display: inline-flex; align-items: center; }
+  .file-tag .remove:hover { opacity: 1; }
 
   textarea { width: 100%; min-height: 120px; resize: vertical; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; margin-bottom: 16px; transition: border-color 0.3s; }
   textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,166,35,0.15); }
@@ -2797,7 +2798,7 @@ function renderFileList(isAgent) {
   const container = isAgent ? document.getElementById('fileListAgent') : document.getElementById('fileList');
   const arr = isAgent ? agentFiles : selectedFiles;
   container.innerHTML = arr.map((f, i) =>
-    `<div class="file-tag">📎 ${f.name} <span class="remove" onclick="removeFile(${i}, ${isAgent})">✕</span></div>`
+    `<div class="file-tag"><svg class="ui-icon" style="width:14px;height:14px" aria-hidden="true"><use href="#icon-file"></use></svg> ${ifrEscape(f.name)} <span class="remove" role="button" tabindex="0" title="Remover arquivo" aria-label="Remover ${ifrEscape(f.name)}" onclick="removeFile(${i}, ${isAgent})"><svg class="ui-icon" style="width:12px;height:12px" aria-hidden="true"><use href="#icon-close"></use></svg></span></div>`
   ).join('');
 }
 
