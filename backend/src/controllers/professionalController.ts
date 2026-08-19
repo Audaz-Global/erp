@@ -1,5 +1,19 @@
 import { Request, Response } from 'express';
+import sharp from 'sharp';
 import { prisma } from '../prisma';
+
+// Mantém consistência com o max-width:620px usado no HTML da assinatura de e-mail
+// (professionalSignatureService.ts) — o arquivo já nasce dentro do limite, sem depender
+// do cliente de e-mail respeitar CSS em imagens inline.
+const MAX_SIGNATURE_WIDTH = 620;
+const MAX_SIGNATURE_HEIGHT = 300;
+
+async function resizeSignatureImage(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .resize({ width: MAX_SIGNATURE_WIDTH, height: MAX_SIGNATURE_HEIGHT, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+}
 
 function professionalData(req: Request, requireSignature: boolean) {
   const name = String(req.body?.name || '').trim();
@@ -35,9 +49,10 @@ export const listProfessionals = async (_req: Request, res: Response) => {
 export const createProfessional = async (req: Request, res: Response) => {
   try {
     const data = professionalData(req, true);
+    const signatureImage = await resizeSignatureImage(data.file!.buffer);
     const row = await prisma.professionalProfile.create({ data: {
       name:data.name, initials:data.initials, email:data.email, jobTitle:data.jobTitle, phone:data.phone, active:data.active,
-      signatureImage:data.file!.buffer, signatureMimeType:'image/jpeg', signatureFileName:data.file!.originalname, signatureVersion:1
+      signatureImage, signatureMimeType:'image/jpeg', signatureFileName:data.file!.originalname, signatureVersion:1
     }, select: publicSelect });
     res.status(201).json({ ...row, hasSignature:true });
   } catch (error: any) { res.status(400).json({ error: error.message || 'Erro ao cadastrar profissional.' }); }
@@ -48,9 +63,10 @@ export const updateProfessional = async (req: Request, res: Response) => {
     const current = await prisma.professionalProfile.findUnique({ where: { id:String(req.params.id) } });
     if (!current) return res.status(404).json({ error:'Profissional não encontrado.' });
     const data = professionalData(req, false);
+    const signatureImage = data.file ? await resizeSignatureImage(data.file.buffer) : null;
     const row = await prisma.professionalProfile.update({ where: { id:current.id }, data: {
       name:data.name, initials:data.initials, email:data.email, jobTitle:data.jobTitle, phone:data.phone, active:data.active,
-      ...(data.file ? { signatureImage:data.file.buffer, signatureMimeType:'image/jpeg', signatureFileName:data.file.originalname, signatureVersion:{ increment:1 } } : {})
+      ...(signatureImage ? { signatureImage, signatureMimeType:'image/jpeg', signatureFileName:data.file!.originalname, signatureVersion:{ increment:1 } } : {})
     }, select: publicSelect });
     res.json({ ...row, hasSignature:Boolean(row.signatureMimeType) });
   } catch (error: any) { res.status(400).json({ error: error.message || 'Erro ao atualizar profissional.' }); }

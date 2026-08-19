@@ -1808,6 +1808,15 @@
       </div>
     </div>
 
+    <section class="quotation-documents" id="revQuotationDocumentsPanel" style="margin-bottom:24px;">
+      <div class="quotation-documents-head">
+        <div><strong>Documentos da cotação</strong><small>Anexos do cliente e arquivos adicionados manualmente. Exclua um arquivo inserido por engano.</small></div>
+        <label class="btn btn-secondary document-upload-button">Adicionar documentos<input id="revManualDocumentInput" type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" onchange="uploadManualQuotationDocuments(this.files, this)"></label>
+      </div>
+      <div class="document-selection-legend"><span>Parceiro</span><span>DTA</span><span>Rodoviário</span></div>
+      <div id="revQuotationDocumentsList"><p class="document-empty">Carregando documentos...</p></div>
+    </section>
+
     <!-- DADOS DO CLIENTE E REFERÊNCIA -->
     <div style="margin-bottom:24px;">
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📁 Dados do Cliente</div>
@@ -2803,17 +2812,11 @@ function formatDocumentSize(bytes) {
 }
 
 function renderQuotationDocuments() {
-  const container = document.getElementById('quotationDocumentsList');
-  if (!container) return;
-  if (!currentQuotationId) {
-    container.innerHTML = '<p class="document-empty">Gere o rascunho para vincular os documentos à cotação.</p>';
-    return;
-  }
-  if (!quotationDocuments.length) {
-    container.innerHTML = '<p class="document-empty">Nenhum documento vinculado. Use “Adicionar documentos” para incluir arquivos recebidos por WhatsApp ou outros canais.</p>';
-    return;
-  }
-  container.innerHTML = quotationDocuments.map(document => `
+  const rowsHtml = !currentQuotationId
+    ? '<p class="document-empty">Gere o rascunho para vincular os documentos à cotação.</p>'
+    : !quotationDocuments.length
+      ? '<p class="document-empty">Nenhum documento vinculado. Use “Adicionar documentos” para incluir arquivos recebidos por WhatsApp ou outros canais.</p>'
+      : quotationDocuments.map(document => `
     <div class="quotation-document-row">
       <div class="quotation-document-name"><a href="${API}/quotations/${currentQuotationId}/documents/${document.id}/download" title="Baixar ${ifrEscape(document.originalName)}">${ifrEscape(document.originalName)}</a><small>${documentOriginLabel(document.origin)} · ${formatDocumentSize(document.blob.size)}${document.sourceContainerName ? ' · extraído de ' + ifrEscape(document.sourceContainerName) : ''}</small></div>
       <label class="document-check" title="Enviar ao parceiro"><input type="checkbox" data-document-role="partner" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''} onchange="setDocumentForwardDefault('${document.id}',this.checked)"><span style="display:none">Parceiro</span></label>
@@ -2821,6 +2824,10 @@ function renderQuotationDocuments() {
       <label class="document-check" title="Enviar à transportadora"><input type="checkbox" data-document-role="trucker" value="${document.id}"><span style="display:none">Transportadora</span></label>
       <button type="button" class="document-delete" onclick="deleteQuotationDocument('${document.id}')">Excluir</button>
     </div>`).join('');
+  ['quotationDocumentsList', 'revQuotationDocumentsList'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = rowsHtml;
+  });
   const replyContainer = document.getElementById('replyDocumentsList');
   if (replyContainer) replyContainer.innerHTML = quotationDocuments.length ? '<small style="display:block;color:var(--text-muted);margin-bottom:7px">Documentos para incluir nesta resposta:</small>' + quotationDocuments.map(document => `
     <label style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-top:1px solid rgba(255,255,255,.06);font-size:11px"><input type="checkbox" data-document-role="reply" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''}><span>${ifrEscape(document.originalName)} <em style="color:var(--text-muted)">· ${formatDocumentSize(document.blob.size)}</em></span></label>`).join('') : '<p class="document-empty">Nenhum documento vinculado.</p>';
@@ -2885,8 +2892,8 @@ async function uploadPendingQuotationDocuments() {
   sourceDocumentsUploadedForQuotation = currentQuotationId;
 }
 
-async function uploadManualQuotationDocuments(files) {
-  const input = document.getElementById('manualDocumentInput');
+async function uploadManualQuotationDocuments(files, inputEl) {
+  const input = inputEl || document.getElementById('manualDocumentInput');
   try {
     if (!currentQuotationId) throw new Error('Gere o rascunho primeiro para criar a cotação.');
     await uploadQuotationDocumentFiles(files, 'MANUAL', false);
@@ -5215,9 +5222,12 @@ async function validateAndGeneratePDF(qIdParam = null) {
 
   currentPdfQuotationId = qId;
   window.reviewCostEditorReady = false;
+  if (window.pdfReviewPreviousQuotationId === undefined) window.pdfReviewPreviousQuotationId = currentQuotationId;
+  currentQuotationId = qId;
 
   // Buscar dados atuais da cotação para pré-preencher o modal de revisão
   try {
+    await loadQuotationDocuments();
     const res = await fetch(API + '/quotations/' + qId);
     const q = await res.json();
 
@@ -5597,6 +5607,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
 function closePdfReviewModal() {
   document.getElementById('pdfReviewOverlay').style.display = 'none';
   document.body.style.overflow = '';
+  if (window.pdfReviewPreviousQuotationId !== undefined) {
+    currentQuotationId = window.pdfReviewPreviousQuotationId;
+    window.pdfReviewPreviousQuotationId = undefined;
+    loadQuotationDocuments();
+  }
 }
 
 async function confirmAndGeneratePDF() {
