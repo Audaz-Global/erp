@@ -1053,7 +1053,7 @@
 
 <header class="header">
   <div class="header-left">
-    <a class="brand-lockup" href="#" onclick="switchTab('extract'); return false" aria-label="Audaz Global — Painel de Cotações">
+    <a class="brand-lockup" href="#" onclick="switchTab('quotation'); return false" aria-label="Audaz Global — Painel de Cotações">
       <span class="brand-logo-frame"><img src="/assets/audaz-logo-dark.png" alt="Audaz Global"></span>
       <span class="brand-context"><small>Freight Intelligence</small><strong>Painel de Cotações</strong></span>
     </a>
@@ -1068,15 +1068,15 @@
 
 <main class="main">
   <div class="tabs">
-    <button class="tab active" id="tab-extract" onclick="switchTab('extract')"><span class="tab-step">01</span><span>Nova Cotação</span></button>
-    <button class="tab" id="tab-draft" onclick="switchTab('draft')"><span class="tab-step">02</span><span>Solicitar Parceiro</span></button>
-    <button class="tab" id="tab-return" onclick="switchTab('return')"><span class="tab-step">03</span><span>Retorno do Parceiro</span></button>
-    <button class="tab" id="tab-quotation" onclick="switchTab('quotation')"><span class="tab-step">04</span><span>Histórico de Cotação</span></button>
+    <button class="tab active" id="tab-quotation" onclick="switchTab('quotation')"><span class="tab-step">01</span><span>Início</span></button>
+    <button class="tab" id="tab-extract" onclick="switchTab('extract')"><span class="tab-step">02</span><span>Nova Cotação</span></button>
+    <button class="tab" id="tab-draft" onclick="switchTab('draft')"><span class="tab-step">03</span><span>Solicitar Parceiro</span></button>
+    <button class="tab" id="tab-return" onclick="switchTab('return')"><span class="tab-step">04</span><span>Retorno do Parceiro</span></button>
     <button class="tab" id="tab-agents" onclick="switchTab('agents')"><span class="tab-step">05</span><span>Parceiros</span></button>
   </div>
 
   <!-- ════════════ PAINEL 1: NOVA SOLICITAÇÃO ════════════ -->
-  <div class="panel active" id="panel-extract">
+  <div class="panel" id="panel-extract">
     <div class="card">
       <h2><span class="emoji">🤖</span> Extração do Pedido do Cliente</h2>
       <p class="desc">Envie o e-mail do cliente pedindo a cotação. A IA extrairá os dados da carga e da rota (sem custos).</p>
@@ -1490,7 +1490,7 @@
   <div class="panel" id="panel-return">
     <div class="card">
       <h2><span class="emoji">📥</span> Retorno do Agente</h2>
-      <p class="desc">Selecione a cotação pendente e envie a resposta do agente para extrair os custos.</p>
+      <p class="desc">Selecione a cotação pendente e cole/anexe a resposta do agente. Ao extrair, a Revisão Final abre automaticamente para você validar e gerar o PDF.</p>
 
       <div class="form-group" style="margin-bottom: 24px;">
         <label>Selecione a Cotação</label>
@@ -1515,6 +1515,7 @@
 
       <div class="btn-row" style="margin-top: 10px;">
         <button class="btn btn-primary" onclick="runExtract('AGENT')" id="btnExtractAgent">🚀 Extrair Custos</button>
+        <button class="btn btn-secondary" onclick="openManualAgentEntry()">✏️ Preencher manualmente</button>
       </div>
 
       <div class="review-grid" style="margin-top: 32px; display: none;" id="costs-review-grid">
@@ -1634,21 +1635,11 @@
         </div>
       </div>
 
-      <div class="status-strip warn" id="statusStrip-return">
-        ⚠️ Revise os custos extraídos antes de gerar o PDF.
-      </div>
-
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="validateAndGeneratePDF()" id="btnGenerate">
-          ✅ Validar e Gerar PDF
-        </button>
-        <button class="btn btn-secondary" onclick="saveDraft()">💾 Salvar como Rascunho</button>
-      </div>
     </div>
   </div>
 
   <!-- ════════════ PAINEL 3: COTAÇÕES ════════════ -->
-  <div class="panel" id="panel-quotation">
+  <div class="panel active" id="panel-quotation">
     <!-- Cards Resumo -->
     <div class="summary-cards" id="summaryCards">
       <div class="summary-card">
@@ -2979,9 +2970,10 @@ async function runExtract(mode = 'CLIENT') {
         switchTab('draft');
       } else {
         window.lastExtractedAgentData = json.data;
-        toast('🎉 Custos extraídos! Valide os valores antes de gerar o PDF.');
-        document.getElementById('costs-review-grid').style.display = 'block';
         fillReviewForm(json.data, 'AGENT');
+        toast('🎉 Custos extraídos! Confira a Revisão Final antes de gerar o PDF.');
+        isOnlyEditMode = false;
+        validateAndGeneratePDF();
       }
     } else {
       alert('Erro na extração: ' + (json.error || 'Desconhecido'));
@@ -4250,7 +4242,6 @@ async function selectRecommendedPartner(partnerId, email) {
 
 function checkValidation() {
   const isDraftActive = document.getElementById('panel-draft').classList.contains('active');
-  const isReturnActive = document.getElementById('panel-return').classList.contains('active');
 
   if (isDraftActive) {
     let isValid = true;
@@ -4292,29 +4283,6 @@ function checkValidation() {
     }
   }
 
-  if (isReturnActive) {
-    let isValid = true;
-    const qId = document.getElementById('pending-quotations').value;
-    if (!qId) isValid = false;
-    
-    // Verificar se os campos de custo foram preenchidos (se a div estiver visivel)
-    if (document.getElementById('costs-review-grid').style.display !== 'none') {
-       const freight = document.getElementById('r-freight').value;
-       if (!freight || freight.trim() === '') isValid = false;
-    } else {
-       isValid = false; // Tem que extrair antes de gerar o PDF
-    }
-
-    const strip = document.getElementById('statusStrip-return');
-    const btn = document.getElementById('btnGenerate');
-    if(isValid) {
-      if(strip) { strip.className = 'status-strip ok'; strip.innerHTML = '✅ Custos validados. Pronto para gerar PDF!'; }
-      if (btn) btn.disabled = false;
-    } else {
-      if(strip) { strip.className = 'status-strip warn'; strip.innerHTML = '⚠️ Extraia ou preencha os custos do agente para gerar o PDF.'; }
-      if (btn) btn.disabled = true;
-    }
-  }
 }
 
 document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('input', checkValidation));
@@ -6133,10 +6101,7 @@ async function loadPendingQuotationData() {
   await loadQuotationDocuments();
   loadAgentResponseHistory(q.id);
   loadProposalComparison(q.id);
-  
-  // Mostra o formulário de revisão de custos para aguardar input do parceiro
-  document.getElementById('costs-review-grid').style.display = 'block';
-  
+
   // Atualiza o painel de taxas fixas do Incoterm para esta cotação
   const incoterm = q.route?.incoterm || q.incoterm;
   if (window.updateIncotermPreview && incoterm) {
@@ -6178,6 +6143,12 @@ async function loadPendingQuotationData() {
   }
   
   checkValidation();
+}
+
+function openManualAgentEntry() {
+  const qId = document.getElementById('pending-quotations').value;
+  if (!qId) { alert('Selecione uma cotação primeiro.'); return; }
+  openEditQuotationModal(qId);
 }
 
 const proposalComparisonView = { sort:'price', differencesOnly:false, pendingOnly:false };
@@ -9541,6 +9512,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if(returnCarrier)returnCarrier.addEventListener('change',()=>{const q=allQuotations.find(x=>x.id===document.getElementById('pending-quotations').value);applyCarrierProfile('r',returnCarrier.value,'RETURN',q?.modal||'',q?.loadType||'',true);});
   const finalCarrier=document.getElementById('rev-carrier');
   if(finalCarrier)finalCarrier.addEventListener('change',()=>applyCarrierProfile('rev',finalCarrier.value,'FINAL',document.getElementById('rev-modal').value,document.getElementById('rev-load-type').value,true));
+  switchTab('quotation');
 });
 
 // === ÁRVORE DE INCOTERMS LOGIC ===
