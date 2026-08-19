@@ -57,6 +57,7 @@ export const createAgent = async (req: Request, res: Response) => {
         modals: data.modals || null,
         origins: data.origins || null,
         destinations: data.destinations || null,
+        groundServiceCapabilities: JSON.stringify(Array.isArray(data.groundServiceCapabilities) ? data.groundServiceCapabilities.filter((value: string) => ['DTA','RODOVIARIO_NACIONAL'].includes(value)) : []),
         active: data.active !== undefined ? data.active : true,
       }
     });
@@ -90,6 +91,7 @@ export const updateAgent = async (req: Request, res: Response) => {
         modals: data.modals,
         origins: data.origins,
         destinations: data.destinations,
+        groundServiceCapabilities: data.groundServiceCapabilities !== undefined ? JSON.stringify(Array.isArray(data.groundServiceCapabilities) ? data.groundServiceCapabilities.filter((value: string) => ['DTA','RODOVIARIO_NACIONAL'].includes(value)) : []) : undefined,
         active: data.active,
       }
     });

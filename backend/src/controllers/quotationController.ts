@@ -13,6 +13,7 @@ import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '..
 import { withIncotermApplicability } from '../services/incotermApplicabilityService';
 import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
+import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -38,7 +39,9 @@ export const createQuotation = async (req: Request, res: Response) => {
     }
 
     // Extract non-quotation fields
-    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, ...quotationData } = req.body;
+    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, groundServiceLegs, ...quotationData } = req.body;
+    const normalizedGround = normalizeGroundServiceLegs(groundServiceLegs, quotationData);
+    Object.assign(quotationData, legacyRoadFields(normalizedGround.legs));
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
     normalizeDangerousGoodsPayload(quotationData);
@@ -106,12 +109,14 @@ export const createQuotation = async (req: Request, res: Response) => {
     };
 
     const quotation = await prisma.quotation.create({ data });
+    await syncGroundServiceLegs(quotation.id, groundServiceLegs, quotationData);
     await recordQuotationEvent(prisma, {
       quotationId: quotation.id, type: 'QUOTATION_CREATED', actorType: 'USER',
       actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
       newStatus: quotation.status, metadata: { reference: quotation.reference }
     });
-    res.status(201).json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
+    const created = await prisma.quotation.findUnique({ where:{ id:quotation.id }, include:{ groundServiceLegs:true } });
+    res.status(201).json(await withIncotermApplicability(withDangerousGoodsCompliance(created || quotation)));
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
@@ -126,7 +131,8 @@ export const getQuotations = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
       include: {
         client: { select: { name: true } },
-        createdBy: { select: { name: true } }
+        createdBy: { select: { name: true } },
+        groundServiceLegs:true
       }
     });
     res.json(quotations.map(withDangerousGoodsCompliance));
@@ -141,7 +147,7 @@ export const getQuotationById = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const quotation = await prisma.quotation.findUnique({
       where: { id },
-      include: { client: true }
+      include: { client: true, groundServiceLegs:true }
     });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
     res.json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
@@ -167,8 +173,11 @@ export const updateQuotation = async (req: Request, res: Response) => {
       sourceEmails,
       ruleStage,
       operatorInitials,
+      groundServiceLegs,
       ...quotationData 
     } = req.body;
+    const normalizedGround = normalizeGroundServiceLegs(groundServiceLegs, { ...current, ...quotationData });
+    if (normalizedGround.supplied) Object.assign(quotationData, legacyRoadFields(normalizedGround.legs));
 
     // Um campo vazio na tela nunca pode apagar a referência oficial já gerada.
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
@@ -224,15 +233,17 @@ export const updateQuotation = async (req: Request, res: Response) => {
     const quotation = await prisma.quotation.update({
       where: { id },
       data: updateData,
-      include: { client: true }
+      include: { client: true, groundServiceLegs:true }
     });
+    if (normalizedGround.supplied) await syncGroundServiceLegs(id, groundServiceLegs, quotationData);
     const changes = quotationChanges(current, quotation);
     if (Object.keys(changes).length) await recordQuotationEvent(prisma, {
       quotationId: id, type: current.status !== quotation.status ? 'STATUS_CHANGED' : 'QUOTATION_UPDATED', actorType: 'USER',
       actorId: req.user?.userId === 'teste-local-id' ? null : req.user?.userId,
       previousStatus: current.status, newStatus: quotation.status, changes
     });
-    res.json(await withIncotermApplicability(withDangerousGoodsCompliance(quotation)));
+    const result = await prisma.quotation.findUnique({ where:{ id }, include:{ client:true, groundServiceLegs:true } });
+    res.json(await withIncotermApplicability(withDangerousGoodsCompliance(result || quotation)));
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
     res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
@@ -272,7 +283,7 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
     const { id } = req.params;
     let quotation = await prisma.quotation.findUnique({
       where: { id },
-      include: { client: true, createdBy: true }
+      include: { client: true, createdBy: true, groundServiceLegs:true }
     });
 
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
@@ -403,7 +414,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const { id } = req.params;
     const quotation = await prisma.quotation.findUnique({
       where: { id },
-      include: { client: true }
+      include: { client: true, groundServiceLegs:true }
     });
 
     if (!quotation) {
@@ -603,6 +614,13 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       fCurr = mainItem!.currency;
       fTotalBrl = getBrlValue(fVal, fCurr);
     }
+
+    quotation.groundServiceLegs.filter(leg => leg.requested && leg.value != null).forEach(leg => {
+      const item = { name:leg.serviceType === 'DTA' ? `DTA / Trânsito Aduaneiro${leg.route ? ` (${leg.route})` : ''}` : `Frete Rodoviário Nacional${leg.route ? ` (${leg.route})` : ''}`,
+        val:Number(leg.value), currency:leg.currency || 'BRL', brl:getBrlValue(Number(leg.value), leg.currency || 'BRL'),
+        financialGroup:leg.serviceType === 'DTA' ? 'FREIGHT_COMPONENT' : 'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE' };
+      if (leg.serviceType === 'DTA') detailedFeesOrigem.push(item); else detailedFeesDestino.push(item);
+    });
 
     const detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => f.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);

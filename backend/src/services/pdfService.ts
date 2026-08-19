@@ -45,6 +45,19 @@ function formatSubtotals(fees: any[]): string {
   }).join('<br>');
 }
 
+function groundServicePdfFees(quotationData: any) {
+  return (Array.isArray(quotationData.groundServiceLegs) ? quotationData.groundServiceLegs : [])
+    .filter((leg: any) => leg.requested && leg.value !== null && leg.value !== undefined)
+    .map((leg: any) => ({
+      name:leg.serviceType === 'DTA' ? `DTA / Trânsito Aduaneiro${leg.route ? ` (${leg.route})` : ''}` : `Frete Rodoviário Nacional${leg.route ? ` (${leg.route})` : ''}`,
+      qty:1, unit:leg.taxesIncluded === true ? 'Tributos inclusos' : leg.taxesIncluded === false ? 'Tributos não inclusos' : 'Tributos a confirmar',
+      valueUnit:safeToFixed(leg.value, 2), min:'0,00', max:'0,00', currency:normalizeCurrency(leg.currency || 'BRL'),
+      total:`${normalizeCurrency(leg.currency || 'BRL')} ${safeToFixed(leg.value, 2)}`,
+      financialGroup:leg.serviceType === 'DTA' ? 'FREIGHT_COMPONENT' : 'DESTINATION_CHARGE',
+      chargeNature:'LOCAL_SERVICE', applicationScope:leg.serviceType === 'DTA' ? 'FREIGHT' : 'DESTINATION', provenanceLabel:leg.pricingSource || 'Cotação do prestador'
+    }));
+}
+
 const defaultTemplate = `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -338,6 +351,7 @@ const defaultTemplate = `
       {{#if roadFreightRich}}
       <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
       {{/if}}
+      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
     </div>
   </div>
 
@@ -822,6 +836,7 @@ const defaultAirTemplate = `
       {{#if roadFreightRich}}
       <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
       {{/if}}
+      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
     </div>
   </div>
 
@@ -1383,6 +1398,10 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     if (airStorageFee && !detailedFeesDestino.some(fee => /armazenagem|storage/i.test(String(fee.name || '')))) {
       detailedFeesDestino.push(airStorageFee);
     }
+    groundServicePdfFees(quotationData).forEach((fee: any) => {
+      if (fee.financialGroup === 'FREIGHT_COMPONENT') detailedFeesOrigem.push(fee);
+      else detailedFeesDestino.push(fee);
+    });
 
     // Componentes do frete não devem aparecer como taxas locais, ainda que tenham
     // sido encontrados nas seções de origem/destino do retorno do agente.
@@ -1464,10 +1483,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const currentDateTime = new Date().toLocaleString('pt-BR');
 
-  let roadFreightRich = '';
+  const dtaLeg = (quotationData.groundServiceLegs || []).find((leg:any) => leg.serviceType === 'DTA' && leg.requested);
+  const roadLeg = (quotationData.groundServiceLegs || []).find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
+  let roadFreightRich = roadLeg?.route || '';
   const destCity = quotationData.destinationCity ? String(quotationData.destinationCity).trim() : '';
   const destPort = quotationData.destinationPort ? String(quotationData.destinationPort).trim() : '';
-  if (destCity && destPort) {
+  if (!roadFreightRich && destCity && destPort) {
     const cleanPort = destPort.toLowerCase();
     const cleanCity = (destCity.toLowerCase().split(',')[0] || '').trim();
     if (!cleanPort.includes(cleanCity)) {
@@ -1496,6 +1517,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     connectionsRich,
     carrierRich,
     roadFreightRich,
+    dtaServiceRich:dtaLeg?.route || dtaLeg?.bondedTerminal || '',
     originCountryRich,
     destinationCountryRich,
     loadTypeLabel,
@@ -1545,6 +1567,11 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
 export const generatePdf = async (quotationData: any, templateHtml?: string): Promise<Buffer> => {
   try {
+    const groundLegs = Array.isArray(quotationData.groundServiceLegs) ? quotationData.groundServiceLegs : [];
+    const dtaLeg = groundLegs.find((leg:any) => leg.serviceType === 'DTA' && leg.requested);
+    const roadLeg = groundLegs.find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
+    quotationData.dtaServiceRich = dtaLeg?.route || dtaLeg?.bondedTerminal || '';
+    quotationData.roadFreightRich = roadLeg?.route || quotationData.roadFreightRich || '';
     const isAir = String(quotationData.modal).toUpperCase() === 'AIR' || String(quotationData.loadType).startsWith('AIR');
     if (isAir) {
       return generateAirPdf(quotationData, templateHtml);
@@ -1826,6 +1853,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       detailedFees.push(storageFee);
       hasDetailedFees = true;
     }
+    groundServicePdfFees(quotationData).forEach((fee: any) => { detailedFees.push(fee); hasDetailedFees = true; });
 
     // Mantém a etapa explícita quando há ISPS tanto na origem quanto no destino.
     detailedFees.forEach((fee: any) => {

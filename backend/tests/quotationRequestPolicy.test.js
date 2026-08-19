@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { applyDomesticTransportEvidencePolicy, findExplicitDomesticTransportRequest } = require('../dist/utils/quotationRequestPolicy');
+const { applyDomesticTransportEvidencePolicy, findExplicitDomesticTransportRequest, findExplicitDtaRequest } = require('../dist/utils/quotationRequestPolicy');
 
 test('não cria transporte a partir de assinatura ou destino inferido', () => {
   const source = 'FOB - Shanghai - SSZ\nBest Regards\nMAP Materiais\nTel: +55 12 3958-7295';
@@ -16,4 +16,20 @@ test('mantém transporte quando o pedido é explícito', () => {
   const decision = findExplicitDomesticTransportRequest(source);
   assert.equal(decision.requested, true);
   assert.match(decision.evidence, /transporte rodoviário/i);
+});
+
+test('separa DTA de frete rodoviário nacional', () => {
+  const source = 'Favor cotar DTA de GRU para o CLIA Campinas para carga ainda não nacionalizada.';
+  assert.equal(findExplicitDtaRequest(source).requested, true);
+  assert.equal(findExplicitDomesticTransportRequest(source).requested, false);
+  const result = applyDomesticTransportEvidencePolicy({ route:{ destination_airport:'GRU' } }, source);
+  assert.equal(result.route.needs_dta, true);
+  assert.equal(result.route.needs_transport, false);
+});
+
+test('permite DTA e rodoviário nacional como trechos independentes', () => {
+  const source = 'Cotar DTA de GRU ao porto seco.\nApós a nacionalização, incluir frete rodoviário até Sorocaba.';
+  const result = applyDomesticTransportEvidencePolicy({ route:{} }, source);
+  assert.equal(result.route.needs_dta, true);
+  assert.equal(result.route.needs_transport, true);
 });

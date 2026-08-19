@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
-import { extractClientData, extractAgentCosts, extractSignatureOcr, generateAgentDraft, generateTruckerDraft } from '../services/aiService';
+import { extractClientData, extractAgentCosts, extractSignatureOcr, generateAgentDraft, generateDtaDraft, generateTruckerDraft } from '../services/aiService';
 import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
 import { renderDraftBody, renderDraftSubject } from '../utils/emailTemplate';
@@ -35,6 +35,12 @@ function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any
       source: data?.route?.transport_source || 'NOT_REQUESTED',
       confidence: data?.route?.needs_transport ? 1 : 0,
       evidence: data?.route?.transport_evidence || ''
+    },
+    {
+      field: 'DTA - Trânsito Aduaneiro',
+      value: data?.route?.needs_dta ? data?.route?.dta_route || 'Solicitado' : 'Não solicitado',
+      source: data?.route?.dta_source || 'NOT_REQUESTED', confidence:data?.route?.needs_dta ? 1 : 0,
+      evidence:data?.route?.dta_evidence || ''
     },
     source('Peso bruto', data?.cargo?.gross_weight_kg, data?.cargo?.confidence),
     source('Dimensões', data?.cargo?.dimensions?.join('; '), data?.cargo?.confidence)
@@ -279,7 +285,7 @@ export const generateDraft = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { contactName, operatorInitials } = req.body || {};
 
-    const quotation = await prisma.quotation.findUnique({ where: { id }, include: { client: true } });
+    const quotation = await prisma.quotation.findUnique({ where: { id }, include: { client: true, groundServiceLegs:true } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
 
     // Gera o Código da Cotação (iniciais do operador + data + hora) uma única vez
@@ -349,13 +355,21 @@ export const generateDraft = async (req: Request, res: Response) => {
     });
 
     let truckerDraftText = null;
-    if (quotation.needsTransport) {
+    const groundServiceDrafts: Record<string,string> = {};
+    for (const leg of quotation.groundServiceLegs.filter(item => item.requested)) {
       try {
-        // Obter nome de contato da transportadora se houver no banco ou gerar padrão
-        truckerDraftText = await generateTruckerDraft(payload, contextRules);
-      } catch (err) {
-        console.error('Erro ao gerar rascunho de transportadora:', err);
-      }
+        const legPayload = { ...payload, transportRoute:leg.route };
+        const text = leg.serviceType === 'DTA'
+          ? await generateDtaDraft(legPayload, leg, contextRules)
+          : await generateTruckerDraft(legPayload, contextRules);
+        groundServiceDrafts[leg.serviceType] = text;
+        if (leg.serviceType === 'RODOVIARIO_NACIONAL') truckerDraftText = text;
+        await prisma.groundServiceLeg.update({ where:{ id:leg.id }, data:{ draftEmail:text } });
+      } catch (err) { console.error(`Erro ao gerar rascunho ${leg.serviceType}:`, err); }
+    }
+    if (!quotation.groundServiceLegs.length && quotation.needsTransport) {
+      try { truckerDraftText = await generateTruckerDraft(payload, contextRules); }
+      catch (err) { console.error('Erro ao gerar rascunho de transportadora:', err); }
     }
 
     // Atualizar no banco (sincronizando o código gerado com a referência oficial da cotação)
@@ -370,7 +384,8 @@ export const generateDraft = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({ draft: draftText, draftSubject, template: selectedTemplate ? { id: selectedTemplate.id, name: selectedTemplate.name } : null, truckerDraft: truckerDraftText, quotation: updated });
+    const updatedWithLegs = await prisma.quotation.findUnique({ where:{ id }, include:{ groundServiceLegs:true } });
+    res.json({ draft: draftText, draftSubject, template: selectedTemplate ? { id: selectedTemplate.id, name: selectedTemplate.name } : null, truckerDraft: truckerDraftText, groundServiceDrafts, quotation: updatedWithLegs || updated });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

@@ -207,6 +207,7 @@ model Quotation {
   emailDispatches QuotationEmailDispatch[]
   events          QuotationEvent[]
   requestCycles   QuotationRequestCycle[]
+  groundServiceLegs GroundServiceLeg[]
 
   @@index([carrierProfileId])
 }
@@ -375,6 +376,7 @@ model Agent {
   modals       String? // Ex: "Aéreo, Marítimo FCL"
   origins      String? // Ex: "China, Estados Unidos, APAC"
   destinations String? // Ex: "Brasil"
+  groundServiceCapabilities String? // JSON: DTA, RODOVIARIO_NACIONAL
   active       Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -409,6 +411,66 @@ model FixedFee {
   evidence         String?
 
   @@index([carrierProfileId])
+  @@index([partnerId])
+}
+
+model GroundServiceLeg {
+  id                 String   @id @default(uuid())
+  quotationId        String
+  quotation          Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  serviceType        String   // DTA, RODOVIARIO_NACIONAL
+  requested          Boolean  @default(true)
+  route              String?
+  originLocation     String?
+  destinationLocation String?
+  customsStatus      String?  // SOB_CONTROLE_ADUANEIRO, NACIONALIZADA
+  bondedTerminal     String?
+  customsUnit        String?
+  vehicleType        String?
+  partnerId          String?
+  partnerName        String?
+  partnerEmail       String?
+  draftEmail         String?
+  sentAt             DateTime?
+  responseRaw        String?
+  value              Float?
+  currency           String   @default("BRL")
+  taxesIncluded      Boolean?
+  transitTime        String?
+  validityDate       DateTime?
+  pricingSource      String?
+  requestEvidence    String?
+  additionalCharges  String?  // JSON: pedágio, GRIS, ad valorem, escolta, documentação etc.
+  operationalNotes   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([quotationId, serviceType])
+  @@index([serviceType, requested])
+  @@index([partnerId])
+}
+
+model GroundServiceTariff {
+  id                String   @id @default(uuid())
+  serviceType       String   // DTA, RODOVIARIO_NACIONAL
+  name              String
+  partnerId         String?
+  originLocation    String?
+  destinationLocation String?
+  vehicleType       String?
+  weightFromKg      Float?
+  weightToKg        Float?
+  baseValue         Float
+  minimumValue      Float?
+  currency          String   @default("BRL")
+  taxesIncluded     Boolean?
+  pricingRules      String?  // JSON/texto com faixas e adicionais
+  operationalRules  String?  // Regras exclusivas do serviço
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([serviceType, active])
   @@index([partnerId])
 }
 

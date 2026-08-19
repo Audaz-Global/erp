@@ -533,6 +533,37 @@ export const generateTruckerDraft = async (data: DraftPayload, contextRules: str
   }
 };
 
+export const generateDtaDraft = async (data: DraftPayload, leg: any, contextRules: string = '', contactName?: string) => {
+  try {
+    const model = genAI.getGenerativeModel({ model:'gemini-2.5-flash' });
+    const greeting = contactName ? `Inicie exatamente com: Prezado(a) ${contactName},` : 'Inicie com: Prezado(a),';
+    const prompt = `Você é um analista de comércio exterior solicitando uma cotação de DTA (Declaração de Trânsito Aduaneiro) no Brasil.
+${greeting}
+Escreva em Português (Brasil), de forma objetiva. A carga AINDA NÃO FOI NACIONALIZADA e permanece sob controle aduaneiro. Não trate este serviço como entrega rodoviária nacional comum.
+
+DADOS DO TRECHO DTA:
+- Rota: ${leg.route || 'A confirmar'}
+- Unidade aduaneira de origem: ${leg.customsUnit || leg.originLocation || 'A confirmar'}
+- Recinto alfandegado de destino: ${leg.bondedTerminal || leg.destinationLocation || 'A confirmar'}
+- Modal internacional vinculado: ${data.modal || 'A confirmar'}
+- Peso bruto: ${data.totalGrossWeightKg ?? 'A confirmar'} kg
+- Volumes: ${data.totalPackages ?? 'A confirmar'}
+- Dimensões/embalagens: ${data.packages || 'A confirmar'}
+- Valor da carga: ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'A confirmar'}
+- Carga perigosa: ${data.dangerousGoodsStatus === 'CONFIRMED' ? 'SIM' : data.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A CONFIRMAR' : 'NÃO'}
+- Referência: ${data.reference || 'Não informada'}
+
+Solicite separadamente: frete DTA, emissão/documentação, pedágio, GRIS, ad valorem, gerenciamento de risco, escolta quando aplicável, estadia/horas livres, tributos inclusos ou não, prazo de trânsito e validade. Peça confirmação de habilitação operacional para o recinto e o regime aduaneiro. Não inclua desembaraço de importação nem entrega final após nacionalização.
+
+REGRAS CADASTRADAS:
+${contextRules}
+
+Finalize apenas com "Atenciosamente,". Retorne somente o corpo do e-mail.`;
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } catch { throw new Error('Falha ao gerar rascunho de DTA com IA'); }
+};
+
 export const extractAgentCosts = async (
   text: string, 
   contextRules: string = '', 

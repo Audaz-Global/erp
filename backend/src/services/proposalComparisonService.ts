@@ -130,7 +130,7 @@ function buildProposal(group: any, quotation: any, rates: ComparisonRates): any 
 
 export function buildProposalComparison(quotation: any, responses: any[], rates: ComparisonRates, selectedEvent?: any) {
   const groups = new Map<string, any>();
-  const ordered = [...responses].filter(response => response.processingStatus === 'SUCCESS' && response.extractedData)
+  const ordered = [...responses].filter(response => response.processingStatus === 'SUCCESS' && response.extractedData && !['TRUCKER','DTA_PROVIDER'].includes(String(response.requestCycle?.recipientType || '')))
     .sort((a, b) => new Date(a.receivedAt || a.createdAt).getTime() - new Date(b.receivedAt || b.createdAt).getTime());
   for (const response of ordered) {
     const key = response.requestCycleId ? `cycle:${response.requestCycleId}` : `email:${String(response.senderEmail || response.id).toLowerCase()}`;

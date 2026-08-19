@@ -45,6 +45,8 @@ import draftEmailFieldRuleRoutes from './routes/draftEmailFieldRule';
 import pricingSettingsRoutes from './routes/pricingSettings';
 import deconsolidatorRoutes from './routes/deconsolidator';
 import professionalRoutes from './routes/professional';
+import groundServiceRoutes from './routes/groundService';
+import { backfillLegacyRoadLegs } from './services/groundServiceService';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/extract', extractRoutes);
@@ -63,6 +65,7 @@ app.use('/api/draft-email-field-rules', draftEmailFieldRuleRoutes);
 app.use('/api/pricing-settings', pricingSettingsRoutes);
 app.use('/api/deconsolidators', deconsolidatorRoutes);
 app.use('/api/professionals', professionalRoutes);
+app.use('/api/ground-services', groundServiceRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);
@@ -98,6 +101,8 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 // Start Server
 async function startServer() {
+  const migratedRoadLegs = await backfillLegacyRoadLegs();
+  if (migratedRoadLegs > 0) console.log(`✅ ${migratedRoadLegs} transporte(s) legado(s) migrado(s) para Rodoviário Nacional.`);
   const linkedRules = await backfillIncotermRuleStandardFees(prisma);
   if (linkedRules > 0) console.log(`✅ ${linkedRules} regra(s) de Incoterm vinculada(s) às taxas locais.`);
 

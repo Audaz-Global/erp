@@ -14,21 +14,42 @@ const TRANSPORT_REQUEST_PATTERNS = [
   /\b(?:road\s+freight|domestic\s+trucking|inland\s+(?:delivery|transport))\b/i
 ];
 
+const DTA_REQUEST_PATTERNS = [
+  /\bDTA\b/i,
+  /\btr[aâ]nsito\s+aduaneiro\b/i,
+  /\bremo[cç][aã]o\s+(?:aduaneira|alfandegada)\b/i,
+  /\b(?:remover|transferir|tr[aâ]nsito)\b.{0,80}\b(?:CLIA|EADI|porto\s+seco|recinto\s+alfandegado)\b/i,
+  /\bcarga\s+(?:ainda\s+)?n[aã]o\s+nacionalizada\b/i
+];
+
 export function findExplicitDomesticTransportRequest(sourceText: string): TransportDecision {
   const lines = String(sourceText || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const evidence = lines.find(line => TRANSPORT_REQUEST_PATTERNS.some(pattern => pattern.test(line))) || '';
+  const evidence = lines.find(line => !DTA_REQUEST_PATTERNS.some(pattern => pattern.test(line)) && TRANSPORT_REQUEST_PATTERNS.some(pattern => pattern.test(line))) || '';
   return evidence
     ? { requested: true, evidence: evidence.slice(0, 500), source: 'EXPLICIT_TEXT' }
     : { requested: false, evidence: '', source: 'NOT_REQUESTED' };
+}
+
+export function findExplicitDtaRequest(sourceText: string): TransportDecision {
+  const lines = String(sourceText || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const evidence = lines.find(line => DTA_REQUEST_PATTERNS.some(pattern => pattern.test(line))) || '';
+  return evidence
+    ? { requested:true, evidence:evidence.slice(0, 500), source:'EXPLICIT_TEXT' }
+    : { requested:false, evidence:'', source:'NOT_REQUESTED' };
 }
 
 export function applyDomesticTransportEvidencePolicy(extracted: any, sourceText: string) {
   if (!extracted?.route) return extracted;
 
   const decision = findExplicitDomesticTransportRequest(sourceText);
+  const dtaDecision = findExplicitDtaRequest(sourceText);
   extracted.route.needs_transport = decision.requested;
   extracted.route.transport_source = decision.source;
   extracted.route.transport_evidence = decision.evidence;
+  extracted.route.needs_dta = dtaDecision.requested;
+  extracted.route.dta_source = dtaDecision.source;
+  extracted.route.dta_evidence = dtaDecision.evidence;
+  extracted.route.dta_route = dtaDecision.requested ? (extracted.route.dta_route || dtaDecision.evidence) : '';
 
   if (!decision.requested) {
     extracted.route.transport_route = '';

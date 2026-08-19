@@ -240,6 +240,32 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
         .filter((field: string) => TRACKED_AGENT_FIELDS.has(field)));
       const has = (...fields: string[]) => fields.some(field => presentFields.has(field));
 
+      const groundServiceType = requestCycle?.recipientType === 'DTA_PROVIDER' ? 'DTA'
+        : requestCycle?.recipientType === 'TRUCKER' ? 'RODOVIARIO_NACIONAL' : null;
+      if (groundServiceType) {
+        const detailedFees = [...(Array.isArray(c.origin_fees) ? c.origin_fees : []), ...(Array.isArray(c.destination_fees) ? c.destination_fees : [])];
+        const feeCurrency = detailedFees.find((fee: any) => fee?.currency)?.currency;
+        const feeTotal = detailedFees.reduce((sum: number, fee: any) => sum + (Number(fee?.totalValue ?? fee?.value) || 0), 0);
+        const value = c.total_brl != null ? Number(c.total_brl) : c.freight_value != null ? Number(c.freight_value) : feeTotal || null;
+        const currency = c.total_brl != null ? 'BRL' : c.freight_currency || feeCurrency || 'BRL';
+        await prisma.$transaction(async tx => {
+          const leg = await tx.groundServiceLeg.findFirst({ where:{ quotationId:quotation.id, serviceType:groundServiceType } });
+          if (leg) await tx.groundServiceLeg.update({ where:{ id:leg.id }, data:{
+            responseRaw:bodyContent.substring(0, 50000), value:Number.isFinite(value) ? value : null, currency,
+            transitTime:c.transit_time || (c.transit_time_days != null ? `${c.transit_time_days} dias` : null),
+            validityDate:/^\d{4}-\d{2}-\d{2}/.test(String(c.rate_valid_until || '')) ? new Date(`${String(c.rate_valid_until).slice(0,10)}T12:00:00Z`) : null,
+            pricingSource:groundServiceType === 'DTA' ? 'DTA_PROVIDER_EMAIL' : 'TRUCKER_EMAIL', additionalCharges:JSON.stringify(detailedFees)
+          } });
+          await tx.agentResponseVersion.update({ where:{ id:version.id }, data:{ attachmentNames:JSON.stringify(attachments.names), extractedData:JSON.stringify(c),
+            confidence:c.confidence ?? null, processingStatus:value != null ? 'SUCCESS' : 'NO_VALUES', processedAt:new Date(), errorMessage:value == null ? 'Nenhum valor do trecho identificado.' : null, requestCycleId:requestCycle?.id || null } });
+          if (requestCycle && receivedAt) await markCycleResponse(tx, requestCycle, receivedAt, value != null);
+          await recordQuotationEvent(tx, { quotationId:quotation.id, type:value != null ? 'RESPONSE_PROCESSED_WITH_VALUES' : 'RESPONSE_PROCESSED_NO_VALUES', actorType:'AI', channel:'OUTLOOK',
+            partnerEmail:senderEmail, sourceType:'AGENT_RESPONSE', sourceId:version.id, metadata:{ requestCycleId:requestCycle?.id || null, groundServiceType, value, currency, attachmentNames:attachments.names } });
+        });
+        console.log(`[Outlook] Retorno ${groundServiceType} processado separadamente | Cotação: ${quotation.id}`);
+        return true;
+      }
+
       if (presentFields.size === 0) {
         await prisma.$transaction(async tx => {
           await tx.agentResponseVersion.update({ where: { id: version.id }, data: {

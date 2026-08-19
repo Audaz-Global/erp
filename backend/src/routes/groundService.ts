@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { authenticate } from '../middlewares/auth';
+import { createGroundTariff, deactivateGroundTariff, listGroundTariffs, suggestGroundTariff, updateGroundServiceLeg, updateGroundTariff } from '../controllers/groundServiceController';
+const router = Router();
+router.use(authenticate);
+router.get('/tariffs', listGroundTariffs);
+router.get('/suggest', suggestGroundTariff);
+router.post('/tariffs', createGroundTariff);
+router.put('/tariffs/:id', updateGroundTariff);
+router.delete('/tariffs/:id', deactivateGroundTariff);
+router.put('/legs/:id', updateGroundServiceLeg);
+export default router;

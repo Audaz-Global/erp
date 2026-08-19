@@ -881,10 +881,10 @@
   .quotation-documents-head small { display:block; margin-top:4px; color:var(--text-muted); font-size:11px; }
   .document-upload-button { position:relative; overflow:hidden; flex:0 0 auto; }
   .document-upload-button input { position:absolute; inset:0; opacity:0; cursor:pointer; }
-  .document-selection-legend { display:grid; grid-template-columns:1fr 132px 155px 70px; gap:8px; padding:0 10px 7px; color:#737e90; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+  .document-selection-legend { display:grid; grid-template-columns:1fr 110px 110px 130px 70px; gap:8px; padding:0 10px 7px; color:#737e90; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
   .document-selection-legend span:first-child { grid-column:2; text-align:center; }
   .document-selection-legend span:last-child { text-align:center; }
-  .quotation-document-row { display:grid; grid-template-columns:minmax(0,1fr) 132px 155px 70px; gap:8px; align-items:center; padding:10px; border-top:1px solid rgba(255,255,255,.065); }
+  .quotation-document-row { display:grid; grid-template-columns:minmax(0,1fr) 110px 110px 130px 70px; gap:8px; align-items:center; padding:10px; border-top:1px solid rgba(255,255,255,.065); }
   .quotation-document-name { min-width:0; }
   .quotation-document-name a { display:block; overflow:hidden; text-overflow:ellipsis; color:#edf0f5; font-size:12px; font-weight:650; text-decoration:none; white-space:nowrap; }
   .quotation-document-name small { color:#778294; font-size:10px; }
@@ -1019,7 +1019,7 @@
     .copilot-launcher { right:14px; bottom:12px; }
     .quotation-documents-head { align-items:flex-start; flex-direction:column; }
     .document-selection-legend { display:none; }
-    .quotation-document-row { grid-template-columns:1fr 42px 42px 32px; }
+    .quotation-document-row { grid-template-columns:1fr 38px 38px 38px 32px; }
     .document-check span { display:none; }
     .response-metrics-grid { grid-template-columns:1fr 1fr; }
     .partner-metric-row { grid-template-columns:1fr 80px; }
@@ -1338,10 +1338,34 @@
         <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">O valor ficará em branco até o retorno do parceiro.</div>
       </div>
 
-      <!-- Solicitação de Transporte Terrestre checkbox -->
+      <div style="margin-top:18px;padding:14px 16px;border:1px solid rgba(64,156,255,.28);border-radius:10px;background:rgba(64,156,255,.035)">
+        <strong style="display:block;margin-bottom:4px">Serviços terrestres e aduaneiros</strong>
+        <small style="color:var(--text-muted)">DTA movimenta carga ainda não nacionalizada. Rodoviário nacional é a entrega doméstica após liberação.</small>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:12px 16px;border-radius:8px;border:1px solid rgba(96,165,250,.35);background:rgba(96,165,250,.04)">
+        <input type="checkbox" id="r-needs-dta" onchange="toggleDtaSection(this.checked)" style="width:18px;height:18px;cursor:pointer;margin:0">
+        <label for="r-needs-dta" style="margin:0;cursor:pointer;font-weight:600">Solicitar DTA — Trânsito Aduaneiro</label>
+        <small id="r-dta-decision" style="margin-left:auto;color:var(--text-muted)"></small>
+      </div>
+      <div id="dta-section" style="display:none;background:rgba(96,165,250,.025);border:1px dashed #60a5fa;border-radius:12px;padding:18px;margin-top:10px;margin-bottom:16px">
+        <h4 style="margin:0 0 6px;color:#93c5fd">DTA — CARGA SOB CONTROLE ADUANEIRO</h4>
+        <p style="font-size:11px;color:var(--text-muted);margin:0 0 14px">A carga ainda não foi nacionalizada. Este trecho será calculado como componente logístico vinculado ao frete internacional.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="form-group" style="margin:0"><label>Prestador habilitado para DTA</label><select id="r-dta-partner" onchange="onDtaSelectChange()"><option value="">Selecione...</option></select></div>
+          <div class="form-group" style="margin:0"><label>E-mail do prestador</label><input id="r-dta-email" type="email"></div>
+          <div class="form-group" style="margin:0"><label>Rota DTA</label><input id="r-dta-route" placeholder="Ex: GRU → CLIA Campinas"></div>
+          <div class="form-group" style="margin:0"><label>Unidade aduaneira de origem</label><input id="r-dta-customs-unit" placeholder="Ex: Alfândega de GRU"></div>
+          <div class="form-group" style="margin:0"><label>Recinto alfandegado de destino</label><input id="r-dta-bonded-terminal" placeholder="Ex: CLIA / EADI / Porto Seco"></div>
+          <div class="form-group" style="margin:0"><label>Receber cópia (CC)</label><input id="r-dta-cc-email" type="email"></div>
+        </div>
+        <button type="button" class="btn btn-secondary" style="margin-top:12px" onclick="suggestGroundTariff('DTA')">Consultar tarifa DTA cadastrada</button><div id="r-dta-tariff-suggestion" style="margin-top:8px;font-size:11px;color:var(--text-muted)"></div>
+      </div>
+
+      <!-- Solicitação de Transporte Rodoviário Nacional -->
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border);">
         <input type="checkbox" id="r-needs-transport" onchange="toggleTransportSection(this.checked)" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
-        <label for="r-needs-transport" style="margin: 0; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">🚚 Solicitar Transporte Terrestre Nacional para esta cotação?</label>
+        <label for="r-needs-transport" style="margin: 0; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">🚚 Solicitar Frete Rodoviário Nacional após nacionalização?</label>
         <small id="r-transport-decision" style="flex-basis:100%;display:none;margin-left:26px;color:var(--text-muted);"></small>
       </div>
 
@@ -1371,6 +1395,7 @@
             <input type="email" id="r-trucker-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)" style="margin: 0;">
           </div>
         </div>
+        <button type="button" class="btn btn-secondary" style="margin-top:12px" onclick="suggestGroundTariff('RODOVIARIO_NACIONAL')">Consultar tarifa rodoviária cadastrada</button><div id="r-road-tariff-suggestion" style="margin-top:8px;font-size:11px;color:var(--text-muted)"></div>
       </div>
 
       <div class="form-group" style="max-width: 220px;">
@@ -1383,7 +1408,7 @@
           <div><strong>Documentos da cotação</strong><small>Anexos do cliente e arquivos adicionados manualmente acompanham todo o processo.</small></div>
           <label class="btn btn-secondary document-upload-button">Adicionar documentos<input id="manualDocumentInput" type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" onchange="uploadManualQuotationDocuments(this.files)"></label>
         </div>
-        <div class="document-selection-legend"><span>Enviar ao parceiro</span><span>Enviar à transportadora</span></div>
+        <div class="document-selection-legend"><span>Parceiro</span><span>DTA</span><span>Rodoviário</span></div>
         <div id="quotationDocumentsList"><p class="document-empty">Gere o rascunho para vincular os documentos à cotação.</p></div>
       </section>
 
@@ -1409,6 +1434,9 @@
       </div>
 
       <!-- Seção do Rascunho da Transportadora -->
+      <div id="dta-draft-container" style="display:none;margin-top:24px">
+        <div class="form-group" style="margin:0"><label style="color:#93c5fd;font-weight:600">Rascunho de E-mail para DTA</label><textarea id="r-dta-draft-text" rows="8" placeholder="O rascunho de DTA aparecerá aqui..." style="font-family:monospace"></textarea></div>
+      </div>
       <div id="trucker-draft-container" style="display: none; margin-top: 24px;">
         <div class="form-group" style="margin: 0;">
           <label style="color: var(--gold); font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">🚚 Rascunho de E-mail para Transportadora (Sempre em Português)</label>
@@ -2198,6 +2226,8 @@
         <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Árvore de Incoterms</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
+        <li data-tab="dtaParameters" onclick="switchSettingsTab('dtaParameters')">DTA — Tarifas e Regras</li>
+        <li data-tab="roadParameters" onclick="switchSettingsTab('roadParameters')">Rodoviário Nacional</li>
 
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
@@ -2320,6 +2350,13 @@
         <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_FCL" style="width:16px;height:16px;"> FCL</label>
         <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="SEA_LCL" style="width:16px;height:16px;"> LCL</label>
         <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="ROAD" style="width:16px;height:16px;"> ROAD</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Serviços terrestres/aduaneiros habilitados</label>
+      <div style="display:flex;gap:18px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+        <label style="display:flex;align-items:center;gap:7px;margin:0"><input type="checkbox" name="ground-capability" value="DTA"> DTA — Trânsito Aduaneiro</label>
+        <label style="display:flex;align-items:center;gap:7px;margin:0"><input type="checkbox" name="ground-capability" value="RODOVIARIO_NACIONAL"> Frete Rodoviário Nacional</label>
       </div>
     </div>
     
@@ -2757,6 +2794,7 @@ function renderQuotationDocuments() {
     <div class="quotation-document-row">
       <div class="quotation-document-name"><a href="${API}/quotations/${currentQuotationId}/documents/${document.id}/download" title="Baixar ${ifrEscape(document.originalName)}">${ifrEscape(document.originalName)}</a><small>${documentOriginLabel(document.origin)} · ${formatDocumentSize(document.blob.size)}${document.sourceContainerName ? ' · extraído de ' + ifrEscape(document.sourceContainerName) : ''}</small></div>
       <label class="document-check" title="Enviar ao parceiro"><input type="checkbox" data-document-role="partner" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''} onchange="setDocumentForwardDefault('${document.id}',this.checked)"><span style="display:none">Parceiro</span></label>
+      <label class="document-check" title="Enviar ao prestador DTA"><input type="checkbox" data-document-role="dta" value="${document.id}"><span style="display:none">DTA</span></label>
       <label class="document-check" title="Enviar à transportadora"><input type="checkbox" data-document-role="trucker" value="${document.id}"><span style="display:none">Transportadora</span></label>
       <button type="button" class="document-delete" onclick="deleteQuotationDocument('${document.id}')">Excluir</button>
     </div>`).join('');
@@ -3700,6 +3738,21 @@ function onTruckerSelectChange() {
   }
 }
 
+function onDtaSelectChange() {
+  const select = document.getElementById('r-dta-partner');
+  const email = document.getElementById('r-dta-email');
+  if (select && email) email.value = select.value || '';
+}
+
+function toggleDtaSection(show) {
+  const section = document.getElementById('dta-section');
+  const draft = document.getElementById('dta-draft-container');
+  const checkbox = document.getElementById('r-needs-dta');
+  if (section) section.style.display = show ? 'block' : 'none';
+  if (draft) draft.style.display = show ? 'block' : 'none';
+  if (checkbox) checkbox.checked = !!show;
+}
+
 function toggleTransportSection(show) {
   const section = document.getElementById('transport-section');
   if (section) section.style.display = show ? 'block' : 'none';
@@ -3718,9 +3771,11 @@ function toggleOriginInlandSection(show) {
 
 async function populateTruckerDropdown() {
   const select = document.getElementById('r-trucker-email');
-  if (!select) return;
+  const dtaSelect = document.getElementById('r-dta-partner');
+  if (!select && !dtaSelect) return;
   
-  select.innerHTML = '<option value="">Buscando transportadoras...</option>';
+  if (select) select.innerHTML = '<option value="">Buscando transportadoras...</option>';
+  if (dtaSelect) dtaSelect.innerHTML = '<option value="">Buscando prestadores DTA...</option>';
   
   let partners = window.globalAgentsList;
   if (!partners) {
@@ -3736,11 +3791,13 @@ async function populateTruckerDropdown() {
   const truckers = partners.filter(p => p.active && partnerHasType(p, 'TRANSPORTADORA'));
   
   if (truckers.length === 0) {
-    select.innerHTML = '<option value="">Nenhuma transportadora ativa cadastrada</option>';
+    if (select) select.innerHTML = '<option value="">Nenhuma transportadora ativa cadastrada</option>';
+    if (dtaSelect) dtaSelect.innerHTML = '<option value="">Nenhum prestador DTA cadastrado</option>';
     return;
   }
   
-  select.innerHTML = '<option value="">Selecione uma transportadora...</option>';
+  if (select) select.innerHTML = '<option value="">Selecione uma transportadora...</option>';
+  if (dtaSelect) dtaSelect.innerHTML = '<option value="">Selecione um prestador DTA...</option>';
   truckers.forEach(t => {
     let contacts = [];
     try {
@@ -3748,6 +3805,14 @@ async function populateTruckerDropdown() {
     } catch(e){}
     
     const mainEmail = t.email || '';
+    let serviceCapabilities = [];
+    try { serviceCapabilities = JSON.parse(t.groundServiceCapabilities || '[]'); } catch {}
+    const servesRoad = !serviceCapabilities.length || serviceCapabilities.includes('RODOVIARIO_NACIONAL');
+    const servesDta = !serviceCapabilities.length || serviceCapabilities.includes('DTA');
+    const appendServiceOption = option => {
+      if (servesRoad && select) select.appendChild(option.cloneNode(true));
+      if (servesDta && dtaSelect) dtaSelect.appendChild(option);
+    };
     
     if (contacts.length === 0) {
       const opt = document.createElement('option');
@@ -3755,7 +3820,7 @@ async function populateTruckerDropdown() {
       opt.dataset.contactName = 'Contato';
       opt.dataset.agentName = t.name;
       opt.textContent = `${t.name} ${mainEmail ? '- Principal ('+mainEmail+')' : '(Sem e-mail)'}`;
-      select.appendChild(opt);
+      appendServiceOption(opt);
     } else {
       contacts.forEach(c => {
          if(!c.email) return;
@@ -3764,7 +3829,7 @@ async function populateTruckerDropdown() {
          opt.dataset.contactName = c.name || 'Contato';
          opt.dataset.agentName = t.name;
          opt.textContent = `${t.name} - ${c.name || 'Contato'} (${c.email})`;
-         select.appendChild(opt);
+         appendServiceOption(opt);
       });
       if (mainEmail) {
         const opt = document.createElement('option');
@@ -3772,11 +3837,50 @@ async function populateTruckerDropdown() {
         opt.dataset.contactName = 'Principal';
         opt.dataset.agentName = t.name;
         opt.textContent = `${t.name} - Geral (${mainEmail})`;
-        select.appendChild(opt);
+        appendServiceOption(opt);
       }
     }
   });
   onTruckerSelectChange();
+  onDtaSelectChange();
+}
+
+function selectedGroundPartner(selectId) {
+  const select = document.getElementById(selectId);
+  const option = select?.options?.[select.selectedIndex];
+  return { partnerName:option?.dataset?.agentName || null };
+}
+
+function collectGroundServiceLegs() {
+  const legs = [];
+  if (document.getElementById('r-needs-dta')?.checked) {
+    const partner = selectedGroundPartner('r-dta-partner');
+    legs.push({ serviceType:'DTA', requested:true, route:document.getElementById('r-dta-route').value || null,
+      originLocation:document.getElementById('r-dta-customs-unit').value || null, customsUnit:document.getElementById('r-dta-customs-unit').value || null,
+      destinationLocation:document.getElementById('r-dta-bonded-terminal').value || null, bondedTerminal:document.getElementById('r-dta-bonded-terminal').value || null,
+      partnerName:partner.partnerName, partnerEmail:document.getElementById('r-dta-email').value.trim() || null,
+      customsStatus:'SOB_CONTROLE_ADUANEIRO', currency:'BRL', requestEvidence:document.getElementById('r-dta-decision')?.dataset?.evidence || null });
+  }
+  if (document.getElementById('r-needs-transport')?.checked) {
+    const partner = selectedGroundPartner('r-trucker-email');
+    legs.push({ serviceType:'RODOVIARIO_NACIONAL', requested:true, route:document.getElementById('r-transport-route').value || null,
+      partnerName:partner.partnerName, partnerEmail:document.getElementById('r-trucker-send-email').value.trim() || null,
+      customsStatus:'NACIONALIZADA', currency:'BRL', requestEvidence:document.getElementById('r-transport-decision')?.dataset?.evidence || null });
+  }
+  return legs;
+}
+
+async function suggestGroundTariff(serviceType) {
+  const route = document.getElementById(serviceType === 'DTA' ? 'r-dta-route' : 'r-transport-route').value;
+  const parts = route.split(/\s*(?:→|->|\bx\b)\s*/i);
+  const params = new URLSearchParams({ serviceType, origin:parts[0] || '', destination:parts.slice(1).join(' ') || '', weightKg:document.getElementById('r-weight').value || '0' });
+  const target = document.getElementById(serviceType === 'DTA' ? 'r-dta-tariff-suggestion' : 'r-road-tariff-suggestion');
+  target.textContent = 'Consultando cadastro...';
+  const response = await fetch(`${API}/ground-services/suggest?${params}`);
+  const data = await response.json().catch(()=>({}));
+  if (!response.ok || !data.match) { target.textContent = data.error || data.reason || 'Nenhuma tarifa compatível.'; return; }
+  const match = data.match;
+  target.innerHTML = `<strong style="color:var(--gold)">${professionalEscapeHtml(match.name)}: ${professionalEscapeHtml(match.currency)} ${Number(match.calculatedValue).toFixed(2)}</strong><br>${professionalEscapeHtml(data.reason)} ${match.taxesIncluded===true?'Tributos inclusos.':match.taxesIncluded===false?'Tributos não inclusos.':'Tributos a confirmar.'}<br>${professionalEscapeHtml(match.operationalRules || '')}`;
 }
 
 function fillReviewForm(d, mode) {
@@ -3784,6 +3888,22 @@ function fillReviewForm(d, mode) {
     document.getElementById('r-reference').value = d.reference || '';
     document.getElementById('r-draft-text').value = d.draftEmail || '';
     document.getElementById('r-trucker-draft-text').value = d.truckerDraftEmail || '';
+    const savedDta = Array.isArray(d.groundServiceLegs) ? d.groundServiceLegs.find(item => item.serviceType === 'DTA') : null;
+    const savedRoad = Array.isArray(d.groundServiceLegs) ? d.groundServiceLegs.find(item => item.serviceType === 'RODOVIARIO_NACIONAL') : null;
+    if (savedDta) {
+      toggleDtaSection(savedDta.requested);
+      document.getElementById('r-dta-route').value = savedDta.route || '';
+      document.getElementById('r-dta-customs-unit').value = savedDta.customsUnit || savedDta.originLocation || '';
+      document.getElementById('r-dta-bonded-terminal').value = savedDta.bondedTerminal || savedDta.destinationLocation || '';
+      document.getElementById('r-dta-email').value = savedDta.partnerEmail || '';
+      document.getElementById('r-dta-draft-text').value = savedDta.draftEmail || '';
+    }
+    if (savedRoad) {
+      toggleTransportSection(savedRoad.requested);
+      document.getElementById('r-transport-route').value = savedRoad.route || '';
+      document.getElementById('r-trucker-send-email').value = savedRoad.partnerEmail || '';
+      document.getElementById('r-trucker-draft-text').value = savedRoad.draftEmail || d.truckerDraftEmail || '';
+    }
     if (d.agentEmail) document.getElementById('r-agent-send-email').value = d.agentEmail;
     if (d.truckerEmail) document.getElementById('r-trucker-send-email').value = d.truckerEmail;
     if(d.client) {
@@ -3841,6 +3961,16 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-needs-transport').checked = false;
         toggleTransportSection(false);
         document.getElementById('r-transport-route').value = '';
+      }
+      if (d.route.needs_dta !== undefined) {
+        const needsDta = !!d.route.needs_dta;
+        toggleDtaSection(needsDta);
+        document.getElementById('r-dta-route').value = d.route.dta_route || '';
+        const decision = document.getElementById('r-dta-decision');
+        if (decision) {
+          decision.dataset.evidence = d.route.dta_evidence || '';
+          decision.textContent = needsDta && d.route.dta_evidence ? 'Pedido identificado: "' + d.route.dta_evidence + '"' : '';
+        }
       }
     }
     if(d.cargo) {
@@ -4359,6 +4489,7 @@ async function generateDraftEmail() {
       ruleStage: 'REQUEST',
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
+      groundServiceLegs: collectGroundServiceLegs(),
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
       truckerEmail: document.getElementById('r-trucker-email').value || null,
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
@@ -4419,6 +4550,7 @@ async function generateDraftEmail() {
     } else {
       document.getElementById('r-trucker-draft-text').value = '';
     }
+    document.getElementById('r-dta-draft-text').value = draftData.groundServiceDrafts?.DTA || '';
     setDraftDispatchState('DRAFT');
     toast('✅ Rascunho gerado com sucesso!');
   } catch(e) {
@@ -4511,6 +4643,7 @@ async function sendOutlookEmail() {
     await uploadPendingQuotationDocuments();
     const ccEmail = document.getElementById('r-agent-cc-email').value.trim();
     const needsTransport = document.getElementById('r-needs-transport').checked;
+    const groundServiceLegs = collectGroundServiceLegs();
     let truckerEmail = null;
     let truckerName = null;
     let truckerCcEmail = null;
@@ -4530,6 +4663,19 @@ async function sendOutlookEmail() {
       truckerCcEmail = document.getElementById('r-trucker-cc-email').value.trim();
     }
 
+    const dtaLeg = groundServiceLegs.find(item => item.serviceType === 'DTA');
+    if (dtaLeg && !dtaLeg.partnerEmail) {
+      alert('Preencha o e-mail do prestador de DTA.');
+      setDraftDispatchState('DRAFT');
+      return;
+    }
+    const groundServices = groundServiceLegs.map(leg => ({
+      serviceType:leg.serviceType, email:leg.partnerEmail, partnerName:leg.partnerName,
+      ccEmail:leg.serviceType === 'DTA' ? document.getElementById('r-dta-cc-email').value.trim() : truckerCcEmail,
+      draftEmail:leg.serviceType === 'DTA' ? document.getElementById('r-dta-draft-text').value : document.getElementById('r-trucker-draft-text').value,
+      attachmentIds:selectedQuotationDocumentIds(leg.serviceType === 'DTA' ? 'dta' : 'trucker')
+    }));
+
     const draftSubject = document.getElementById('r-draft-subject').value.trim();
 
     const res = await fetch(API + '/outlook/send-draft-batch', {
@@ -4548,6 +4694,7 @@ async function sendOutlookEmail() {
         truckerEmail,
         truckerName,
         truckerCcEmail: truckerCcEmail || null,
+        groundServices,
         attachmentIds: selectedQuotationDocumentIds('partner'),
         truckerAttachmentIds: selectedQuotationDocumentIds('trucker')
       })
@@ -4560,6 +4707,10 @@ async function sendOutlookEmail() {
       partnerName: 'Transportadora', contactName: data.truckerResult.email || '', email: data.truckerResult.email || '',
       status: data.truckerResult.status, message: data.truckerResult.message || ''
     });
+    (data.groundServiceResults || []).forEach(result => lastPartnerDispatchResults.push({
+      partnerName:result.serviceType === 'DTA' ? 'Prestador DTA' : 'Transportadora nacional',
+      contactName:result.email || '', email:result.email || '', status:result.status, message:result.message || ''
+    }));
     lastPartnerDispatchResults.forEach(result => {
       const recipient = selectedPartnerRecipients.find(item => item.email === result.email);
       if (recipient) Object.assign(recipient, { status: result.status, message: result.message || '' });
@@ -4567,7 +4718,7 @@ async function sendOutlookEmail() {
     renderPartnerRecipients();
     renderPartnerDispatchResults();
 
-    const totalFailed = Number(data.failed || 0) + (data.truckerResult?.status === 'FAILED' ? 1 : 0);
+    const totalFailed = Number(data.failed || 0) + (data.truckerResult?.status === 'FAILED' ? 1 : 0) + (data.groundServiceResults || []).filter(item => item.status === 'FAILED').length;
     if (totalFailed > 0) {
       setDraftDispatchState('DRAFT');
       toast(`Envio parcial: ${data.sent + data.skipped} parceiros confirmados e ${totalFailed} envio(s) com falha.`);
@@ -4644,6 +4795,7 @@ async function saveAsAwaitingAgent() {
       ruleStage: 'REQUEST',
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
+      groundServiceLegs: collectGroundServiceLegs(),
       truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
       truckerEmail: document.getElementById('r-trucker-send-email').value.trim() || null,
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
@@ -6310,17 +6462,16 @@ function toggleDetail(idx, rowEl) {
   expandedRow = idx;
 
   let transportGroup = '';
-  if (q.needsTransport) {
-    transportGroup = `
-      <div class="detail-group">
-        <h4>🚚 Transporte Rodoviário</h4>
-        <div class="dl"><span class="dt">Transportadora</span><span class="dd" style="font-weight:600; color:var(--gold);">${q.truckerName || '—'}</span></div>
-        <div class="dl"><span class="dt">E-mail Contato</span><span class="dd">${q.truckerEmail || '—'}</span></div>
-        <div class="dl"><span class="dt">Trecho / Rota</span><span class="dd" style="font-weight:600;">${q.transportRoute || '—'}</span></div>
-        <div class="dl"><span class="dt">Custo Terrestre</span><span class="dd">${q.truckerValue != null ? (q.truckerCurrency || 'R$') + ' ' + Number(q.truckerValue).toFixed(2) : '<span style="color:var(--text-muted)">Aguardando cotação</span>'}</span></div>
-      </div>
-    `;
-  }
+  const groundLegs = Array.isArray(q.groundServiceLegs) && q.groundServiceLegs.length ? q.groundServiceLegs : (q.needsTransport ? [{ serviceType:'RODOVIARIO_NACIONAL', route:q.transportRoute, partnerName:q.truckerName, partnerEmail:q.truckerEmail, value:q.truckerValue, currency:q.truckerCurrency }] : []);
+  transportGroup = groundLegs.map(leg => {
+    const isDta = leg.serviceType === 'DTA';
+    const charges = (() => { try { const rows=JSON.parse(leg.additionalCharges||'[]'); return Array.isArray(rows)?rows.map(item=>item.name||item).join(', '):''; } catch { return leg.additionalCharges||''; } })();
+    return `<div class="detail-group" style="border-color:${isDta ? 'rgba(96,165,250,.35)' : 'rgba(245,166,35,.3)'}"><h4 style="color:${isDta ? '#93c5fd' : 'var(--gold)'}">${isDta ? 'DTA — Trânsito Aduaneiro' : 'Frete Rodoviário Nacional'}</h4>
+      <div class="dl"><span class="dt">Situação da carga</span><span class="dd">${isDta ? 'Sob controle aduaneiro / não nacionalizada' : 'Nacionalizada / liberada'}</span></div>
+      <div class="dl"><span class="dt">Prestador</span><span class="dd">${professionalEscapeHtml(leg.partnerName || '—')}</span></div><div class="dl"><span class="dt">Rota</span><span class="dd">${professionalEscapeHtml(leg.route || '—')}</span></div>
+      ${isDta ? `<div class="dl"><span class="dt">Recinto destino</span><span class="dd">${professionalEscapeHtml(leg.bondedTerminal || leg.destinationLocation || '—')}</span></div>` : ''}
+      ${leg.id ? `<div style="display:grid;grid-template-columns:1fr 90px 1fr;gap:7px;margin-top:10px"><input id="ground-value-${leg.id}" type="number" step="0.01" value="${leg.value ?? ''}" placeholder="Valor"><select id="ground-currency-${leg.id}"><option ${leg.currency==='BRL'?'selected':''}>BRL</option><option ${leg.currency==='USD'?'selected':''}>USD</option></select><input id="ground-transit-${leg.id}" value="${professionalEscapeHtml(leg.transitTime || '')}" placeholder="Prazo de trânsito"></div><input id="ground-charges-${leg.id}" value="${professionalEscapeHtml(charges)}" placeholder="Adicionais: GRIS, ad valorem, pedágio, documentação..." style="margin-top:7px"><label style="display:flex;gap:6px;align-items:center;margin:8px 0;font-size:11px"><input id="ground-taxes-${leg.id}" type="checkbox" ${leg.taxesIncluded===true?'checked':''}> Tributos incluídos</label><button class="btn btn-secondary" onclick="saveGroundLegCost('${leg.id}')">Salvar custo de ${isDta?'DTA':'rodoviário'}</button>` : `<div class="dl"><span class="dt">Custo</span><span class="dd">${leg.value != null ? `${leg.currency||'BRL'} ${Number(leg.value).toFixed(2)}` : 'Aguardando cotação'}</span></div>`}</div>`;
+  }).join('');
 
   let originInlandGroup = '';
   if (q.needsOriginInland || q.originInlandValue != null) {
@@ -6380,6 +6531,17 @@ function toggleDetail(idx, rowEl) {
   // Inserir logo após a row clicada
   rowEl.after(detailTr);
   loadQuotationTimeline(q.id);
+}
+
+async function saveGroundLegCost(id) {
+  const additionalCharges = document.getElementById(`ground-charges-${id}`).value.split(',').map(name => name.trim()).filter(Boolean).map(name => ({ name }));
+  const body = { value:document.getElementById(`ground-value-${id}`).value, currency:document.getElementById(`ground-currency-${id}`).value,
+    transitTime:document.getElementById(`ground-transit-${id}`).value, taxesIncluded:document.getElementById(`ground-taxes-${id}`).checked,
+    additionalCharges, pricingSource:'MANUAL' };
+  const response = await fetch(`${API}/ground-services/legs/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const data = await response.json().catch(()=>({}));
+  if(!response.ok) return alert(data.error || 'Não foi possível salvar o custo.');
+  toast('Custo do trecho salvo separadamente.'); await loadQuotations();
 }
 
 const TIMELINE_EVENT_LABELS = {
@@ -6473,7 +6635,7 @@ switchTab = function(name) {
 function openSettings() {
   document.getElementById('settingsOverlay').classList.add('active');
   document.body.classList.add('settings-open');
-  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','agentDraftEmail','users'];
+  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','dtaParameters','roadParameters','agentDraftEmail','users'];
   const savedTab = localStorage.getItem('audaz_settings_tab') || 'standardFees';
   switchSettingsTab(allowedTabs.includes(savedTab) ? savedTab : 'standardFees');
 }
@@ -6850,6 +7012,34 @@ function switchSettingsTab(tab) {
         </div>`;
       setTimeout(loadProfessionalSettings, 0);
       break;
+
+    case 'dtaParameters':
+    case 'roadParameters': {
+      const isDta = tab === 'dtaParameters';
+      const type = isDta ? 'DTA' : 'RODOVIARIO_NACIONAL';
+      content.innerHTML = `
+        <div class="sc-title">${isDta ? 'DTA — Trânsito Aduaneiro' : 'Frete Rodoviário Nacional'}</div>
+        <p class="sc-desc">${isDta ? 'Tarifas e regras para carga ainda não nacionalizada, entre unidades e recintos alfandegados.' : 'Tarifas e regras da entrega doméstica realizada após a liberação/nacionalização.'}</p>
+        <div class="settings-section">
+          <input type="hidden" id="ground-tariff-id"><input type="hidden" id="ground-tariff-type" value="${type}">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div class="form-group"><label>Nome da tarifa</label><input id="ground-tariff-name" placeholder="${isDta ? 'DTA GRU → CLIA' : 'GRU → Campinas'}"></div>
+            <div class="form-group"><label>Origem</label><input id="ground-tariff-origin"></div><div class="form-group"><label>Destino</label><input id="ground-tariff-destination"></div>
+            <div class="form-group"><label>Veículo/equipamento</label><input id="ground-tariff-vehicle" placeholder="VUC, Truck, carreta ou equipamento DTA"></div>
+            <div class="form-group"><label>Valor base</label><input id="ground-tariff-value" type="number" step="0.01"></div>
+            <div class="form-group"><label>Valor mínimo</label><input id="ground-tariff-minimum" type="number" step="0.01"></div>
+            <div class="form-group"><label>Moeda</label><select id="ground-tariff-currency"><option>BRL</option><option>USD</option></select></div>
+            <div class="form-group"><label>Peso inicial (kg)</label><input id="ground-tariff-weight-from" type="number"></div><div class="form-group"><label>Peso final (kg)</label><input id="ground-tariff-weight-to" type="number"></div>
+          </div>
+          <label style="display:flex;gap:8px;align-items:center;margin:4px 0 14px"><input id="ground-tariff-taxes" type="checkbox"> Tributos incluídos no valor</label>
+          <div class="form-group"><label>Regra de precificação</label><textarea id="ground-tariff-pricing" rows="3" placeholder="${isDta ? 'Documentação, GRIS, ad valorem, escolta, pedágio e estadia' : 'ICMS, GRIS, ad valorem, pedágio, ajudante e diária'}"></textarea></div>
+          <div class="form-group"><label>Regra operacional</label><textarea id="ground-tariff-operational" rows="3" placeholder="${isDta ? 'Habilitação do recinto, documentos e restrições do regime aduaneiro' : 'Agendamento, restrições de veículo e devolução de vazio'}"></textarea></div>
+          <button class="btn btn-primary" onclick="saveGroundTariff()">Salvar tarifa e regras</button><button class="btn btn-secondary" onclick="clearGroundTariffForm()">Limpar</button>
+        </div>
+        <div class="settings-section"><h3>Cadastros deste módulo</h3><div id="ground-tariff-list">Carregando...</div></div>`;
+      setTimeout(() => loadGroundTariffs(type), 0);
+      break;
+    }
   }
 }
 
@@ -7041,6 +7231,37 @@ async function deactivateProfessional(id) {
   await loadProfessionals(false);
   renderProfessionalSettingsList();
   toast('Profissional desativado.');
+}
+
+let groundTariffs = [];
+async function loadGroundTariffs(type) {
+  const response = await fetch(`${API}/ground-services/tariffs?serviceType=${encodeURIComponent(type)}`);
+  groundTariffs = response.ok ? await response.json() : [];
+  const list = document.getElementById('ground-tariff-list');
+  if (!list) return;
+  list.innerHTML = groundTariffs.length ? groundTariffs.map(item => `<div style="display:grid;grid-template-columns:minmax(170px,1fr) 1fr 110px 150px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>${professionalEscapeHtml(item.name)}</strong><small style="display:block;color:var(--text-muted)">${professionalEscapeHtml(item.vehicleType || 'Equipamento livre')}</small></div><span>${professionalEscapeHtml(item.originLocation || '—')} → ${professionalEscapeHtml(item.destinationLocation || '—')}</span><strong>${professionalEscapeHtml(item.currency)} ${Number(item.baseValue || 0).toFixed(2)}</strong><span><button class="btn btn-secondary" style="padding:6px 8px" onclick="editGroundTariff('${item.id}')">Editar</button> ${item.active ? `<button class="btn btn-secondary" style="padding:6px 8px;color:var(--error)" onclick="deactivateGroundTariff('${item.id}')">Desativar</button>` : '<small>Inativa</small>'}</span></div>`).join('') : '<div class="document-empty">Nenhuma tarifa cadastrada neste módulo.</div>';
+}
+function clearGroundTariffForm() {
+  ['ground-tariff-id','ground-tariff-name','ground-tariff-origin','ground-tariff-destination','ground-tariff-vehicle','ground-tariff-value','ground-tariff-minimum','ground-tariff-weight-from','ground-tariff-weight-to','ground-tariff-pricing','ground-tariff-operational'].forEach(id => { const field=document.getElementById(id); if(field) field.value=''; });
+  const taxes=document.getElementById('ground-tariff-taxes'); if(taxes) taxes.checked=false;
+}
+function editGroundTariff(id) {
+  const item = groundTariffs.find(row => row.id === id); if (!item) return;
+  const values = { 'ground-tariff-id':item.id, 'ground-tariff-name':item.name, 'ground-tariff-origin':item.originLocation, 'ground-tariff-destination':item.destinationLocation, 'ground-tariff-vehicle':item.vehicleType, 'ground-tariff-value':item.baseValue, 'ground-tariff-minimum':item.minimumValue, 'ground-tariff-weight-from':item.weightFromKg, 'ground-tariff-weight-to':item.weightToKg, 'ground-tariff-pricing':item.pricingRules, 'ground-tariff-operational':item.operationalRules, 'ground-tariff-currency':item.currency };
+  Object.entries(values).forEach(([id,value]) => { const field=document.getElementById(id); if(field) field.value=value ?? ''; });
+  document.getElementById('ground-tariff-taxes').checked = item.taxesIncluded === true;
+}
+async function saveGroundTariff() {
+  const id=document.getElementById('ground-tariff-id').value;
+  const body={ serviceType:document.getElementById('ground-tariff-type').value, name:document.getElementById('ground-tariff-name').value, originLocation:document.getElementById('ground-tariff-origin').value, destinationLocation:document.getElementById('ground-tariff-destination').value, vehicleType:document.getElementById('ground-tariff-vehicle').value, baseValue:document.getElementById('ground-tariff-value').value, minimumValue:document.getElementById('ground-tariff-minimum').value, weightFromKg:document.getElementById('ground-tariff-weight-from').value, weightToKg:document.getElementById('ground-tariff-weight-to').value, currency:document.getElementById('ground-tariff-currency').value, taxesIncluded:document.getElementById('ground-tariff-taxes').checked, pricingRules:document.getElementById('ground-tariff-pricing').value, operationalRules:document.getElementById('ground-tariff-operational').value, active:true };
+  const response=await fetch(API+'/ground-services/tariffs'+(id?'/'+id:''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await response.json().catch(()=>({})); if(!response.ok) return alert(data.error||'Não foi possível salvar.');
+  clearGroundTariffForm(); await loadGroundTariffs(body.serviceType); toast('Tarifa e regras salvas no módulo correto.');
+}
+async function deactivateGroundTariff(id) {
+  if(!confirm('Desativar esta tarifa?')) return;
+  await fetch(`${API}/ground-services/tariffs/${id}`,{method:'DELETE'});
+  await loadGroundTariffs(document.getElementById('ground-tariff-type').value);
 }
 
 // Salvar dados da empresa (localStorage)
@@ -7301,6 +7522,7 @@ function openAgentModal(id = null, preferredType = null) {
     document.getElementById('agent-contacts-container').innerHTML = '';
     
     document.querySelectorAll('input[name="agent-modal"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('input[name="ground-capability"]').forEach(cb => cb.checked = false);
     tagifyNetworks.removeAllTags();
     tagifyOrigins.removeAllTags();
     tagifyDestinations.removeAllTags();
@@ -7641,6 +7863,9 @@ function editAgent(agent) {
   document.querySelectorAll('input[name="agent-modal"]').forEach(cb => {
     cb.checked = modalsArr.includes(cb.value) || agent.modals === 'ALL';
   });
+  let groundCapabilities = [];
+  try { groundCapabilities = JSON.parse(agent.groundServiceCapabilities || '[]'); } catch {}
+  document.querySelectorAll('input[name="ground-capability"]').forEach(cb => { cb.checked = groundCapabilities.includes(cb.value); });
   
   tagifyNetworks.removeAllTags();
   if (agent.networks) tagifyNetworks.addTags(agent.networks.split(',').map(s=>s.trim()));
@@ -7737,6 +7962,7 @@ async function saveAgent() {
     modals: modalsStr,
     origins: finalOrigins,
     destinations: destinationsStr,
+    groundServiceCapabilities:Array.from(document.querySelectorAll('input[name="ground-capability"]:checked')).map(input => input.value),
     active: document.getElementById('agent-active').checked
   };
   

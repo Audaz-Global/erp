@@ -62,7 +62,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
   activeBatchDispatches.add(batchKey);
 
   try {
-    const quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+    const quotation = await prisma.quotation.findUnique({ where: { id: quotationId }, include:{ groundServiceLegs:true } });
     if (!quotation) return res.status(404).json({ error: 'Cotação não encontrada' });
 
     const attachmentIds = Array.isArray(req.body?.attachmentIds) ? req.body.attachmentIds.map(String) : [];
@@ -126,8 +126,46 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
     const confirmed = results.filter(item => item.status === 'SENT' || item.status === 'SKIPPED');
     const newlySent = results.filter(item => item.status === 'SENT');
     let truckerResult: { status: string; email?: string; message?: string; conversationId?: string | null } | null = null;
+    const groundServiceResults: Array<{ serviceType:string; status:string; email?:string; message?:string; conversationId?:string|null }> = [];
 
-    if (newlySent.length && req.body?.needsTransport && req.body?.truckerEmail) {
+    const requestedGroundServices = Array.isArray(req.body?.groundServices) ? req.body.groundServices : [];
+    if (newlySent.length && requestedGroundServices.length) {
+      for (const request of requestedGroundServices) {
+        const serviceType = String(request?.serviceType || '').toUpperCase();
+        const requestedLegId = String(request?.legId || '');
+        const leg = quotation.groundServiceLegs.find(item => (!requestedLegId || item.id === requestedLegId) && item.serviceType === serviceType && item.requested);
+        const email = String(request?.email || leg?.partnerEmail || '').trim();
+        if (!leg || !email || !['DTA','RODOVIARIO_NACIONAL'].includes(serviceType)) {
+          groundServiceResults.push({ serviceType, status:'FAILED', email, message:'Trecho ou e-mail do prestador inválido.' });
+          continue;
+        }
+        if (leg.sentAt && request?.allowResend !== true) {
+          groundServiceResults.push({ serviceType, status:'SKIPPED', email, message:'Solicitação deste trecho já enviada.' });
+          continue;
+        }
+        try {
+          const documentIds = Array.isArray(request?.attachmentIds) ? request.attachmentIds.map(String) : [];
+          const documents = await prisma.quotationDocument.findMany({ where:{ quotationId, id:{ in:documentIds } }, include:{ blob:true } });
+          const label = serviceType === 'DTA' ? 'DTA / Trânsito Aduaneiro' : 'Frete Rodoviário Nacional';
+          const groundSubject = `Solicitação de ${label} - REF: ${reference}`;
+          const rawGroundDraft = String(request?.draftEmail || leg.draftEmail || '').trim();
+          if (!rawGroundDraft) throw new Error(`Gere e revise o rascunho de ${label} antes do envio.`);
+          const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(rawGroundDraft)}</body></html>`, signature.html);
+          const sent = await sendOutlookEmail(email, groundSubject, groundHtml, String(request?.ccEmail || '') || undefined,
+            [...documents.map(document => ({ name:document.originalName, contentType:document.blob.mimeType, content:Buffer.from(document.blob.content) })), signature.attachment]);
+          await recordSuccessfulDispatch({ quotationId, recipientType:serviceType === 'DTA' ? 'DTA_PROVIDER' : 'TRUCKER', recipientEmail:email,
+            partnerName:String(request?.partnerName || leg.partnerName || '') || null, subject:groundSubject, conversationId:sent.conversationId,
+            documents, professional:signature.professional });
+          await prisma.groundServiceLeg.update({ where:{ id:leg.id }, data:{ sentAt:new Date(), partnerEmail:email,
+            partnerName:String(request?.partnerName || leg.partnerName || '') || null, draftEmail:String(request?.draftEmail || leg.draftEmail || '') } });
+          groundServiceResults.push({ serviceType, status:'SENT', email, conversationId:sent.conversationId, message:'Enviado com sucesso.' });
+        } catch (error: any) {
+          groundServiceResults.push({ serviceType, status:'FAILED', email, message:String(error?.message || 'Falha no envio.') });
+        }
+      }
+    }
+
+    if (newlySent.length && !requestedGroundServices.length && req.body?.needsTransport && req.body?.truckerEmail) {
       const truckerEmail = String(req.body.truckerEmail).trim();
       if (quotation.truckerSentAt && req.body?.allowTruckerResend !== true) {
         truckerResult = { status: 'SKIPPED', email: truckerEmail, message: 'Transportadora já acionada anteriormente.' };
@@ -169,7 +207,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
     res.json({
       success: confirmed.length > 0 && failed === 0, partial: confirmed.length > 0 && failed > 0,
       quotationId, reference, sent: newlySent.length, skipped: results.filter(item => item.status === 'SKIPPED').length,
-      failed, results, truckerResult
+      failed, results, truckerResult, groundServiceResults
     });
   } catch (error: any) {
     console.error('Erro no envio múltiplo pelo Outlook:', error);
