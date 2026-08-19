@@ -11,6 +11,7 @@ import { applyRateValidityPolicy, rateValidityFields } from '../services/rateVal
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
 import { withIncotermApplicability } from '../services/incotermApplicabilityService';
+import { normalizeIncotermText } from '../services/incotermAliasService';
 import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
@@ -44,6 +45,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     Object.assign(quotationData, legacyRoadFields(normalizedGround.legs));
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
+    if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
     normalizeDangerousGoodsPayload(quotationData);
     if (ruleStage) { await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase()); await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase()); }
 
@@ -80,16 +82,19 @@ export const createQuotation = async (req: Request, res: Response) => {
             contactPhone: clientContactPhone || null
           }
         });
-      } else if (clientContactName || clientContactPhone || clientContactEmail) {
-        // Atualizar dados de contato do cliente existente se estavam vazios
+      } else if (clientContactName || clientContactPhone || clientContactEmail || quotationData.productSegment) {
+        // Atualizar dados de contato/segmento do cliente existente se estavam vazios
         const updateClientData: any = {};
         if (clientContactName && !client.contactName) updateClientData.contactName = clientContactName;
         if (clientContactPhone && !client.contactPhone) updateClientData.contactPhone = clientContactPhone;
         if (clientContactEmail && !client.contactEmail) updateClientData.contactEmail = clientContactEmail;
+        if (quotationData.productSegment && !client.productSegment) updateClientData.productSegment = quotationData.productSegment;
         if (Object.keys(updateClientData).length > 0) {
           client = await prisma.client.update({ where: { id: client.id }, data: updateClientData });
         }
       }
+      // Sem segmento informado nesta cotação, herda o segmento já cadastrado do cliente
+      if (!quotationData.productSegment && client.productSegment) quotationData.productSegment = client.productSegment;
       clientId = client.id;
     }
 
@@ -182,6 +187,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     // Um campo vazio na tela nunca pode apagar a referência oficial já gerada.
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
+    if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
     if (!quotationData.reference) delete quotationData.reference;
     if (!current.reference && !quotationData.reference && operatorInitials) {
       quotationData.reference = await generateReference(operatorInitials);
@@ -223,6 +229,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
         if (clientContactName && clientContactName !== client.contactName) updateClientData.contactName = clientContactName;
         if (clientContactPhone && clientContactPhone !== client.contactPhone) updateClientData.contactPhone = clientContactPhone;
         if (clientContactEmail && clientContactEmail !== client.contactEmail) updateClientData.contactEmail = clientContactEmail;
+        if (updateData.productSegment && updateData.productSegment !== client.productSegment) updateClientData.productSegment = updateData.productSegment;
         if (Object.keys(updateClientData).length > 0) {
           client = await prisma.client.update({ where: { id: client.id }, data: updateClientData });
         }

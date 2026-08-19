@@ -27,8 +27,19 @@ function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any
     source('Cliente', data?.client?.name, data?.client?.confidence),
     source('Referência do cliente', data?.client?.reference, data?.client?.confidence),
     source('Incoterm', data?.route?.incoterm, data?.route?.confidence),
-    source('Origem', data?.route?.origin_city, data?.route?.confidence),
-    source('Destino', data?.route?.destination_city, data?.route?.confidence),
+    {
+      field: 'Origem', value: data?.route?.origin_city || '',
+      source: data?.route?.origin_address_source || (data?.route?.origin_city ? 'TEXT' : 'NOT_FOUND'),
+      confidence: data?.route?.origin_city ? numericConfidence(data?.route?.confidence) : 0,
+      evidence: data?.route?.origin_address_evidence || ''
+    },
+    {
+      field: 'Destino', value: data?.route?.destination_city || '',
+      source: data?.route?.destination_address_source || (data?.route?.destination_city ? 'TEXT' : 'NOT_FOUND'),
+      confidence: data?.route?.destination_city ? numericConfidence(data?.route?.confidence) : 0,
+      evidence: data?.route?.destination_address_evidence || ''
+    },
+    source('Descrição da mercadoria', data?.cargo?.description, data?.cargo?.confidence),
     {
       field: 'Transporte rodoviário nacional',
       value: data?.route?.needs_transport ? data?.route?.transport_route || 'Solicitado' : 'Não solicitado',

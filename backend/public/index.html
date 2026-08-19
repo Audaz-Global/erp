@@ -1148,6 +1148,20 @@
                 <input type="text" id="r-client-phone" placeholder="Ex: +55 12 3307-1704">
               </div>
             </div>
+            <div class="form-group">
+              <label>Segmento do Cliente</label>
+              <select id="r-product-segment">
+                <option value="">Selecione...</option>
+                <option value="FARMACEUTICO">Farmacêutico</option>
+                <option value="AUTOMOTIVO">Automotivo</option>
+                <option value="ELETRONICOS">Eletrônicos</option>
+                <option value="QUIMICO">Químico</option>
+                <option value="ALIMENTICIO">Alimentício</option>
+                <option value="BENS_DE_CONSUMO">Bens de Consumo</option>
+                <option value="MAQUINAS_E_EQUIPAMENTOS">Máquinas e Equipamentos</option>
+                <option value="OUTRO">Outro</option>
+              </select>
+            </div>
           </div>
 
           <div class="review-section">
@@ -1214,6 +1228,10 @@
           
           <div class="review-section" style="margin-bottom: 24px;">
             <div class="review-section-title">Detalhes da Carga</div>
+            <div class="form-group">
+              <label>Descrição da Mercadoria</label>
+              <input type="text" id="r-cargo-description" placeholder="Ex: Peças sobressalentes de perfuratriz">
+            </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div class="form-group">
                 <label>Tipo <span id="conf-type"></span></label>
@@ -1243,15 +1261,15 @@
                   <option value="TO_CONFIRM">A confirmar</option><option value="NOT_DANGEROUS">Não</option><option value="CONFIRMED">Sim</option>
                 </select>
               </div>
-              <div class="form-group">
+              <div class="form-group" id="r-msds-group">
                 <label>MSDS / SDS</label>
                 <select id="r-msds" onchange="renderDangerousGoodsAlerts('r')">
                   <option value="NOT_REQUESTED">Não solicitado</option><option value="REQUESTED">Solicitado</option><option value="PENDING">Pendente</option><option value="RECEIVED">Recebido</option><option value="VALIDATED">Validado</option><option value="WAIVED">Dispensado</option>
                 </select>
               </div>
-              <div class="form-group"><label>UN Number</label><input type="text" id="r-un-number" placeholder="Ex: UN 3480"></div>
-              <div class="form-group"><label>Classe de risco</label><input type="text" id="r-dg-class" placeholder="Ex: 9"></div>
-              <div class="form-group"><label>Produtos perigosos distintos</label><input type="number" id="r-dg-product-count" min="0" placeholder="Ex: 4"></div>
+              <div class="form-group" id="r-un-number-group"><label>UN Number</label><input type="text" id="r-un-number" placeholder="Ex: UN 3480"></div>
+              <div class="form-group" id="r-dg-class-group"><label>Classe de risco</label><input type="text" id="r-dg-class" placeholder="Ex: 9"></div>
+              <div class="form-group" id="r-dg-product-count-group"><label>Produtos perigosos distintos</label><input type="number" id="r-dg-product-count" min="0" placeholder="Ex: 4"></div>
               <div class="form-group">
                 <label>Valor da Carga (USD) <span id="conf-commercial-value"></span></label>
                 <input type="number" id="r-commercial-value" step="0.01" placeholder="Ex: 10000.00">
@@ -1816,7 +1834,7 @@
           <input type="text" id="rev-reference" placeholder="Ref. da cotação">
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Nome do Contato</label>
           <input type="text" id="rev-client-contact" placeholder="Nome do Contato">
@@ -1824,6 +1842,20 @@
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Telefone do Contato</label>
           <input type="text" id="rev-client-phone" placeholder="Telefone do Contato">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Segmento do Cliente</label>
+          <select id="rev-product-segment">
+            <option value="">Selecione...</option>
+            <option value="FARMACEUTICO">Farmacêutico</option>
+            <option value="AUTOMOTIVO">Automotivo</option>
+            <option value="ELETRONICOS">Eletrônicos</option>
+            <option value="QUIMICO">Químico</option>
+            <option value="ALIMENTICIO">Alimentício</option>
+            <option value="BENS_DE_CONSUMO">Bens de Consumo</option>
+            <option value="MAQUINAS_E_EQUIPAMENTOS">Máquinas e Equipamentos</option>
+            <option value="OUTRO">Outro</option>
+          </select>
         </div>
       </div>
     </div>
@@ -1947,19 +1979,19 @@
           <label style="font-size:11px;">Carga perigosa (DG / IMO)?</label>
           <select id="rev-imo" onchange="onDangerousGoodsChange('rev')"><option value="TO_CONFIRM">A confirmar</option><option value="NOT_DANGEROUS">Não</option><option value="CONFIRMED">Sim</option></select>
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;" id="rev-msds-group">
           <label style="font-size:11px;">MSDS / SDS</label>
           <select id="rev-msds" onchange="renderDangerousGoodsAlerts('rev')"><option value="NOT_REQUESTED">Não solicitado</option><option value="REQUESTED">Solicitado</option><option value="PENDING">Pendente</option><option value="RECEIVED">Recebido</option><option value="VALIDATED">Validado</option><option value="WAIVED">Dispensado</option></select>
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;" id="rev-un-number-group">
           <label style="font-size:11px;">UN Number</label>
           <input type="text" id="rev-un-number" placeholder="Ex: UN 3480">
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0;" id="rev-dg-class-group">
           <label style="font-size:11px;">Classe de risco</label>
           <input type="text" id="rev-dg-class" placeholder="Ex: 9">
         </div>
-        <div class="form-group" style="margin:0;"><label style="font-size:11px;">Produtos DG distintos</label><input type="number" id="rev-dg-product-count" min="0" placeholder="Ex: 4"></div>
+        <div class="form-group" style="margin:0;" id="rev-dg-product-count-group"><label style="font-size:11px;">Produtos DG distintos</label><input type="number" id="rev-dg-product-count" min="0" placeholder="Ex: 4"></div>
         <div id="rev-dg-alerts" style="grid-column:1/-1;"></div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Seguro Incluso?</label>
@@ -2983,9 +3015,10 @@ function renderEmailExtractionAudit(audit) {
   if (!panel) return;
   if (!audit) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const labels = { SIGNATURE_TEXT: 'Assinatura validada com o e-mail', SENDER_HEADER: 'Cabeçalho oficial do remetente', SENDER_HEADER_VERIFIED: 'Cabeçalho oficial verificado', FIRST_RESPONSE_SENDER_HEADER: 'Remetente oficial da primeira resposta', EMAIL_BODY_OR_DOCUMENT: 'Corpo do e-mail ou documento', NOT_FOUND: 'Não identificado' };
+  const labels = { SIGNATURE_TEXT: 'Assinatura validada com o e-mail', SENDER_HEADER: 'Cabeçalho oficial do remetente', SENDER_HEADER_VERIFIED: 'Cabeçalho oficial verificado', FIRST_RESPONSE_SENDER_HEADER: 'Remetente oficial da primeira resposta', EMAIL_BODY_OR_DOCUMENT: 'Corpo do e-mail ou documento', TEXT: 'Texto do e-mail/documento', IMAGE_OCR: 'Lido de imagem/print', NOT_FOUND: 'Não identificado' };
   const contacts = (audit.emails || []).map(item => item.extractedContact).filter(Boolean);
   const fields = (audit.fields || []).filter(item => item.value).slice(0, 12);
+  const imageFields = fields.filter(item => item.source === 'IMAGE_OCR');
   const ocr = (audit.signatureOcr || []).filter(item => item.isSignature);
   const resolved = audit.resolvedContact || null;
   panel.style.display = 'block';
@@ -2993,7 +3026,8 @@ function renderEmailExtractionAudit(audit) {
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${audit.emails?.length || 0} e-mail(ns) preservado(s) no histórico. Confira as sugestões antes de enviar.</div>
     ${resolved ? `<div style="font-size:12px;margin-bottom:8px;padding:10px;border:1px solid ${resolved.needsReview ? 'var(--warning)' : 'rgba(46,204,113,.35)'};border-radius:8px;background:rgba(46,204,113,.05)"><strong>${escape(resolved.name || 'Nome não confirmado')}</strong>${resolved.phone ? ` · ${escape(resolved.phone)}` : ''}${resolved.email ? ` · ${escape(resolved.email)}` : ''}<div style="margin-top:4px;color:var(--text-muted)">${labels[resolved.source] || resolved.source}${resolved.fileName ? ` · ${escape(resolved.fileName)}` : ''}</div>${resolved.needsReview ? '<div style="margin-top:5px;color:var(--warning);font-weight:700">⚠ Nome sem dupla confirmação — revise antes de salvar.</div>' : '<div style="margin-top:5px;color:var(--success);font-weight:700">✓ Nome verificado pelo cabeçalho e e-mail/assinatura.</div>'}</div>` : (contacts.length ? `<div style="font-size:12px;margin-bottom:8px;">${contacts.map(c => `<strong>${escape(c.name || 'Contato')}</strong>${c.phone ? ` · ${escape(c.phone)}` : ''} <span style="color:var(--text-muted)">(${labels[c.source] || c.source})</span>`).join('<br>')}</div>` : '')}
     ${ocr.length ? `<div style="margin:10px 0;padding:10px;border-left:3px solid var(--gold);background:rgba(245,166,35,.06);font-size:12px"><strong>Leitura de assinatura gráfica — revisar antes de usar</strong>${ocr.map(item => `<div style="margin-top:5px">${escape(item.name || 'Nome não identificado')}${item.phone ? ` · ${escape(item.phone)}` : ''}${item.email ? ` · ${escape(item.email)}` : ''} <span style="color:var(--text-muted)">(${Math.round(Number(item.confidence || 0) * 100)}%)</span></div>`).join('')}</div>` : ''}
-    <details><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver fonte das informações extraídas</summary><ul style="margin:8px 0 0;padding-left:18px;font-size:11px;color:var(--text-muted);">${fields.map(item => `<li><strong>${escape(item.field)}:</strong> ${escape(item.value)} — ${escape(labels[item.source] || item.source)}${item.confidence ? ` (${Math.round(Number(item.confidence) * 100)}%)` : ''}</li>`).join('')}</ul></details>
+    ${imageFields.length ? `<div style="margin:10px 0;padding:10px;border-left:3px solid var(--gold);background:rgba(245,166,35,.06);font-size:12px"><strong>🖼️ Lido de imagem/print — confira antes de enviar</strong>${imageFields.map(item => `<div style="margin-top:5px"><strong>${escape(item.field)}:</strong> ${escape(item.value)}${item.evidence ? ` <span style="color:var(--text-muted)">(${escape(item.evidence)})</span>` : ''}</div>`).join('')}</div>` : ''}
+    <details><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver fonte das informações extraídas</summary><ul style="margin:8px 0 0;padding-left:18px;font-size:11px;color:var(--text-muted);">${fields.map(item => `<li>${item.source === 'IMAGE_OCR' ? '🖼️ ' : ''}<strong>${escape(item.field)}:</strong> ${escape(item.value)} — ${escape(labels[item.source] || item.source)}${item.confidence ? ` (${Math.round(Number(item.confidence) * 100)}%)` : ''}</li>`).join('')}</ul></details>
     <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver e-mail original preservado</summary>${(audit.emails || []).map(item => `<div style="margin-top:8px"><strong style="font-size:11px">${escape(item.subject || item.fileName || 'E-mail importado')}</strong><pre style="white-space:pre-wrap;max-height:220px;overflow:auto;font-size:11px;color:var(--text-muted)">${escape(item.originalBody || '')}</pre></div>`).join('')}</details>`;
 }
 
@@ -3007,6 +3041,7 @@ function renderConf(val, confStr) {
   return `<div class="conf-wrapper"><div class="conf-dot ${color}"></div> ${pct}%</div>`;
 }
 
+const PRODUCT_SEGMENT_LABELS = { FARMACEUTICO:'Farmacêutico', AUTOMOTIVO:'Automotivo', ELETRONICOS:'Eletrônicos', QUIMICO:'Químico', ALIMENTICIO:'Alimentício', BENS_DE_CONSUMO:'Bens de Consumo', MAQUINAS_E_EQUIPAMENTOS:'Máquinas e Equipamentos', OUTRO:'Outro' };
 const FEE_UNIT_LABELS = { TOTAL_SHIPMENT:'Total do embarque', PER_DG_PRODUCT:'Produto perigoso', PER_ITEM:'Item', PER_PACKAGE:'Volume', PER_DOCUMENT:'Documento', PER_HAWB:'HAWB', PER_MAWB:'MAWB', PER_SHIPMENT:'Embarque', PER_CONTAINER:'Contêiner', PER_BL:'BL', PER_KG:'kg', PER_CHARGEABLE_WEIGHT:'Peso taxável', PER_CBM:'m³', PER_TON:'Tonelada', PER_WM:'Peso/medida (W/M)', PERCENTAGE:'Percentual', UNKNOWN:'Unidade não identificada' };
 
 const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
@@ -3354,10 +3389,19 @@ function countDangerousGoodsFees(prefix) {
   return text.split('\n').filter(line => isDangerousGoodsFeeName(line.split(':')[0])).length;
 }
 
+function toggleDangerousGoodsFields(prefix, status) {
+  const isConfirmed = status === 'CONFIRMED';
+  ['msds', 'un-number', 'dg-class', 'dg-product-count'].forEach(field => {
+    const group = document.getElementById(`${prefix}-${field}-group`);
+    if (group) group.style.display = isConfirmed ? '' : 'none';
+  });
+}
+
 function renderDangerousGoodsAlerts(prefix) {
   const panel = document.getElementById(`${prefix}-dg-alerts`);
   const status = document.getElementById(`${prefix}-imo`)?.value || 'TO_CONFIRM';
   const msds = document.getElementById(`${prefix}-msds`)?.value || 'NOT_REQUESTED';
+  toggleDangerousGoodsFields(prefix, status);
   if (!panel) return;
   const alerts = [];
   if (status === 'TO_CONFIRM') alerts.push('Classificação DG ainda precisa ser confirmada.');
@@ -3998,6 +4042,8 @@ function fillReviewForm(d, mode) {
       syncPartnerTypesForModal();
       document.getElementById('conf-type').innerHTML = renderConf(d.cargo.type, d.cargo.confidence);
       
+      document.getElementById('r-cargo-description').value = d.cargo.description || '';
+
       document.getElementById('r-weight').value = d.cargo.gross_weight_kg || '';
       document.getElementById('conf-weight').innerHTML = renderConf(d.cargo.gross_weight_kg, d.cargo.confidence);
       
@@ -4482,6 +4528,8 @@ async function generateDraftEmail() {
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
+      productSegment: document.getElementById('r-product-segment').value || null,
+      cargoDescription: document.getElementById('r-cargo-description').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       sourceEmailRecords: window.lastEmailExtraction?.emails ? JSON.stringify(window.lastEmailExtraction.emails) : null,
       extractionAudit: window.lastEmailExtraction ? JSON.stringify(window.lastEmailExtraction) : null,
@@ -4788,6 +4836,8 @@ async function saveAsAwaitingAgent() {
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
+      productSegment: document.getElementById('r-product-segment').value || null,
+      cargoDescription: document.getElementById('r-cargo-description').value || null,
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       sourceEmailRecords: window.lastEmailExtraction?.emails ? JSON.stringify(window.lastEmailExtraction.emails) : null,
       extractionAudit: window.lastEmailExtraction ? JSON.stringify(window.lastEmailExtraction) : null,
@@ -5209,6 +5259,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-client-cnpj').value = (q.client?.cnpj) || '';
     document.getElementById('rev-client-contact').value = (q.client?.contactName) || '';
     document.getElementById('rev-client-phone').value = (q.client?.contactPhone) || '';
+    document.getElementById('rev-product-segment').value = q.productSegment || (q.client?.productSegment) || '';
     document.getElementById('rev-reference').value = q.reference || '';
     document.getElementById('rev-incoterm').value = q.incoterm || 'FOB';
     document.getElementById('rev-modal').value = q.modal || 'AIR';
@@ -5788,6 +5839,7 @@ async function confirmAndGeneratePDF() {
         requiresInsurance: document.getElementById('rev-insurance').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
+        productSegment: document.getElementById('rev-product-segment').value || null,
         ncmCodes: document.getElementById('rev-ncm-codes').value || null,
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
@@ -6512,6 +6564,7 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">Volumes</span><span class="dd">${q.totalPackages || '—'}</span></div>
         <div class="dl"><span class="dt">DG / IMO</span><span class="dd">${q.dangerousGoodsStatus === 'CONFIRMED' || q.isImo ? '⚠️ Sim' : q.dangerousGoodsStatus === 'TO_CONFIRM' ? '⚠️ A confirmar' : 'Não'}</span></div>
         <div class="dl"><span class="dt">Descrição</span><span class="dd">${q.cargoDescription || '—'}</span></div>
+        <div class="dl"><span class="dt">Segmento</span><span class="dd">${PRODUCT_SEGMENT_LABELS[q.productSegment] || q.productSegment || '—'}</span></div>
       </div>
       ${transportGroup}
       ${originInlandGroup}

@@ -8,6 +8,7 @@ import { getFeesForIncoterm, formatFeesForPdf, resolveFreightValue } from '../se
 import { normalizeCurrency, normalizeFee } from './feeCalculationService';
 import { storageEstimatePdfFee } from './storageEstimateService';
 import { shouldHydrateAutomaticCosts } from './costCompositionService';
+import { normalizeDangerousGoodsStatus, DG_STATUS } from './dangerousGoodsService';
 
 function safeToFixed(num: any, digits: number = 2): string {
   const n = parseFloat(num);
@@ -540,6 +541,9 @@ const defaultTemplate = `
     <li>Transit-Time estimado, sujeito a alterações sem aviso prévio do Armador</li>
     <li>Embarques destinados a feiras, eventos e/ou exibições, devem possuir proposta especifica para esta finalidade</li>
     <li>Documentos originais sujeito a tarifação</li>
+    {{#if dgDisclaimer}}
+    <li><strong>Caso a mercadoria seja perigosa (DG/IMO), favor informar para revisão da cotação.</strong></li>
+    {{/if}}
   </ul>
 
   <div class="signature">
@@ -1003,6 +1007,9 @@ const defaultAirTemplate = `
     <li>Transit-Time estimado, sujeito a alterações sem aviso prévio da Cia Aérea</li>
     <li>Embarques destinados a feiras, eventos e/ou exibições, devem possuir proposta especifica para esta finalidade</li>
     <li>Documentos originais sujeito a tarifação</li>
+    {{#if dgDisclaimer}}
+    <li><strong>Caso a mercadoria seja perigosa (DG/IMO), favor informar para revisão da cotação.</strong></li>
+    {{/if}}
   </ul>
 
   <div class="signature">
@@ -1500,6 +1507,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const templateData = {
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
+    dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
     client: quotationData.client || { name: '—' },
     referenceNumber,
     referenceRich,
@@ -2067,6 +2075,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       freightCurrency: fCurr,
       totalGeralLabel,
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
+      dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
       logoBase64,
       hasOversizedAlert: hasOversizedCargo(quotationData.packages || ''),
       modalLabel,

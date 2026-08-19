@@ -4,6 +4,7 @@ import type { DraftPayload } from '../utils/draftPayload';
 import { applyRateValidityPolicy } from './rateValidityService';
 import { DG_STATUS, normalizeDangerousGoodsStatus, normalizeMsdsStatus } from './dangerousGoodsService';
 import { normalizeCurrency, normalizeFeeList } from './feeCalculationService';
+import { normalizeIncotermText } from './incotermAliasService';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -220,9 +221,13 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 origin_city: { type: 'string', description: 'Local Inicial de coleta da carga (Cidade/Estado/País)' },
                 origin_country: { type: 'string', description: 'País do porto ou aeroporto de origem' },
                 origin_airport: { type: 'string', description: 'Porto ou Aeroporto de Origem (formato IATA para aeroporto, ex: WNZ - Wenzhou)' },
+                origin_address_source: { type: 'string', enum: ['TEXT', 'IMAGE_OCR', 'NOT_FOUND'], description: 'IMAGE_OCR quando o endereço/local de coleta veio da leitura de uma imagem, print ou foto anexada/embutida; TEXT quando veio do texto corrido do e-mail ou de um documento com texto pesquisável; NOT_FOUND quando não há informação.' },
+                origin_address_evidence: { type: 'string', description: 'Trecho de texto ou nome do arquivo de imagem que comprova o endereço/local de coleta. Vazio se origin_address_source for NOT_FOUND.' },
                 destination_city: { type: 'string', description: 'Destino final explicitamente informado. Não deduza usando assinatura, telefone ou endereço conhecido da empresa; sem destino final expresso, use o porto/aeroporto de destino.' },
                 destination_country: { type: 'string', description: 'País do porto ou aeroporto de destino' },
                 destination_airport: { type: 'string', description: 'Porto ou Aeroporto de Destino (formato IATA para aeroporto, ex: GRU - Guarulhos)' },
+                destination_address_source: { type: 'string', enum: ['TEXT', 'IMAGE_OCR', 'NOT_FOUND'], description: 'IMAGE_OCR quando o endereço/local de entrega veio da leitura de uma imagem, print ou foto anexada/embutida; TEXT quando veio do texto corrido do e-mail ou de um documento com texto pesquisável; NOT_FOUND quando não há informação.' },
+                destination_address_evidence: { type: 'string', description: 'Trecho de texto ou nome do arquivo de imagem que comprova o endereço/local de entrega. Vazio se destination_address_source for NOT_FOUND.' },
                 connections: { type: 'string', description: 'Conexões do voo (ex: via MIA) ou escalas de porto (ex: transbordo em Algeciras). Retorne string vazia se for direto.' },
                 needs_origin_inland: { type: 'boolean', description: 'Verdadeiro quando é necessário cotar a coleta terrestre na origem, normalmente em EXW ou FCA quando o local inicial é diferente do porto/aeroporto de embarque.' },
                 origin_inland_route: { type: 'string', description: 'Rota da coleta na origem no formato "Local de coleta → Porto/Aeroporto". Retorne string vazia quando needs_origin_inland for false.' },
@@ -256,6 +261,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 },
                 gross_weight_kg: { type: 'number' },
                 packages_count: { type: 'number' },
+                description: { type: 'string', description: 'Descrição detalhada da mercadoria/produto exatamente como o cliente escreveu (ex: "Peças sobressalentes de perfuratriz", "Resina plástica em pellets"). Copie o texto, não resuma nem traduza. String vazia se não houver descrição do produto.' },
                 dimensions: {
                   type: 'array',
                   items: { type: 'string' },
@@ -265,7 +271,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 is_imo: { type: 'boolean', description: 'Compatibilidade: true somente quando a carga perigosa estiver explicitamente confirmada.' },
                 dangerous_goods_status: {
                   type: 'string', enum: ['CONFIRMED', 'NOT_DANGEROUS', 'TO_CONFIRM'],
-                  description: 'CONFIRMED se DG/Dangerous Goods/IMO/Hazmat estiver explicito; NOT_DANGEROUS somente com declaracao explicita de carga nao perigosa; TO_CONFIRM quando nao houver informacao.'
+                  description: 'CONFIRMED se DG/Dangerous Goods/IMO/Hazmat estiver explicito; NOT_DANGEROUS somente com declaracao explicita de carga nao perigosa; TO_CONFIRM quando nao houver informacao. NUNCA infira a partir do nome do produto/mercadoria (ex: "resina", "resin", "tinta", "adesivo" NAO sao evidencia de DG por si so).'
                 },
                 dangerous_goods_source: { type: 'string', description: 'Trecho ou documento que fundamenta a classificacao DG.' },
                 dangerous_goods_confidence: { type: 'number' },
@@ -325,6 +331,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - **Destino (Porto ou Aeroporto)**: Identifique o porto ou aeroporto de destino. Se modal for Aéreo, infira no formato "IATA - Nome do Aeroporto" (ex: "GRU - Aeroporto Internacional Guarulhos"). Se modal for Marítimo, identifique o porto de descarga (ex: "Santos"). Salve em "destination_airport".
     - **Local Inicial (Cidade/Estado/País)**: Identifique a cidade, estado e país onde a carga está localizada e será coletada inicialmente no fornecedor (ex: "Pribyslav, República Tcheca" ou "Shenzhen, China"). Salve em "origin_city".
     - **Destino Final (Cidade/Estado/País)**: Use uma cidade final apenas quando ela estiver explicitamente informada no pedido (ex: "entrega em Jacareí"). NUNCA deduza o destino final por assinatura, telefone, cadastro ou endereço conhecido da empresa. Sem destino final expresso, repita o porto/aeroporto de destino em "destination_city".
+    - **Endereços em imagens/prints (CRÍTICO)**: O endereço de coleta e o endereço de entrega frequentemente aparecem apenas em imagens/prints/fotos anexados ou colados no corpo do e-mail (capturas de tela de sistemas, formulários fotografados, etiquetas). Examine COM A MESMA PRIORIDADE do texto TODAS as imagens fornecidas em busca dessas informações antes de concluir que um endereço não foi informado. Ao usar uma imagem como fonte, defina "origin_address_source"/"destination_address_source" como IMAGE_OCR e registre em "origin_address_evidence"/"destination_address_evidence" o nome do arquivo da imagem (ex: "inline_image_1.png") ou o trecho transcrito. Se a informação vier do texto, use TEXT. Se não encontrar em lugar nenhum, use NOT_FOUND e não invente endereço.
     - **País**: Extraia o nome do país de origem e de destino correspondente à origem e destino principais no exterior/Brasil por extenso (ex: "CHINA" e "BRASIL"). Salve em "origin_country" e "destination_country".
     - **Conexões do Voo ou do Porto**: Identifique se há menção a escalas, aeroportos de conexão intermediários (ex: via MIA, via FRA) ou portos de escala/transbordo (ex: transbordo em Algeciras). Salve essa informação em "connections". Caso o embarque seja direto e sem conexões, retorne string vazia "".
     - **Inland de Origem / Coleta (needs_origin_inland e origin_inland_route)**:
@@ -338,12 +345,14 @@ export const extractClientData = async (text: string, contextRules: string = '',
 
     Instruções Importantes para Carga/Equipamento Especial:
     - **Carga perigosa / DG**: DG, Dangerous Goods, Dangerous Cargo, IMO e Hazmat indicam carga perigosa confirmada. Uma declaração explícita "non-DG", "not dangerous" ou "não perigosa" indica NOT_DANGEROUS. Se a fonte não disser nada, retorne TO_CONFIRM; nunca transforme ausência de informação em NOT_DANGEROUS.
+    - **Não infira DG pelo nome do produto (CRÍTICO)**: NUNCA classifique a carga como CONFIRMED apenas porque o nome da mercadoria soa a produto químico ou lembra uma substância regulada (ex: "resina"/"resin", "tinta", "adesivo", "solvente" no nome comercial). Essas palavras isoladas NÃO são evidência de carga perigosa. Classifique CONFIRMED somente com menção explícita a DG/Dangerous Goods/IMO/Hazmat, UN Number, classe de risco ou MSDS/SDS anexada. Na dúvida, retorne TO_CONFIRM.
     - **MSDS/SDS**: Detecte se a ficha de segurança foi anexada ou mencionada. Para carga DG sem documento, retorne PENDING. A ausência do MSDS não invalida a extração. Extraia UN Number, classe, packing group, proper shipping name e flash point somente quando constarem na fonte.
     - Diferencie quantidade de produtos perigosos, quantidade de UN Numbers e quantidade de volumes perigosos. Não use uma como equivalente da outra sem evidência explícita.
     - Analise se a solicitação do cliente ou os documentos mencionam siglas ou equipamentos especiais de contêineres, como Open Top (OT), High Cube (HC), Flat Rack, etc.
     - Se encontrar tais siglas ou especificações (e.g. "40' OT HC", "Open Top", "High Cube", "OP e HC"), aplique as regras explicadas no CONTEXTO (como "Sigla E-mail (4 x 40' OT HC)" etc.).
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
     - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se o modal for Aéreo/Air), "LCL" (se marítimo consolidado/LCL), "FCL_20" (se marítimo container de 20') ou "FCL_40" (se marítimo container de 40'). NUNCA preencha este campo com o nome da mercadoria (como "parts" ou "wooden box").
+    - **Descrição da Mercadoria (cargo.description)**: Copie a descrição do produto/mercadoria exatamente como o cliente escreveu (ex: "Peças sobressalentes de perfuratriz", "Autopeças", "Resina plástica em pellets"). Esse texto será colado literalmente no e-mail de cotação para o agente, então não resuma, não traduza e não invente — se não houver descrição do produto na solicitação, retorne string vazia.
 
     - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count), Valor Comercial (commercial_value_usd) e Dimensões (dimensions):**
     - **Prioridade do peso**: Se o corpo do e-mail do cliente mencionar explicitamente o peso TOTAL consolidado de todas as cargas do embarque, utilize esse valor.
@@ -365,6 +374,13 @@ export const extractClientData = async (text: string, contextRules: string = '',
 
     const result = await model.generateContent(contentPayload);
     const parsed = JSON.parse(result.response.text().trim());
+    if (parsed.route?.incoterm) {
+      parsed.route.incoterm = normalizeIncotermText(parsed.route.incoterm);
+    }
+    if (parsed.route) {
+      parsed.route.origin_address_source = parsed.route.origin_city ? (parsed.route.origin_address_source || 'TEXT') : 'NOT_FOUND';
+      parsed.route.destination_address_source = parsed.route.destination_city ? (parsed.route.destination_address_source || 'TEXT') : 'NOT_FOUND';
+    }
     if (parsed.cargo) {
       parsed.cargo.dangerous_goods_status = normalizeDangerousGoodsStatus(parsed.cargo.dangerous_goods_status, parsed.cargo.is_imo);
       parsed.cargo.is_imo = parsed.cargo.dangerous_goods_status === DG_STATUS.CONFIRMED;
@@ -473,6 +489,7 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     6. **Prazo de Resposta com Antecedência (12h)**: Se o cliente ou o e-mail original estipular uma data, hora ou prazo limite (deadline) para a entrega da proposta de cotação, calcule um limite de tempo para o retorno do agente que seja exatamente **12 horas antes** desse prazo original e mencione de forma clara no e-mail (por exemplo: se o cliente pediu retorno até dia 28 às 18h, peça ao agente até o dia 28 às 06h).
     7. **Omitir Taxas de Destino Silenciosamente**: Se houver regras sobre taxas de destino (como não pedi-las para agentes da origem), simplesmente **não as peça** no e-mail (solicite apenas o frete e taxas locais de origem, ex: THC, documentação, etc.). **NUNCA escreva frases negativas no e-mail dizendo que não precisa de taxas de destino** (ex: NÃO escreva "não precisamos das taxas de destino" ou "não enviar taxas de destino"). Apenas ignore as taxas de destino silenciosamente no e-mail.
     8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
+    8.1. **Descrição da Mercadoria (OBRIGATÓRIO)**: Se "Descrição da Carga" nos DADOS EXTRAÍDOS DA CARGA não for "Não informada", inclua-a literalmente no corpo do e-mail (ex: "Mercadoria: [descrição]"), sem resumir, reescrever ou traduzir o texto original.
     9. **Conexões**: Se houver conexões do voo ou do porto especificadas nos DADOS EXTRAÍDOS DA CARGA (diferente de "Sem conexões"), mencione-as de forma clara no e-mail (ex: "via MIA" ou "com transbordo em Algeciras") para que o coloader/agente faça a cotação exatamente na rota solicitada.
     10. **Remoção de Telefones e Contatos da Assinatura**: Ao assinar o e-mail (ou finalizar o corpo do e-mail), **NUNCA** inclua informações de contato pessoal extraídas do e-mail do cliente (como nomes de pessoas de contato, ex: "Magda", "Talitha", etc., endereços de e-mail específicos, números de telefone comercial, ramal ou telefones celulares). A assinatura do e-mail deve ser estritamente genérica e neutra (ex: apenas "Atenciosamente," ou "Best regards,"), sem listar quaisquer nomes, telefones ou e-mails adicionais.
     11. **Cotações Consolidadas LCL / Co-Loader com Múltiplos Shippers/Fornecedores**:

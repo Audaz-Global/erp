@@ -50,6 +50,7 @@ model Client {
   contactEmail String?
   contactPhone String?
   smartcomexId String?
+  productSegment String? // Farmacêutico, Automotivo, Eletrônicos, etc. — para segmentação/campanhas futuras
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -94,14 +95,19 @@ model Quotation {
   originPort         String?
   originCity         String?
   originCountry      String?
+  originAddressSource   String? // TEXT, IMAGE_OCR, NOT_FOUND
+  originAddressEvidence String? // trecho ou nome do arquivo de imagem que embasou o endereço de coleta
   destinationPort    String?
   destinationCity    String?
   destinationCountry String?
+  destinationAddressSource   String? // TEXT, IMAGE_OCR, NOT_FOUND
+  destinationAddressEvidence String? // trecho ou nome do arquivo de imagem que embasou o endereço de entrega
   transitTimeDays    Int?
   connections        String?
 
   // Cargo
   cargoDescription   String?
+  productSegment     String? // snapshot do segmento do cliente no momento da cotação (Farmacêutico, Automotivo, etc.)
   ncmCodes           String? // Stored as comma separated string
   contractNumber     String?
   commercialValue    Float?
