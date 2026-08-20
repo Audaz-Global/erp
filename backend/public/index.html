@@ -1378,7 +1378,6 @@
           <div class="form-group" style="margin:0"><label>Recinto alfandegado de destino</label><input id="r-dta-bonded-terminal" placeholder="Ex: CLIA / EADI / Porto Seco"></div>
           <div class="form-group" style="margin:0"><label>Receber cópia (CC)</label><input id="r-dta-cc-email" type="email"></div>
         </div>
-        <button type="button" class="btn btn-secondary" style="margin-top:12px" onclick="suggestGroundTariff('DTA')">Consultar tarifa DTA cadastrada</button><div id="r-dta-tariff-suggestion" style="margin-top:8px;font-size:11px;color:var(--text-muted)"></div>
       </div>
 
       <!-- Solicitação de Transporte Rodoviário Nacional -->
@@ -1414,7 +1413,6 @@
             <input type="email" id="r-trucker-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)" style="margin: 0;">
           </div>
         </div>
-        <button type="button" class="btn btn-secondary" style="margin-top:12px" onclick="suggestGroundTariff('RODOVIARIO_NACIONAL')">Consultar tarifa rodoviária cadastrada</button><div id="r-road-tariff-suggestion" style="margin-top:8px;font-size:11px;color:var(--text-muted)"></div>
       </div>
 
       <div class="form-group" style="max-width: 220px;">
@@ -2274,8 +2272,6 @@
         <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Árvore de Incoterms</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
-        <li data-tab="dtaParameters" onclick="switchSettingsTab('dtaParameters')">DTA — Tarifas e Regras</li>
-        <li data-tab="roadParameters" onclick="switchSettingsTab('roadParameters')">Rodoviário Nacional</li>
 
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
@@ -3927,19 +3923,6 @@ function collectGroundServiceLegs() {
       customsStatus:'NACIONALIZADA', currency:'BRL', requestEvidence:document.getElementById('r-transport-decision')?.dataset?.evidence || null });
   }
   return legs;
-}
-
-async function suggestGroundTariff(serviceType) {
-  const route = document.getElementById(serviceType === 'DTA' ? 'r-dta-route' : 'r-transport-route').value;
-  const parts = route.split(/\s*(?:→|->|\bx\b)\s*/i);
-  const params = new URLSearchParams({ serviceType, origin:parts[0] || '', destination:parts.slice(1).join(' ') || '', weightKg:document.getElementById('r-weight').value || '0' });
-  const target = document.getElementById(serviceType === 'DTA' ? 'r-dta-tariff-suggestion' : 'r-road-tariff-suggestion');
-  target.textContent = 'Consultando cadastro...';
-  const response = await fetch(`${API}/ground-services/suggest?${params}`);
-  const data = await response.json().catch(()=>({}));
-  if (!response.ok || !data.match) { target.textContent = data.error || data.reason || 'Nenhuma tarifa compatível.'; return; }
-  const match = data.match;
-  target.innerHTML = `<strong style="color:var(--gold)">${professionalEscapeHtml(match.name)}: ${professionalEscapeHtml(match.currency)} ${Number(match.calculatedValue).toFixed(2)}</strong><br>${professionalEscapeHtml(data.reason)} ${match.taxesIncluded===true?'Tributos inclusos.':match.taxesIncluded===false?'Tributos não inclusos.':'Tributos a confirmar.'}<br>${professionalEscapeHtml(match.operationalRules || '')}`;
 }
 
 function fillReviewForm(d, mode) {
@@ -6743,7 +6726,7 @@ switchTab = function(name) {
 function openSettings() {
   document.getElementById('settingsOverlay').classList.add('active');
   document.body.classList.add('settings-open');
-  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','dtaParameters','roadParameters','agentDraftEmail','users'];
+  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','agentDraftEmail','users'];
   const savedTab = localStorage.getItem('audaz_settings_tab') || 'standardFees';
   switchSettingsTab(allowedTabs.includes(savedTab) ? savedTab : 'standardFees');
 }
@@ -7120,34 +7103,6 @@ function switchSettingsTab(tab) {
         </div>`;
       setTimeout(loadProfessionalSettings, 0);
       break;
-
-    case 'dtaParameters':
-    case 'roadParameters': {
-      const isDta = tab === 'dtaParameters';
-      const type = isDta ? 'DTA' : 'RODOVIARIO_NACIONAL';
-      content.innerHTML = `
-        <div class="sc-title">${isDta ? 'DTA — Trânsito Aduaneiro' : 'Frete Rodoviário Nacional'}</div>
-        <p class="sc-desc">${isDta ? 'Tarifas e regras para carga ainda não nacionalizada, entre unidades e recintos alfandegados.' : 'Tarifas e regras da entrega doméstica realizada após a liberação/nacionalização.'}</p>
-        <div class="settings-section">
-          <input type="hidden" id="ground-tariff-id"><input type="hidden" id="ground-tariff-type" value="${type}">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-            <div class="form-group"><label>Nome da tarifa</label><input id="ground-tariff-name" placeholder="${isDta ? 'DTA GRU → CLIA' : 'GRU → Campinas'}"></div>
-            <div class="form-group"><label>Origem</label><input id="ground-tariff-origin"></div><div class="form-group"><label>Destino</label><input id="ground-tariff-destination"></div>
-            <div class="form-group"><label>Veículo/equipamento</label><input id="ground-tariff-vehicle" placeholder="VUC, Truck, carreta ou equipamento DTA"></div>
-            <div class="form-group"><label>Valor base</label><input id="ground-tariff-value" type="number" step="0.01"></div>
-            <div class="form-group"><label>Valor mínimo</label><input id="ground-tariff-minimum" type="number" step="0.01"></div>
-            <div class="form-group"><label>Moeda</label><select id="ground-tariff-currency"><option>BRL</option><option>USD</option></select></div>
-            <div class="form-group"><label>Peso inicial (kg)</label><input id="ground-tariff-weight-from" type="number"></div><div class="form-group"><label>Peso final (kg)</label><input id="ground-tariff-weight-to" type="number"></div>
-          </div>
-          <label style="display:flex;gap:8px;align-items:center;margin:4px 0 14px"><input id="ground-tariff-taxes" type="checkbox"> Tributos incluídos no valor</label>
-          <div class="form-group"><label>Regra de precificação</label><textarea id="ground-tariff-pricing" rows="3" placeholder="${isDta ? 'Documentação, GRIS, ad valorem, escolta, pedágio e estadia' : 'ICMS, GRIS, ad valorem, pedágio, ajudante e diária'}"></textarea></div>
-          <div class="form-group"><label>Regra operacional</label><textarea id="ground-tariff-operational" rows="3" placeholder="${isDta ? 'Habilitação do recinto, documentos e restrições do regime aduaneiro' : 'Agendamento, restrições de veículo e devolução de vazio'}"></textarea></div>
-          <button class="btn btn-primary" onclick="saveGroundTariff()">Salvar tarifa e regras</button><button class="btn btn-secondary" onclick="clearGroundTariffForm()">Limpar</button>
-        </div>
-        <div class="settings-section"><h3>Cadastros deste módulo</h3><div id="ground-tariff-list">Carregando...</div></div>`;
-      setTimeout(() => loadGroundTariffs(type), 0);
-      break;
-    }
   }
 }
 
@@ -7339,37 +7294,6 @@ async function deactivateProfessional(id) {
   await loadProfessionals(false);
   renderProfessionalSettingsList();
   toast('Profissional desativado.');
-}
-
-let groundTariffs = [];
-async function loadGroundTariffs(type) {
-  const response = await fetch(`${API}/ground-services/tariffs?serviceType=${encodeURIComponent(type)}`);
-  groundTariffs = response.ok ? await response.json() : [];
-  const list = document.getElementById('ground-tariff-list');
-  if (!list) return;
-  list.innerHTML = groundTariffs.length ? groundTariffs.map(item => `<div style="display:grid;grid-template-columns:minmax(170px,1fr) 1fr 110px 150px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><div><strong>${professionalEscapeHtml(item.name)}</strong><small style="display:block;color:var(--text-muted)">${professionalEscapeHtml(item.vehicleType || 'Equipamento livre')}</small></div><span>${professionalEscapeHtml(item.originLocation || '—')} → ${professionalEscapeHtml(item.destinationLocation || '—')}</span><strong>${professionalEscapeHtml(item.currency)} ${Number(item.baseValue || 0).toFixed(2)}</strong><span><button class="btn btn-secondary" style="padding:6px 8px" onclick="editGroundTariff('${item.id}')">Editar</button> ${item.active ? `<button class="btn btn-secondary" style="padding:6px 8px;color:var(--error)" onclick="deactivateGroundTariff('${item.id}')">Desativar</button>` : '<small>Inativa</small>'}</span></div>`).join('') : '<div class="document-empty">Nenhuma tarifa cadastrada neste módulo.</div>';
-}
-function clearGroundTariffForm() {
-  ['ground-tariff-id','ground-tariff-name','ground-tariff-origin','ground-tariff-destination','ground-tariff-vehicle','ground-tariff-value','ground-tariff-minimum','ground-tariff-weight-from','ground-tariff-weight-to','ground-tariff-pricing','ground-tariff-operational'].forEach(id => { const field=document.getElementById(id); if(field) field.value=''; });
-  const taxes=document.getElementById('ground-tariff-taxes'); if(taxes) taxes.checked=false;
-}
-function editGroundTariff(id) {
-  const item = groundTariffs.find(row => row.id === id); if (!item) return;
-  const values = { 'ground-tariff-id':item.id, 'ground-tariff-name':item.name, 'ground-tariff-origin':item.originLocation, 'ground-tariff-destination':item.destinationLocation, 'ground-tariff-vehicle':item.vehicleType, 'ground-tariff-value':item.baseValue, 'ground-tariff-minimum':item.minimumValue, 'ground-tariff-weight-from':item.weightFromKg, 'ground-tariff-weight-to':item.weightToKg, 'ground-tariff-pricing':item.pricingRules, 'ground-tariff-operational':item.operationalRules, 'ground-tariff-currency':item.currency };
-  Object.entries(values).forEach(([id,value]) => { const field=document.getElementById(id); if(field) field.value=value ?? ''; });
-  document.getElementById('ground-tariff-taxes').checked = item.taxesIncluded === true;
-}
-async function saveGroundTariff() {
-  const id=document.getElementById('ground-tariff-id').value;
-  const body={ serviceType:document.getElementById('ground-tariff-type').value, name:document.getElementById('ground-tariff-name').value, originLocation:document.getElementById('ground-tariff-origin').value, destinationLocation:document.getElementById('ground-tariff-destination').value, vehicleType:document.getElementById('ground-tariff-vehicle').value, baseValue:document.getElementById('ground-tariff-value').value, minimumValue:document.getElementById('ground-tariff-minimum').value, weightFromKg:document.getElementById('ground-tariff-weight-from').value, weightToKg:document.getElementById('ground-tariff-weight-to').value, currency:document.getElementById('ground-tariff-currency').value, taxesIncluded:document.getElementById('ground-tariff-taxes').checked, pricingRules:document.getElementById('ground-tariff-pricing').value, operationalRules:document.getElementById('ground-tariff-operational').value, active:true };
-  const response=await fetch(API+'/ground-services/tariffs'+(id?'/'+id:''),{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const data=await response.json().catch(()=>({})); if(!response.ok) return alert(data.error||'Não foi possível salvar.');
-  clearGroundTariffForm(); await loadGroundTariffs(body.serviceType); toast('Tarifa e regras salvas no módulo correto.');
-}
-async function deactivateGroundTariff(id) {
-  if(!confirm('Desativar esta tarifa?')) return;
-  await fetch(`${API}/ground-services/tariffs/${id}`,{method:'DELETE'});
-  await loadGroundTariffs(document.getElementById('ground-tariff-type').value);
 }
 
 // Salvar dados da empresa (localStorage)

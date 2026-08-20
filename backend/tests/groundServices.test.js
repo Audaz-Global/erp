@@ -40,7 +40,6 @@ test('interface, parâmetros, anexos e disparos são separados', () => {
   assert.match(html, /r-needs-dta/);
   assert.match(html, /r-needs-transport/);
   assert.match(html, /data-document-role="dta"/);
-  assert.match(html, /DTA — Tarifas e Regras/);
   assert.match(html, /Rodoviário Nacional/);
   assert.match(outlook, /DTA_PROVIDER/);
   assert.match(outlook, /groundServiceResults/);
