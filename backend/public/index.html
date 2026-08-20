@@ -9598,6 +9598,10 @@ function renderTreeFees(type, containerId) {
           <option value="PER_KG" ${fee.chargeType === 'PER_KG' ? 'selected' : ''}>Por Kg</option>
           <option value="PER_DOCUMENT" ${fee.chargeType === 'PER_DOCUMENT' ? 'selected' : ''}>Por Documento</option>
           <option value="PER_CONTAINER" ${fee.chargeType === 'PER_CONTAINER' ? 'selected' : ''}>Por Contêiner</option>
+          <option value="PER_TON" ${fee.chargeType === 'PER_TON' ? 'selected' : ''}>Por Tonelada</option>
+          <option value="PER_CBM" ${fee.chargeType === 'PER_CBM' ? 'selected' : ''}>Por m³</option>
+          <option value="PER_WM" ${fee.chargeType === 'PER_WM' ? 'selected' : ''}>Peso/Medida (W/M)</option>
+          <option value="PER_DG_PRODUCT" ${fee.chargeType === 'PER_DG_PRODUCT' ? 'selected' : ''}>Por Produto Perigoso</option>
           <option value="PERCENTAGE" ${fee.chargeType === 'PERCENTAGE' ? 'selected' : ''}>Percentual</option>
         </select>
         ${fee.chargeType === 'PERCENTAGE' ? `
