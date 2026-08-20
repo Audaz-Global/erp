@@ -1,7 +1,7 @@
 export type TransportDecision = {
   requested: boolean;
   evidence: string;
-  source: 'EXPLICIT_TEXT' | 'NOT_REQUESTED';
+  source: 'EXPLICIT_TEXT' | 'ADDRESS_DETECTED' | 'NOT_REQUESTED';
 };
 
 const TRANSPORT_REQUEST_PATTERNS = [
@@ -38,11 +38,39 @@ export function findExplicitDtaRequest(sourceText: string): TransportDecision {
     : { requested:false, evidence:'', source:'NOT_REQUESTED' };
 }
 
+// Endereço completo tem número (rua/CEP) e um tamanho mínimo — descarta nome de cidade isolado.
+function looksLikeCompleteAddress(evidence: unknown): boolean {
+  const text = String(evidence || '').trim();
+  return text.length >= 8 && /\d/.test(text);
+}
+
+// A evidência precisa aparecer de fato na fonte, para não aceitar um endereço alucinado pela IA.
+function sourceContainsEvidence(sourceText: string, evidence: unknown): boolean {
+  const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const normalizedEvidence = normalize(evidence);
+  if (!normalizedEvidence) return false;
+  return normalize(sourceText).includes(normalizedEvidence);
+}
+
 export function applyDomesticTransportEvidencePolicy(extracted: any, sourceText: string) {
   if (!extracted?.route) return extracted;
 
-  const decision = findExplicitDomesticTransportRequest(sourceText);
+  const explicitDecision = findExplicitDomesticTransportRequest(sourceText);
   const dtaDecision = findExplicitDtaRequest(sourceText);
+
+  // A IA pode sinalizar um endereço completo de coleta/entrega sem pedido verbal explícito.
+  // Só confiamos nisso com uma checagem determinística: a evidência precisa parecer um
+  // endereço real e precisa aparecer literalmente no texto de origem.
+  const aiDetectedAddress = extracted.route.transport_source === 'ADDRESS_DETECTED'
+    && looksLikeCompleteAddress(extracted.route.transport_evidence)
+    && sourceContainsEvidence(sourceText, extracted.route.transport_evidence);
+
+  const decision: TransportDecision = explicitDecision.requested
+    ? explicitDecision
+    : aiDetectedAddress
+      ? { requested: true, evidence: String(extracted.route.transport_evidence).slice(0, 500), source: 'ADDRESS_DETECTED' }
+      : explicitDecision;
+
   extracted.route.needs_transport = decision.requested;
   extracted.route.transport_source = decision.source;
   extracted.route.transport_evidence = decision.evidence;

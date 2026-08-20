@@ -3015,7 +3015,7 @@ function renderEmailExtractionAudit(audit) {
   if (!panel) return;
   if (!audit) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const labels = { SIGNATURE_TEXT: 'Assinatura validada com o e-mail', SENDER_HEADER: 'Cabeçalho oficial do remetente', SENDER_HEADER_VERIFIED: 'Cabeçalho oficial verificado', FIRST_RESPONSE_SENDER_HEADER: 'Remetente oficial da primeira resposta', EMAIL_BODY_OR_DOCUMENT: 'Corpo do e-mail ou documento', TEXT: 'Texto do e-mail/documento', IMAGE_OCR: 'Lido de imagem/print', NOT_FOUND: 'Não identificado' };
+  const labels = { SIGNATURE_TEXT: 'Assinatura validada com o e-mail', SENDER_HEADER: 'Cabeçalho oficial do remetente', SENDER_HEADER_VERIFIED: 'Cabeçalho oficial verificado', FIRST_RESPONSE_SENDER_HEADER: 'Remetente oficial da primeira resposta', EMAIL_BODY_OR_DOCUMENT: 'Corpo do e-mail ou documento', TEXT: 'Texto do e-mail/documento', IMAGE_OCR: 'Lido de imagem/print', EXPLICIT_TEXT: 'Pedido explícito no texto', ADDRESS_DETECTED: 'Endereço completo detectado', NOT_REQUESTED: 'Não solicitado', NOT_FOUND: 'Não identificado' };
   const contacts = (audit.emails || []).map(item => item.extractedContact).filter(Boolean);
   const fields = (audit.fields || []).filter(item => item.value).slice(0, 12);
   const imageFields = fields.filter(item => item.source === 'IMAGE_OCR');
@@ -3998,8 +3998,10 @@ function fillReviewForm(d, mode) {
         if (decision) {
           decision.style.display = 'block';
           decision.textContent = needsT && d.route.transport_evidence
-            ? 'Marcado com base no pedido: "' + d.route.transport_evidence + '"'
-            : 'Não marcado automaticamente: nenhuma solicitação explícita de transporte foi encontrada.';
+            ? (d.route.transport_source === 'ADDRESS_DETECTED'
+                ? 'Marcado por endereço completo encontrado no texto: "' + d.route.transport_evidence + '"'
+                : 'Marcado com base no pedido: "' + d.route.transport_evidence + '"')
+            : 'Não marcado automaticamente: nenhuma solicitação explícita nem endereço completo foram encontrados.';
         }
       } else {
         document.getElementById('r-needs-transport').checked = false;

@@ -231,8 +231,10 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 connections: { type: 'string', description: 'Conexões do voo (ex: via MIA) ou escalas de porto (ex: transbordo em Algeciras). Retorne string vazia se for direto.' },
                 needs_origin_inland: { type: 'boolean', description: 'Verdadeiro quando é necessário cotar a coleta terrestre na origem, normalmente em EXW ou FCA quando o local inicial é diferente do porto/aeroporto de embarque.' },
                 origin_inland_route: { type: 'string', description: 'Rota da coleta na origem no formato "Local de coleta → Porto/Aeroporto". Retorne string vazia quando needs_origin_inland for false.' },
-                needs_transport: { type: 'boolean', description: 'True somente quando o cliente pedir explicitamente transporte rodoviário nacional, entrega local/final ou coleta nacional no texto da solicitação. Incoterm, assinatura ou endereço da empresa isoladamente não autorizam marcar.' },
+                needs_transport: { type: 'boolean', description: 'True quando o cliente pedir explicitamente transporte rodoviário nacional, entrega local/final ou coleta nacional no texto da solicitação, OU quando um endereço completo (rua e número, ou local nomeado com bairro/cidade/UF) de coleta ou entrega no Brasil estiver presente no corpo da mensagem. Incoterm isolado, cidade sozinha, ou endereço apenas na assinatura/rodapé do e-mail não autorizam marcar.' },
                 transport_route: { type: 'string', description: 'O trecho rodoviário nacional do Brasil necessário (ex: "Santos x Itatiba/SP", "Guarulhos x Jacareí/SP"). Retorne string vazia se needs_transport for false.' },
+                transport_source: { type: 'string', enum: ['EXPLICIT_TEXT', 'ADDRESS_DETECTED', 'NOT_REQUESTED'], description: 'EXPLICIT_TEXT quando o cliente pediu o transporte em palavras; ADDRESS_DETECTED quando needs_transport veio de um endereço completo encontrado no corpo, sem pedido verbal; NOT_REQUESTED quando needs_transport for false.' },
+                transport_evidence: { type: 'string', description: 'A frase do pedido ou o endereço completo exato que fundamenta needs_transport. Vazio se needs_transport for false.' },
                 confidence: { type: 'number' }
               },
               required: [
@@ -340,8 +342,11 @@ export const extractClientData = async (text: string, contextRules: string = '',
       3. Preencha origin_inland_route como "[Local inicial] → [Porto/Aeroporto de origem]". Não invente valor de coleta.
       4. Esta coleta internacional de origem é diferente do transporte rodoviário nacional no Brasil.
     - **Necessidade de Transporte Rodoviário (needs_transport e transport_route)**:
-      1. Defina "needs_transport" como true SOMENTE se o texto do cliente pedir explicitamente "entrega local", "transporte/frete rodoviário", "entrega em [cidade]", "coleta nacional", "door-to-door" ou equivalente. Incoterm isolado, cidade da assinatura e endereço cadastral não bastam.
-      2. No campo "transport_route", preencha a rota terrestre nacional necessária no formato "[Origem] x [Destino]" (ex: "Santos x Itatiba/SP" se vier via Porto de Santos, ou "Guarulhos x Jacareí/SP" se vier via Aeroporto de Guarulhos). Se needs_transport for false, retorne string vazia "".
+      1. Defina "needs_transport" como true quando o texto do cliente pedir explicitamente "entrega local", "transporte/frete rodoviário", "entrega em [cidade]", "coleta nacional", "door-to-door" ou equivalente (transport_source=EXPLICIT_TEXT).
+      2. Defina "needs_transport" como true TAMBÉM quando o corpo da mensagem contiver um endereço COMPLETO (rua e número, ou local nomeado com bairro/cidade/UF — não apenas o nome de uma cidade) apresentado como ponto de coleta ou de entrega do trecho nacional no Brasil (transport_source=ADDRESS_DETECTED). Isso vale tanto para coleta no Brasil (EXPORT) quanto para entrega no Brasil (IMPORT).
+      3. NÃO marque needs_transport a partir de: Incoterm isolado, cidade sozinha sem endereço completo, endereço que aparece somente na assinatura/rodapé do e-mail (dado cadastral, não instrução de entrega), o endereço do fornecedor/fábrica no exterior (isso é needs_origin_inland, campo diferente), ou um endereço que coincide com a própria cidade do porto/aeroporto de entrada (não há trecho rodoviário a fazer).
+      4. No campo "transport_route", preencha a rota terrestre nacional necessária no formato "[Origem] x [Destino]" (ex: "Santos x Itatiba/SP" se vier via Porto de Santos, ou "Guarulhos x Jacareí/SP" se vier via Aeroporto de Guarulhos). Se needs_transport for false, retorne string vazia "".
+      5. Preencha "transport_source" com EXPLICIT_TEXT, ADDRESS_DETECTED ou NOT_REQUESTED conforme a regra que ativou o campo, e "transport_evidence" com a frase do pedido ou o endereço completo exato encontrado (copie o texto tal como aparece na fonte, sem reescrever). Ambos vazios/NOT_REQUESTED quando needs_transport for false.
 
     Instruções Importantes para Carga/Equipamento Especial:
     - **Carga perigosa / DG**: DG, Dangerous Goods, Dangerous Cargo, IMO e Hazmat indicam carga perigosa confirmada. Uma declaração explícita "non-DG", "not dangerous" ou "não perigosa" indica NOT_DANGEROUS. Se a fonte não disser nada, retorne TO_CONFIRM; nunca transforme ausência de informação em NOT_DANGEROUS.
@@ -380,6 +385,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
     if (parsed.route) {
       parsed.route.origin_address_source = parsed.route.origin_city ? (parsed.route.origin_address_source || 'TEXT') : 'NOT_FOUND';
       parsed.route.destination_address_source = parsed.route.destination_city ? (parsed.route.destination_address_source || 'TEXT') : 'NOT_FOUND';
+      parsed.route.transport_source = parsed.route.needs_transport ? (parsed.route.transport_source || 'EXPLICIT_TEXT') : 'NOT_REQUESTED';
+      if (!parsed.route.needs_transport) parsed.route.transport_evidence = '';
     }
     if (parsed.cargo) {
       parsed.cargo.dangerous_goods_status = normalizeDangerousGoodsStatus(parsed.cargo.dangerous_goods_status, parsed.cargo.is_imo);
