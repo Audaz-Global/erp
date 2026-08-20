@@ -959,7 +959,7 @@ const defaultAirTemplate = `
   </table>
 
   {{#if detailedFeesAdditionalGroups.length}}
-  <div class="section-banner-sm">Taxas DG, aduaneiras, seguro, impostos e profit</div>
+  <div class="section-banner-sm">Taxas DG, aduaneiras, impostos e profit</div>
   <table><thead><tr><th>Classificação</th><th>Taxa</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Total</th></tr></thead><tbody>
     {{#each detailedFeesAdditionalGroups}}
     <tr><td>{{this.financialGroupLabel}}</td><td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td><td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.total}}</td></tr>
@@ -1414,13 +1414,15 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     // sido encontrados nas seções de origem/destino do retorno do agente.
     detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino]
       .filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
-    const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
-    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','TAX_IOF','PROFIT']);
+    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
     detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino]
       .filter(fee => additionalGroups.has(fee.financialGroup))
-      .map(fee => ({ ...fee, financialGroupLabel: additionalLabels[fee.financialGroup] || fee.financialGroup }));
+      .map(fee => ({ ...fee, financialGroupLabel: additionalLabels[fee.financialGroup] || fee.financialGroup }))
+      .sort((a, b) => (a.financialGroup === 'TAX_IOF' ? 1 : 0) - (b.financialGroup === 'TAX_IOF' ? 1 : 0));
     detailedFeesOrigem = detailedFeesOrigem.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup));
-    detailedFeesDestino = detailedFeesDestino.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup));
+    detailedFeesDestino = detailedFeesDestino.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup))
+      .sort((a, b) => (a.financialGroup === 'INSURANCE' ? 0 : 1) - (b.financialGroup === 'INSURANCE' ? 0 : 1));
 
     // Consolidar subtotais e totais por moeda
     let sumOrigemBrl = 0;
@@ -1874,10 +1876,13 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     detailedFees = detailedFees.map((fee:any) => ({ ...fee, min:fee.min || '0,00', max:fee.max || '0,00', ...normalizeFee({ ...fee, applicationScope:fee.applicationScope || 'DESTINATION' }) }));
     const isFreightAccessory = (fee: any) => fee.financialGroup === 'FREIGHT_COMPONENT';
     const freightAccessories = detailedFees.filter(isFreightAccessory);
-    const maritimeAdditionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
-    const maritimeAdditionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
-    const detailedFeesAdditionalGroups = detailedFees.filter((fee:any) => maritimeAdditionalGroups.has(fee.financialGroup)).map((fee:any) => ({ ...fee, financialGroupLabel:maritimeAdditionalLabels[fee.financialGroup] || fee.financialGroup }));
-    detailedFees = detailedFees.filter((fee: any) => !isFreightAccessory(fee) && !maritimeAdditionalGroups.has(fee.financialGroup));
+    const maritimeAdditionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','TAX_IOF','PROFIT']);
+    const maritimeAdditionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const detailedFeesAdditionalGroups = detailedFees.filter((fee:any) => maritimeAdditionalGroups.has(fee.financialGroup))
+      .map((fee:any) => ({ ...fee, financialGroupLabel:maritimeAdditionalLabels[fee.financialGroup] || fee.financialGroup }))
+      .sort((a: any, b: any) => (a.financialGroup === 'TAX_IOF' ? 1 : 0) - (b.financialGroup === 'TAX_IOF' ? 1 : 0));
+    detailedFees = detailedFees.filter((fee: any) => !isFreightAccessory(fee) && !maritimeAdditionalGroups.has(fee.financialGroup))
+      .sort((a: any, b: any) => (a.financialGroup === 'INSURANCE' ? 0 : 1) - (b.financialGroup === 'INSURANCE' ? 0 : 1));
     freightAccessories.forEach((fee: any) => {
       if (fee._alreadyInOriginTotal) return;
       const value = (parseFloat(fee.valueUnit) || 0) * (Number(fee.qty) || 1);
