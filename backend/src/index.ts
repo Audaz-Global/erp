@@ -46,6 +46,7 @@ import pricingSettingsRoutes from './routes/pricingSettings';
 import deconsolidatorRoutes from './routes/deconsolidator';
 import professionalRoutes from './routes/professional';
 import groundServiceRoutes from './routes/groundService';
+import atlantisRoutes from './routes/atlantis';
 import { backfillLegacyRoadLegs } from './services/groundServiceService';
 
 app.use('/api/auth', authRoutes);
@@ -66,6 +67,7 @@ app.use('/api/pricing-settings', pricingSettingsRoutes);
 app.use('/api/deconsolidators', deconsolidatorRoutes);
 app.use('/api/professionals', professionalRoutes);
 app.use('/api/ground-services', groundServiceRoutes);
+app.use('/api/atlantis', atlantisRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);

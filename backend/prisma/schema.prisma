@@ -51,6 +51,9 @@ model Client {
   contactPhone String?
   smartcomexId String?
   productSegment String? // Farmacêutico, Automotivo, Eletrônicos, etc. — para segmentação/campanhas futuras
+  atlantisId       String?  // ID do registro correspondente em M0130_CONTACT_GENERAL no Atlantis, quando confirmado
+  needsValidation  Boolean  @default(false) // Sincronização com Atlantis encontrou múltiplos registros parecidos
+  validationNote   String?  // Contexto para quem for revisar (ex: nomes/CNPJs candidatos encontrados)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -385,6 +388,9 @@ model Agent {
   destinations String? // Ex: "Brasil"
   groundServiceCapabilities String? // JSON: DTA, RODOVIARIO_NACIONAL
   active       Boolean @default(true)
+  atlantisId       String?  // ID do registro correspondente em M0130_CONTACT_GENERAL no Atlantis, quando confirmado
+  needsValidation  Boolean  @default(false) // Sincronização com Atlantis encontrou múltiplos registros parecidos
+  validationNote   String?  // Contexto para quem for revisar (ex: nomes/CNPJs candidatos encontrados)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

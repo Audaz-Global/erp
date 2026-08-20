@@ -29,6 +29,7 @@
     "marked": "^18.0.5",
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
+    "mysql2": "^3.23.4",
     "papaparse": "^5.5.4",
     "pdf-parse": "^1.1.1",
     "puppeteer": "^25.3.0",

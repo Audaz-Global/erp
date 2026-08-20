@@ -1141,6 +1141,7 @@
               <label>CNPJ / Tax ID <span id="conf-client-cnpj"></span></label>
               <input type="text" id="r-client-cnpj" placeholder="Ex: 00.000.000/0000-00">
             </div>
+            <div id="r-client-atlantis-box"></div>
             <div class="form-group">
               <label>Referência de Cotação (opcional)</label>
               <input type="text" id="r-reference" placeholder="Ex: W08 (20/02)">
@@ -1848,6 +1849,7 @@
           <input type="text" id="rev-reference" placeholder="Ref. da cotação">
         </div>
       </div>
+      <div id="rev-client-atlantis-box"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Nome do Contato</label>
@@ -2291,6 +2293,7 @@
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
         <li data-tab="users" onclick="switchSettingsTab('users')">Profissionais e assinaturas</li>
+        <li data-tab="atlantisValidation" onclick="switchSettingsTab('atlantisValidation')">Pendentes de Validação (Atlantis)</li>
       </ul>
       <div class="ss-footer">
         <button class="btn btn-secondary" onclick="closeSettings()" style="width:100%; padding:10px; font-size:13px;">Voltar ao Painel</button>
@@ -2352,6 +2355,7 @@
       <label>Nome do Parceiro *</label>
       <input type="text" id="agent-name" placeholder="Ex: Yongsheng Logistics">
     </div>
+    <div id="agent-atlantis-box"></div>
 
     <div class="form-group">
       <label>Papéis do Parceiro *</label>
@@ -3968,6 +3972,7 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-client-name').innerHTML = renderConf(d.client.name, d.client.confidence);
       document.getElementById('r-client-cnpj').value = d.client.cnpj || '';
       document.getElementById('conf-client-cnpj').innerHTML = renderConf(d.client.cnpj, d.client.confidence);
+      resetAtlantisLink('r-client', d.client.atlantisId || null);
       
       document.getElementById('r-client-contact').value = d.client.contact_name || d.client.contactName || '';
       document.getElementById('conf-client-contact').innerHTML = renderConf(d.client.contact_name || d.client.contactName, d.client.contact_confidence ?? d.client.confidence) + (d.client.contact_needs_review ? '<span class="badge-pending" title="Nome sem dupla confirmação">REVISAR</span>' : '');
@@ -4518,6 +4523,7 @@ async function generateDraftEmail() {
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
+      ...atlantisPayload('r-client', 'client'),
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       productSegment: document.getElementById('r-product-segment').value || null,
       cargoDescription: document.getElementById('r-cargo-description').value || null,
@@ -4826,6 +4832,7 @@ async function saveAsAwaitingAgent() {
       clientCnpj: document.getElementById('r-client-cnpj').value,
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
+      ...atlantisPayload('r-client', 'client'),
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       productSegment: document.getElementById('r-product-segment').value || null,
       cargoDescription: document.getElementById('r-cargo-description').value || null,
@@ -5302,6 +5309,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-client-cnpj').value = (q.client?.cnpj) || '';
     document.getElementById('rev-client-contact').value = (q.client?.contactName) || '';
     document.getElementById('rev-client-phone').value = (q.client?.contactPhone) || '';
+    resetAtlantisLink('rev-client', q.client?.atlantisId || null);
     document.getElementById('rev-product-segment').value = q.productSegment || (q.client?.productSegment) || '';
     document.getElementById('rev-reference').value = q.reference || '';
     document.getElementById('rev-incoterm').value = q.incoterm || 'FOB';
@@ -5896,6 +5904,7 @@ async function confirmAndGeneratePDF() {
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
+        ...atlantisPayload('rev-client', 'client'),
         carrier: document.getElementById('rev-carrier').value || null,
         hideCarrierName: document.getElementById('rev-hide-carrier').checked,
         carrierProfileId: carrierControlState.rev?.id || null,
@@ -6741,7 +6750,7 @@ switchTab = function(name) {
 function openSettings() {
   document.getElementById('settingsOverlay').classList.add('active');
   document.body.classList.add('settings-open');
-  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','agentDraftEmail','users'];
+  const allowedTabs = ['company','knowledge','standardFees','taxes','pricingSettings','agentDraftEmail','users','atlantisValidation'];
   const savedTab = localStorage.getItem('audaz_settings_tab') || 'standardFees';
   switchSettingsTab(allowedTabs.includes(savedTab) ? savedTab : 'standardFees');
 }
@@ -7118,6 +7127,245 @@ function switchSettingsTab(tab) {
         </div>`;
       setTimeout(loadProfessionalSettings, 0);
       break;
+
+    case 'atlantisValidation':
+      content.innerHTML = `
+        <div class="sc-title">Pendentes de Validação (Atlantis)</div>
+        <p class="sc-desc">Clientes e parceiros/agentes cujo nome bateu com múltiplos registros parecidos no Atlantis durante a sincronização automática. Revise e confirme o vínculo certo, ou dispense.</p>
+        <div class="settings-section">
+          <h3>Clientes</h3>
+          <div id="atlantis-pending-clients"><p style="color:var(--text-muted);font-size:12px">Carregando...</p></div>
+        </div>
+        <div class="settings-section">
+          <h3>Parceiros / Agentes</h3>
+          <div id="atlantis-pending-agents"><p style="color:var(--text-muted);font-size:12px">Carregando...</p></div>
+        </div>`;
+      setTimeout(loadAtlantisPendingValidation, 0);
+      break;
+  }
+}
+
+// ═══════════ Integração Atlantis: sugestão ao digitar + revisão de pendências ═══════════
+window.atlantisLinkState = {};
+window.atlantisCandidatesByGroup = {};
+const atlantisDebounceTimers = {};
+
+function atlantisFieldGroups() {
+  return {
+    'r-client': { nameId:'r-client-name', cnpjId:'r-client-cnpj', contactNameId:'r-client-contact', contactPhoneId:'r-client-phone', boxId:'r-client-atlantis-box', role:'CUSTOMER' },
+    'rev-client': { nameId:'rev-client-name', cnpjId:'rev-client-cnpj', contactNameId:'rev-client-contact', contactPhoneId:'rev-client-phone', boxId:'rev-client-atlantis-box', role:'CUSTOMER' },
+    'agent': { nameId:'agent-name', cnpjId:null, phoneId:'agent-phone', websiteId:'agent-website', addressId:'agent-address', boxId:'agent-atlantis-box', role:'AGENT' }
+  };
+}
+
+// Chamado sempre que os campos de nome/cnpj são preenchidos programaticamente
+// (carregando uma cotação existente) — evita que o vínculo de um cliente
+// anterior vaze para o registro que está sendo carregado agora.
+function resetAtlantisLink(groupKey, existingAtlantisId) {
+  const group = atlantisFieldGroups()[groupKey];
+  window.atlantisLinkState[groupKey] = { atlantisId: existingAtlantisId || null, needsValidation: false, validationNote: null };
+  const box = group && document.getElementById(group.boxId);
+  if (!box) return;
+  box.innerHTML = existingAtlantisId ? `<div style="margin-top:8px;font-size:11px;color:var(--success);">✓ Já vinculado ao Atlantis</div>` : '';
+}
+
+function setupAtlantisLookup(groupKey) {
+  const group = atlantisFieldGroups()[groupKey];
+  const nameField = group && document.getElementById(group.nameId);
+  if (!nameField || nameField.dataset.atlantisWired) return;
+  nameField.dataset.atlantisWired = '1';
+  window.atlantisLinkState[groupKey] = { atlantisId:null, needsValidation:false, validationNote:null };
+  nameField.addEventListener('input', () => {
+    window.atlantisLinkState[groupKey] = { atlantisId:null, needsValidation:false, validationNote:null };
+    const box = document.getElementById(group.boxId);
+    if (box) box.innerHTML = '';
+    clearTimeout(atlantisDebounceTimers[groupKey]);
+    const term = nameField.value.trim();
+    if (term.length < 3) return;
+    atlantisDebounceTimers[groupKey] = setTimeout(() => runAtlantisSearch(groupKey), 500);
+  });
+}
+
+async function runAtlantisSearch(groupKey) {
+  const group = atlantisFieldGroups()[groupKey];
+  const box = document.getElementById(group.boxId);
+  if (!box) return;
+  const term = document.getElementById(group.nameId).value.trim();
+  if (term.length < 3) return;
+  box.innerHTML = '<small style="color:var(--text-muted)">Consultando Atlantis...</small>';
+  try {
+    const cnpj = group.cnpjId ? (document.getElementById(group.cnpjId)?.value || '').trim() : '';
+    const endpoint = group.role === 'CUSTOMER' ? 'search-customer' : 'search-agent';
+    const params = new URLSearchParams({ q: term });
+    if (cnpj) params.set('taxId', cnpj);
+    const res = await fetch(`${API}/atlantis/${endpoint}?${params}`);
+    if (res.status === 503) { box.innerHTML = ''; return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { box.innerHTML = ''; return; }
+    renderAtlantisCandidates(groupKey, data.candidates || []);
+  } catch (err) {
+    box.innerHTML = '';
+  }
+}
+
+function renderAtlantisCandidates(groupKey, candidates) {
+  const group = atlantisFieldGroups()[groupKey];
+  const box = document.getElementById(group.boxId);
+  if (!box) return;
+  window.atlantisCandidatesByGroup[groupKey] = candidates;
+  if (!candidates.length) { box.innerHTML = ''; return; }
+
+  if (candidates.length === 1) {
+    const c = candidates[0];
+    box.innerHTML = `<div style="margin-top:8px;padding:10px 12px;border:1px solid rgba(52,211,153,.4);border-radius:8px;background:rgba(52,211,153,.06);font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div><strong>${ifrEscape(c.commercialName || c.name)}</strong><br><span style="color:var(--text-muted)">${ifrEscape(c.cnpj || 'sem CNPJ')}${c.contactName ? ' · ' + ifrEscape(c.contactName) : ''}</span></div>
+      <button type="button" class="btn btn-secondary" style="padding:6px 12px;white-space:nowrap;" onclick="acceptAtlantisCandidate('${groupKey}', 0)">Encontrado no Atlantis — OK</button>
+    </div>`;
+  } else {
+    const items = candidates.map((c, i) => `<div style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="acceptAtlantisCandidate('${groupKey}', ${i})">
+      <strong>${ifrEscape(c.commercialName || c.name)}</strong><br><span style="color:var(--text-muted);font-size:11px;">${ifrEscape(c.cnpj || 'sem CNPJ')}</span>
+    </div>`).join('');
+    box.innerHTML = `<div style="margin-top:8px;border:1px solid rgba(245,166,35,.4);border-radius:8px;background:rgba(245,166,35,.05);font-size:12px;overflow:hidden;">
+      <div style="padding:8px 12px;color:var(--gold);font-weight:700;">⚠️ ${candidates.length} registros parecidos no Atlantis — escolha o certo, ou deixe sem escolher (fica marcado para revisão depois)</div>
+      ${items}
+    </div>`;
+    window.atlantisLinkState[groupKey] = {
+      atlantisId: null, needsValidation: true,
+      validationNote: 'Múltiplos registros parecidos no Atlantis: ' + candidates.map(c => `${c.name} (${c.cnpj || 's/ CNPJ'})`).join('; ')
+    };
+  }
+}
+
+function acceptAtlantisCandidate(groupKey, index) {
+  const group = atlantisFieldGroups()[groupKey];
+  const candidate = (window.atlantisCandidatesByGroup[groupKey] || [])[index];
+  if (!candidate || !group) return;
+
+  document.getElementById(group.nameId).value = candidate.commercialName || candidate.name;
+  if (group.cnpjId && candidate.cnpj) document.getElementById(group.cnpjId).value = candidate.cnpj;
+  if (group.contactNameId && candidate.contactName) document.getElementById(group.contactNameId).value = candidate.contactName;
+  if (group.contactPhoneId && candidate.contactPhone) document.getElementById(group.contactPhoneId).value = candidate.contactPhone;
+  if (group.phoneId && candidate.phone) document.getElementById(group.phoneId).value = candidate.phone;
+  if (group.websiteId && candidate.website) document.getElementById(group.websiteId).value = candidate.website;
+  if (group.addressId && candidate.address) document.getElementById(group.addressId).value = candidate.address;
+
+  window.atlantisLinkState[groupKey] = { atlantisId: candidate.atlantisId, needsValidation: false, validationNote: null };
+  const box = document.getElementById(group.boxId);
+  if (box) box.innerHTML = `<div style="margin-top:8px;font-size:11px;color:var(--success);">✓ Vinculado ao Atlantis (${ifrEscape(candidate.cnpj || candidate.atlantisId)})</div>`;
+}
+
+// Monta os 3 campos (*AtlantisId, *NeedsValidation, *ValidationNote) para incluir no payload de salvamento.
+function atlantisPayload(groupKey, prefix) {
+  const state = window.atlantisLinkState[groupKey] || { atlantisId:null, needsValidation:false, validationNote:null };
+  return {
+    [`${prefix}AtlantisId`]: state.atlantisId,
+    [`${prefix}NeedsValidation`]: state.needsValidation,
+    [`${prefix}ValidationNote`]: state.validationNote
+  };
+}
+
+async function loadAtlantisPendingValidation() {
+  const clientsBox = document.getElementById('atlantis-pending-clients');
+  const agentsBox = document.getElementById('atlantis-pending-agents');
+  if (!clientsBox || !agentsBox) return;
+  try {
+    const res = await fetch(`${API}/atlantis/pending-validation`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Falha ao carregar pendências.');
+
+    clientsBox.innerHTML = data.clients.length ? data.clients.map(client => `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
+          <div><strong>${ifrEscape(client.name)}</strong><br><small style="color:var(--text-muted)">${ifrEscape(client.cnpj || 'sem CNPJ')}</small></div>
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="dismissAtlantisPending('client','${client.id}')">Dispensar</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${ifrEscape(client.validationNote || '')}</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="atlantis-resolve-client-${client.id}" value="${ifrEscape(client.name)}" style="flex:1;font-size:12px;">
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;white-space:nowrap;" onclick="searchAtlantisForPending('client','${client.id}')">Buscar</button>
+        </div>
+        <div id="atlantis-resolve-client-box-${client.id}"></div>
+      </div>`).join('') : '<p style="color:var(--text-muted);font-size:12px">Nenhum cliente pendente.</p>';
+
+    agentsBox.innerHTML = data.agents.length ? data.agents.map(agent => `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
+          <div><strong>${ifrEscape(agent.name)}</strong></div>
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="dismissAtlantisPending('agent','${agent.id}')">Dispensar</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${ifrEscape(agent.validationNote || '')}</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="atlantis-resolve-agent-${agent.id}" value="${ifrEscape(agent.name)}" style="flex:1;font-size:12px;">
+          <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;white-space:nowrap;" onclick="searchAtlantisForPending('agent','${agent.id}')">Buscar</button>
+        </div>
+        <div id="atlantis-resolve-agent-box-${agent.id}"></div>
+      </div>`).join('') : '<p style="color:var(--text-muted);font-size:12px">Nenhum parceiro/agente pendente.</p>';
+  } catch (err) {
+    clientsBox.innerHTML = agentsBox.innerHTML = `<p style="color:var(--warning);font-size:12px">${ifrEscape(err.message)}</p>`;
+  }
+}
+
+window.atlantisPendingCandidates = {};
+
+async function searchAtlantisForPending(kind, id) {
+  const term = document.getElementById(`atlantis-resolve-${kind}-${id}`).value.trim();
+  const box = document.getElementById(`atlantis-resolve-${kind}-box-${id}`);
+  if (!box || term.length < 3) return;
+  box.innerHTML = '<small style="color:var(--text-muted)">Consultando Atlantis...</small>';
+  try {
+    const endpoint = kind === 'client' ? 'search-customer' : 'search-agent';
+    const res = await fetch(`${API}/atlantis/${endpoint}?${new URLSearchParams({ q: term })}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { box.innerHTML = ''; return; }
+    const key = `${kind}-${id}`;
+    window.atlantisPendingCandidates[key] = data.candidates || [];
+    box.innerHTML = (data.candidates || []).length ? data.candidates.map((c, i) => `
+      <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-top:6px;cursor:pointer;font-size:12px;" onclick="resolveAtlantisPending('${kind}','${id}', ${i})">
+        <strong>${ifrEscape(c.commercialName || c.name)}</strong><br><span style="color:var(--text-muted);font-size:11px;">${ifrEscape(c.cnpj || 'sem CNPJ')}${c.contactName ? ' · ' + ifrEscape(c.contactName) : ''}</span>
+      </div>`).join('') : '<p style="color:var(--text-muted);font-size:11px;margin-top:6px;">Nenhum resultado.</p>';
+  } catch (err) {
+    box.innerHTML = '';
+  }
+}
+
+async function resolveAtlantisPending(kind, id, index) {
+  const key = `${kind}-${id}`;
+  const candidate = (window.atlantisPendingCandidates[key] || [])[index];
+  if (!candidate) return;
+  try {
+    if (kind === 'client') {
+      const res = await fetch(`${API}/atlantis/clients/${id}/resolve`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atlantisId: candidate.atlantisId, cnpj: candidate.cnpj || undefined, contactName: candidate.contactName || undefined, contactPhone: candidate.contactPhone || undefined })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao vincular cliente.');
+    } else {
+      const res = await fetch(`${API}/atlantis/agents/${id}/resolve`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atlantisId: candidate.atlantisId, phone: candidate.phone || undefined, website: candidate.website || undefined, address: candidate.address || undefined })
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao vincular parceiro.');
+    }
+    toast('✅ Vínculo confirmado com o Atlantis.');
+    loadAtlantisPendingValidation();
+  } catch (err) {
+    alert('Erro: ' + err.message);
+  }
+}
+
+async function dismissAtlantisPending(kind, id) {
+  if (!confirm('Dispensar esta pendência sem vincular a um registro do Atlantis?')) return;
+  try {
+    if (kind === 'client') {
+      const res = await fetch(`${API}/atlantis/clients/${id}/resolve`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao dispensar.');
+    } else {
+      const res = await fetch(`${API}/atlantis/agents/${id}/resolve`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao dispensar.');
+    }
+    loadAtlantisPendingValidation();
+  } catch (err) {
+    alert('Erro: ' + err.message);
   }
 }
 
@@ -7575,6 +7823,7 @@ function openAgentModal(id = null, preferredType = null) {
     tagifyDestinations.removeAllTags();
     
     document.getElementById('agent-active').checked = true;
+    resetAtlantisLink('agent', null);
   }
 }
 
@@ -7924,6 +8173,7 @@ function editAgent(agent) {
   if (agent.destinations) tagifyDestinations.addTags(agent.destinations.split(',').map(s=>s.trim()));
   
   document.getElementById('agent-active').checked = agent.active;
+  resetAtlantisLink('agent', agent.atlantisId || null);
 }
 
 function editAgentById(id) {
@@ -8010,7 +8260,10 @@ async function saveAgent() {
     origins: finalOrigins,
     destinations: destinationsStr,
     groundServiceCapabilities:Array.from(document.querySelectorAll('input[name="ground-capability"]:checked')).map(input => input.value),
-    active: document.getElementById('agent-active').checked
+    active: document.getElementById('agent-active').checked,
+    atlantisId: (window.atlantisLinkState['agent'] || {}).atlantisId || null,
+    needsValidation: Boolean((window.atlantisLinkState['agent'] || {}).needsValidation),
+    validationNote: (window.atlantisLinkState['agent'] || {}).validationNote || null
   };
   
   try {
@@ -9539,6 +9792,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if(returnCarrier)returnCarrier.addEventListener('change',()=>{const q=allQuotations.find(x=>x.id===document.getElementById('pending-quotations').value);applyCarrierProfile('r',returnCarrier.value,'RETURN',q?.modal||'',q?.loadType||'',true);});
   const finalCarrier=document.getElementById('rev-carrier');
   if(finalCarrier)finalCarrier.addEventListener('change',()=>applyCarrierProfile('rev',finalCarrier.value,'FINAL',document.getElementById('rev-modal').value,document.getElementById('rev-load-type').value,true));
+  ['r-client', 'rev-client', 'agent'].forEach(setupAtlantisLookup);
   switchTab('quotation');
 });
 

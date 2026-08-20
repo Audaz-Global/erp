@@ -59,6 +59,9 @@ export const createAgent = async (req: Request, res: Response) => {
         destinations: data.destinations || null,
         groundServiceCapabilities: JSON.stringify(Array.isArray(data.groundServiceCapabilities) ? data.groundServiceCapabilities.filter((value: string) => ['DTA','RODOVIARIO_NACIONAL'].includes(value)) : []),
         active: data.active !== undefined ? data.active : true,
+        atlantisId: data.atlantisId || null,
+        needsValidation: Boolean(data.needsValidation),
+        validationNote: data.validationNote || null,
       }
     });
     await syncCarrierProfile(agent.name, types);
@@ -93,6 +96,9 @@ export const updateAgent = async (req: Request, res: Response) => {
         destinations: data.destinations,
         groundServiceCapabilities: data.groundServiceCapabilities !== undefined ? JSON.stringify(Array.isArray(data.groundServiceCapabilities) ? data.groundServiceCapabilities.filter((value: string) => ['DTA','RODOVIARIO_NACIONAL'].includes(value)) : []) : undefined,
         active: data.active,
+        atlantisId: data.atlantisId !== undefined ? (data.atlantisId || null) : undefined,
+        needsValidation: data.needsValidation !== undefined ? Boolean(data.needsValidation) : undefined,
+        validationNote: data.validationNote !== undefined ? (data.validationNote || null) : undefined,
       }
     });
     await syncCarrierProfile(agent.name, types);

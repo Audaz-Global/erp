@@ -40,7 +40,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     }
 
     // Extract non-quotation fields
-    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, iofUsd, ruleStage, operatorInitials, groundServiceLegs, ...quotationData } = req.body;
+    const { clientName, clientCnpj, clientContactName, clientContactEmail, clientContactPhone, clientAtlantisId, clientNeedsValidation, clientValidationNote, iofUsd, ruleStage, operatorInitials, groundServiceLegs, ...quotationData } = req.body;
     const normalizedGround = normalizeGroundServiceLegs(groundServiceLegs, quotationData);
     Object.assign(quotationData, legacyRoadFields(normalizedGround.legs));
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
@@ -79,16 +79,25 @@ export const createQuotation = async (req: Request, res: Response) => {
             cnpj: clientCnpj || null,
             contactName: clientContactName || null,
             contactEmail: clientContactEmail || null,
-            contactPhone: clientContactPhone || null
+            contactPhone: clientContactPhone || null,
+            atlantisId: clientAtlantisId || null,
+            needsValidation: Boolean(clientNeedsValidation),
+            validationNote: clientValidationNote || null
           }
         });
-      } else if (clientContactName || clientContactPhone || clientContactEmail || quotationData.productSegment) {
+      } else if (clientContactName || clientContactPhone || clientContactEmail || quotationData.productSegment || clientAtlantisId) {
         // Atualizar dados de contato/segmento do cliente existente se estavam vazios
         const updateClientData: any = {};
         if (clientContactName && !client.contactName) updateClientData.contactName = clientContactName;
         if (clientContactPhone && !client.contactPhone) updateClientData.contactPhone = clientContactPhone;
         if (clientContactEmail && !client.contactEmail) updateClientData.contactEmail = clientContactEmail;
         if (quotationData.productSegment && !client.productSegment) updateClientData.productSegment = quotationData.productSegment;
+        // Só grava o vínculo com o Atlantis se o cliente ainda não tinha um confirmado.
+        if (clientAtlantisId && !client.atlantisId) {
+          updateClientData.atlantisId = clientAtlantisId;
+          updateClientData.needsValidation = Boolean(clientNeedsValidation);
+          updateClientData.validationNote = clientValidationNote || null;
+        }
         if (Object.keys(updateClientData).length > 0) {
           client = await prisma.client.update({ where: { id: client.id }, data: updateClientData });
         }
@@ -169,17 +178,20 @@ export const updateQuotation = async (req: Request, res: Response) => {
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
     
     // Desestruturar campos que não pertencem ao model Quotation
-    const { 
-      clientName, 
-      clientCnpj, 
-      clientContactName, 
-      clientContactEmail, 
+    const {
+      clientName,
+      clientCnpj,
+      clientContactName,
+      clientContactEmail,
       clientContactPhone,
+      clientAtlantisId,
+      clientNeedsValidation,
+      clientValidationNote,
       sourceEmails,
       ruleStage,
       operatorInitials,
       groundServiceLegs,
-      ...quotationData 
+      ...quotationData
     } = req.body;
     const normalizedGround = normalizeGroundServiceLegs(groundServiceLegs, { ...current, ...quotationData });
     if (normalizedGround.supplied) Object.assign(quotationData, legacyRoadFields(normalizedGround.legs));
@@ -220,7 +232,10 @@ export const updateQuotation = async (req: Request, res: Response) => {
             cnpj: clientCnpj || null,
             contactName: clientContactName || null,
             contactEmail: clientContactEmail || null,
-            contactPhone: clientContactPhone || null
+            contactPhone: clientContactPhone || null,
+            atlantisId: clientAtlantisId || null,
+            needsValidation: Boolean(clientNeedsValidation),
+            validationNote: clientValidationNote || null
           }
         });
       } else {
@@ -230,6 +245,12 @@ export const updateQuotation = async (req: Request, res: Response) => {
         if (clientContactPhone && clientContactPhone !== client.contactPhone) updateClientData.contactPhone = clientContactPhone;
         if (clientContactEmail && clientContactEmail !== client.contactEmail) updateClientData.contactEmail = clientContactEmail;
         if (updateData.productSegment && updateData.productSegment !== client.productSegment) updateClientData.productSegment = updateData.productSegment;
+        // Só grava o vínculo com o Atlantis se o cliente ainda não tinha um confirmado.
+        if (clientAtlantisId && !client.atlantisId) {
+          updateClientData.atlantisId = clientAtlantisId;
+          updateClientData.needsValidation = Boolean(clientNeedsValidation);
+          updateClientData.validationNote = clientValidationNote || null;
+        }
         if (Object.keys(updateClientData).length > 0) {
           client = await prisma.client.update({ where: { id: client.id }, data: updateClientData });
         }
