@@ -2192,14 +2192,24 @@
           <label style="font-size:11px; color:#10B981; font-weight:bold;">Profit Desejado (USD)</label>
           <input type="number" id="rev-profit" step="0.01" placeholder="Ex: 150.00" style="border:1.5px solid #10B981; font-weight:bold; color:#10B981;">
         </div>
-        <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">Alocar Profit No:</label>
-          <select id="rev-profit-target" style="border:1px solid #10B981;">
-            <option value="freight">Frete Internacional (Zero Imposto)</option>
-            <option value="destination">Taxas de Destino (Spread/Handling)</option>
-          </select>
+        <div class="form-group" style="margin:0; grid-column:span 2;">
+          <label style="font-size:11px;">Distribuir Profit Em: <span id="rev-profit-split-warning" style="color:#F59E0B; font-weight:700;"></span></label>
+          <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; height:38px;">
+            <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" id="rev-profit-target-freight" checked onchange="onProfitTargetToggle()"> Frete
+              <input type="number" id="rev-profit-pct-freight" value="100" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" onchange="onProfitPctInput()">%
+            </label>
+            <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" id="rev-profit-target-origin" onchange="onProfitTargetToggle()"> Origem
+              <input type="number" id="rev-profit-pct-origin" value="0" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" disabled onchange="onProfitPctInput()">%
+            </label>
+            <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" id="rev-profit-target-destination" onchange="onProfitTargetToggle()"> Destino
+              <input type="number" id="rev-profit-pct-destination" value="0" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" disabled onchange="onProfitPctInput()">%
+            </label>
+          </div>
         </div>
-        <div class="form-group" style="margin:0;">
+        <div class="form-group" style="margin:0; grid-column:span 4;">
           <button onclick="applySmartProfit()" type="button" style="width:100%; height:38px; background:rgba(16,185,129,0.15); color:#10B981; border:1px solid #10B981; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">💸 Aplicar Profit</button>
         </div>
       </div>
@@ -5173,49 +5183,98 @@ function updateBuyVsSellTable() {
   }
 }
 
+function getProfitTargets() {
+  return ['freight', 'origin', 'destination'].map(key => {
+    const checkbox = document.getElementById(`rev-profit-target-${key}`);
+    const pctInput = document.getElementById(`rev-profit-pct-${key}`);
+    return { key, checked: Boolean(checkbox?.checked), pct: parseFloat(pctInput?.value) || 0 };
+  });
+}
+
+function onProfitTargetToggle() {
+  const targets = getProfitTargets();
+  const checked = targets.filter(t => t.checked);
+  const evenPct = checked.length ? (100 / checked.length) : 0;
+  targets.forEach(t => {
+    const pctInput = document.getElementById(`rev-profit-pct-${t.key}`);
+    if (!pctInput) return;
+    pctInput.disabled = !t.checked;
+    pctInput.value = t.checked ? evenPct.toFixed(0) : 0;
+  });
+  updateProfitSplitWarning();
+}
+
+function onProfitPctInput() {
+  updateProfitSplitWarning();
+}
+
+function updateProfitSplitWarning() {
+  const warningEl = document.getElementById('rev-profit-split-warning');
+  if (!warningEl) return;
+  const sum = getProfitTargets().filter(t => t.checked).reduce((s, t) => s + t.pct, 0);
+  warningEl.textContent = Math.abs(sum - 100) > 0.01 ? `(Soma: ${sum.toFixed(0)}% — precisa ser 100%)` : '';
+}
+
 function applySmartProfit() {
   const profitStr = document.getElementById('rev-profit').value;
-  const target = document.getElementById('rev-profit-target').value;
   if (!profitStr) {
     alert("Digite o valor do Profit desejado.");
     return;
   }
-  
+
   const profitValUsd = parseFloat(profitStr);
   if (isNaN(profitValUsd) || profitValUsd <= 0) return;
 
-  if (target === 'freight') {
-    let freightVal = parseFloat(document.getElementById('rev-freight').value) || 0;
-    const freightCurrency = document.getElementById('rev-freight-currency').value;
-    const usdRate = 5.05;
-    const eurRate = 5.50;
-
-    // Converte USD para a moeda do frete
-    let profitConverted = profitValUsd;
-    if (freightCurrency === 'EUR') profitConverted = profitValUsd * (usdRate / eurRate);
-    else if (freightCurrency === 'BRL') profitConverted = profitValUsd * usdRate;
-
-    document.getElementById('rev-freight').value = (freightVal + profitConverted).toFixed(2);
-    const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
-    if (mainFreight) mainFreight.unitValue = (freightVal + profitConverted) / (reviewCostNumber(mainFreight.quantity, 1) || 1);
-    renderReviewCostEditor();
-    alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado no Frete Internacional!`);
-  } else {
-    const destFeesTextarea = document.getElementById('rev-destination-services');
-    let currentText = destFeesTextarea.value || '';
-    
-    // Remove "Spread / Profit" se já existir
-    const lines = currentText.split('\n').filter(line => !line.toLowerCase().includes('spread / profit'));
-    lines.push(formatFeeLine({ name:'Spread / Profit', unitValue:profitValUsd, value:profitValUsd, currency:'USD', billingUnit:'PER_SHIPMENT', quantity:1, totalValue:profitValUsd }));
-    
-    destFeesTextarea.value = lines.join('\n');
-    window.reviewCostLines.destination = (window.reviewCostLines.destination || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
-    window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Spread / Profit', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:profitValUsd, currency:'USD', applicationScope:'DESTINATION', financialGroup:'PROFIT', chargeNature:'PROFIT', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL' });
-    renderReviewCostEditor();
-    recalculateModalDestinationServicesTotal();
-    alert(`Profit de USD ${profitValUsd.toFixed(2)} alocado nas Taxas de Destino!`);
+  const targets = getProfitTargets().filter(t => t.checked);
+  if (targets.length === 0) {
+    alert("Marque ao menos uma área para alocar o profit (Frete, Origem ou Destino).");
+    return;
   }
+  const pctSum = targets.reduce((s, t) => s + t.pct, 0);
+  if (Math.abs(pctSum - 100) > 0.5) {
+    alert(`A soma dos percentuais marcados precisa ser 100%. Atual: ${pctSum.toFixed(0)}%.`);
+    return;
+  }
+
+  const usdRate = 5.05;
+  const eurRate = 5.50;
+  const appliedParts = [];
+  const AREA_LABELS = { freight: 'Frete', origin: 'Origem', destination: 'Destino' };
+
+  targets.forEach(t => {
+    const shareUsd = profitValUsd * (t.pct / 100);
+    if (shareUsd <= 0) return;
+
+    if (t.key === 'freight') {
+      let freightVal = parseFloat(document.getElementById('rev-freight').value) || 0;
+      const freightCurrency = document.getElementById('rev-freight-currency').value;
+
+      // Converte USD para a moeda do frete
+      let profitConverted = shareUsd;
+      if (freightCurrency === 'EUR') profitConverted = shareUsd * (usdRate / eurRate);
+      else if (freightCurrency === 'BRL') profitConverted = shareUsd * usdRate;
+
+      document.getElementById('rev-freight').value = (freightVal + profitConverted).toFixed(2);
+      const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
+      if (mainFreight) mainFreight.unitValue = (freightVal + profitConverted) / (reviewCostNumber(mainFreight.quantity, 1) || 1);
+    } else {
+      const textareaId = t.key === 'origin' ? 'rev-origin-services' : 'rev-destination-services';
+      const feesTextarea = document.getElementById(textareaId);
+      const lines = (feesTextarea.value || '').split('\n').filter(line => !line.toLowerCase().includes('spread / profit'));
+      lines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: shareUsd, value: shareUsd, currency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: shareUsd }));
+      feesTextarea.value = lines.join('\n');
+
+      window.reviewCostLines[t.key] = (window.reviewCostLines[t.key] || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
+      window.reviewCostLines[t.key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: shareUsd, currency: 'USD', applicationScope: t.key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+    }
+
+    appliedParts.push(`${AREA_LABELS[t.key]}: USD ${shareUsd.toFixed(2)}`);
+  });
+
+  renderReviewCostEditor();
+  recalculateModalDestinationServicesTotal();
   updateBuyVsSellTable();
+  alert(`Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}`);
 }
 
 async function validateAndGeneratePDF(qIdParam = null) {
