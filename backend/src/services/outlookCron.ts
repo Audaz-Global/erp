@@ -206,6 +206,7 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
   try {
     // Monta o payload mínimo para a IA
     const payload = {
+      partner_type: (quotation as any).partnerType || 'Não classificado',
       route: {
         origin_country: quotation.originCountry,
         origin: quotation.originCity || quotation.originPort,

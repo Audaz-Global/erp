@@ -144,6 +144,7 @@ model Quotation {
   costCompositionReviewed    Boolean  @default(false) // PDF usa exatamente as linhas aprovadas pelo operador
   iofUsd                     Float?
   carrier                    String?
+  hideCarrierName            Boolean  @default(false)
   carrierProfileId           String?
   carrierProfile             CarrierProfile? @relation(fields: [carrierProfileId], references: [id])
   vesselName                 String?

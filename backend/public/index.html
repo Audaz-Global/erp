@@ -1930,7 +1930,12 @@
         </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Cia Aérea / Armador</label>
-          <input type="text" id="rev-carrier" placeholder="Ex: American Airlines, KLM, COSCO">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="text" id="rev-carrier" placeholder="Ex: American Airlines, KLM, COSCO" style="flex:1;">
+            <label style="display:flex; align-items:center; gap:5px; font-size:11px; white-space:nowrap; cursor:pointer;" title="Quando marcado, o nome da Cia Aérea/Armador não é impresso na proposta final enviada ao cliente.">
+              <input type="checkbox" id="rev-hide-carrier"> Ocultar na proposta
+            </label>
+          </div>
           <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Validade da tarifa</label><input type="date" id="rev-rate-valid-until"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
         </div>
         <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
@@ -5326,6 +5331,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
     document.getElementById('rev-connections').value = q.connections || '';
     document.getElementById('rev-carrier').value = q.carrier || '';
+    document.getElementById('rev-hide-carrier').checked = Boolean(q.hideCarrierName);
     document.getElementById('rev-vessel-name').value = q.vesselName || '';
     document.getElementById('rev-voyage-number').value = q.voyageNumber || '';
     document.getElementById('rev-free-time-days').value = q.freeTimeDays ?? '';
@@ -5893,6 +5899,7 @@ async function confirmAndGeneratePDF() {
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
         carrier: document.getElementById('rev-carrier').value || null,
+        hideCarrierName: document.getElementById('rev-hide-carrier').checked,
         carrierProfileId: carrierControlState.rev?.id || null,
         vesselName: document.getElementById('rev-vessel-name').value || null,
         voyageNumber: document.getElementById('rev-voyage-number').value || null,

@@ -616,7 +616,7 @@ export const extractAgentCosts = async (
                 total_brl: { type: 'number', description: 'Valor total em BRL se houver' },
                 invoice_value: { type: 'number', description: 'Valor da mercadoria ou Invoice (em USD) citado no e-mail, se houver' },
                 insurance_requested: { type: 'boolean', description: 'Verdadeiro (true) se o e-mail solicitar cotação ou inclusão de Seguro Internacional (insurance)' },
-                carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador por extenso' },
+                carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador (operadora real do transporte) por extenso. NUNCA o nome da empresa remetente da resposta (coloader/agente/desconsolidador) — veja regra de desambiguação nas instruções.' },
                 vessel_name: { type: 'string', description: 'Nome do navio informado no retorno marítimo.' },
                 voyage_number: { type: 'string', description: 'Número da viagem/voyage do navio.' },
                 free_time_days: { type: 'number', description: 'Quantidade de dias de free time informada.' },
@@ -777,6 +777,7 @@ export const extractAgentCosts = async (
        - Calcule o valor total de cada taxa local de destino encontrada da mesma forma que na origem (valores fixos ou baseados em peso/Hawb).
        - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").
     7. **Seguro (Insurance):** Verifique se no texto do e-mail há pedido de "Seguro" (ex: "orçamento de frete aéreo com seguro", "incluir seguro"). Em caso positivo, marque "insurance_requested" como true e extraia o valor da mercadoria (Invoice) informado no texto (ex: "Valor da Invoice USD 186.855,66") e salve em "invoice_value". Se o valor não estiver explícito, salve 0.
+    8. **Desambiguação de Carrier (coloader x armador/cia aérea):** O campo "carrier" só pode ser preenchido com o nome de uma companhia aérea ou armador/linha marítima real, citada explicitamente no texto como a operadora que executa o transporte (ex: "Cathay Pacific", "Maersk", "COSCO", "KLM"). NUNCA use o nome da empresa remetente da resposta (o coloader, agente ou desconsolidador que está cotando) como carrier — mesmo que seja o único nome de empresa presente no e-mail, apareça em destaque na assinatura, rodapé ou cabeçalho. Consulte o campo "Tipo de parceiro respondendo (partner_type)" no CONTEXTO DA COTAÇÃO ORIGINAL: se for COLOADER, AGENTE ou DESCONSOLIDADOR, redobre a atenção — o nome dessa empresa NUNCA é o carrier. Se nenhuma operadora real for citada explicitamente no texto, retorne carrier como string vazia "" em vez de usar o nome do remetente.
 
 
     Instruções Importantes para Modal Aéreo:

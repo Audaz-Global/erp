@@ -335,7 +335,7 @@ const defaultTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationPortRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value">{{originCityRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value">{{destinationCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Armador:</span><span class="value">{{carrierRich}}</span></div>
+        {{#unless hideCarrierName}}<div style="display:flex; margin-bottom:4px;"><span class="label">Armador:</span><span class="value">{{carrierRich}}</span></div>{{/unless}}
         {{#if vesselVoyageRich}}<div style="display:flex; margin-bottom:4px;"><span class="label">Navio / Viagem:</span><span class="value">{{vesselVoyageRich}}</span></div>{{/if}}
       </div>
       <div style="flex:1;">
@@ -825,7 +825,7 @@ const defaultAirTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationPortRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value">{{originCityRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value">{{destinationCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Cia Aérea:</span><span class="value">{{carrierRich}}</span></div>
+        {{#unless hideCarrierName}}<div style="display:flex; margin-bottom:4px;"><span class="label">Cia Aérea:</span><span class="value">{{carrierRich}}</span></div>{{/unless}}
       </div>
       <div style="flex:1;">
         <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{originCountryRich}}</span></div>
@@ -1507,6 +1507,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const templateData = {
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
+    hideCarrierName: Boolean(quotationData.hideCarrierName),
     dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
     client: quotationData.client || { name: '—' },
     referenceNumber,
@@ -2072,6 +2073,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     const templateData = {
       ...quotationData,
+      hideCarrierName: Boolean(quotationData.hideCarrierName),
       freightCurrency: fCurr,
       totalGeralLabel,
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),

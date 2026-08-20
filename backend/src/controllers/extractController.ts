@@ -180,6 +180,7 @@ export const extractData = async (req: Request, res: Response) => {
           quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
           if (quotation) {
             quotationContext = `
+- Tipo de parceiro respondendo (partner_type): ${quotation.partnerType || 'Não classificado'}
 - Rota: ${quotation.originCity || 'Não informada'} para ${quotation.destinationCity || 'Não informada'}
 - Tipo de Carga: ${quotation.loadType || 'Não informado'}
 - Dimensões/Carga: ${quotation.packages || 'Não informada'}

@@ -851,10 +851,11 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <span class="meta-value">${quotation.destinationCity || '—'}</span>
       </div>
 
+      ${quotation.hideCarrierName ? '' : `
       <div class="meta-item">
         <span class="meta-label">Cia Aérea / Armador</span>
         <span class="meta-value">${quotation.carrier || '—'}</span>
-      </div>
+      </div>`}
       <div class="meta-item"><span class="meta-label">Navio / Viagem</span><span class="meta-value">${[quotation.vesselName, quotation.voyageNumber].filter(Boolean).join(' / ') || '—'}</span></div>
       <div class="meta-item"><span class="meta-label">Free time</span><span class="meta-value">${quotation.freeTimeDays != null ? quotation.freeTimeDays + ' dias' : '—'}</span></div>
       <div class="meta-item">
