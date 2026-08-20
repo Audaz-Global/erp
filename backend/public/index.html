@@ -9470,8 +9470,12 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
 
   try {
     const activeQuote = allQuotations.find(q => q.id === document.getElementById('pending-quotations')?.value);
-    const direction = targetId === 'incoterm-rules-preview-panel3' ? (activeQuote?.direction || 'IMPORT') : (document.getElementById('rev-direction')?.value || 'IMPORT');
-    const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}&direction=${encodeURIComponent(direction)}`);
+    const isPanel3 = targetId === 'incoterm-rules-preview-panel3';
+    const direction = isPanel3 ? (activeQuote?.direction || 'IMPORT') : (document.getElementById('rev-direction')?.value || 'IMPORT');
+    const rawModal = isPanel3 ? activeQuote?.modal : document.getElementById('rev-modal')?.value;
+    const rawLoadType = isPanel3 ? activeQuote?.loadType : document.getElementById('rev-load-type')?.value;
+    const previewModal = rawModal ? normalizeFieldRuleModal(rawModal, rawLoadType) : '';
+    const res = await fetch(`/api/incoterm-rules?incoterm=${incoterm}&direction=${encodeURIComponent(direction)}${previewModal ? `&modal=${encodeURIComponent(previewModal)}` : ''}`);
     const rules = await res.json();
     if (rules && rules.length > 0) {
       const originRules = rules.filter(r => r.feeType === 'ORIGIN');
