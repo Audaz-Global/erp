@@ -299,6 +299,11 @@ export const extractClientData = async (text: string, contextRules: string = '',
                   description: 'True quando o cliente pedir explicitamente estimativa, valor, custo ou cotação de armazenagem.'
                 },
                 storage_request_evidence: { type: 'string', description: 'Trecho exato que solicita armazenagem; vazio quando não solicitado.' },
+                hybrid_shipment_detected: {
+                  type: 'boolean',
+                  description: 'True SOMENTE quando a solicitação descrever claramente DOIS embarques distintos com modais diferentes (um aéreo e outro marítimo/LCL/FCL) que não devem ser consolidados em uma única cotação. False para menções incidentais a transporte (ex: "seguir de caminhão até o aeroporto/porto" não é modal duplo) ou quando há apenas um embarque.'
+                },
+                hybrid_shipment_note: { type: 'string', description: 'Se hybrid_shipment_detected for true, explique brevemente quais trechos indicam os dois modais distintos. String vazia caso contrário.' },
                 confidence: { type: 'number' }
               },
               required: ['type', 'gross_weight_kg', 'packages_count', 'dimensions', 'requires_storage_estimate', 'storage_request_evidence']
@@ -372,6 +377,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
       2. Some a quantidade total de caixas/volumes (packages_count) de todos eles (ex: 3 caixas da Yongsheng + 9 caixas da Todenko = 12 volumes).
       3. Some o valor comercial total de todas as invoices. ATENÇÃO: O campo chama-se commercial_value_usd, mas se o documento estiver em EUR, BRL, GBP, ou qualquer outra moeda, extraia APENAS o valor numérico (ex: se for EUR 2610.00, retorne 2610). Não tente converter moedas.
       4. Junte todas as dimensões/medidas das caixas de todos os fornecedores (cada uma com seu respectivo multiplicador de quantidade na frente!) em uma lista consolidada única de dimensions.
+    - **Embarque Híbrido / Dois Modais (CRÍTICO, diferente de "Múltiplos Shippers")**: A regra de consolidação acima é para vários fornecedores DO MESMO embarque/modal. Se, em vez disso, a solicitação descrever CLARAMENTE dois embarques distintos com modais diferentes (ex: "uma parte segue por avião e outra por navio", ou dois pedidos de cotação separados, um aéreo e outro marítimo/LCL/FCL, no mesmo e-mail), NÃO os consolide em um único cargo: escolha o modal predominante ou o primeiro mencionado para o campo "type" (você ainda deve escolher um valor válido), mas defina "hybrid_shipment_detected" como true e explique em "hybrid_shipment_note" quais trechos indicam os dois modais. NÃO marque true por menções incidentais de transporte (ex: "levar de caminhão até o aeroporto/porto" é apenas logística de um único embarque, não dois modais).
 
     Retorne o JSON estruturado conforme o schema fornecido nas configurações de geração.`;
 

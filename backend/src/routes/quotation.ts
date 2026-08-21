@@ -4,14 +4,15 @@ import multer from 'multer';
 import { uploadQuotationDocuments, listQuotationDocuments, downloadQuotationDocument, updateQuotationDocument, deleteQuotationDocument, listQuotationDispatches } from '../controllers/quotationDocumentController';
 import { getPartnerResponseMetrics, getQuotationTimeline } from '../controllers/quotationHistoryController';
 import { getProposalComparison, selectPartnerProposal } from '../controllers/proposalComparisonController';
-import { 
-  createQuotation, 
-  getQuotations, 
-  getQuotationById, 
-  updateQuotation, 
+import {
+  createQuotation,
+  getQuotations,
+  getQuotationById,
+  updateQuotation,
   deleteQuotation,
   generateQuotationPdf,
   updatePhase,
+  duplicateQuotation,
   getPublicWebView
 } from '../controllers/quotationController';
 
@@ -40,6 +41,7 @@ router.get('/:id', getQuotationById);
 router.get('/:id/pdf', generateQuotationPdf);
 router.put('/:id', updateQuotation);
 router.put('/:id/phase', updatePhase);
+router.post('/:id/duplicate', duplicateQuotation);
 router.delete('/:id', deleteQuotation);
 
 export default router;

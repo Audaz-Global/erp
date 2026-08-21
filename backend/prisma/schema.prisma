@@ -198,6 +198,11 @@ model Quotation {
   requiresStorageEstimate  Boolean @default(false)
   storageRequestEvidence   String?
 
+  // Alerta de embarque híbrido (dois modais/embarques distintos no mesmo processo)
+  hybridModalDetected     Boolean @default(false)
+  hybridModalEvidence     String?
+  hybridModalAcknowledged Boolean @default(false)
+
   // Transporte Terrestre Nacional
   needsTransport     Boolean   @default(false)
   truckerName        String?

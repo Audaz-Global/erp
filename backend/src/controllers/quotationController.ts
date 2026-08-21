@@ -6,6 +6,8 @@ import { calculateAirCubado, hasOversizedCargo, calculateCbmFromDimensions, appl
 import { getFeesForIncoterm, formatFeesForController, resolveFreightValue } from '../services/incotermRuleService';
 import { enforceCarrierFieldRules, CarrierFieldRuleError } from '../services/carrierFieldRuleService';
 import { enforcePartnerRules, PartnerRuleError } from '../services/partnerRuleService';
+import { enforceCnpjRequirement, CnpjRequiredError } from '../services/cnpjRequirementService';
+import { enforceHybridModalAcknowledgement, HybridModalError } from '../services/hybridModalService';
 import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
@@ -47,7 +49,12 @@ export const createQuotation = async (req: Request, res: Response) => {
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
     if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
     normalizeDangerousGoodsPayload(quotationData);
-    if (ruleStage) { await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase()); await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase()); }
+    if (ruleStage) {
+      await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase());
+      await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase());
+      enforceCnpjRequirement({ loadType: quotationData.loadType, requiresStorageEstimate: quotationData.requiresStorageEstimate, clientCnpj });
+      enforceHybridModalAcknowledgement({ hybridModalDetected: quotationData.hybridModalDetected, hybridModalAcknowledged: quotationData.hybridModalAcknowledged });
+    }
 
     // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided
     let reference = quotationData.reference;
@@ -134,7 +141,7 @@ export const createQuotation = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Erro ao criar cotação:', error);
     const detail = error?.meta?.target || error?.meta?.cause || error?.message || '';
-    res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
+    res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError || error instanceof CnpjRequiredError || error instanceof HybridModalError ? 400 : 500).json({ error: `Erro ao criar a cotação no banco de dados${detail ? ': ' + detail : ''}` });
   }
 };
 
@@ -209,6 +216,15 @@ export const updateQuotation = async (req: Request, res: Response) => {
     if (ruleStage) {
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase(), current);
       await enforcePartnerRules(quotationData, String(ruleStage).toUpperCase(), current);
+      enforceCnpjRequirement({
+        loadType: quotationData.loadType ?? current.loadType,
+        requiresStorageEstimate: quotationData.requiresStorageEstimate ?? current.requiresStorageEstimate,
+        clientCnpj
+      });
+      enforceHybridModalAcknowledgement({
+        hybridModalDetected: quotationData.hybridModalDetected ?? current.hybridModalDetected,
+        hybridModalAcknowledged: quotationData.hybridModalAcknowledged ?? current.hybridModalAcknowledged
+      });
     }
 
     const updateData: any = normalizeDangerousGoodsPayload({ ...quotationData }, current);
@@ -275,7 +291,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     res.json(await withIncotermApplicability(withDangerousGoodsCompliance(result || quotation)));
   } catch (error: any) {
     console.error('Erro no updateQuotation:', error);
-    res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
+    res.status(error instanceof CarrierFieldRuleError || error instanceof PartnerRuleError || error instanceof CnpjRequiredError || error instanceof HybridModalError ? 400 : 500).json({ error: error?.message || 'Erro ao atualizar cotação' });
   }
 };
 
@@ -357,9 +373,21 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
 export const updatePhase = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
-    const current = await prisma.quotation.findUnique({ where: { id } });
+    const current = await prisma.quotation.findUnique({ where: { id }, include: { client: true } });
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
     const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, freightDisplayMode, costCompositionReviewed } = req.body;
+
+    if (['AGUARDANDO_PARCEIRO', 'GERADA'].includes(status)) {
+      enforceCnpjRequirement({
+        loadType: req.body.loadType ?? current.loadType,
+        requiresStorageEstimate: current.requiresStorageEstimate,
+        clientCnpj: current.client?.cnpj
+      });
+      enforceHybridModalAcknowledgement({
+        hybridModalDetected: current.hybridModalDetected,
+        hybridModalAcknowledged: current.hybridModalAcknowledged
+      });
+    }
 
     const updateData: any = { status };
     if (costCompositionReviewed !== undefined) updateData.costCompositionReviewed = Boolean(costCompositionReviewed);
@@ -433,11 +461,64 @@ export const updatePhase = async (req: Request, res: Response) => {
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(error instanceof CnpjRequiredError || error instanceof HybridModalError ? 400 : 500).json({ error: error.message });
   }
 };
 
-// 8. Rota pública de visualização web da cotação convertida para R$ (BRL)
+// 8. Duplicar cotação (usado quando a extração identifica embarque híbrido — dois
+// modais distintos no mesmo e-mail — e o operador decide separar em dois processos)
+export const duplicateQuotation = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const source = await prisma.quotation.findUnique({ where: { id } });
+    if (!source) return res.status(404).json({ error: 'Cotação não encontrada' });
+
+    const baseReference = source.reference || source.id.substring(0, 6).toUpperCase();
+    const cloneCount = await prisma.quotation.count({ where: { reference: { startsWith: baseReference + '-' } } });
+    const targetReference = `${baseReference}-${cloneCount + 2}`;
+
+    const { id: _sourceId, createdAt, updatedAt, reference, ...quotationData } = source;
+
+    const clone = await prisma.quotation.create({ data: {
+      ...quotationData,
+      reference: targetReference,
+      status: 'CRIADA',
+      agentEmail: null, agentName: null, draftEmail: null, sentAt: null, sentEmailConversationId: null,
+      truckerEmail: null, truckerName: null, truckerDraftEmail: null, truckerSentAt: null,
+      costCompositionReviewed: false,
+      hybridModalAcknowledged: true
+    } });
+
+    const sourceDocuments = await prisma.quotationDocument.findMany({ where: { quotationId: id } });
+    if (sourceDocuments.length) {
+      await prisma.quotationDocument.createMany({ data: sourceDocuments.map(document => ({
+        quotationId: clone.id, blobId: document.blobId, originalName: document.originalName, origin: document.origin,
+        sourceContainerName: document.sourceContainerName, forwardByDefault: document.forwardByDefault, createdById: document.createdById
+      })), skipDuplicates: true });
+    }
+
+    // A divisão em dois processos resolve a ambiguidade também para o processo original.
+    await prisma.quotation.update({ where: { id }, data: { hybridModalAcknowledged: true } });
+
+    const actorId = req.user?.userId === 'teste-local-id' ? null : req.user?.userId;
+    await recordQuotationEvent(prisma, {
+      quotationId: clone.id, type: 'QUOTATION_CLONED', actorType: 'USER', actorId,
+      newStatus: clone.status, metadata: { sourceQuotationId: id, reason: 'HYBRID_MODAL_SPLIT' }
+    });
+    await recordQuotationEvent(prisma, {
+      quotationId: id, type: 'QUOTATION_UPDATED', actorType: 'USER', actorId,
+      metadata: { clonedIntoQuotationId: clone.id, reason: 'HYBRID_MODAL_SPLIT' }
+    });
+
+    const result = await prisma.quotation.findUnique({ where: { id: clone.id }, include: { client: true, groundServiceLegs: true } });
+    res.status(201).json(await withIncotermApplicability(withDangerousGoodsCompliance(result || clone)));
+  } catch (error: any) {
+    console.error('Erro ao duplicar cotação:', error);
+    res.status(500).json({ error: error?.message || 'Erro ao duplicar cotação' });
+  }
+};
+
+// 9. Rota pública de visualização web da cotação convertida para R$ (BRL)
 export const getPublicWebView = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

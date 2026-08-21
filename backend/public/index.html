@@ -1308,6 +1308,15 @@
                 <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;"><input type="checkbox" id="r-storage-request" style="width:17px;height:17px;margin:0;"> Solicitar estimativa de armazenagem ao parceiro</label>
                 <small id="r-storage-request-evidence" style="display:none;margin-top:6px;color:var(--text-muted);"></small>
               </div>
+              <div class="form-group" id="r-hybrid-modal-warning" style="display:none;grid-column:1/-1;padding:12px 14px;border:1px solid var(--warning);border-radius:8px;background:rgba(251,191,36,0.08);">
+                <strong style="color:var(--warning);font-size:12px;">⚠️ Possível embarque híbrido (dois modais na mesma solicitação)</strong>
+                <p id="r-hybrid-modal-note" style="margin:6px 0 0;font-size:12px;color:var(--text-muted);"></p>
+                <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;cursor:pointer;font-size:12px;">
+                  <input type="checkbox" id="r-hybrid-modal-ack" style="width:16px;height:16px;margin:0;" onchange="checkValidation()">
+                  Confirmo que esta cotação é de um único modal e devo prosseguir assim.
+                </label>
+                <button type="button" class="btn btn-secondary" style="margin-top:10px;font-size:12px;" onclick="duplicateQuotationForOtherModal()">🔀 Duplicar cotação para o outro modal</button>
+              </div>
             </div>
           </div>
         </div>
@@ -4095,6 +4104,14 @@ function fillReviewForm(d, mode) {
         ? 'Identificado no pedido: "' + storageRequest.dataset.evidence + '"'
         : '';
 
+      const hybridWarning = document.getElementById('r-hybrid-modal-warning');
+      const hybridDetected = Boolean(d.cargo.hybrid_shipment_detected);
+      hybridWarning.dataset.detected = String(hybridDetected);
+      hybridWarning.style.display = hybridDetected ? 'block' : 'none';
+      document.getElementById('r-hybrid-modal-note').textContent = d.cargo.hybrid_shipment_note
+        || 'Foram identificados termos de frete aéreo e marítimo/LCL na mesma solicitação.';
+      document.getElementById('r-hybrid-modal-ack').checked = Boolean(d.hybridModalAcknowledged);
+
       document.getElementById('r-commercial-value').value = d.cargo.commercial_value_usd || '';
       document.getElementById('conf-commercial-value').innerHTML = renderConf(d.cargo.commercial_value_usd, d.cargo.confidence);
 
@@ -4270,6 +4287,41 @@ async function selectRecommendedPartner(partnerId, email) {
   checkValidation();
 }
 
+// Sem o CNPJ do cliente, o parceiro/co-loader não consegue localizar a tabela de
+// armazenagem de destino aplicável — por isso é obrigatório em LCL ou sempre
+// que o cliente pedir estimativa de armazenagem.
+function cnpjIsRequiredForQuotation(loadType, storageRequested) {
+  return String(loadType || '').toUpperCase() === 'LCL' || Boolean(storageRequested);
+}
+
+// A cotação foi identificada como possível embarque híbrido (dois modais na
+// mesma solicitação) e o usuário ainda não confirmou como quer prosseguir.
+function hybridModalBlocked() {
+  const warning = document.getElementById('r-hybrid-modal-warning');
+  if (!warning) return false;
+  return warning.dataset.detected === 'true' && !document.getElementById('r-hybrid-modal-ack').checked;
+}
+
+async function duplicateQuotationForOtherModal() {
+  if (!currentQuotationId) {
+    alert('Gere o rascunho ou salve a cotação antes de duplicar.');
+    return;
+  }
+  if (!window.confirm('Isso cria uma segunda cotação com os mesmos dados de cliente e carga, para você ajustar o modal separadamente. Continuar?')) return;
+  try {
+    const res = await fetch(API + '/quotations/' + currentQuotationId + '/duplicate', { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao duplicar cotação.');
+    document.getElementById('r-hybrid-modal-ack').checked = true;
+    checkValidation();
+    await loadQuotations();
+    toast(`✅ Cotação duplicada como ${data.reference || 'nova referência'}. Abrindo para ajuste do modal...`);
+    await loadQuotationIntoDraft(data.id);
+  } catch (error) {
+    alert('❌ ' + error.message);
+  }
+}
+
 function checkValidation() {
   const isDraftActive = document.getElementById('panel-draft').classList.contains('active');
 
@@ -4302,6 +4354,20 @@ function checkValidation() {
       document.getElementById('r-dimensions').classList.remove('error');
     }
 
+    const cnpjField = document.getElementById('r-client-cnpj');
+    const cnpjRequired = cnpjIsRequiredForQuotation(loadType, document.getElementById('r-storage-request').checked);
+    const cnpjMissing = cnpjRequired && !cnpjField.value.trim();
+    cnpjField.classList.toggle('error', cnpjMissing);
+    if (cnpjMissing) {
+      isValid = false;
+      cargoValidationMessage = cargoValidationMessage || 'Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.';
+    }
+
+    if (hybridModalBlocked()) {
+      isValid = false;
+      cargoValidationMessage = cargoValidationMessage || 'Confirme que esta cotação é de um único modal (ou duplique para o outro modal) antes de gerar o rascunho.';
+    }
+
     const strip = document.getElementById('statusStrip');
     const btn = document.getElementById('btnGenDraft');
     if(isValid) {
@@ -4315,8 +4381,8 @@ function checkValidation() {
 
 }
 
-document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('input', checkValidation));
-document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break').forEach(f => f.addEventListener('change', checkValidation));
+document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break, #r-client-cnpj, #r-storage-request, #r-type').forEach(f => f.addEventListener('input', checkValidation));
+document.querySelectorAll('.req, #r-packages, #r-dimensions, #r-freight, #r-iof, #r-storage, #r-services, #r-taxes, #r-total, #r-transit-time, #r-frequency, #r-freight-unit, #r-weight-break, #r-client-cnpj, #r-storage-request, #r-type').forEach(f => f.addEventListener('change', checkValidation));
 ['r-weight', 'r-packages', 'r-dimensions'].forEach(id => {
   const field = document.getElementById(id);
   if (field) {
@@ -4517,6 +4583,9 @@ async function generateDraftEmail() {
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       requiresStorageEstimate: document.getElementById('r-storage-request').checked,
       storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
+      hybridModalDetected: document.getElementById('r-hybrid-modal-warning').dataset.detected === 'true',
+      hybridModalEvidence: document.getElementById('r-hybrid-modal-note').textContent || null,
+      hybridModalAcknowledged: document.getElementById('r-hybrid-modal-ack').checked,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'CRIADA',
@@ -4806,7 +4875,20 @@ async function saveAsAwaitingAgent() {
       btn.disabled = false; btn.innerHTML = originalHtml;
       return;
     }
-    
+    const cnpjField = document.getElementById('r-client-cnpj');
+    if (cnpjIsRequiredForQuotation(document.getElementById('r-type').value, document.getElementById('r-storage-request').checked) && !cnpjField.value.trim()) {
+      alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
+      cnpjField.focus();
+      btn.disabled = false; btn.innerHTML = originalHtml;
+      return;
+    }
+    if (hybridModalBlocked()) {
+      alert('Confirme que esta cotação é de um único modal (ou duplique para o outro modal) antes de enviar ao parceiro.');
+      document.getElementById('r-hybrid-modal-ack').focus();
+      btn.disabled = false; btn.innerHTML = originalHtml;
+      return;
+    }
+
     const body = {
       reference: document.getElementById('r-reference').value,
       direction: document.getElementById('r-direction').value || 'IMPORT',
@@ -4835,6 +4917,9 @@ async function saveAsAwaitingAgent() {
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       requiresStorageEstimate: document.getElementById('r-storage-request').checked,
       storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
+      hybridModalDetected: document.getElementById('r-hybrid-modal-warning').dataset.detected === 'true',
+      hybridModalEvidence: document.getElementById('r-hybrid-modal-note').textContent || null,
+      hybridModalAcknowledged: document.getElementById('r-hybrid-modal-ack').checked,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
       status: 'AGUARDANDO_PARCEIRO',
@@ -5714,6 +5799,12 @@ async function confirmAndGeneratePDF() {
   if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   const storageInput = document.getElementById('rev-storage');
   if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
+  const revCnpjField = document.getElementById('rev-client-cnpj');
+  if (cnpjIsRequiredForQuotation(document.getElementById('rev-load-type').value, storageInput.dataset.requested === 'true') && !revCnpjField.value.trim()) {
+    alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
+    revCnpjField.focus();
+    return;
+  }
   const invalidCostLines = Object.values(window.reviewCostLines).flat().filter(line => !String(line.name || '').trim() || !(Number(line.quantity) >= 0) || !(Number(line.unitValue) >= 0) || !line.currency || !line.billingUnit);
   if (invalidCostLines.length) {
     alert('Revise as linhas de custo: descrição, base de cálculo, quantidade, moeda e valor unitário são obrigatórios.');
@@ -9170,9 +9261,9 @@ async function loadRecentQuotations() {
   }
 }
 
-async function loadQuotationIntoDraft() {
+async function loadQuotationIntoDraft(quotationId) {
   const select = document.getElementById('r-load-quotation');
-  const id = select.value;
+  const id = quotationId || select.value;
   if (!id) return;
   
   try {
@@ -9206,6 +9297,7 @@ async function loadQuotationIntoDraft() {
         truckerDraftEmail: quotation.truckerDraftEmail,
         agentEmail: quotation.agentEmail,
         truckerEmail: quotation.truckerEmail,
+        hybridModalAcknowledged: quotation.hybridModalAcknowledged,
         client: {
           name: quotation.client ? quotation.client.name : quotation.clientName,
           cnpj: quotation.client ? quotation.client.cnpj : quotation.clientCnpj,
@@ -9235,6 +9327,8 @@ async function loadQuotationIntoDraft() {
           requires_insurance: quotation.requiresInsurance,
           requires_storage_estimate: quotation.requiresStorageEstimate,
           storage_request_evidence: quotation.storageRequestEvidence,
+          hybrid_shipment_detected: quotation.hybridModalDetected,
+          hybrid_shipment_note: quotation.hybridModalEvidence,
           commercial_value_usd: quotation.commercialValue,
           dimensions: quotation.packages,
           confidence: 1

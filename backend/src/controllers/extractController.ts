@@ -10,6 +10,7 @@ import { applyRateValidityPolicy } from '../services/rateValidityService';
 import { resolveFeeQuantities } from '../services/feeCalculationService';
 import { applyDomesticTransportEvidencePolicy } from '../utils/quotationRequestPolicy';
 import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from '../services/storageEstimateService';
+import { applyHybridModalPolicy } from '../services/hybridModalService';
 import { tagPartnerCosts } from '../services/agentResponseService';
 import { resolveFirstResponseContact } from '../services/contactResolutionService';
 
@@ -170,6 +171,7 @@ export const extractData = async (req: Request, res: Response) => {
       aiResult = await extractClientData(combinedText, contextRules, mediaParts);
       aiResult = applyDomesticTransportEvidencePolicy(aiResult, combinedText);
       aiResult = applyStorageEstimateRequestPolicy(aiResult, combinedText);
+      aiResult = applyHybridModalPolicy(aiResult, combinedText);
     } else {
       // Buscar cotação original para passar como contexto de cálculo
       const quotationId = req.body.quotationId || '';
