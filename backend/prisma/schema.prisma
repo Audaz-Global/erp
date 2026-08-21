@@ -256,6 +256,7 @@ model QuotationEmailDispatch {
   quotation       Quotation              @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   recipientType   String                 @default("PARTNER")
   recipientEmail  String
+  ccEmails        String? // e-mails em cópia, separados por "; " (CC manual + contatos-irmãos do mesmo parceiro)
   subject         String?
   conversationId  String?
   attachmentIds   String? // JSON array dos documentos efetivamente enviados

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { buildCcRecipients } from '../utils/outlookBatch';
 dotenv.config();
 
 const TENANT_ID = process.env.MS_GRAPH_TENANT_ID;
@@ -95,12 +96,9 @@ export const sendOutlookEmail = async (toEmail: string, subject: string, htmlCon
     ]
   };
 
-  if (ccEmail) {
-    messagePayload.ccRecipients = [
-      {
-        emailAddress: { address: ccEmail }
-      }
-    ];
+  const ccRecipients = buildCcRecipients(ccEmail);
+  if (ccRecipients.length) {
+    messagePayload.ccRecipients = ccRecipients;
   }
 
   try {

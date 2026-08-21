@@ -14,7 +14,7 @@ const activeBatchDispatches = new Set<string>();
 marked.setOptions({ breaks: true });
 
 async function recordSuccessfulDispatch(input: {
-  quotationId: string; recipientType: string; recipientEmail: string; partnerName?: string | null;
+  quotationId: string; recipientType: string; recipientEmail: string; partnerName?: string | null; ccEmails?: string | null;
   subject: string; conversationId: string | null; documents: Array<{ id: string; originalName: string }>;
   professional: { id:string; name:string; signatureVersion:number };
 }) {
@@ -34,6 +34,7 @@ async function recordSuccessfulDispatch(input: {
     } });
     const dispatch = await tx.quotationEmailDispatch.create({ data: {
       quotationId: input.quotationId, recipientType: input.recipientType, recipientEmail: input.recipientEmail,
+      ccEmails: input.ccEmails || null,
       subject: input.subject, conversationId: input.conversationId,
       attachmentIds: JSON.stringify(input.documents.map(item => item.id)),
       attachmentNames: JSON.stringify(input.documents.map(item => item.originalName)), status: 'SENT', requestCycleId: cycle.id,
@@ -43,7 +44,7 @@ async function recordSuccessfulDispatch(input: {
       quotationId: input.quotationId, type: isFollowUp ? 'FOLLOW_UP_SENT' : 'EMAIL_SENT', eventAt: sentAt,
       actorType: 'SYSTEM', channel: 'OUTLOOK', partnerEmail: input.recipientEmail, partnerName: input.partnerName,
       newStatus: 'AGUARDANDO_PARCEIRO', sourceType: 'EMAIL_DISPATCH', sourceId: dispatch.id,
-      metadata: { recipientType: input.recipientType, attachmentNames: input.documents.map(item => item.originalName), requestCycleId: cycle.id,
+      metadata: { recipientType: input.recipientType, ccEmails: input.ccEmails || null, attachmentNames: input.documents.map(item => item.originalName), requestCycleId: cycle.id,
         professionalId:input.professional.id, professionalName:input.professional.name, signatureVersion:input.professional.signatureVersion }
     });
     return { dispatch, cycle };
@@ -96,11 +97,13 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           if (duplicate) return { ...recipient, status: 'SKIPPED', conversationId: duplicate.conversationId, message: 'Envio recente já confirmado.' };
         }
 
+        const effectiveCcEmail = recipient.ccEmail || String(req.body?.ccEmail || '') || undefined;
         const { conversationId } = await sendOutlookEmail(recipient.email, mailSubject, finalHtmlEmail,
-          recipient.ccEmail || String(req.body?.ccEmail || '') || undefined, [...outlookAttachments, signature.attachment]);
+          effectiveCcEmail, [...outlookAttachments, signature.attachment]);
         await recordSuccessfulDispatch({
           quotationId, recipientType: recipient.partnerType, recipientEmail: recipient.email,
           partnerName: [recipient.partnerName, recipient.contactName].filter(Boolean).join(' - ') || null,
+          ccEmails: effectiveCcEmail || null,
           subject: mailSubject, conversationId, documents: selectedDocuments, professional:signature.professional
         });
         return { ...recipient, status: 'SENT', conversationId, message: 'Enviado com sucesso.' };
@@ -151,11 +154,12 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           const rawGroundDraft = String(request?.draftEmail || leg.draftEmail || '').trim();
           if (!rawGroundDraft) throw new Error(`Gere e revise o rascunho de ${label} antes do envio.`);
           const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(rawGroundDraft)}</body></html>`, signature.html);
-          const sent = await sendOutlookEmail(email, groundSubject, groundHtml, String(request?.ccEmail || '') || undefined,
+          const groundCcEmail = String(request?.ccEmail || '') || undefined;
+          const sent = await sendOutlookEmail(email, groundSubject, groundHtml, groundCcEmail,
             [...documents.map(document => ({ name:document.originalName, contentType:document.blob.mimeType, content:Buffer.from(document.blob.content) })), signature.attachment]);
           await recordSuccessfulDispatch({ quotationId, recipientType:serviceType === 'DTA' ? 'DTA_PROVIDER' : 'TRUCKER', recipientEmail:email,
-            partnerName:String(request?.partnerName || leg.partnerName || '') || null, subject:groundSubject, conversationId:sent.conversationId,
-            documents, professional:signature.professional });
+            partnerName:String(request?.partnerName || leg.partnerName || '') || null, ccEmails: groundCcEmail || null,
+            subject:groundSubject, conversationId:sent.conversationId, documents, professional:signature.professional });
           await prisma.groundServiceLeg.update({ where:{ id:leg.id }, data:{ sentAt:new Date(), partnerEmail:email,
             partnerName:String(request?.partnerName || leg.partnerName || '') || null, draftEmail:String(request?.draftEmail || leg.draftEmail || '') } });
           groundServiceResults.push({ serviceType, status:'SENT', email, conversationId:sent.conversationId, message:'Enviado com sucesso.' });
@@ -175,12 +179,14 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           const truckerDocuments = await prisma.quotationDocument.findMany({
             where: { quotationId, id: { in: truckerAttachmentIds } }, include: { blob: true }
           });
+          const truckerCcEmail = String(req.body?.truckerCcEmail || '') || undefined;
           const sent = await sendOutlookEmail(truckerEmail, `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`, truckerHtml,
-            String(req.body?.truckerCcEmail || '') || undefined, [...truckerDocuments.map(document => ({
+            truckerCcEmail, [...truckerDocuments.map(document => ({
               name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
             })), signature.attachment]);
           await recordSuccessfulDispatch({ quotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
-            partnerName: String(req.body?.truckerName || '') || null, subject: `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`,
+            partnerName: String(req.body?.truckerName || '') || null, ccEmails: truckerCcEmail || null,
+            subject: `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`,
             conversationId: sent.conversationId, documents: truckerDocuments, professional:signature.professional });
           truckerResult = { status: 'SENT', email: truckerEmail, conversationId: sent.conversationId, message: 'Enviado com sucesso.' };
         } catch (error: any) {
@@ -316,7 +322,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     }));
     const { conversationId } = await sendOutlookEmail(agentEmail, mailSubject, finalHtmlEmail, ccEmail, [...outlookAttachments, signature.attachment]);
     await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: normalizedPartnerType, recipientEmail: agentEmail,
-      partnerName: agentName, subject: mailSubject, conversationId, documents: selectedDocuments, professional:signature.professional });
+      partnerName: agentName, ccEmails: ccEmail || null, subject: mailSubject, conversationId, documents: selectedDocuments, professional:signature.professional });
 
     // Se houver necessidade de transporte terrestre e o e-mail da transportadora for fornecido
     let truckerConversationId = null;
@@ -335,7 +341,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
         })), signature.attachment]);
         truckerConversationId = truckerRes.conversationId;
         await recordSuccessfulDispatch({ quotationId: targetQuotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
-          partnerName: truckerName, subject: truckerSubject, conversationId: truckerConversationId, documents: selectedTruckerDocuments, professional:signature.professional });
+          partnerName: truckerName, ccEmails: truckerCcEmail || null, subject: truckerSubject, conversationId: truckerConversationId, documents: selectedTruckerDocuments, professional:signature.professional });
         console.log(`[Outlook] E-mail de transportadora enviado para ${truckerEmail} | REF: ${targetReference} | ConversationId: ${truckerConversationId || 'N/A'}`);
       } catch (tErr: any) {
         console.error('Erro ao enviar e-mail da transportadora pelo Outlook:', tErr);
