@@ -3895,13 +3895,34 @@ function renderPartnerRecipients() {
     return;
   }
   const statusLabels = { PENDING:'Pendente', SENT:'Enviado', SKIPPED:'Já enviado', FAILED:'Falhou', CC:'Enviado em cópia' };
-  list.innerHTML = selectedPartnerRecipients.map(item => `
+
+  const renderRow = (item, roleLabel) => `
     <div style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1fr) auto auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border);">
-      <div><strong style="font-size:12px;">${ifrEscape(item.partnerName)}</strong><small style="display:block;color:var(--text-muted);">${ifrEscape(item.contactName)}</small></div>
+      <div><strong style="font-size:12px;">${ifrEscape(item.partnerName)}</strong>${roleLabel ? ` <span class="badge-pending" style="background:${roleLabel === 'Para' ? 'rgba(52,211,153,0.15)' : 'rgba(148,163,184,0.15)'};color:${roleLabel === 'Para' ? 'var(--success)' : 'var(--text-muted)'};">${roleLabel}</span>` : ''}<small style="display:block;color:var(--text-muted);">${ifrEscape(item.contactName)}</small></div>
       <span style="font-size:12px;">${ifrEscape(item.email)}</span>
       <span class="status-badge ${item.status === 'FAILED' ? 'expired' : ['SENT','SKIPPED','CC'].includes(item.status) ? 'approved' : 'review'}" title="${item.status === 'CC' ? 'Este contato é do mesmo parceiro de outro destinatário e recebeu o e-mail em cópia, junto com o principal.' : ''}">${statusLabels[item.status] || item.status}</span>
       <button type="button" class="action-btn danger" onclick="removePartnerRecipient(decodeURIComponent('${encodeURIComponent(item.email)}'))" title="Remover">×</button>
-    </div>`).join('');
+    </div>`;
+
+  // Agrupa por parceiro (mesma empresa) para deixar visível, já na composição
+  // e antes de enviar, que 2+ contatos da mesma empresa vão sair num e-mail só
+  // (o primeiro como "Para", os demais em "Cc") — em vez de parecerem envios
+  // separados, como de fato acontece entre contatos de empresas diferentes.
+  const groups = [];
+  const groupIndexByKey = new Map();
+  selectedPartnerRecipients.forEach(item => {
+    const key = item.partnerId || `single:${item.email}`;
+    if (!groupIndexByKey.has(key)) { groupIndexByKey.set(key, groups.length); groups.push([]); }
+    groups[groupIndexByKey.get(key)].push(item);
+  });
+
+  list.innerHTML = groups.map(group => {
+    if (group.length === 1) return renderRow(group[0], null);
+    return `<div style="border:1px dashed var(--gold);border-radius:8px;padding:0 10px;margin-top:8px;">
+      <div style="font-size:10px;color:var(--gold);padding-top:8px;">📧 1 e-mail · ${group.length} destinatários desta empresa</div>
+      ${group.map((item, idx) => renderRow(item, idx === 0 ? 'Para' : 'Cc')).join('')}
+    </div>`;
+  }).join('');
 }
 
 function renderPartnerDispatchResults() {

@@ -6,6 +6,7 @@ import { recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizePartnerType } from '../services/agentResponseService';
 import { mapWithConcurrency, normalizeBatchRecipients, splitRecipientEmails } from '../utils/outlookBatch';
 import { appendProfessionalSignature, loadProfessionalSignature } from '../services/professionalSignatureService';
+import { personalizeGreeting } from '../utils/draftGreeting';
 
 const router = Router();
 const activeBatchDispatches = new Set<string>();
@@ -75,7 +76,11 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
     const signature = await loadProfessionalSignature(req.body?.professionalId);
 
     const emailStyle = `<style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#333;line-height:1.6}ul{margin-top:5px;margin-bottom:5px;padding-left:20px}strong{font-weight:600;color:#000}p{margin:0 0 10px}</style>`;
-    const finalHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(rawMarkdown)}</body></html>`, signature.html);
+    // Renderizado por destinatário (não uma vez só) para poder trocar a
+    // saudação genérica pelo nome de quem ficou como "Para" em cada e-mail,
+    // sem precisar gerar o rascunho de novo pela IA.
+    const buildFinalHtmlEmail = async (contactName?: string | null) =>
+      appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(personalizeGreeting(rawMarkdown, contactName))}</body></html>`, signature.html);
     const selectedDocuments = await prisma.quotationDocument.findMany({
       where: { quotationId, id: { in: attachmentIds } }, include: { blob: true }
     });
@@ -98,6 +103,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
         }
 
         const effectiveCcEmail = recipient.ccEmail || String(req.body?.ccEmail || '') || undefined;
+        const finalHtmlEmail = await buildFinalHtmlEmail(recipient.contactName);
         const { conversationId } = await sendOutlookEmail(recipient.email, mailSubject, finalHtmlEmail,
           effectiveCcEmail, [...outlookAttachments, signature.attachment]);
         await recordSuccessfulDispatch({
