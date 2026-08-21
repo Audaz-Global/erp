@@ -346,9 +346,22 @@ export const generateQuotationPdf = async (req: Request, res: Response) => {
     const protocol = req.protocol;
     const publicWebViewUrl = `${protocol}://${host}/api/quotations/${quotation.id}/view`;
 
+    // Assinatura do rodapé do PDF: sempre a pessoa que está cotando ("Cotando
+    // como", selecionada no cabeçalho) no momento da geração — não quem criou
+    // a cotação originalmente, que pode ser outra pessoa. Sem seleção, cai
+    // para quem criou o registro para nunca deixar a assinatura em branco.
+    const professionalId = String(req.query?.professionalId || '');
+    const professional = professionalId
+      ? await prisma.professionalProfile.findUnique({ where: { id: professionalId } })
+      : null;
+    const professionalName = professional?.name || quotation.createdBy?.name || '';
+    const professionalEmail = professional?.email || quotation.createdBy?.email || '';
+
     const pdfBuffer = await generatePdf({
       ...quotation,
-      publicWebViewUrl
+      publicWebViewUrl,
+      professionalName,
+      professionalEmail
     });
     await recordQuotationEvent(prisma, { quotationId: quotation.id, type: 'PDF_GENERATED', actorType: 'USER', channel: 'SYSTEM' });
 

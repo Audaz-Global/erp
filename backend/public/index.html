@@ -6118,8 +6118,9 @@ async function confirmAndGeneratePDF() {
       return;
     }
 
-    // Abrir PDF
-    window.open(API + '/quotations/' + qId + '/pdf', '_blank');
+    // Abrir PDF — a assinatura do rodapé usa quem está "Cotando como" agora
+    const pdfProfessionalQuery = activeProfessional?.id ? '?professionalId=' + encodeURIComponent(activeProfessional.id) : '';
+    window.open(API + '/quotations/' + qId + '/pdf' + pdfProfessionalQuery, '_blank');
     toast('✅ PDF gerado com sucesso!');
     closePdfReviewModal();
     loadQuotations();

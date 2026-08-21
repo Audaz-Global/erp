@@ -547,8 +547,8 @@ const defaultTemplate = `
   </ul>
 
   <div class="signature">
-    Gabriela Santos<br>
-    <a href="mailto:cs3@audazglobal.com">cs3@audazglobal.com</a>
+    {{professionalName}}<br>
+    <a href="mailto:{{professionalEmail}}">{{professionalEmail}}</a>
   </div>
 
   <div class="bottom-footer">
@@ -1013,8 +1013,8 @@ const defaultAirTemplate = `
   </ul>
 
   <div class="signature">
-    Gabriela Santos<br>
-    <a href="mailto:cs3@audazglobal.com">cs3@audazglobal.com</a>
+    {{professionalName}}<br>
+    <a href="mailto:{{professionalEmail}}">{{professionalEmail}}</a>
   </div>
 
   <div class="bottom-footer">
