@@ -28,45 +28,19 @@ export const searchAtlantisAgent = async (req: Request, res: Response) => {
   }
 };
 
-// Lista clientes e parceiros/agentes marcados como pendentes de validação
-// (a sincronização com o Atlantis encontrou nomes parecidos e não decidiu sozinha).
+// Lista parceiros/agentes marcados como pendentes de validação (a sincronização
+// com o Atlantis encontrou nomes parecidos e não decidiu sozinha). Pendências de
+// clientes são revisadas direto na tela de Clientes, que já mostra o status.
 export const listPendingValidation = async (_req: Request, res: Response) => {
   try {
-    const [clients, agents] = await Promise.all([
-      prisma.client.findMany({ where: { needsValidation: true }, orderBy: { updatedAt: 'desc' } }),
-      prisma.agent.findMany({ where: { needsValidation: true }, orderBy: { updatedAt: 'desc' } })
-    ]);
-    res.json({ clients, agents });
+    const agents = await prisma.agent.findMany({ where: { needsValidation: true }, orderBy: { updatedAt: 'desc' } });
+    res.json({ agents });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Erro ao listar pendências de validação.' });
   }
 };
 
-// Resolve manualmente um cliente pendente: confirma o vínculo com um registro
-// do Atlantis (opcionalmente atualizando os dados) ou apenas remove a flag.
-export const resolveClientValidation = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { atlantisId, cnpj, contactName, contactEmail, contactPhone } = req.body || {};
-    const client = await prisma.client.update({
-      where: { id },
-      data: {
-        needsValidation: false,
-        validationNote: null,
-        atlantisId: atlantisId || null,
-        cnpj: cnpj || undefined,
-        contactName: contactName || undefined,
-        contactEmail: contactEmail || undefined,
-        contactPhone: contactPhone || undefined
-      }
-    });
-    res.json(client);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Erro ao resolver pendência de cliente.' });
-  }
-};
-
-// Mesma ideia para parceiros/agentes, mas em endpoint próprio (em vez de reusar
+// Resolve manualmente um parceiro/agente pendente, em endpoint próprio (em vez de reusar
 // o update genérico de Agent, que sempre recalcula os papéis/type a partir do
 // payload — reusar aqui apagaria os papéis já cadastrados do parceiro).
 export const resolveAgentValidation = async (req: Request, res: Response) => {

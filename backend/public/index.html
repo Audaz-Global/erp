@@ -1068,7 +1068,8 @@
       <li><button class="app-nav-item" id="tab-extract" onclick="switchTab('extract')"><span class="tab-step">01</span><span>Nova Cotação</span></button></li>
       <li><button class="app-nav-item" id="tab-draft" onclick="switchTab('draft')"><span class="tab-step">02</span><span>Solicitar Parceiro</span></button></li>
       <li><button class="app-nav-item" id="tab-return" onclick="switchTab('return')"><span class="tab-step">03</span><span>Retorno do Parceiro</span></button></li>
-      <li class="nav-section-title">PARCEIROS</li>
+      <li class="nav-section-title">CADASTROS</li>
+      <li><button class="app-nav-item" id="tab-clients" onclick="switchTab('clients')"><span>🏢</span><span>Clientes</span></button></li>
       <li><button class="app-nav-item" id="tab-agents" onclick="switchTab('agents')"><span>🤝</span><span>Parceiros</span></button></li>
     </ul>
     <div class="app-sidebar-footer">
@@ -1748,6 +1749,25 @@
   <!-- ════════════ PAINEL: DASHBOARD ════════════ -->
   <div class="panel" id="panel-dashboard">
     <div class="card response-metrics" id="responseMetricsPanel"><p style="color:var(--text-muted);font-size:12px">Carregando indicadores de resposta dos parceiros...</p></div>
+  </div>
+
+  <!-- ════════════ PAINEL: CLIENTES ════════════ -->
+  <div class="panel" id="panel-clients">
+    <div class="card" style="padding: 20px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <h2 style="margin:0;"><span class="emoji">🏢</span> Clientes</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="client-search" placeholder="Buscar por nome ou CNPJ..." style="min-width:220px;margin:0;" oninput="renderClientsTable()">
+          <button class="btn btn-primary" onclick="openClientModal()">➕ Novo Cliente</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="q-table" id="clientsTable">
+          <thead><tr><th>Nome</th><th>CNPJ</th><th>Contato</th><th>Segmento</th><th>Status</th><th>Cotações</th><th>Ações</th></tr></thead>
+          <tbody id="clientsTbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <!-- ════════════ PAINEL 5: PARCEIROS ════════════ -->
@@ -2456,6 +2476,61 @@
   </div>
 </div>
 
+<div id="clientModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9100; overflow-y:auto; padding:20px;">
+  <div style="max-width:500px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+    <button onclick="closeClientModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    <h2 style="font-size:18px; margin-bottom: 20px;" id="clientModalTitle">Novo Cliente</h2>
+
+    <input type="hidden" id="client-id">
+
+    <div class="form-group">
+      <label>Nome do Cliente *</label>
+      <input type="text" id="client-name" placeholder="Ex: GESTAMP">
+    </div>
+    <div id="client-modal-atlantis-box"></div>
+    <div id="client-modal-pending-note" style="display:none;margin:0 0 14px;padding:10px 12px;border:1px solid rgba(245,166,35,.4);border-radius:8px;background:rgba(245,166,35,.05);font-size:11px;color:var(--gold);"></div>
+
+    <div class="form-group">
+      <label>CNPJ / Tax ID</label>
+      <input type="text" id="client-cnpj" placeholder="Ex: 00.000.000/0000-00">
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div class="form-group">
+        <label>Nome do Contato</label>
+        <input type="text" id="client-contact-name" placeholder="Ex: Maria Silva">
+      </div>
+      <div class="form-group">
+        <label>Telefone do Contato</label>
+        <input type="text" id="client-contact-phone" placeholder="Ex: +55 12 3307-1704">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>E-mail do Contato</label>
+      <input type="email" id="client-contact-email" placeholder="Ex: contato@empresa.com">
+    </div>
+    <div class="form-group">
+      <label>Segmento</label>
+      <select id="client-product-segment">
+        <option value="">Selecione...</option>
+        <option value="FARMACEUTICO">Farmacêutico</option>
+        <option value="AUTOMOTIVO">Automotivo</option>
+        <option value="ELETRONICOS">Eletrônicos</option>
+        <option value="QUIMICO">Químico</option>
+        <option value="ALIMENTICIO">Alimentício</option>
+        <option value="BENS_DE_CONSUMO">Bens de Consumo</option>
+        <option value="MAQUINAS_E_EQUIPAMENTOS">Máquinas e Equipamentos</option>
+        <option value="OUTRO">Outro</option>
+      </select>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+      <button onclick="closeClientModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveClient()" class="btn btn-primary" id="btnSaveClient">Salvar Cliente</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = window.location.origin + '/api';
 let isOnlyEditMode = false;
@@ -2721,6 +2796,9 @@ function switchTab(name) {
   if (name === 'agents') {
     setPartnerSection(currentPartnerFilter || 'OVERVIEW');
     loadAgents();
+  }
+  if (name === 'clients') {
+    loadClients();
   }
 }
 
@@ -7363,11 +7441,7 @@ function switchSettingsTab(tab) {
     case 'atlantisValidation':
       content.innerHTML = `
         <div class="sc-title">Pendentes de Validação (Atlantis)</div>
-        <p class="sc-desc">Clientes e parceiros/agentes cujo nome bateu com múltiplos registros parecidos no Atlantis durante a sincronização automática. Revise e confirme o vínculo certo, ou dispense.</p>
-        <div class="settings-section">
-          <h3>Clientes</h3>
-          <div id="atlantis-pending-clients"><p style="color:var(--text-muted);font-size:12px">Carregando...</p></div>
-        </div>
+        <p class="sc-desc">Parceiros/agentes cujo nome bateu com múltiplos registros parecidos no Atlantis durante a sincronização automática. Revise e confirme o vínculo certo, ou dispense. Pendências de clientes agora ficam na tela de Clientes.</p>
         <div class="settings-section">
           <h3>Parceiros / Agentes</h3>
           <div id="atlantis-pending-agents"><p style="color:var(--text-muted);font-size:12px">Carregando...</p></div>
@@ -7386,7 +7460,8 @@ function atlantisFieldGroups() {
   return {
     'r-client': { nameId:'r-client-name', cnpjId:'r-client-cnpj', contactNameId:'r-client-contact', contactPhoneId:'r-client-phone', boxId:'r-client-atlantis-box', role:'CUSTOMER' },
     'rev-client': { nameId:'rev-client-name', cnpjId:'rev-client-cnpj', contactNameId:'rev-client-contact', contactPhoneId:'rev-client-phone', boxId:'rev-client-atlantis-box', role:'CUSTOMER' },
-    'agent': { nameId:'agent-name', cnpjId:null, phoneId:'agent-phone', websiteId:'agent-website', addressId:'agent-address', boxId:'agent-atlantis-box', role:'AGENT' }
+    'agent': { nameId:'agent-name', cnpjId:null, phoneId:'agent-phone', websiteId:'agent-website', addressId:'agent-address', boxId:'agent-atlantis-box', role:'AGENT' },
+    'client-modal': { nameId:'client-name', cnpjId:'client-cnpj', contactNameId:'client-contact-name', contactPhoneId:'client-contact-phone', boxId:'client-modal-atlantis-box', role:'CUSTOMER' }
   };
 }
 
@@ -7497,27 +7572,12 @@ function atlantisPayload(groupKey, prefix) {
 }
 
 async function loadAtlantisPendingValidation() {
-  const clientsBox = document.getElementById('atlantis-pending-clients');
   const agentsBox = document.getElementById('atlantis-pending-agents');
-  if (!clientsBox || !agentsBox) return;
+  if (!agentsBox) return;
   try {
     const res = await fetch(`${API}/atlantis/pending-validation`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Falha ao carregar pendências.');
-
-    clientsBox.innerHTML = data.clients.length ? data.clients.map(client => `
-      <div style="padding:10px 0;border-bottom:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
-          <div><strong>${ifrEscape(client.name)}</strong><br><small style="color:var(--text-muted)">${ifrEscape(client.cnpj || 'sem CNPJ')}</small></div>
-          <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;" onclick="dismissAtlantisPending('client','${client.id}')">Dispensar</button>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${ifrEscape(client.validationNote || '')}</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="text" id="atlantis-resolve-client-${client.id}" value="${ifrEscape(client.name)}" style="flex:1;font-size:12px;">
-          <button type="button" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;white-space:nowrap;" onclick="searchAtlantisForPending('client','${client.id}')">Buscar</button>
-        </div>
-        <div id="atlantis-resolve-client-box-${client.id}"></div>
-      </div>`).join('') : '<p style="color:var(--text-muted);font-size:12px">Nenhum cliente pendente.</p>';
 
     agentsBox.innerHTML = data.agents.length ? data.agents.map(agent => `
       <div style="padding:10px 0;border-bottom:1px solid var(--border);">
@@ -7533,7 +7593,7 @@ async function loadAtlantisPendingValidation() {
         <div id="atlantis-resolve-agent-box-${agent.id}"></div>
       </div>`).join('') : '<p style="color:var(--text-muted);font-size:12px">Nenhum parceiro/agente pendente.</p>';
   } catch (err) {
-    clientsBox.innerHTML = agentsBox.innerHTML = `<p style="color:var(--warning);font-size:12px">${ifrEscape(err.message)}</p>`;
+    agentsBox.innerHTML = `<p style="color:var(--warning);font-size:12px">${ifrEscape(err.message)}</p>`;
   }
 }
 
@@ -7545,8 +7605,7 @@ async function searchAtlantisForPending(kind, id) {
   if (!box || term.length < 3) return;
   box.innerHTML = '<small style="color:var(--text-muted)">Consultando Atlantis...</small>';
   try {
-    const endpoint = kind === 'client' ? 'search-customer' : 'search-agent';
-    const res = await fetch(`${API}/atlantis/${endpoint}?${new URLSearchParams({ q: term })}`);
+    const res = await fetch(`${API}/atlantis/search-agent?${new URLSearchParams({ q: term })}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { box.innerHTML = ''; return; }
     const key = `${kind}-${id}`;
@@ -7565,19 +7624,11 @@ async function resolveAtlantisPending(kind, id, index) {
   const candidate = (window.atlantisPendingCandidates[key] || [])[index];
   if (!candidate) return;
   try {
-    if (kind === 'client') {
-      const res = await fetch(`${API}/atlantis/clients/${id}/resolve`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ atlantisId: candidate.atlantisId, cnpj: candidate.cnpj || undefined, contactName: candidate.contactName || undefined, contactPhone: candidate.contactPhone || undefined })
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao vincular cliente.');
-    } else {
-      const res = await fetch(`${API}/atlantis/agents/${id}/resolve`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ atlantisId: candidate.atlantisId, phone: candidate.phone || undefined, website: candidate.website || undefined, address: candidate.address || undefined })
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao vincular parceiro.');
-    }
+    const res = await fetch(`${API}/atlantis/agents/${id}/resolve`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ atlantisId: candidate.atlantisId, phone: candidate.phone || undefined, website: candidate.website || undefined, address: candidate.address || undefined })
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao vincular parceiro.');
     toast('✅ Vínculo confirmado com o Atlantis.');
     loadAtlantisPendingValidation();
   } catch (err) {
@@ -7588,13 +7639,8 @@ async function resolveAtlantisPending(kind, id, index) {
 async function dismissAtlantisPending(kind, id) {
   if (!confirm('Dispensar esta pendência sem vincular a um registro do Atlantis?')) return;
   try {
-    if (kind === 'client') {
-      const res = await fetch(`${API}/atlantis/clients/${id}/resolve`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao dispensar.');
-    } else {
-      const res = await fetch(`${API}/atlantis/agents/${id}/resolve`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao dispensar.');
-    }
+    const res = await fetch(`${API}/atlantis/agents/${id}/resolve`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Falha ao dispensar.');
     loadAtlantisPendingValidation();
   } catch (err) {
     alert('Erro: ' + err.message);
@@ -8352,6 +8398,122 @@ function renderAgentsTable() {
       </tr>
     `;
   }).join('');
+}
+
+// ═══════════ Clientes ═══════════
+window.allClientsList = [];
+
+async function loadClients() {
+  try {
+    const res = await fetch(API + '/clients');
+    window.allClientsList = await res.json();
+    renderClientsTable();
+  } catch (e) {
+    console.error('Erro ao carregar clientes', e);
+  }
+}
+
+function renderClientsTable() {
+  const tbody = document.getElementById('clientsTbody');
+  if (!tbody) return;
+  const search = (document.getElementById('client-search')?.value || '').toLowerCase();
+  const filtered = window.allClientsList.filter(c => !search || c.name.toLowerCase().includes(search) || (c.cnpj || '').toLowerCase().includes(search));
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Nenhum cliente encontrado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(c => `
+    <tr>
+      <td style="font-weight:600;">${ifrEscape(c.name)}</td>
+      <td style="color:var(--text-muted);">${ifrEscape(c.cnpj || '-')}</td>
+      <td style="color:var(--text-muted);">${ifrEscape(c.contactName || '-')}</td>
+      <td style="color:var(--text-muted);">${ifrEscape(c.productSegment || '-')}</td>
+      <td>${c.needsValidation ? '<span class="status-badge review" title="' + ifrEscape(c.validationNote || '') + '">Pendente (Atlantis)</span>' : (c.atlantisId ? '<span class="status-badge approved">Vinculado</span>' : '<span class="status-badge draft">—</span>')}</td>
+      <td style="color:var(--text-muted);">${c._count?.quotations ?? 0}</td>
+      <td><div class="action-btns"><button class="action-btn" onclick="editClientById('${c.id}')" title="Editar">✏️</button></div></td>
+    </tr>
+  `).join('');
+}
+
+function closeClientModal() {
+  document.getElementById('clientModal').style.display = 'none';
+}
+
+function openClientModal() {
+  document.getElementById('clientModal').style.display = 'block';
+  document.getElementById('clientModalTitle').innerText = 'Novo Cliente';
+  document.getElementById('client-id').value = '';
+  document.getElementById('client-name').value = '';
+  document.getElementById('client-cnpj').value = '';
+  document.getElementById('client-contact-name').value = '';
+  document.getElementById('client-contact-email').value = '';
+  document.getElementById('client-contact-phone').value = '';
+  document.getElementById('client-product-segment').value = '';
+  document.getElementById('client-modal-pending-note').style.display = 'none';
+  resetAtlantisLink('client-modal', null);
+}
+
+function editClientById(id) {
+  const client = (window.allClientsList || []).find(item => item.id === id);
+  if (!client) return;
+  document.getElementById('clientModal').style.display = 'block';
+  document.getElementById('clientModalTitle').innerText = 'Editar Cliente';
+  document.getElementById('client-id').value = client.id;
+  document.getElementById('client-name').value = client.name || '';
+  document.getElementById('client-cnpj').value = client.cnpj || '';
+  document.getElementById('client-contact-name').value = client.contactName || '';
+  document.getElementById('client-contact-email').value = client.contactEmail || '';
+  document.getElementById('client-contact-phone').value = client.contactPhone || '';
+  document.getElementById('client-product-segment').value = client.productSegment || '';
+  resetAtlantisLink('client-modal', client.atlantisId || null);
+
+  const pendingNote = document.getElementById('client-modal-pending-note');
+  if (client.needsValidation) {
+    pendingNote.style.display = 'block';
+    pendingNote.innerHTML = `⚠️ Pendente de validação com o Atlantis: ${ifrEscape(client.validationNote || 'múltiplos registros parecidos.')}<br>Busque o nome novamente abaixo e escolha o registro certo (ou deixe assim e salve para dispensar).`;
+    runAtlantisSearch('client-modal');
+  } else {
+    pendingNote.style.display = 'none';
+  }
+}
+
+async function saveClient() {
+  const id = document.getElementById('client-id').value;
+  const btn = document.getElementById('btnSaveClient');
+  const name = document.getElementById('client-name').value.trim();
+  if (!name) { toast('⚠️ Nome do cliente é obrigatório.'); return; }
+
+  const payload = {
+    name,
+    cnpj: document.getElementById('client-cnpj').value.trim() || null,
+    contactName: document.getElementById('client-contact-name').value.trim() || null,
+    contactEmail: document.getElementById('client-contact-email').value.trim() || null,
+    contactPhone: document.getElementById('client-contact-phone').value.trim() || null,
+    productSegment: document.getElementById('client-product-segment').value || null,
+    ...(() => {
+      const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
+      return { atlantisId: state.atlantisId, needsValidation: state.needsValidation, validationNote: state.validationNote };
+    })()
+  };
+
+  btn.disabled = true;
+  btn.innerText = 'Salvando...';
+  try {
+    const url = id ? API + '/clients/' + id : API + '/clients';
+    const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao salvar cliente.');
+    toast('✅ Cliente salvo com sucesso.');
+    closeClientModal();
+    loadClients();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Salvar Cliente';
+  }
 }
 
 async function loadAgents() {
@@ -10027,7 +10189,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if(returnCarrier)returnCarrier.addEventListener('change',()=>{const q=allQuotations.find(x=>x.id===document.getElementById('pending-quotations').value);applyCarrierProfile('r',returnCarrier.value,'RETURN',q?.modal||'',q?.loadType||'',true);});
   const finalCarrier=document.getElementById('rev-carrier');
   if(finalCarrier)finalCarrier.addEventListener('change',()=>applyCarrierProfile('rev',finalCarrier.value,'FINAL',document.getElementById('rev-modal').value,document.getElementById('rev-load-type').value,true));
-  ['r-client', 'rev-client', 'agent'].forEach(setupAtlantisLookup);
+  ['r-client', 'rev-client', 'agent', 'client-modal'].forEach(setupAtlantisLookup);
   switchTab('quotation');
 });
 
