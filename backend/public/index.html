@@ -2726,15 +2726,47 @@ function switchTab(name) {
 
 // FILE UPLOAD LOGIC
 // FILE UPLOAD LOGIC
+// Converte uma imagem embutida como data: URI (comum quando o Outlook inclui a
+// imagem direto no HTML arrastado) num File, para entrar no mesmo pipeline de
+// upload/OCR usado pelos arquivos anexados manualmente.
+function dataUriToFile(dataUri, baseName) {
+  try {
+    const [header, base64] = dataUri.split(',');
+    if (!base64) return null;
+    const mimeMatch = header.match(/data:([^;]+)/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const ext = mimeType.split('/')[1] || 'png';
+    return new File([bytes], `${baseName}.${ext}`, { type: mimeType });
+  } catch (err) {
+    return null;
+  }
+}
+
 function handleOutlookDropFallback(dataTransfer, isAgent) {
   const html = dataTransfer.getData('text/html');
   const text = dataTransfer.getData('text/plain');
-  
+
   let targetText = '';
+  let capturedImages = 0;
+  let unrecoverableImages = 0;
   if (html) {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
+      // Endereços de coleta/entrega frequentemente vêm só em print dentro do
+      // e-mail — sem isso, a imagem se perderia aqui antes de chegar ao OCR.
+      Array.from(doc.querySelectorAll('img[src]')).forEach((img, idx) => {
+        const src = img.getAttribute('src') || '';
+        if (src.startsWith('data:image/')) {
+          const file = dataUriToFile(src, `outlook_imagem_${idx + 1}`);
+          if (file) { addFiles([file], isAgent); capturedImages++; }
+        } else if (src.startsWith('cid:')) {
+          unrecoverableImages++;
+        }
+      });
       targetText = doc.body.textContent || doc.body.innerText || '';
       targetText = targetText.replace(/\r\n/g, '\n').replace(/\n\s*\n/g, '\n\n').trim();
     } catch(err) {
@@ -2743,13 +2775,18 @@ function handleOutlookDropFallback(dataTransfer, isAgent) {
   } else if (text) {
     targetText = text.trim();
   }
-  
+
   if (targetText) {
     const textareaId = isAgent ? 'emailTextAgent' : 'emailText';
     const textarea = document.getElementById(textareaId);
     if (textarea) {
       textarea.value = targetText;
-      
+      if (capturedImages) toast(`📎 ${capturedImages} imagem${capturedImages === 1 ? '' : 's'} do e-mail arrastado capturada${capturedImages === 1 ? '' : 's'} para leitura por OCR.`);
+      if (unrecoverableImages) {
+        const plural = unrecoverableImages > 1;
+        alert(`⚠️ Este e-mail tem ${unrecoverableImages} imagem${plural ? 's' : ''} que ${plural ? 'não puderam' : 'não pôde'} ser capturada${plural ? 's' : ''} ao arrastar direto do Outlook. Se houver endereço de coleta/entrega na imagem, arraste o e-mail como arquivo (.msg) ou copie a imagem separadamente e cole aqui.`);
+      }
+
       if (isAgent) {
         const qId = document.getElementById('pending-quotations').value;
         if (qId) {
@@ -2842,6 +2879,31 @@ function renderFileList(isAgent) {
     `<div class="file-tag"><svg class="ui-icon" style="width:14px;height:14px" aria-hidden="true"><use href="#icon-file"></use></svg> ${ifrEscape(f.name)} <span class="remove" role="button" tabindex="0" title="Remover arquivo" aria-label="Remover ${ifrEscape(f.name)}" onclick="removeFile(${i}, ${isAgent})"><svg class="ui-icon" style="width:12px;height:12px" aria-hidden="true"><use href="#icon-close"></use></svg></span></div>`
   ).join('');
 }
+
+// Um <textarea> só recebe text/plain ao colar — se o e-mail colado tiver um print
+// (ex: endereço de coleta/entrega em imagem), ele se perderia silenciosamente no
+// paste do navegador antes de qualquer JS rodar. Resgata a(s) imagem(ns) do
+// clipboard e injeta no mesmo pipeline de upload de arquivos, para leitura por OCR.
+function setupPasteImageCapture(textarea, isAgent) {
+  if (!textarea) return;
+  textarea.addEventListener('paste', event => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const imageFiles = [];
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length) {
+      addFiles(imageFiles, isAgent);
+      toast(`📎 ${imageFiles.length} imagem${imageFiles.length === 1 ? '' : 's'} colada${imageFiles.length === 1 ? '' : 's'} junto com o texto — será lida por OCR.`);
+    }
+  });
+}
+setupPasteImageCapture(document.getElementById('emailText'), false);
+setupPasteImageCapture(document.getElementById('emailTextAgent'), true);
 
 function documentOriginLabel(origin) {
   return ({ CLIENT_EMAIL:'E-mail do cliente', MANUAL:'Upload manual', WHATSAPP:'WhatsApp', PARTNER_REPLY:'Retorno do parceiro' })[origin] || origin;
@@ -3957,6 +4019,11 @@ function collectGroundServiceLegs() {
 
 function fillReviewForm(d, mode) {
   if (mode === 'CLIENT') {
+    // Garante que os dropdowns de transportadora/DTA já estejam com as opções
+    // corretas assim que a extração (ou o carregamento de uma cotação salva)
+    // marcar a necessidade de rodoviário/DTA — antes dependia de o operador já
+    // ter visitado a aba "Parceiros" na mesma sessão.
+    populateTruckerDropdown();
     document.getElementById('r-reference').value = d.reference || '';
     document.getElementById('r-draft-text').value = d.draftEmail || '';
     document.getElementById('r-trucker-draft-text').value = d.truckerDraftEmail || '';
