@@ -63,7 +63,7 @@ model Client {
 model Quotation {
   id         String    @id @default(uuid())
   reference  String?   @unique
-  status     String    @default("SOLICITADO") // SOLICITADO, AGUARDANDO_AGENTE, RETORNO_RECEBIDO, APPROVED, SENT, EXPIRED
+  status     String    @default("CRIADA") // CRIADA, AGUARDANDO_PARCEIRO, RETORNO_RECEBIDO, GERADA, ENVIADA, APROVADA, REJEITADA, EXPIRADA
   validUntil DateTime?
 
   // Agente / Coloader

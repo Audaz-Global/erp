@@ -1682,12 +1682,14 @@
         </div>
         <select class="filter-select" id="filterStatus" onchange="filterQuotations()">
           <option value="">Todos os Status</option>
-          <option value="SOLICITADO">🔵 Solicitado (Fase 2)</option>
-          <option value="AGUARDANDO_AGENTE">🟡 Aguardando Agente (Fase 3)</option>
-          <option value="RETORNO_RECEBIDO">🟣 Retorno Recebido (Fase 4)</option>
-          <option value="APPROVED">🟢 Aprovada</option>
-          <option value="SENT">🔷 Enviada</option>
-          <option value="EXPIRED">🔴 Expirada</option>
+          <option value="CRIADA">🔵 Criada</option>
+          <option value="AGUARDANDO_PARCEIRO">🟡 Aguardando Parceiro</option>
+          <option value="RETORNO_RECEBIDO">🟣 Retorno Recebido</option>
+          <option value="GERADA">🟢 Gerada</option>
+          <option value="ENVIADA">🔷 Enviada</option>
+          <option value="APROVADA">✅ Aprovada</option>
+          <option value="REJEITADA">❌ Rejeitada</option>
+          <option value="EXPIRADA">🔴 Expirada</option>
         </select>
         <select class="filter-select" id="filterModal" onchange="filterQuotations()">
           <option value="">Todos os Modais</option>
@@ -4517,7 +4519,7 @@ async function generateDraftEmail() {
       storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
-      status: 'SOLICITADO',
+      status: 'CRIADA',
       partnerType: currentPartnerType,
       clientName: document.getElementById('r-client-name').value,
       clientCnpj: document.getElementById('r-client-cnpj').value,
@@ -4825,7 +4827,7 @@ async function saveAsAwaitingAgent() {
       storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       packages: document.getElementById('r-dimensions').value || null,
-      status: 'AGUARDANDO_AGENTE',
+      status: 'AGUARDANDO_PARCEIRO',
       agentEmail: agentEmail,
       partnerType: currentPartnerType,
       clientName: document.getElementById('r-client-name').value,
@@ -4851,7 +4853,7 @@ async function saveAsAwaitingAgent() {
     };
 
     if (!currentQuotationId) {
-      // Se ainda não foi criada, criamos diretamente com status AGUARDANDO_AGENTE
+      // Se ainda não foi criada, criamos diretamente com status AGUARDANDO_PARCEIRO
       const resCreate = await fetch(API + '/quotations', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -4875,11 +4877,11 @@ async function saveAsAwaitingAgent() {
       });
       await fetch(API + `/quotations/${currentQuotationId}/phase`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ status: 'AGUARDANDO_AGENTE', agentEmail })
+        body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO', agentEmail })
       });
     }
 
-    toast('✅ Enviado para Aguardando Agente!');
+    toast('✅ Enviado para Aguardando Parceiro!');
     loadQuotations();
     switchTab('quotation');
   } catch(e) { 
@@ -5817,7 +5819,7 @@ async function confirmAndGeneratePDF() {
     const originInlandTransitTime = document.getElementById('rev-origin-inland-transit').value.trim();
 
     const body = {
-      status: 'APPROVED',
+      status: 'GERADA',
       costCompositionReviewed: true,
       customsClearanceIncluded: customsClearance,
       transitTimeDays: parseInt(document.getElementById('rev-transit-time').value) || null,
@@ -5968,7 +5970,7 @@ async function confirmAndGeneratePDF() {
 
 function loadPendingQuotationsDropdown() {
   const select = document.getElementById('pending-quotations');
-  const pending = allQuotations.filter(q => q.status === 'AGUARDANDO_AGENTE');
+  const pending = allQuotations.filter(q => q.status === 'AGUARDANDO_PARCEIRO');
   if (pending.length === 0) {
     select.innerHTML = '<option value="">Nenhuma cotação aguardando agente.</option>';
     return;
@@ -6370,13 +6372,13 @@ async function loadPartnerResponseMetrics() {
 
 function updateSummaryCards() {
   const total = allQuotations.length;
-  const approved = allQuotations.filter(q => q.status === 'APPROVED').length;
-  const pending = allQuotations.filter(q => ['SOLICITADO','AGUARDANDO_AGENTE'].includes(q.status)).length;
-  
+  const approved = allQuotations.filter(q => q.status === 'APROVADA').length;
+  const pending = allQuotations.filter(q => ['CRIADA','AGUARDANDO_PARCEIRO'].includes(q.status)).length;
+
   // Garantir que é sempre número e não string para evitar crashes de .toFixed()
   const volume = allQuotations.reduce((s, q) => s + (Number(q.freightValue) || 0), 0);
-  
-  const approvedQuotations = allQuotations.filter(q => q.status === 'APPROVED');
+
+  const approvedQuotations = allQuotations.filter(q => q.status === 'APROVADA');
   const profitUsd = approvedQuotations.reduce((s, q) => s + (Number(q.expectedProfit) || 0), 0);
   const profitBrl = profitUsd * 5.05;
   
@@ -6440,18 +6442,20 @@ function applySorting() {
   });
 }
 
+const STATUS_MAP = {
+  'CRIADA': { label: 'Criada', cls: 'review', icon: '🔵' },
+  'AGUARDANDO_PARCEIRO': { label: 'Ag. Parceiro', cls: 'review', icon: '🟡' },
+  'RETORNO_RECEBIDO': { label: 'Retorno', cls: 'review', icon: '🟣' },
+  'GERADA': { label: 'Gerada', cls: 'approved', icon: '🟢' },
+  'ENVIADA': { label: 'Enviada', cls: 'sent', icon: '📤' },
+  'APROVADA': { label: 'Aprovada', cls: 'approved', icon: '✅' },
+  'REJEITADA': { label: 'Rejeitada', cls: 'expired', icon: '❌' },
+  'EXPIRADA': { label: 'Expirada', cls: 'expired', icon: '⛔' },
+};
+
 function renderTable() {
   const tbody = document.getElementById('quotationTbody');
   expandedRow = null;
-
-  const statMap = {
-    'SOLICITADO': '<span class="status-badge review">🔵 Solicitado</span>',
-    'AGUARDANDO_AGENTE': '<span class="status-badge review" style="background:var(--warning);color:#000">🟡 Ag. Agente</span>',
-    'RETORNO_RECEBIDO': '<span class="status-badge review" style="background:#a855f7;color:#fff">🟣 Retorno</span>',
-    'APPROVED': '<span class="status-badge approved">✅ Aprovada</span>',
-    'SENT': '<span class="status-badge approved" style="background:var(--info);">📤 Enviada</span>',
-    'EXPIRED': '<span class="status-badge expired">🔴 Expirada</span>'
-  };
 
   if (filteredQuotations.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8">
@@ -6469,22 +6473,23 @@ function renderTable() {
   const start = (currentPage - 1) * PAGE_SIZE;
   const pageData = filteredQuotations.slice(start, start + PAGE_SIZE);
 
-  const statusMap = {
-    'SOLICITADO': { label: 'Solicitado', cls: 'review', icon: '🔵' },
-    'AGUARDANDO_AGENTE': { label: 'Ag. Agente', cls: 'review', icon: '🟡' },
-    'RETORNO_RECEBIDO': { label: 'Retorno', cls: 'review', icon: '🟣' },
-    'APPROVED': { label: 'Aprovada', cls: 'approved', icon: '✅' },
-    'SENT': { label: 'Enviada', cls: 'sent', icon: '📤' },
-    'EXPIRED': { label: 'Expirada', cls: 'expired', icon: '⛔' },
-  };
   let html = '';
   pageData.forEach((q, idx) => {
-    const st = statusMap[q.status] || { label: q.status, cls: 'draft', icon: '❓' };
+    let st = STATUS_MAP[q.status] || { label: q.status, cls: 'draft', icon: '❓' };
+    if (q.status === 'AGUARDANDO_PARCEIRO' && Array.isArray(q.requestCycles) && q.requestCycles.some(cycle => cycle.status === 'RESPONDED')) {
+      st = { label: 'Confirmado, sem valores', cls: 'draft', icon: '🟠' };
+    }
     const modalIcon = q.modal === 'AIR' ? '✈️' : '🚢';
     const modalLabel = q.modal === 'AIR' ? 'Aéreo' : 'Marítimo';
     const origin = q.originCity || '—';
     const dest = q.destinationCity || '—';
-    const dateStr = q.createdAt ? new Date(q.createdAt).toLocaleDateString('pt-BR') : '—';
+    let dateStr = '—';
+    if (q.createdAt) {
+      const createdDate = new Date(q.createdAt);
+      const createdDateStr = createdDate.toLocaleDateString('pt-BR');
+      const createdTimeStr = createdDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      dateStr = `<div>${createdDateStr}</div><div style="font-size:10px; color:var(--text-muted); margin-top:4px;">${createdTimeStr}</div>`;
+    }
     const freightNum = Number(q.freightValue) || 0;
     const freight = q.freightValue != null ? freightNum.toFixed(2) : '—';
     const displayCurrency = q.freightCurrency || 'USD';
@@ -6604,6 +6609,36 @@ function toggleDetail(idx, rowEl) {
     carrierControlGroup = `<div class="detail-group"><h4>🚢 Controles do Armador</h4><div class="dl"><span class="dt">Armador</span><span class="dd">${q.carrier}</span></div><div class="dl"><span class="dt">Navio / Viagem</span><span class="dd">${[q.vesselName,q.voyageNumber].filter(Boolean).join(' / ')||'—'}</span></div><div class="dl"><span class="dt">Free time</span><span class="dd">${q.freeTimeDays!=null?q.freeTimeDays+' dias':'—'}</span></div><div class="dl"><span class="dt">Validade</span><span class="dd">${q.rateValidUntil?new Date(q.rateValidUntil).toLocaleDateString('pt-BR'):'—'}</span></div><div class="dl"><span class="dt">Transbordos</span><span class="dd">${formatTransshipments(q.transshipments).replace(/\n/g,'<br>')||'Direto/não informado'}</span></div></div>`;
   }
 
+  const CYCLE_STATUS_DISPLAY = {
+    OPEN: { label: 'Aguardando resposta', cls: 'review', icon: '🟡' },
+    RESPONDED: { label: 'Confirmado, sem valores', cls: 'draft', icon: '🟠' },
+    COMPLETED: { label: 'Valores recebidos', cls: 'approved', icon: '🟢' },
+    FAILED: { label: 'Falhou', cls: 'expired', icon: '🔴' },
+    CLOSED: { label: 'Encerrado', cls: 'draft', icon: '⚪' }
+  };
+  let partnersGroup = '';
+  const requestCycles = Array.isArray(q.requestCycles) ? q.requestCycles : [];
+  if (requestCycles.length) {
+    partnersGroup = `<div class="detail-group">
+      <h4>Parceiros Solicitados</h4>
+      ${requestCycles.map(cycle => {
+        const cycleStatus = CYCLE_STATUS_DISPLAY[cycle.status] || { label: cycle.status, cls: 'draft', icon: '❓' };
+        return `<div class="dl"><span class="dt">${ifrEscape(cycle.partnerName || cycle.partnerEmail)}</span><span class="dd"><span class="status-badge ${cycleStatus.cls}">${cycleStatus.icon} ${cycleStatus.label}</span></span></div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  const currentStatusDisplay = STATUS_MAP[q.status] || { label: q.status, icon: '❓' };
+  const statusActionsGroup = `<div class="detail-group">
+    <h4>Status da Cotação</h4>
+    <div class="dl"><span class="dt">Status atual</span><span class="dd">${currentStatusDisplay.icon} ${currentStatusDisplay.label}</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" onclick="event.stopPropagation()">
+      <button class="btn btn-secondary" onclick="updateQuotationStatus('${q.id}','ENVIADA')">📤 Marcar como Enviada</button>
+      <button class="btn btn-secondary" onclick="updateQuotationStatus('${q.id}','APROVADA')">✅ Marcar como Aprovada</button>
+      <button class="btn btn-secondary" onclick="updateQuotationStatus('${q.id}','REJEITADA')">❌ Marcar como Rejeitada</button>
+    </div>
+  </div>`;
+
   const detailTr = document.createElement('tr');
   detailTr.className = 'detail-row';
   detailTr.dataset.idx = idx;
@@ -6639,6 +6674,8 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">Serviços (BRL)</span><span class="dd">R$${q.destinationServicesTotal != null ? Number(q.destinationServicesTotal).toFixed(2) : '—'}</span></div>
         <div class="dl"><span class="dt">Total (BRL)</span><span class="dd" style="color:var(--success); font-weight:700;">R$${q.totalBrl != null ? Number(q.totalBrl).toFixed(2) : '—'}</span></div>
       </div>
+      ${statusActionsGroup}
+      ${partnersGroup}
       <div class="detail-group quotation-timeline" id="quotation-timeline-${q.id}"><h4>Histórico e evolução</h4><p style="color:var(--text-muted);font-size:11px">Carregando linha do tempo...</p></div>
     </div>
   </td>`;
@@ -6646,6 +6683,21 @@ function toggleDetail(idx, rowEl) {
   // Inserir logo após a row clicada
   rowEl.after(detailTr);
   loadQuotationTimeline(q.id);
+}
+
+async function updateQuotationStatus(id, status) {
+  try {
+    const response = await fetch(`${API}/quotations/${id}/phase`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Falha ao atualizar status.');
+    toast(`✅ Status atualizado para ${STATUS_MAP[status]?.label || status}.`);
+    await loadQuotations();
+  } catch (error) {
+    toast('❌ ' + error.message);
+  }
 }
 
 async function saveGroundLegCost(id) {
@@ -6688,7 +6740,18 @@ async function loadQuotationTimeline(quotationId) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Falha ao carregar histórico.');
     const cycles = data.cycles || [];
-    const cycleSummary = cycles.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px">${cycles.map(cycle => `<span class="status-badge ${cycle.status === 'OPEN' ? 'review' : 'approved'}" title="Enviado em ${new Date(cycle.sentAt).toLocaleString('pt-BR')}">${ifrEscape(cycle.partnerName || cycle.partnerEmail)} · ${cycle.status === 'OPEN' ? 'aguardando' : formatResponseDuration(cycle.firstResponseMinutes)}</span>`).join('')}</div>` : '';
+    const CYCLE_BADGE = {
+      OPEN: { cls: 'review', text: 'aguardando' },
+      RESPONDED: { cls: 'draft', text: 'confirmado, sem valores' },
+      COMPLETED: { cls: 'approved', text: formatResponseDuration },
+      FAILED: { cls: 'expired', text: 'falhou' },
+      CLOSED: { cls: 'draft', text: 'encerrado' }
+    };
+    const cycleSummary = cycles.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px">${cycles.map(cycle => {
+      const badge = CYCLE_BADGE[cycle.status] || { cls: 'draft', text: cycle.status };
+      const text = typeof badge.text === 'function' ? badge.text(cycle.firstResponseMinutes) : badge.text;
+      return `<span class="status-badge ${badge.cls}" title="Enviado em ${new Date(cycle.sentAt).toLocaleString('pt-BR')}">${ifrEscape(cycle.partnerName || cycle.partnerEmail)} · ${text}</span>`;
+    }).join('')}</div>` : '';
     const events = (data.events || []).slice().reverse();
     container.innerHTML = `<h4>Histórico e evolução</h4>${cycleSummary}${events.length ? events.map(event => {
       const changes = timelineJson(event.changes) || {};

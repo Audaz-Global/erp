@@ -6,7 +6,7 @@ import path from 'path';
 import { prisma } from './prisma';
 import { backfillIncotermRuleStandardFees } from './services/standardFeeLinkService';
 import { normalizeIncotermRuleSortOrders } from './services/incotermRuleOrderService';
-import { backfillQuotationHistory } from './services/quotationHistoryService';
+import { backfillQuotationHistory, backfillStatusRename } from './services/quotationHistoryService';
 import { backfillPartnerLinks } from './services/partnerLinkService';
 export { prisma };
 
@@ -110,6 +110,9 @@ async function startServer() {
 
   const normalizedOrders = await normalizeIncotermRuleSortOrders(prisma);
   if (normalizedOrders > 0) console.log(`✅ ${normalizedOrders} ordem(ns) de regras de Incoterm corrigida(s).`);
+
+  const renamedStatuses = await backfillStatusRename(prisma);
+  if (renamedStatuses > 0) console.log(`✅ ${renamedStatuses} cotação(ões) migrada(s) para os novos nomes de status.`);
 
   const historyRecords = await backfillQuotationHistory(prisma);
   if (historyRecords > 0) console.log(`✅ ${historyRecords} registro(s) histórico(s) reconstruído(s).`);

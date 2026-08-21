@@ -42,7 +42,7 @@ async function recordSuccessfulDispatch(input: {
     await recordQuotationEvent(tx, {
       quotationId: input.quotationId, type: isFollowUp ? 'FOLLOW_UP_SENT' : 'EMAIL_SENT', eventAt: sentAt,
       actorType: 'SYSTEM', channel: 'OUTLOOK', partnerEmail: input.recipientEmail, partnerName: input.partnerName,
-      newStatus: 'AGUARDANDO_AGENTE', sourceType: 'EMAIL_DISPATCH', sourceId: dispatch.id,
+      newStatus: 'AGUARDANDO_PARCEIRO', sourceType: 'EMAIL_DISPATCH', sourceId: dispatch.id,
       metadata: { recipientType: input.recipientType, attachmentNames: input.documents.map(item => item.originalName), requestCycleId: cycle.id,
         professionalId:input.professional.id, professionalName:input.professional.name, signatureVersion:input.professional.signatureVersion }
     });
@@ -194,7 +194,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
       const allConfirmedEmails = [...new Set([...splitRecipientEmails(quotation.agentEmail), ...confirmed.map(item => item.email)])];
       const firstNew = newlySent[0];
       await prisma.quotation.update({ where: { id: quotationId }, data: {
-        status: 'AGUARDANDO_AGENTE', agentEmail: allConfirmedEmails.join('; '),
+        status: 'AGUARDANDO_PARCEIRO', agentEmail: allConfirmedEmails.join('; '),
         agentName: [...new Set([...(quotation.agentName || '').split('|').map(item => item.trim()).filter(Boolean), ...partnerNames])].join(' | ') || quotation.agentName,
         partnerType: confirmed[0]?.partnerType || quotation.partnerType,
         draftEmail: rawMarkdown, sentAt: newlySent.length ? new Date() : quotation.sentAt,
@@ -263,7 +263,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
           agentEmail: agentEmail,
           agentName: agentName,
           partnerType: normalizedPartnerType,
-          status: 'AGUARDANDO_AGENTE',
+          status: 'AGUARDANDO_PARCEIRO',
           draftEmail: rawMarkdown,
           sentAt: new Date()
         }
@@ -273,7 +273,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       auditQuotationId = clone.id;
       await recordQuotationEvent(prisma, {
         quotationId: clone.id, type: 'QUOTATION_CLONED', actorType: 'SYSTEM',
-        previousStatus: quotation.status, newStatus: 'AGUARDANDO_AGENTE',
+        previousStatus: quotation.status, newStatus: 'AGUARDANDO_PARCEIRO',
         partnerEmail: agentEmail, partnerName: agentName, metadata: { sourceQuotationId: quotation.id }
       });
 
@@ -342,11 +342,11 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       }
     }
 
-    // Atualiza status no banco para AGUARDANDO_AGENTE e salva o agentEmail + conversationId + dados da transportadora
+    // Atualiza status no banco para AGUARDANDO_PARCEIRO e salva o agentEmail + conversationId + dados da transportadora
     const updated = await prisma.quotation.update({
       where: { id: targetQuotationId },
-      data: { 
-        status: 'AGUARDANDO_AGENTE',
+      data: {
+        status: 'AGUARDANDO_PARCEIRO',
         agentEmail: agentEmail,
         agentName: agentName,
         partnerType: normalizedPartnerType,

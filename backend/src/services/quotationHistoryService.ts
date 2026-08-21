@@ -106,10 +106,10 @@ export async function backfillQuotationHistory(prisma: PrismaClient) {
         created++;
       }
     };
-    await ensureEvent(`${quotation.id}:created`, { type: 'QUOTATION_CREATED', eventAt: quotation.createdAt, newStatus: 'SOLICITADO' });
+    await ensureEvent(`${quotation.id}:created`, { type: 'QUOTATION_CREATED', eventAt: quotation.createdAt, newStatus: 'CRIADA' });
     if (quotation.sentAt) await ensureEvent(`${quotation.id}:sent`, {
       type: 'EMAIL_SENT', eventAt: quotation.sentAt, channel: 'OUTLOOK', partnerEmail: quotation.agentEmail,
-      partnerName: quotation.agentName, previousStatus: 'SOLICITADO', newStatus: 'AGUARDANDO_AGENTE'
+      partnerName: quotation.agentName, previousStatus: 'CRIADA', newStatus: 'AGUARDANDO_PARCEIRO'
     });
     for (const response of quotation.agentResponses) await ensureEvent(`${response.id}:received`, {
       type: 'PARTNER_RESPONSE_RECEIVED', eventAt: response.receivedAt || response.createdAt, actorType: 'OUTLOOK', channel: 'OUTLOOK',
@@ -135,4 +135,23 @@ export async function backfillQuotationHistory(prisma: PrismaClient) {
     }
   }
   return created;
+}
+
+// Renomeia os valores antigos de Quotation.status para os novos nomes do fluxo
+// (CRIADA, AGUARDANDO_PARCEIRO, GERADA, EXPIRADA). RETORNO_RECEBIDO não muda.
+const STATUS_RENAME_MAP: Record<string, string> = {
+  SOLICITADO: 'CRIADA',
+  AGUARDANDO_AGENTE: 'AGUARDANDO_PARCEIRO',
+  APPROVED: 'GERADA',
+  SENT: 'ENVIADA',
+  EXPIRED: 'EXPIRADA'
+};
+
+export async function backfillStatusRename(prisma: PrismaClient) {
+  let updated = 0;
+  for (const [oldStatus, newStatus] of Object.entries(STATUS_RENAME_MAP)) {
+    const result = await prisma.quotation.updateMany({ where: { status: oldStatus }, data: { status: newStatus } });
+    updated += result.count;
+  }
+  return updated;
 }

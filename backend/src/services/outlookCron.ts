@@ -52,7 +52,7 @@ async function matchByConversationId(conversationId: string | undefined) {
   const quotation = await prisma.quotation.findFirst({
     where: {
       sentEmailConversationId: conversationId,
-      status: { in: ['AGUARDANDO_AGENTE', 'RETORNO_RECEBIDO'] }
+      status: { in: ['AGUARDANDO_PARCEIRO', 'RETORNO_RECEBIDO'] }
     }
   });
 
@@ -73,7 +73,7 @@ async function matchBySenderEmail(senderEmail: string | undefined) {
   const pendingQuotations = await prisma.quotation.findMany({
     where: {
       agentEmail: { contains: senderEmail, mode: 'insensitive' as const },
-      status: 'AGUARDANDO_AGENTE'
+      status: 'AGUARDANDO_PARCEIRO'
     }
   });
 

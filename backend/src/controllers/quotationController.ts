@@ -146,7 +146,8 @@ export const getQuotations = async (req: Request, res: Response) => {
       include: {
         client: { select: { name: true } },
         createdBy: { select: { name: true } },
-        groundServiceLegs:true
+        groundServiceLegs:true,
+        requestCycles: { orderBy: { sentAt: 'desc' } }
       }
     });
     res.json(quotations.map(withDangerousGoodsCompliance));
