@@ -2157,7 +2157,8 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Tempo de Trânsito (Dias)</label>
-          <input type="number" id="rev-transit-time" step="1" placeholder="Ex: 12">
+          <input type="number" id="rev-transit-time" step="1" oninput="toggleTransitTimeWarning()">
+          <small id="rev-transit-time-warning" style="display:none;color:var(--warning);">⚠️ Não informado</small>
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Armazenagem Destino (BRL)</label>
@@ -4462,6 +4463,16 @@ function cnpjIsRequiredForQuotation(loadType, storageRequested) {
 
 // A cotação foi identificada como possível embarque híbrido (dois modais na
 // mesma solicitação) e o usuário ainda não confirmou como quer prosseguir.
+// Aviso não-bloqueante: o campo não tem mais placeholder de exemplo (evita
+// confundir "Ex: 12" com um valor extraído de verdade), só um aviso visual
+// quando estiver vazio. Não impede gerar o PDF.
+function toggleTransitTimeWarning() {
+  const input = document.getElementById('rev-transit-time');
+  const warning = document.getElementById('rev-transit-time-warning');
+  if (!input || !warning) return;
+  warning.style.display = input.value.trim() ? 'none' : 'block';
+}
+
 function hybridModalBlocked() {
   const warning = document.getElementById('r-hybrid-modal-warning');
   if (!warning) return false;
@@ -5639,6 +5650,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-services').value = q.destinationServicesTotal || '';
       document.getElementById('rev-taxes').value = q.destinationTaxes || '';
       document.getElementById('rev-transit-time').value = q.transitTimeDays || '';
+      toggleTransitTimeWarning();
       document.getElementById('rev-frequency').value = q.frequency || 'Semanal';
       document.getElementById('rev-weight-break').value = q.weightBreak || 'normal';
       
@@ -5679,6 +5691,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-services').value = document.getElementById('r-services').value || q.destinationServicesTotal || '';
       document.getElementById('rev-taxes').value = document.getElementById('r-taxes').value || q.destinationTaxes || '';
       document.getElementById('rev-transit-time').value = document.getElementById('r-transit-time').value || q.transitTimeDays || '';
+      toggleTransitTimeWarning();
       document.getElementById('rev-frequency').value = document.getElementById('r-frequency').value || q.frequency || 'Semanal';
       document.getElementById('rev-weight-break').value = document.getElementById('r-weight-break').value || q.weightBreak || 'normal';
       
@@ -5965,6 +5978,7 @@ async function confirmAndGeneratePDF() {
   if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   const storageInput = document.getElementById('rev-storage');
   if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
+  if (!document.getElementById('rev-transit-time').value.trim() && !window.confirm('O tempo de trânsito não foi informado. Deseja continuar e gerar o PDF mesmo assim?')) return;
   const revCnpjField = document.getElementById('rev-client-cnpj');
   if (cnpjIsRequiredForQuotation(document.getElementById('rev-load-type').value, storageInput.dataset.requested === 'true') && !revCnpjField.value.trim()) {
     alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
