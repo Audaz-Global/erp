@@ -1,4 +1,4 @@
-﻿import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parsePackages, extractContainerInfo } from '../utils/cargoUtils';
 import type { DraftPayload } from '../utils/draftPayload';
 import { applyRateValidityPolicy } from './rateValidityService';
@@ -205,7 +205,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 cnpj: { type: 'string' },
                 contact_name: { type: 'string', description: 'Nome do contato do cliente' },
                 contact_phone: { type: 'string', description: 'Telefone do contato do cliente' },
-                reference: { type: 'string', description: 'Referência/número de PO/pedido que o PRÓPRIO CLIENTE usa para identificar este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order"). Não confundir com a referência interna da Audaz.' },
+                reference: { type: 'string', description: 'Referência/número de PO/pedido que o PRÓPRIO CLIENTE usa para identificar este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order"). Se não houver PO explícito, procure pelo número da Invoice (Fatura Comercial) e utilize-o como fallback. Não confundir com a referência interna da Audaz.' },
                 confidence: { type: 'number' }
               },
               required: ['name']
@@ -258,8 +258,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
               properties: {
                 type: { 
                   type: 'string',
-                  enum: ['AIR_GENERAL','LCL','FCL_20','FCL_40','FCL_40HC','FCL_20RH','FCL_40RH','FCL_20OT','FCL_40OT'],
-                  description: 'Modal/tipo de carga. Retorne OBRIGATORIAMENTE um destes valores: "AIR_GENERAL" (se o embarque for Aéreo/Air), "LCL" (se marítimo consolidado), "FCL_20" (se marítimo container de 20 pés), "FCL_40" (se marítimo container de 40 pés). Nunca retorne o nome do produto ou mercadoria neste campo.' 
+                  enum: ['AIR_GENERAL','LCL','FCL_20','FCL_40','FCL_40HC','FCL_20RH','FCL_40RH','FCL_20OT','FCL_40OT', 'UNKNOWN'],
+                  description: 'Modal/tipo de carga. Retorne OBRIGATORIAMENTE um destes valores: "AIR_GENERAL" (se o embarque for Aéreo/Air), "LCL" (se marítimo consolidado), "FCL_20" (se marítimo container de 20 pés), "FCL_40" (se marítimo container de 40 pés) ou "UNKNOWN" (se não for explícito). Nunca retorne o nome do produto ou mercadoria neste campo.' 
                 },
                 gross_weight_kg: { type: 'number' },
                 packages_count: { type: 'number' },
@@ -327,7 +327,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
     DOCUMENTO(S) / SOLICITAÇÃO:
     ${safeSourceText}
 
-    - **Referência do Cliente (client.reference)**: Identifique se o cliente menciona uma referência/PO/número de pedido PRÓPRIO dele para este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order", "PO#"). Essa é diferente de qualquer referência interna da Audaz. Se não houver, retorne string vazia.
+    - **Referência do Cliente (client.reference)**: Identifique se o cliente menciona uma referência/PO/número de pedido PRÓPRIO dele para este embarque (ex: "Ref: PO-12345", "Your ref", "Purchase Order", "PO#"). Caso não haja um PO explícito, procure pelo número da Invoice (Fatura Comercial) e utilize-o como referência. Essa é diferente de qualquer referência interna da Audaz. Se não houver PO nem Invoice, retorne string vazia.
+    - **Telefone do Cliente (client.contact_phone)**: Extraia APENAS telefones válidos (celular ou fixo) associados à assinatura do CLIENTE que pediu a cotação (normalmente do Brasil). NÃO capture números de Fax, ramais soltos, CNPJ ou Inscrição Estadual. É estritamente PROIBIDO capturar telefones internacionais que pertençam aos fornecedores (shippers) no exterior. Mantenha a formatação original e legível encontrada (ex: (11) 99999-9999).
     - **Estimativa de armazenagem**: Se o cliente pedir estimativa, valor, custo ou cotação de armazenagem, defina cargo.requires_storage_estimate=true e copie a frase de suporte em cargo.storage_request_evidence. Não confunda menção genérica a terminal com uma solicitação de armazenagem.
 
     Instruções Importantes para Rota, Incoterm, Portos/Aeroportos, Cidades e Conexões:
@@ -361,7 +362,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - Analise se a solicitação do cliente ou os documentos mencionam siglas ou equipamentos especiais de contêineres, como Open Top (OT), High Cube (HC), Flat Rack, etc.
     - Se encontrar tais siglas ou especificações (e.g. "40' OT HC", "Open Top", "High Cube", "OP e HC"), aplique as regras explicadas no CONTEXTO (como "Sigla E-mail (4 x 40' OT HC)" etc.).
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
-    - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se o modal for Aéreo/Air), "LCL" (se marítimo consolidado/LCL), "FCL_20" (se marítimo container de 20') ou "FCL_40" (se marítimo container de 40'). NUNCA preencha este campo com o nome da mercadoria (como "parts" ou "wooden box").
+    - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se aéreo), "LCL" (se marítimo consolidado), "FCL_20" (se container 20') ou "FCL_40" (se container 40'). Se a documentação não mencionar CLARAMENTE o modal (como "Air", "Ocean", "Sea", "LCL"), NÃO tente deduzir sozinho baseando-se apenas no Incoterm (ex: FCA não significa automaticamente Aéreo). Nesse caso, retorne OBRIGATORIAMENTE "UNKNOWN" para exigir a seleção manual. NUNCA preencha este campo com o nome da mercadoria.
     - **Descrição da Mercadoria (cargo.description)**: Copie a descrição do produto/mercadoria exatamente como o cliente escreveu (ex: "Peças sobressalentes de perfuratriz", "Autopeças", "Resina plástica em pellets"). Esse texto será colado literalmente no e-mail de cotação para o agente, então não resuma, não traduza e não invente — se não houver descrição do produto na solicitação, retorne string vazia.
 
     - **Instruções Importantes para Peso Bruto (gross_weight_kg), Volumes (packages_count), Valor Comercial (commercial_value_usd) e Dimensões (dimensions):**
@@ -517,6 +518,7 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
           - Inclua um RESUMO CONSOLIDADO no final com o total de fornecedores, peso bruto total, CBM total e valor comercial total.
     12. **Itens obrigatórios no e-mail**: Garanta que o e-mail mencione claramente, ou solicite explicitamente ao agente, cada um dos itens a seguir (informe se já for um dado conhecido, ou peça ao agente se for algo a cotar):
     ${requiredFieldLabels.length ? requiredFieldLabels.map(l => `- ${l}`).join('\n    ') : 'Nenhum item adicional configurado.'}
+    13. **Filtro Estrito de DTA e Rodoviário de Destino**: O agente internacional é responsável APENAS pelo frete internacional (e origem, quando aplicável). Portanto, mesmo que o E-MAIL ORIGINAL DO CLIENTE solicite cotação de **DTA (Trânsito Aduaneiro)** ou **Frete Rodoviário Nacional/Inland no destino** (entrega final no Brasil), VOCÊ DEVE OMITIR COMPLETAMENTE essas solicitações no rascunho. **NUNCA** mencione, pergunte, explique ou solicite DTA, trânsito aduaneiro ou entrega rodoviária no país de destino neste e-mail.
 
     Retorne APENAS o corpo do e-mail.`;
 

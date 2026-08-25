@@ -3107,7 +3107,7 @@ async function deleteQuotationDocument(id) {
 }
 
 function selectedQuotationDocumentIds(role) {
-  return Array.from(document.querySelectorAll(`[data-document-role="${role}"]:checked`)).map(input => input.value);
+  const visibleInputs = Array.from(document.querySelectorAll(`[data-document-role="${role}"]:checked`)).filter(input => input.offsetParent !== null); return [...new Set(visibleInputs.map(input => input.value))];
 }
 
 function toast(msg) {
@@ -3216,6 +3216,7 @@ function renderEmailExtractionAudit(audit) {
 // 2. REVISÃO DA COTAÇÃO
 function renderConf(val, confStr) {
   if(!val) return `<span class="badge-pending">⚠️ Vazio</span>`;
+  if(val === 'UNKNOWN') return `<span class="badge-pending" title="A IA não conseguiu deduzir o modal e requer sua seleção manual">❓ Modal Indefinido</span>`;
   const conf = parseFloat(confStr);
   if(isNaN(conf)) return '';
   let color = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';

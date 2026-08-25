@@ -156,7 +156,8 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           const documentIds = Array.isArray(request?.attachmentIds) ? request.attachmentIds.map(String) : [];
           const documents = await prisma.quotationDocument.findMany({ where:{ quotationId, id:{ in:documentIds } }, include:{ blob:true } });
           const label = serviceType === 'DTA' ? 'DTA / Trânsito Aduaneiro' : 'Frete Rodoviário Nacional';
-          const groundSubject = `Solicitação de ${label} - REF: ${reference}`;
+          const prefix = serviceType === 'DTA' ? '[DTA]' : '[RODOVIÁRIO]';
+          const groundSubject = `${prefix} ${mailSubject}`;
           const rawGroundDraft = String(request?.draftEmail || leg.draftEmail || '').trim();
           if (!rawGroundDraft) throw new Error(`Gere e revise o rascunho de ${label} antes do envio.`);
           const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(rawGroundDraft)}</body></html>`, signature.html);
@@ -186,13 +187,14 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
             where: { quotationId, id: { in: truckerAttachmentIds } }, include: { blob: true }
           });
           const truckerCcEmail = String(req.body?.truckerCcEmail || '') || undefined;
-          const sent = await sendOutlookEmail(truckerEmail, `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`, truckerHtml,
+          const truckerSubject = `[RODOVIÁRIO] ${mailSubject}`;
+          const sent = await sendOutlookEmail(truckerEmail, truckerSubject, truckerHtml,
             truckerCcEmail, [...truckerDocuments.map(document => ({
               name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
             })), signature.attachment]);
           await recordSuccessfulDispatch({ quotationId, recipientType: 'TRUCKER', recipientEmail: truckerEmail,
             partnerName: String(req.body?.truckerName || '') || null, ccEmails: truckerCcEmail || null,
-            subject: `Solicitação de Coleta/Entrega Rodoviária - REF: ${reference}`,
+            subject: truckerSubject,
             conversationId: sent.conversationId, documents: truckerDocuments, professional:signature.professional });
           truckerResult = { status: 'SENT', email: truckerEmail, conversationId: sent.conversationId, message: 'Enviado com sucesso.' };
         } catch (error: any) {
@@ -334,7 +336,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     let truckerConversationId = null;
     if (needsTransport && truckerEmail) {
       try {
-        const truckerSubject = `Solicitação de Coleta/Entrega Rodoviária - REF: ${targetReference}`;
+        const truckerSubject = `[RODOVIÁRIO] ${mailSubject}`;
         const truckerMarkdown = quotation.truckerDraftEmail || '';
         const renderedTruckerHtml = await marked.parse(truckerMarkdown);
         const finalTruckerHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${renderedTruckerHtml}</body></html>`, signature.html);
