@@ -1441,22 +1441,22 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
-          <div class="form-group" style="margin: 0;">
-            <label id="partner-select-label">Selecione o Agente</label>
-            <select id="r-agent-email" onchange="onAgentSelectChange()" style="margin: 0;">
-              <option value="">Nenhum parceiro encontrado</option>
-            </select>
-            <input type="search" id="partner-list-search" oninput="refreshPartnerDropdownSearch()" placeholder="Buscar parceiro por nome, país ou e-mail" style="margin:8px 0 0;">
-            <button type="button" class="btn btn-secondary" id="partner-show-all-action" onclick="showAllCompatiblePartners()" style="display:none;width:100%;margin-top:8px;">Mostrar todos os parceiros compatíveis</button>
-            <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;width:100%;margin-top:8px;">Cadastrar parceiro</button>
+        <div class="form-group" style="margin: 0 0 16px;">
+          <label id="partner-select-label">Selecione o Agente</label>
+          <input type="search" id="partner-list-search" oninput="refreshPartnerDropdownSearch()" placeholder="Buscar parceiro por nome, país ou e-mail" style="margin-bottom:8px;">
+          <select id="r-agent-email" onchange="onAgentSelectChange()" style="margin: 0;">
+            <option value="">Nenhum parceiro encontrado</option>
+          </select>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button type="button" class="btn btn-secondary" id="partner-show-all-action" onclick="showAllCompatiblePartners()" style="display:none;flex:1;">Mostrar todos os parceiros compatíveis</button>
+            <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;flex:1;">+ Cadastrar parceiro</button>
           </div>
-          <div class="form-group" style="margin: 0;">
-            <label>E-mails do agente</label>
-            <input type="text" id="r-agent-send-email" placeholder="Um ou mais e-mails separados por ;" style="margin: 0;">
-            <small style="display:block;margin-top:6px;color:var(--text-muted);">Você pode informar vários contatos do mesmo agente.</small>
-            <button type="button" class="btn btn-secondary" onclick="addCurrentPartnerRecipients()" style="width:100%;margin-top:8px;">+ Adicionar à lista de envio</button>
-          </div>
+        </div>
+
+        <div class="form-group" id="partner-contacts-panel" style="display:none; margin:0 0 16px; padding:14px; border:1px solid var(--border); border-radius:10px; background:rgba(255,255,255,.015);">
+          <label style="margin-bottom:10px;">Selecione os contatos que vão receber</label>
+          <div id="partner-contacts-list"></div>
+          <button type="button" class="btn btn-secondary" onclick="addCurrentPartnerRecipients()" style="width:100%;margin-top:12px;">+ Adicionar destinatário(s)</button>
         </div>
 
         <div id="partner-recipients-panel" style="margin:12px 0 16px;padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.015);">
@@ -1464,18 +1464,13 @@
             <strong>Destinatários desta solicitação</strong>
             <span id="partner-recipients-count" style="font-size:11px;color:var(--text-muted);">0 destinatários</span>
           </div>
-          <div id="partner-recipients-list"><small style="color:var(--text-muted);">Selecione um agente e adicione um ou mais e-mails.</small></div>
+          <div id="partner-recipients-list"><small style="color:var(--text-muted);">Selecione uma empresa e os contatos que vão receber.</small></div>
         </div>
         <div id="partner-dispatch-results" style="display:none;margin:12px 0 16px;"></div>
 
         <div class="form-group" style="padding:11px 12px;border:1px solid var(--border);border-radius:8px;">
           <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;"><input type="checkbox" id="r-storage-request" style="width:17px;height:17px;margin:0;"> Solicitar estimativa de armazenagem ao parceiro</label>
           <small id="r-storage-request-evidence" style="display:none;margin-top:6px;color:var(--text-muted);"></small>
-        </div>
-
-        <div class="form-group">
-          <label>Receber Cópia (CC) no seu E-mail da Audaz</label>
-          <input type="email" id="r-agent-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)">
         </div>
       </div>
 
@@ -3826,9 +3821,19 @@ function syncPartnerTypesForModal() {
 }
 
 function openMissingPartnerRegistration() {
-  switchTab('agents');
-  setPartnerSection(currentPartnerType);
+  // Abre o popup de cadastro por cima do wizard, sem sair da tela.
+  window.wizardPartnerRegistrationPending = true;
   openAgentModal(null, currentPartnerType);
+}
+
+async function resumeWizardPartnerSelectionAfterRegistration(partnerId) {
+  const originCountry = document.getElementById('r-origin-country')?.value || '';
+  await populateAgentDropdown(originCountry, true);
+  const select = document.getElementById('r-agent-email');
+  if (select && partnerId) {
+    select.value = partnerId;
+    onAgentSelectChange();
+  }
 }
 
 function normalizePartnerSearchText(value) {
@@ -3914,15 +3919,11 @@ async function loadPartnerDirectory(force = false) {
 
 function appendPartnerOptions(select, partners) {
   partners.forEach(partner => {
-    partnerContactOptions(partner).forEach(contact => {
-      const option = document.createElement('option');
-      option.value = contact.email;
-      option.dataset.contactName = contact.contactName;
-      option.dataset.agentName = partner.name;
-      option.dataset.partnerId = partner.id;
-      option.textContent = `${partner.name} - ${contact.contactName}${contact.role ? ' (' + contact.role + ')' : ''} - ${contact.email}`;
-      select.appendChild(option);
-    });
+    if (!partnerContactOptions(partner).length) return;
+    const option = document.createElement('option');
+    option.value = partner.id;
+    option.textContent = partner.name;
+    select.appendChild(option);
   });
 }
 
@@ -3993,26 +3994,24 @@ function splitUiRecipientEmails(value) {
 
 function addCurrentPartnerRecipients() {
   const select = document.getElementById('r-agent-email');
-  const selectedOption = select?.options?.[select.selectedIndex];
-  const emails = splitUiRecipientEmails(document.getElementById('r-agent-send-email')?.value);
-  if (!emails.length) {
-    alert('Informe ao menos um e-mail válido para adicionar.');
+  const partnerId = select?.value;
+  const partner = partnerId ? (window.globalAgentsList || []).find(p => p.id === partnerId) : null;
+  const checkedContacts = Array.from(document.querySelectorAll('#partner-contacts-list .partner-contact-checkbox:checked'));
+  if (!partner || !checkedContacts.length) {
+    alert('Selecione uma empresa e ao menos um contato para adicionar.');
     return false;
   }
-  const partnerName = selectedOption?.dataset.agentName || 'Destinatário manual';
-  const partnerId = selectedOption?.dataset.partnerId || `manual:${normalizePartnerSearchText(partnerName)}`;
-  const selectedEmail = String(selectedOption?.value || '').toLowerCase();
-  emails.forEach(email => {
+  checkedContacts.forEach(checkbox => {
+    const email = checkbox.value.toLowerCase();
     const existing = selectedPartnerRecipients.find(item => item.email === email);
     const recipient = {
-      partnerId, partnerName,
-      contactName: email === selectedEmail ? (selectedOption?.dataset.contactName || 'Contato') : 'E-mail adicional',
+      partnerId: partner.id, partnerName: partner.name,
+      contactName: checkbox.dataset.contactName || 'Contato',
       partnerType: currentPartnerType, email, status: 'PENDING', message: ''
     };
     if (existing) Object.assign(existing, recipient);
     else selectedPartnerRecipients.push(recipient);
   });
-  document.getElementById('r-agent-send-email').value = '';
   renderPartnerRecipients();
   setDraftDispatchState(document.getElementById('r-draft-text')?.value ? 'DRAFT' : 'IDLE');
   return true;
@@ -4110,10 +4109,25 @@ async function loadExistingPartnerRecipients(quotation) {
 
 function onAgentSelectChange() {
   const select = document.getElementById('r-agent-email');
-  const sendEmailInput = document.getElementById('r-agent-send-email');
-  if (select && sendEmailInput) {
-    sendEmailInput.value = select.value || '';
+  const panel = document.getElementById('partner-contacts-panel');
+  const list = document.getElementById('partner-contacts-list');
+  if (!select || !panel || !list) return;
+
+  const partnerId = select.value;
+  const partner = partnerId ? (window.globalAgentsList || []).find(p => p.id === partnerId) : null;
+  if (!partner) {
+    panel.style.display = 'none';
+    list.innerHTML = '';
+    return;
   }
+
+  const contacts = partnerContactOptions(partner);
+  list.innerHTML = contacts.map((contact, index) => `
+    <label style="display:flex; align-items:center; gap:8px; padding:7px 0; cursor:pointer; ${index === 0 ? '' : 'border-top:1px solid var(--border);'}">
+      <input type="checkbox" class="partner-contact-checkbox" value="${ifrEscape(contact.email)}" data-contact-name="${ifrEscape(contact.contactName)}" style="width:16px;height:16px;margin:0;" ${index === 0 ? 'checked' : ''}>
+      <span style="font-size:13px;"><strong>${ifrEscape(contact.contactName)}</strong>${contact.role ? ` <span style="color:var(--text-muted);font-size:11px;">(${ifrEscape(contact.role)})</span>` : ''}<br><span style="color:var(--text-muted);font-size:12px;">${ifrEscape(contact.email)}</span></span>
+    </label>`).join('');
+  panel.style.display = 'block';
 }
 
 function onTruckerSelectChange() {
@@ -4282,7 +4296,6 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-trucker-send-email').value = savedRoad.partnerEmail || '';
       document.getElementById('r-trucker-draft-text').value = savedRoad.draftEmail || d.truckerDraftEmail || '';
     }
-    if (d.agentEmail) document.getElementById('r-agent-send-email').value = d.agentEmail;
     if (d.truckerEmail) document.getElementById('r-trucker-send-email').value = d.truckerEmail;
     if(d.client) {
       document.getElementById('r-client-name').value = d.client.name || '';
@@ -5062,10 +5075,6 @@ async function sendOutlookEmail() {
     return;
   }
 
-  const typedEmails = splitUiRecipientEmails(document.getElementById('r-agent-send-email').value);
-  if (typedEmails.length && !typedEmails.every(email => selectedPartnerRecipients.some(item => item.email === email))) {
-    if (!addCurrentPartnerRecipients()) return;
-  }
   const recipients = pendingPartnerRecipients();
   if (!recipients.length) {
     alert(selectedPartnerRecipients.length ? 'Todos os destinatários desta lista já foram enviados.' : 'Adicione ao menos um destinatário à lista de envio.');
@@ -5078,7 +5087,7 @@ async function sendOutlookEmail() {
 
   try {
     await uploadPendingQuotationDocuments();
-    const ccEmail = splitUiRecipientEmails(document.getElementById('r-agent-cc-email').value).join('; ');
+    const ccEmail = activeProfessional?.email || '';
     const needsTransport = document.getElementById('r-needs-transport').checked;
     const groundServiceLegs = collectGroundServiceLegs();
     let truckerEmail = null;
@@ -5188,8 +5197,6 @@ async function saveAsAwaitingAgent() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
 
   try {
-    const typedEmails = splitUiRecipientEmails(document.getElementById('r-agent-send-email').value);
-    if (typedEmails.length && !typedEmails.every(email => selectedPartnerRecipients.some(item => item.email === email))) addCurrentPartnerRecipients();
     const agentEmail = selectedPartnerRecipients.map(item => item.email).join('; ');
     if (!agentEmail) {
       alert('Adicione ao menos um destinatário antes de marcar como aguardando.');
@@ -8292,6 +8299,7 @@ function openAgentModal(id = null, preferredType = null) {
 
 function closeAgentModal() {
   document.getElementById('agentModal').style.display = 'none';
+  window.wizardPartnerRegistrationPending = false;
 }
 
 function filterAgents() {
@@ -8858,12 +8866,19 @@ async function saveAgent() {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || 'Não foi possível salvar o parceiro.');
     }
-    
+    const savedAgent = await response.json().catch(() => null);
+    const wasWizardRegistration = window.wizardPartnerRegistrationPending;
+
     toast('✅ Parceiro salvo com sucesso!');
     closeAgentModal();
     // Resetar cache e recarregar
     window.globalAgentsList = null;
-    loadAgents();
+    await loadAgents();
+
+    if (wasWizardRegistration) {
+      const newPartnerId = id || savedAgent?.id;
+      if (newPartnerId) await resumeWizardPartnerSelectionAfterRegistration(newPartnerId);
+    }
   } catch(e) {
     toast('❌ ' + (e.message || 'Erro ao salvar parceiro.'));
   } finally {
