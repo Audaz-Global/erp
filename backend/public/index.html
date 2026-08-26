@@ -3297,14 +3297,22 @@ function renderEmailExtractionAudit(audit) {
   const imageFields = fields.filter(item => item.source === 'IMAGE_OCR');
   const ocr = (audit.signatureOcr || []).filter(item => item.isSignature);
   const resolved = audit.resolvedContact || null;
+  const emailCount = audit.emails?.length || 0;
+  const needsReview = !!resolved?.needsReview;
+  const summaryName = resolved ? (resolved.name || 'Nome não confirmado') : (contacts[0]?.name || null);
+  const summaryText = `${needsReview ? '⚠️' : '✓'} Dados lidos do e-mail${summaryName ? ` — ${escape(summaryName)}` : ''} · ${emailCount} e-mail(ns) preservado(s)`;
   panel.style.display = 'block';
-  panel.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:8px;">Dados lidos do e-mail</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${audit.emails?.length || 0} e-mail(ns) preservado(s) no histórico. Confira as sugestões antes de enviar.</div>
+  panel.innerHTML = `<details>
+    <summary style="cursor:pointer;font-size:13px;font-weight:700;color:${needsReview ? 'var(--warning)' : 'var(--success)'};list-style:none;">${summaryText}</summary>
+    <div style="margin-top:10px;">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${emailCount} e-mail(ns) preservado(s) no histórico. Confira as sugestões antes de enviar.</div>
     ${resolved ? `<div style="font-size:12px;margin-bottom:8px;padding:10px;border:1px solid ${resolved.needsReview ? 'var(--warning)' : 'rgba(46,204,113,.35)'};border-radius:8px;background:rgba(46,204,113,.05)"><strong>${escape(resolved.name || 'Nome não confirmado')}</strong>${resolved.phone ? ` · ${escape(resolved.phone)}` : ''}${resolved.email ? ` · ${escape(resolved.email)}` : ''}<div style="margin-top:4px;color:var(--text-muted)">${labels[resolved.source] || resolved.source}${resolved.fileName ? ` · ${escape(resolved.fileName)}` : ''}</div>${resolved.needsReview ? '<div style="margin-top:5px;color:var(--warning);font-weight:700">⚠ Nome sem dupla confirmação — revise antes de salvar.</div>' : '<div style="margin-top:5px;color:var(--success);font-weight:700">✓ Nome verificado pelo cabeçalho e e-mail/assinatura.</div>'}</div>` : (contacts.length ? `<div style="font-size:12px;margin-bottom:8px;">${contacts.map(c => `<strong>${escape(c.name || 'Contato')}</strong>${c.phone ? ` · ${escape(c.phone)}` : ''} <span style="color:var(--text-muted)">(${labels[c.source] || c.source})</span>`).join('<br>')}</div>` : '')}
     ${ocr.length ? `<div style="margin:10px 0;padding:10px;border-left:3px solid var(--gold);background:rgba(245,166,35,.06);font-size:12px"><strong>Leitura de assinatura gráfica — revisar antes de usar</strong>${ocr.map(item => `<div style="margin-top:5px">${escape(item.name || 'Nome não identificado')}${item.phone ? ` · ${escape(item.phone)}` : ''}${item.email ? ` · ${escape(item.email)}` : ''} <span style="color:var(--text-muted)">(${Math.round(Number(item.confidence || 0) * 100)}%)</span></div>`).join('')}</div>` : ''}
     ${imageFields.length ? `<div style="margin:10px 0;padding:10px;border-left:3px solid var(--gold);background:rgba(245,166,35,.06);font-size:12px"><strong>🖼️ Lido de imagem/print — confira antes de enviar</strong>${imageFields.map(item => `<div style="margin-top:5px"><strong>${escape(item.field)}:</strong> ${escape(item.value)}${item.evidence ? ` <span style="color:var(--text-muted)">(${escape(item.evidence)})</span>` : ''}</div>`).join('')}</div>` : ''}
     <details><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver fonte das informações extraídas</summary><ul style="margin:8px 0 0;padding-left:18px;font-size:11px;color:var(--text-muted);">${fields.map(item => `<li>${item.source === 'IMAGE_OCR' ? '🖼️ ' : ''}<strong>${escape(item.field)}:</strong> ${escape(item.value)} — ${escape(labels[item.source] || item.source)}${item.confidence ? ` (${Math.round(Number(item.confidence) * 100)}%)` : ''}</li>`).join('')}</ul></details>
-    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver e-mail original preservado</summary>${(audit.emails || []).map(item => `<div style="margin-top:8px"><strong style="font-size:11px">${escape(item.subject || item.fileName || 'E-mail importado')}</strong><pre style="white-space:pre-wrap;max-height:220px;overflow:auto;font-size:11px;color:var(--text-muted)">${escape(item.originalBody || '')}</pre></div>`).join('')}</details>`;
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--gold);">Ver e-mail original preservado</summary>${(audit.emails || []).map(item => `<div style="margin-top:8px"><strong style="font-size:11px">${escape(item.subject || item.fileName || 'E-mail importado')}</strong><pre style="white-space:pre-wrap;max-height:220px;overflow:auto;font-size:11px;color:var(--text-muted)">${escape(item.originalBody || '')}</pre></div>`).join('')}</details>
+    </div>
+  </details>`;
 }
 
 // 2. REVISÃO DA COTAÇÃO
