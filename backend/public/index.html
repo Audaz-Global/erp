@@ -3917,14 +3917,33 @@ async function loadPartnerDirectory(force = false) {
   catch (error) { window.globalAgentsList = null; throw error; }
 }
 
-function appendPartnerOptions(select, partners) {
-  partners.forEach(partner => {
-    if (!partnerContactOptions(partner).length) return;
-    const option = document.createElement('option');
-    option.value = partner.id;
-    option.textContent = partner.name;
-    select.appendChild(option);
-  });
+function appendPartnerOptions(select, partners, originCountry = '') {
+  const eligible = partners.filter(partner => partnerContactOptions(partner).length);
+  const matched = originCountry ? eligible.filter(partner => partnerMatchesCountry(partner, originCountry)) : [];
+  const others = originCountry ? eligible.filter(partner => !partnerMatchesCountry(partner, originCountry)) : eligible;
+
+  const appendTo = (container, list) => {
+    list.forEach(partner => {
+      const option = document.createElement('option');
+      option.value = partner.id;
+      option.textContent = partner.name;
+      container.appendChild(option);
+    });
+  };
+
+  if (matched.length && others.length) {
+    const matchedGroup = document.createElement('optgroup');
+    matchedGroup.label = `Parceiros da origem (${originCountry})`;
+    appendTo(matchedGroup, matched);
+    select.appendChild(matchedGroup);
+
+    const othersGroup = document.createElement('optgroup');
+    othersGroup.label = 'Outros parceiros';
+    appendTo(othersGroup, others);
+    select.appendChild(othersGroup);
+  } else {
+    appendTo(select, matched.length ? matched : others);
+  }
 }
 
 function partnerMatchesSearch(partner, query) {
@@ -3980,7 +3999,7 @@ async function populateAgentDropdown(originCountry, includeAllCountries = false,
   }
 
   select.innerHTML = includeAllCountries ? '<option value="">Selecione um parceiro</option>' : '';
-  appendPartnerOptions(select, matchingAgents);
+  appendPartnerOptions(select, matchingAgents, originCountry);
   if (select.options.length === 0) select.innerHTML = '<option value="">Parceiros encontrados, mas sem e-mail válido</option>';
   onAgentSelectChange();
 }
