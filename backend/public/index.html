@@ -1166,8 +1166,9 @@
         <div class="wizard-step-indicator" onclick="goToWizardStep(3)">3. Carga</div>
         <div class="wizard-step-indicator" onclick="goToWizardStep(4)">4. Rota</div>
         <div class="wizard-step-indicator" onclick="goToWizardStep(5)">5. Parceiro</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(6)">6. Documentos</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(7)">7. E-mails</div>
+        <div class="wizard-step-indicator" onclick="goToWizardStep(6)">6. Logística Complementar</div>
+        <div class="wizard-step-indicator" onclick="goToWizardStep(7)">7. Documentos</div>
+        <div class="wizard-step-indicator" onclick="goToWizardStep(8)">8. E-mails</div>
       </div>
 
       <div id="email-extraction-audit" style="display:none;margin:18px 0 0;padding:14px;border:1px solid rgba(60,160,110,.4);border-radius:10px;background:rgba(60,160,110,.06);"></div>
@@ -1396,9 +1397,9 @@
 
       <!-- PASSO 5: PARCEIRO -->
       <div class="wizard-content" id="wizard-step-5">
-        <h2><span class="emoji">🤝</span> Tipo de Parceiro e Logística Interna</h2>
-        <p class="desc">Selecione quem receberá esta cotação e adicione solicitações terrestres extras se necessário.</p>
-        
+        <h2><span class="emoji">🤝</span> Tipo de Parceiro</h2>
+        <p class="desc">Selecione quem receberá esta cotação.</p>
+
         <div class="form-group" style="margin-top: 12px;">
           <label>Tipo de Parceiro (Principal)</label>
           <div class="partner-type-selector">
@@ -1440,8 +1441,12 @@
           <label>Receber Cópia (CC) no seu E-mail da Audaz</label>
           <input type="email" id="r-agent-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)">
         </div>
-        
-        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0;">
+      </div>
+
+      <!-- PASSO 6: LOGÍSTICA COMPLEMENTAR -->
+      <div class="wizard-content" id="wizard-step-6">
+        <h2><span class="emoji">🚚</span> Logística Complementar</h2>
+        <p class="desc">Solicitações terrestres e aduaneiras extras, se necessário.</p>
 
         <div style="display:flex;align-items:center;gap:8px;margin:16px 0;background:rgba(245,166,35,0.05);padding:12px 16px;border-radius:8px;border:1px solid rgba(245,166,35,0.3);">
           <input type="checkbox" id="r-needs-origin-inland" onchange="toggleOriginInlandSection(this.checked)" style="width:18px;height:18px;cursor:pointer;margin:0;">
@@ -1515,8 +1520,8 @@
         </div>
       </div>
 
-      <!-- PASSO 6: DOCUMENTOS -->
-      <div class="wizard-content" id="wizard-step-6">
+      <!-- PASSO 7: DOCUMENTOS -->
+      <div class="wizard-content" id="wizard-step-7">
         <h2><span class="emoji">📎</span> Documentação da Cotação</h2>
         <p class="desc">Acesse ou adicione os anexos e marque quais serão enviados em cada e-mail.</p>
         
@@ -1530,8 +1535,8 @@
         </section>
       </div>
 
-      <!-- PASSO 7: EMAILS -->
-      <div class="wizard-content" id="wizard-step-7">
+      <!-- PASSO 8: EMAILS -->
+      <div class="wizard-content" id="wizard-step-8">
         <h2><span class="emoji">🚀</span> Envio de E-mails</h2>
         <p class="desc">Revise o texto final que será enviado a cada parceiro escolhido e dispare a solicitação.</p>
         
@@ -10479,7 +10484,7 @@ async function saveIncotermTree() {
 }
 
 let currentWizardStep = 1;
-const MAX_WIZARD_STEPS = 7;
+const MAX_WIZARD_STEPS = 8;
 
 function updateWizardUI() {
   document.querySelectorAll('.wizard-step-indicator').forEach((el, index) => {
@@ -10511,7 +10516,7 @@ function updateWizardUI() {
   }
 }
 
-function canEnterWizardStep7() {
+function canEnterWizardStep8() {
   if (!selectedPartnerRecipients.length) {
     alert('Selecione um parceiro (agente, armador, coloader ou cia. aérea) e adicione ao menos um destinatário no passo 5 antes de ir para o envio de e-mails.');
     return false;
@@ -10525,7 +10530,7 @@ function nextWizardStep() {
       runExtract('CLIENT');
       return;
     }
-    if (currentWizardStep === 6 && !canEnterWizardStep7()) return;
+    if (currentWizardStep === 7 && !canEnterWizardStep8()) return;
     currentWizardStep++;
     updateWizardUI();
     document.getElementById('panel-extract').scrollIntoView({behavior: 'smooth'});
@@ -10542,7 +10547,7 @@ function prevWizardStep() {
 
 function goToWizardStep(step) {
   if (step >= 1 && step <= MAX_WIZARD_STEPS) {
-    if (step === 7 && !canEnterWizardStep7()) return;
+    if (step === 8 && !canEnterWizardStep8()) return;
     currentWizardStep = step;
     updateWizardUI();
     document.getElementById('panel-extract').scrollIntoView({behavior: 'smooth'});
@@ -10553,8 +10558,9 @@ function goToWizardStep(step) {
 const wizardOriginalSwitchTab = window.switchTab || function(id){};
 window.switchTab = function(tabId) {
   if (tabId === 'draft') {
-    // Agora o rascunho é o step 7 do wizard.
-    goToWizardStep(7);
+    // Dados de cliente/cotação foram extraídos ou carregados: inicia a revisão pelo passo 2
+    // (o passo 8 exige parceiro selecionado, o que ainda não é o caso neste momento).
+    goToWizardStep(2);
     wizardOriginalSwitchTab('extract'); // Switch para a tab principal do wizard
   } else {
     wizardOriginalSwitchTab(tabId);
