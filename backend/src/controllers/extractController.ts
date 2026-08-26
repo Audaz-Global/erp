@@ -13,7 +13,7 @@ import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from 
 import { applyHybridModalPolicy } from '../services/hybridModalService';
 import { tagPartnerCosts } from '../services/agentResponseService';
 import { resolveFirstResponseContact } from '../services/contactResolutionService';
-import { findClientByCnpjMatch } from '../services/clientMatchService';
+import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -290,7 +290,7 @@ export const extractData = async (req: Request, res: Response) => {
     }
     if (mode === 'CLIENT' && aiResult?.client) {
       const registeredClient = (await findClientByCnpjMatch(prisma, aiResult.client.cnpj))
-        || (aiResult.client.name ? await prisma.client.findFirst({ where: { name: aiResult.client.name } }) : null);
+        || (await findClientByNameMatch(prisma, aiResult.client.name));
       if (registeredClient) {
         // Nome/CNPJ canônicos do cadastro evitam variações de grafia entre e-mails do mesmo cliente.
         aiResult.client.name = registeredClient.name;

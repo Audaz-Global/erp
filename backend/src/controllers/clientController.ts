@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { findClientByCnpjMatch } from '../services/clientMatchService';
+import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
 
 export const listClients = async (req: Request, res: Response) => {
   try {
@@ -43,8 +43,10 @@ function clientData(body: any) {
 export const createClient = async (req: Request, res: Response) => {
   try {
     const data = clientData(req.body);
-    const existing = await findClientByCnpjMatch(prisma, data.cnpj);
-    if (existing) return res.status(409).json({ error: `Já existe um cliente cadastrado com este CNPJ: ${existing.name}.` });
+    // Sem CNPJ informado não há como confirmar que são empresas distintas
+    // (ex: filiais), então aqui também barramos por nome parecido.
+    const existing = (await findClientByCnpjMatch(prisma, data.cnpj)) || (!data.cnpj ? await findClientByNameMatch(prisma, data.name) : null);
+    if (existing) return res.status(409).json({ error: `Já existe um cliente cadastrado parecido: ${existing.name}.` });
     const client = await prisma.client.create({ data });
     res.status(201).json(client);
   } catch (error: any) {
@@ -56,8 +58,8 @@ export const createClient = async (req: Request, res: Response) => {
 export const updateClient = async (req: Request, res: Response) => {
   try {
     const data = clientData(req.body);
-    const existing = await findClientByCnpjMatch(prisma, data.cnpj);
-    if (existing && existing.id !== req.params.id) return res.status(409).json({ error: `Já existe um cliente cadastrado com este CNPJ: ${existing.name}.` });
+    const existing = (await findClientByCnpjMatch(prisma, data.cnpj)) || (!data.cnpj ? await findClientByNameMatch(prisma, data.name) : null);
+    if (existing && existing.id !== req.params.id) return res.status(409).json({ error: `Já existe um cliente cadastrado parecido: ${existing.name}.` });
     const client = await prisma.client.update({ where: { id: req.params.id }, data });
     res.json(client);
   } catch (error: any) {
