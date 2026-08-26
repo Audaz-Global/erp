@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { findClientByCnpjMatch } from '../services/clientMatchService';
 
 export const listClients = async (req: Request, res: Response) => {
   try {
@@ -41,7 +42,10 @@ function clientData(body: any) {
 
 export const createClient = async (req: Request, res: Response) => {
   try {
-    const client = await prisma.client.create({ data: clientData(req.body) });
+    const data = clientData(req.body);
+    const existing = await findClientByCnpjMatch(prisma, data.cnpj);
+    if (existing) return res.status(409).json({ error: `Já existe um cliente cadastrado com este CNPJ: ${existing.name}.` });
+    const client = await prisma.client.create({ data });
     res.status(201).json(client);
   } catch (error: any) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'Já existe um cliente cadastrado com este CNPJ.' });
@@ -51,7 +55,10 @@ export const createClient = async (req: Request, res: Response) => {
 
 export const updateClient = async (req: Request, res: Response) => {
   try {
-    const client = await prisma.client.update({ where: { id: req.params.id }, data: clientData(req.body) });
+    const data = clientData(req.body);
+    const existing = await findClientByCnpjMatch(prisma, data.cnpj);
+    if (existing && existing.id !== req.params.id) return res.status(409).json({ error: `Já existe um cliente cadastrado com este CNPJ: ${existing.name}.` });
+    const client = await prisma.client.update({ where: { id: req.params.id }, data });
     res.json(client);
   } catch (error: any) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'Já existe um cliente cadastrado com este CNPJ.' });

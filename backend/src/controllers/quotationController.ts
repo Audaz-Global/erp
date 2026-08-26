@@ -17,6 +17,7 @@ import { normalizeIncotermText } from '../services/incotermAliasService';
 import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
+import { findClientByCnpjMatch } from '../services/clientMatchService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -71,10 +72,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     let clientId = null;
     if (clientName) {
       // Find or Create Client
-      let client = null;
-      if (clientCnpj) {
-        client = await prisma.client.findFirst({ where: { cnpj: clientCnpj } });
-      }
+      let client = await findClientByCnpjMatch(prisma, clientCnpj);
       if (!client) {
         // Tentar encontrar pelo nome se não encontrou pelo CNPJ
         client = await prisma.client.findFirst({ where: { name: clientName } });
@@ -235,10 +233,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
 
     // Se as informações de cliente foram passadas, atualizamos/associamos
     if (clientName) {
-      let client = null;
-      if (clientCnpj) {
-        client = await prisma.client.findFirst({ where: { cnpj: clientCnpj } });
-      }
+      let client = await findClientByCnpjMatch(prisma, clientCnpj);
       if (!client) {
         client = await prisma.client.findFirst({ where: { name: clientName } });
       }
