@@ -312,6 +312,27 @@
   .action-btn:hover { border-color: var(--gold); background: rgba(245,166,35,0.1); }
   .action-btn.danger:hover { border-color: var(--error); background: rgba(248,113,113,0.1); color: var(--error); }
 
+  .k-dropdown { position: relative; display: inline-block; }
+  .k-dropdown-toggle {
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; cursor: pointer; font-size: 16px; transition: all 0.2s; color: var(--text);
+  }
+  .k-dropdown-toggle:hover { border-color: var(--gold); background: rgba(245,166,35,0.1); }
+  .k-dropdown-menu {
+    display: none; position: absolute; right: 0; top: 100%; margin-top: 4px;
+    background: var(--bg-card); min-width: 220px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    border: 1px solid var(--border); z-index: 1000; border-radius: 8px; padding: 4px 0; text-align: left;
+  }
+  .k-dropdown:hover .k-dropdown-menu { display: block; }
+  .k-dropdown-item {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px;
+    background: none; border: none; color: var(--text); font-size: 13px; font-family: inherit;
+    cursor: pointer; text-align: left; transition: background 0.1s;
+  }
+  .k-dropdown-item:hover { background: rgba(255,255,255,0.05); color: var(--gold); }
+  .k-dropdown-item.danger { color: #f87171; }
+  .k-dropdown-item.danger:hover { background: rgba(248,113,113,0.1); color: #f87171; }
+
   .detail-row td {
     padding: 0 !important; border-bottom: 1px solid rgba(42,53,88,0.5);
   }
@@ -1112,17 +1133,7 @@
 
   <!-- ════════════ PAINEL 2: RASCUNHO AGENTE ════════════ -->
   <div class="panel" id="panel-draft">
-    <div class="card" style="border-color: var(--gold); background: rgba(245,166,35,0.05); margin-bottom: 24px;">
-      <div style="display: flex; gap: 16px; align-items: flex-end;">
-        <div style="flex: 1;" class="form-group">
-          <label style="color: var(--gold); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: block;">🔄 Reaproveitar Cotação Anterior</label>
-          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">Selecione uma cotação para preencher os dados automaticamente e enviar para um novo agente.</p>
-          <select id="r-load-quotation" onchange="loadQuotationIntoDraft()" style="margin-bottom: 0;">
-            <option value="">-- Nenhuma cotação selecionada --</option>
-          </select>
-        </div>
-      </div>
-    </div>
+
 
     <div class="card">
       <h2><span class="emoji">✉️</span> Rascunho para o Agente</h2>
@@ -6823,11 +6834,15 @@ function renderTable() {
       <td><span class="status-badge ${st.cls}">${st.icon} ${st.label}</span></td>
       <td>${dateStr}</td>
       <td>
-        <div class="action-btns" onclick="event.stopPropagation()">
-          <button class="action-btn" onclick="openEditQuotationModal('${q.id}')" title="Editar Cotação">✏️</button>
-          <button class="action-btn" onclick="downloadPdf('${q.id}')" title="Baixar PDF">📄</button>
-          <button class="action-btn" onclick="copyPublicLink('${q.id}')" title="Copiar Link da Versão Web">🔗</button>
-          <button class="action-btn danger" onclick="deleteQuotation('${q.id}')" title="Excluir">🗑️</button>
+        <div class="k-dropdown" onclick="event.stopPropagation()">
+          <button class="k-dropdown-toggle" title="Ações">⋮</button>
+          <div class="k-dropdown-menu">
+            <button class="k-dropdown-item" onclick="reuseQuotation('${q.id}')">🔄 Reaproveitar Cotação</button>
+            <button class="k-dropdown-item" onclick="openEditQuotationModal('${q.id}')">✏️ Editar Cotação</button>
+            <button class="k-dropdown-item" onclick="downloadPdf('${q.id}')">📄 Baixar PDF</button>
+            <button class="k-dropdown-item" onclick="copyPublicLink('${q.id}')">🔗 Copiar Link da Versão Web</button>
+            <button class="k-dropdown-item danger" onclick="deleteQuotation('${q.id}')">🗑️ Excluir</button>
+          </div>
         </div>
       </td>
     </tr>`;
@@ -7051,8 +7066,10 @@ function openEditQuotationModal(id) {
 }
 
 function downloadPdf(id) {
-  isOnlyEditMode = false;
-  validateAndGeneratePDF(id);
+  if (!id) return;
+  const pdfProfessionalQuery = activeProfessional?.id ? '?professionalId=' + encodeURIComponent(activeProfessional.id) : '';
+  window.open(API + '/quotations/' + id + '/pdf' + pdfProfessionalQuery, '_blank');
+  toast('Abrindo PDF...');
 }
 
 function copyPublicLink(id) {
@@ -9499,32 +9516,13 @@ async function openFeeApplicationRules(feeId) {
   setTimeout(() => editStandardFeeById(feeId), 180);
 }
 
-// ════════════ REAPROVEITAR COTAÇÕES (TELA DE RASCUNHO) ════════════
+function reuseQuotation(id) {
+  switchTab('draft');
+  loadQuotationIntoDraft(id);
+}
+
 async function loadRecentQuotations() {
-  try {
-    const res = await fetch(API + '/quotations');
-    const quotations = await res.json();
-    const select = document.getElementById('r-load-quotation');
-    if (!select) return;
-    
-    // Limpar e deixar a option default
-    select.innerHTML = '<option value="">-- Selecione uma cotação para reaproveitar --</option>';
-    
-    // Pegar as 30 mais recentes
-    const recent = quotations.slice(0, 30);
-    recent.forEach(q => {
-      const clientName = q.client ? q.client.name : q.clientName || 'Desconhecido';
-      const ref = q.reference ? `[${q.reference}] ` : '';
-      const route = `${q.originCity} x ${q.destinationCity}`;
-      
-      const option = document.createElement('option');
-      option.value = q.id;
-      option.textContent = `${ref}${clientName} - ${route}`;
-      select.appendChild(option);
-    });
-  } catch (error) {
-    console.error('Erro ao carregar cotações recentes', error);
-  }
+  // Removido pois a select list foi removida do HTML
 }
 
 async function loadQuotationIntoDraft(quotationId) {
