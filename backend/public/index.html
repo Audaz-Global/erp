@@ -10511,12 +10511,21 @@ function updateWizardUI() {
   }
 }
 
+function canEnterWizardStep7() {
+  if (!selectedPartnerRecipients.length) {
+    alert('Selecione um parceiro (agente, armador, coloader ou cia. aérea) e adicione ao menos um destinatário no passo 5 antes de ir para o envio de e-mails.');
+    return false;
+  }
+  return true;
+}
+
 function nextWizardStep() {
   if (currentWizardStep < MAX_WIZARD_STEPS) {
     if (currentWizardStep === 1 && !document.getElementById('r-client-name').value && document.getElementById('emailText').value) {
       runExtract('CLIENT');
       return;
     }
+    if (currentWizardStep === 6 && !canEnterWizardStep7()) return;
     currentWizardStep++;
     updateWizardUI();
     document.getElementById('panel-extract').scrollIntoView({behavior: 'smooth'});
@@ -10533,6 +10542,7 @@ function prevWizardStep() {
 
 function goToWizardStep(step) {
   if (step >= 1 && step <= MAX_WIZARD_STEPS) {
+    if (step === 7 && !canEnterWizardStep7()) return;
     currentWizardStep = step;
     updateWizardUI();
     document.getElementById('panel-extract').scrollIntoView({behavior: 'smooth'});
