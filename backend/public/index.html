@@ -1562,7 +1562,7 @@
             <label class="btn btn-secondary document-upload-button">Adicionar documentos<input id="manualDocumentInput" type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" onchange="uploadManualQuotationDocuments(this.files)"></label>
           </div>
           <div class="document-selection-legend"><span>Parceiro</span><span>DTA</span><span>Rodoviário</span></div>
-          <div id="quotationDocumentsList"><p class="document-empty">Nenhum documento encontrado.</p></div>
+          <div id="quotationDocumentsList"><p class="document-empty">Carregando documentos...</p></div>
         </section>
       </div>
 
@@ -4902,13 +4902,12 @@ function setDraftDispatchState(state, details = {}) {
   }
 }
 
-async function generateDraftEmail() {
-  const btn = document.getElementById('btnGenDraft');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
-
-  try {
-    // Salva a cotação inicial no banco
-    const body = {
+// Monta o payload da cotação a partir dos campos do wizard e cria/atualiza o
+// registro no banco (o que também libera o upload dos documentos pendentes).
+// Extraído de generateDraftEmail() para poder ser chamado mais cedo — ao
+// entrar no passo 7 (Documentos) — sem disparar a geração do rascunho por IA.
+async function saveQuotationRecord() {
+  const body = {
       reference: document.getElementById('r-reference').value,
       direction: document.getElementById('r-direction').value || 'IMPORT',
       modal: document.getElementById('r-type').value === 'AIR_GENERAL' ? 'AIR' : 'SEA',
@@ -4984,6 +4983,28 @@ async function generateDraftEmail() {
     if (qData.reference) document.getElementById('r-reference').value = qData.reference;
     await uploadPendingQuotationDocuments();
     await loadQuotationDocuments();
+    return qData;
+}
+
+// Cria a cotação em segundo plano ao entrar no passo 7 (Documentos), pra que
+// os anexos já estejam vinculados quando a lista aparecer — sem isso, o
+// registro só existia depois de clicar "Gerar Rascunho" no passo 8, e o
+// passo 7 (que vem antes) sempre aparecia vazio.
+async function ensureQuotationRecordForStep7() {
+  if (currentQuotationId) { await loadQuotationDocuments(); return; }
+  try {
+    await saveQuotationRecord();
+  } catch (e) {
+    console.warn('Não foi possível pré-criar a cotação ao entrar no passo de documentos:', e.message);
+  }
+}
+
+async function generateDraftEmail() {
+  const btn = document.getElementById('btnGenDraft');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
+
+  try {
+    await saveQuotationRecord();
 
     const selectEl = document.getElementById('r-agent-email');
     const selectedOption = selectEl.options[selectEl.selectedIndex];
@@ -10635,6 +10656,7 @@ function nextWizardStep() {
     }
     if (currentWizardStep === 7 && !canEnterWizardStep8()) return;
     currentWizardStep++;
+    if (currentWizardStep === 7) ensureQuotationRecordForStep7();
     updateWizardUI();
     document.getElementById('panel-extract').scrollIntoView({behavior: 'smooth'});
   }
@@ -10652,6 +10674,7 @@ function goToWizardStep(step) {
   if (step >= 1 && step <= MAX_WIZARD_STEPS) {
     if (step === 8 && !canEnterWizardStep8()) return;
     currentWizardStep = step;
+    if (step === 7) ensureQuotationRecordForStep7();
     updateWizardUI();
     document.getElementById('panel-extract').scrollIntoView({behavior: 'smooth'});
   }
