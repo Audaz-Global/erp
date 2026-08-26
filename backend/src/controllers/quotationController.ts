@@ -306,7 +306,10 @@ export const deleteQuotation = async (req: Request, res: Response) => {
   }
 };
 
-// Helper: Auto-generate Reference "INITIALS-DDMMYY-HHMM" format
+// Helper: Auto-generate Reference "INITIALS-DDMMYY-HHMM" format. A minute
+// only has one "slot" per prefix, so two quotations created in the same
+// minute (common — same operator, back-to-back) would collide on the
+// @unique constraint; append -1, -2... until a free reference is found.
 const generateReference = async (initials: string = 'ADZ') => {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
@@ -314,7 +317,14 @@ const generateReference = async (initials: string = 'ADZ') => {
   const datePart = `${parts.day || '01'}${parts.month || '01'}${(parts.year || '2000').slice(-2)}`;
   const timePart = `${parts.hour || '00'}${parts.minute || '00'}`;
   const prefix = (initials || 'ADZ').trim().toUpperCase();
-  return `${prefix}-${datePart}-${timePart}`;
+  const base = `${prefix}-${datePart}-${timePart}`;
+  let candidate = base;
+  let suffix = 1;
+  while (await prisma.quotation.findUnique({ where: { reference: candidate } })) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
 };
 
 // 6. Generate PDF for Quotation
