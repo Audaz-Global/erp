@@ -32,11 +32,42 @@
   }
   .wizard-header {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     margin-bottom: 24px;
     border-bottom: 1px solid var(--border);
     padding-bottom: 12px;
+  }
+  .wizard-steps-row {
+    display: flex;
+    justify-content: space-between;
     overflow-x: auto;
+  }
+  .wizard-progress-track {
+    position: relative;
+    height: 20px;
+    margin-top: 8px;
+    border-top: 2px dotted var(--border);
+  }
+  .wizard-progress-icon {
+    position: absolute;
+    top: -13px;
+    left: 0%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    line-height: 1;
+    opacity: 0;
+    transition: left 0.4s ease, opacity 0.3s ease;
+  }
+  .wizard-progress-icon.visible {
+    opacity: 1;
+  }
+  /* Conteúdo via ::before (não é nó de texto no DOM) para escapar do
+     modernizeLegacyUI, que apaga emoji de qualquer nó de texto do site. */
+  .wizard-progress-icon.vehicle-air::before {
+    content: "\2708\FE0F";
+  }
+  .wizard-progress-icon.vehicle-sea::before {
+    content: "\1F6A2";
   }
   .wizard-step-indicator {
     padding: 8px 12px;
@@ -1161,14 +1192,19 @@
   <div class="panel" id="panel-extract">
     <div class="card wizard-container">
       <div class="wizard-header">
-        <div class="wizard-step-indicator active" onclick="goToWizardStep(1)">1. Nova Cotação</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(2)">2. Cliente</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(3)">3. Carga</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(4)">4. Rota</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(5)">5. Parceiro</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(6)">6. Logística Complementar</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(7)">7. Documentos</div>
-        <div class="wizard-step-indicator" onclick="goToWizardStep(8)">8. E-mails</div>
+        <div class="wizard-steps-row">
+          <div class="wizard-step-indicator active" onclick="goToWizardStep(1)">1. Nova Cotação</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(2)">2. Cliente</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(3)">3. Carga</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(4)">4. Rota</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(5)">5. Parceiro</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(6)">6. Logística Complementar</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(7)">7. Documentos</div>
+          <div class="wizard-step-indicator" onclick="goToWizardStep(8)">8. E-mails</div>
+        </div>
+        <div class="wizard-progress-track">
+          <span class="wizard-progress-icon" id="wizardProgressIcon"></span>
+        </div>
       </div>
 
       <!-- PASSO 1: EXTRAÇÃO -->
@@ -1259,7 +1295,7 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div class="form-group">
             <label>Tipo <span id="conf-type"></span></label>
-            <select id="r-type" class="req" onchange="syncPartnerTypesForModal()">
+            <select id="r-type" class="req" onchange="syncPartnerTypesForModal(); updateWizardVehicleIcon();">
               <option value="LCL">LCL</option>
               <option value="FCL_20">FCL 20'</option>
               <option value="FCL_40">FCL 40'</option>
@@ -4344,6 +4380,7 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-type').value = 'FCL_40';
       }
       syncPartnerTypesForModal();
+      updateWizardVehicleIcon();
       document.getElementById('conf-type').innerHTML = renderConf(d.cargo.type, d.cargo.confidence);
       
       document.getElementById('r-cargo-description').value = d.cargo.description || '';
@@ -10527,6 +10564,24 @@ function updateWizardUI() {
     document.getElementById('btnSendAgent').style.display = 'none';
     document.getElementById('btnSendOutlook').style.display = 'none';
   }
+
+  updateWizardVehicleIcon();
+}
+
+function updateWizardVehicleIcon() {
+  const icon = document.getElementById('wizardProgressIcon');
+  if (!icon) return;
+  const loadType = (document.getElementById('r-type')?.value || '').toUpperCase();
+  if (!loadType) {
+    icon.classList.remove('visible');
+    return;
+  }
+  const isAir = loadType.includes('AIR');
+  icon.classList.toggle('vehicle-air', isAir);
+  icon.classList.toggle('vehicle-sea', !isAir);
+  icon.classList.add('visible');
+  const pct = ((currentWizardStep - 1) / (MAX_WIZARD_STEPS - 1)) * 100;
+  icon.style.left = pct + '%';
 }
 
 function canEnterWizardStep8() {
