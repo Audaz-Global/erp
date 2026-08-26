@@ -3,7 +3,10 @@
 // generateTruckerDraft/generateDtaDraft) — quando o operador tinha escolhido
 // só 1 contato no momento da geração, a IA já personaliza direto e nenhuma
 // dessas frases aparece, então a troca abaixo não tem efeito nesse caso.
-const GENERIC_GREETINGS = ['Prezado(a) Agente,', 'Prezada Transportadora,', 'Prezado(a),'];
+// "Prezado(a) {Nome do Contato}," é o mesmo caso, mas para quando o rascunho
+// foi gerado com destinatários de mais de uma empresa na fila (o wizard usa
+// esse token visível em vez de repetir um nome que só valeria para uma delas).
+const GENERIC_GREETINGS = ['Prezado(a) Agente,', 'Prezada Transportadora,', 'Prezado(a),', 'Prezado(a) {Nome do Contato},'];
 
 // Nomes de contato que são só rótulos internos, não o nome de uma pessoa —
 // nunca usar como saudação.
