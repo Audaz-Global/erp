@@ -13,6 +13,7 @@ import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from 
 import { applyHybridModalPolicy } from '../services/hybridModalService';
 import { tagPartnerCosts } from '../services/agentResponseService';
 import { resolveFirstResponseContact } from '../services/contactResolutionService';
+import { findClientByCnpjMatch } from '../services/clientMatchService';
 
 const SINGLETON_ID = 'default';
 const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
@@ -286,6 +287,21 @@ export const extractData = async (req: Request, res: Response) => {
       aiResult.client.contact_confidence = resolvedContact.confidence;
       aiResult.client.contact_needs_review = resolvedContact.needsReview;
       aiResult.client.contact_validation = resolvedContact.nameValidation;
+    }
+    if (mode === 'CLIENT' && aiResult?.client) {
+      const registeredClient = (await findClientByCnpjMatch(prisma, aiResult.client.cnpj))
+        || (aiResult.client.name ? await prisma.client.findFirst({ where: { name: aiResult.client.name } }) : null);
+      if (registeredClient) {
+        // Nome/CNPJ canônicos do cadastro evitam variações de grafia entre e-mails do mesmo cliente.
+        aiResult.client.name = registeredClient.name;
+        aiResult.client.cnpj = registeredClient.cnpj || aiResult.client.cnpj;
+        // Contato: só usa o do cadastro se este e-mail não trouxe um mais recente.
+        if (!aiResult.client.contact_name && registeredClient.contactName) aiResult.client.contact_name = registeredClient.contactName;
+        if (!aiResult.client.contact_phone && registeredClient.contactPhone) aiResult.client.contact_phone = registeredClient.contactPhone;
+        if (!aiResult.client.contact_email && registeredClient.contactEmail) aiResult.client.contact_email = registeredClient.contactEmail;
+        if (registeredClient.productSegment) aiResult.client.product_segment = registeredClient.productSegment;
+        aiResult.client.registered_client_id = registeredClient.id;
+      }
     }
     const emailExtraction = mode === 'CLIENT' ? clientExtractionAudit(aiResult, emailRecords, signatureOcr, resolvedContact) : null;
     res.json({ message: 'Extração concluída', data: aiResult, rawText: combinedText, emailExtraction });

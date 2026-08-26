@@ -1171,8 +1171,6 @@
         <div class="wizard-step-indicator" onclick="goToWizardStep(8)">8. E-mails</div>
       </div>
 
-      <div id="email-extraction-audit" style="display:none;margin:18px 0 0;padding:14px;border:1px solid rgba(60,160,110,.4);border-radius:10px;background:rgba(60,160,110,.06);"></div>
-
       <!-- PASSO 1: EXTRAÇÃO -->
       <div class="wizard-content active" id="wizard-step-1">
         <h2><span class="emoji">🤖</span> Extração do Pedido do Cliente</h2>
@@ -1204,6 +1202,7 @@
               <label>Nome do Cliente <span id="conf-client-name"></span></label>
               <input type="text" id="r-client-name" class="req" placeholder="Ex: GESTAMP">
             </div>
+            <div id="r-client-registered-badge"></div>
             <div class="form-group">
               <label>CNPJ / Tax ID <span id="conf-client-cnpj"></span></label>
               <input type="text" id="r-client-cnpj" placeholder="Ex: 00.000.000/0000-00">
@@ -1245,6 +1244,7 @@
             </div>
           </div>
         </div>
+        <div id="email-extraction-audit" style="display:none;margin:18px 0 0;padding:14px;border:1px solid rgba(60,160,110,.4);border-radius:10px;background:rgba(60,160,110,.06);"></div>
       </div>
 
       <!-- PASSO 3: CARGA -->
@@ -4261,6 +4261,10 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-client-phone').innerHTML = renderConf(d.client.contact_phone || d.client.contactPhone, d.client.contact_confidence ?? d.client.confidence);
       document.getElementById('r-client-reference').value = d.client.reference || '';
       document.getElementById('conf-client-reference').innerHTML = renderConf(d.client.reference, d.client.confidence);
+      if (d.client.product_segment) document.getElementById('r-product-segment').value = d.client.product_segment;
+      const registeredBadge = document.getElementById('r-client-registered-badge');
+      if (registeredBadge) registeredBadge.innerHTML = d.client.registered_client_id
+        ? '<small style="display:block;margin:-8px 0 12px;color:var(--success);">✓ Cliente já cadastrado — nome e segmento preenchidos com o registro existente.</small>' : '';
     }
     if(d.route) {
       document.getElementById('r-incoterm').value = d.route.incoterm || '';
