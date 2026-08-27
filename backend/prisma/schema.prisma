@@ -384,7 +384,8 @@ model Agent {
   code         String?
   aliases      String? // JSON array de nomes alternativos
   equipmentScopes String? // JSON array de equipamentos/faixas atendidas
-  networks     String? // Ex: "WCA, JCtrans"
+  networks     String? // Ex: "WCA, GLA"
+  certifications String? // Ex: "IATA, AEO"
   address      String?
   phone        String?
   website      String?

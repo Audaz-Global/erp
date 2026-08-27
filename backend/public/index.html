@@ -25,6 +25,11 @@
     --radius: 16px;
   }
 
+  /* Sem isso, o Windows/Chrome renderiza o popup nativo do <select> com o
+     esquema de cores claro do SO por baixo do texto claro do app, deixando
+     as opções ilegíveis (texto claro sobre fundo claro). */
+  select { color-scheme: dark; }
+
   .wizard-container {
     display: flex;
     flex-direction: column;
@@ -2558,8 +2563,23 @@
     </div>
     
     <div class="form-group">
-      <label>Networks de Atuação</label>
-      <input type="text" id="agent-networks" placeholder="Ex: WCA, JCtrans...">
+      <label>Rede</label>
+      <div class="partner-type-checks" id="agent-networks">
+        <label><input type="checkbox" name="agent-network" value="WCA World"> WCA World</label>
+        <label><input type="checkbox" name="agent-network" value="GLA"> GLA</label>
+        <label><input type="checkbox" name="agent-network" value="WorldRing"> WorldRing</label>
+        <label><input type="checkbox" name="agent-network" value="Freight Forwarder Network"> Freight Forwarder Network</label>
+        <label><input type="checkbox" name="agent-network" value="My Network"> My Network</label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Certificações</label>
+      <div class="partner-type-checks" id="agent-certifications">
+        <label><input type="checkbox" name="agent-certification" value="IATA"> IATA</label>
+        <label><input type="checkbox" name="agent-certification" value="AEO"> AEO</label>
+        <label><input type="checkbox" name="agent-certification" value="FIATA"> FIATA</label>
+      </div>
     </div>
     
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
@@ -8453,9 +8473,8 @@ async function deleteKnowledge(id) {
 }
 
 // ════════════ GESTÃO DE AGENTES ════════════
-let tagifyOrigins, tagifyDestinations, tagifyNetworks;
+let tagifyOrigins, tagifyDestinations;
 const countryWhitelist = ['Alemanha', 'Argentina', 'Austrália', 'Brasil', 'Canadá', 'Chile', 'China', 'Colômbia', 'Coreia do Sul', 'Emirados Árabes Unidos', 'Espanha', 'Estados Unidos', 'França', 'Hong Kong', 'Índia', 'Itália', 'Japão', 'México', 'Nova Zelândia', 'Portugal', 'Reino Unido', 'África do Sul', 'Taiwan', 'Europa', 'Latam', 'APAC', 'América do Norte'];
-const networkWhitelist = ['WCA', 'JCtrans', 'GLA', 'MarcoPolo', 'X2', 'OOG', 'Alianca', 'Lognet', 'PPL'];
 
 function addAgentContact(name = '', email = '', phone = '', role = '') {
   const container = document.getElementById('agent-contacts-container');
@@ -8477,12 +8496,6 @@ function addAgentContact(name = '', email = '', phone = '', role = '') {
 }
 
 function initTagify() {
-  if (!tagifyNetworks) {
-    tagifyNetworks = new Tagify(document.getElementById('agent-networks'), {
-      whitelist: networkWhitelist,
-      dropdown: { maxItems: 20, enabled: 0, closeOnSelect: false }
-    });
-  }
   if (!tagifyOrigins) {
     tagifyOrigins = new Tagify(document.getElementById('agent-origins'), {
       whitelist: countryWhitelist,
@@ -8534,7 +8547,8 @@ function openAgentModal(id = null, preferredType = null) {
     
     document.querySelectorAll('input[name="agent-modal"]').forEach(cb => cb.checked = false);
     document.querySelectorAll('input[name="ground-capability"]').forEach(cb => cb.checked = false);
-    tagifyNetworks.removeAllTags();
+    document.querySelectorAll('input[name="agent-network"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('input[name="agent-certification"]').forEach(cb => cb.checked = false);
     tagifyOrigins.removeAllTags();
     tagifyDestinations.removeAllTags();
     
@@ -8711,7 +8725,7 @@ function renderPartnerContacts() {
 
 function renderPartnerCoverage() {
   const partner = currentPartnerProfileData.partner;
-  return `<div class="partner-detail-grid"><div class="partner-detail-block"><h3>Modais</h3><div class="partner-detail-kv"><strong>${profileValue(partner.modals)}</strong></div></div><div class="partner-detail-block"><h3>Origens</h3><div class="partner-detail-kv"><strong>${profileValue(partner.origins)}</strong></div></div><div class="partner-detail-block"><h3>Destinos</h3><div class="partner-detail-kv"><strong>${profileValue(partner.destinations)}</strong></div></div><div class="partner-detail-block"><h3>Networks</h3><div class="partner-detail-kv"><strong>${profileValue(partner.networks)}</strong></div></div><div class="partner-detail-block" style="grid-column:span 2"><h3>Endereço</h3><div class="partner-detail-kv"><strong>${profileValue(partner.address)}</strong></div></div></div>`;
+  return `<div class="partner-detail-grid"><div class="partner-detail-block"><h3>Modais</h3><div class="partner-detail-kv"><strong>${profileValue(partner.modals)}</strong></div></div><div class="partner-detail-block"><h3>Origens</h3><div class="partner-detail-kv"><strong>${profileValue(partner.origins)}</strong></div></div><div class="partner-detail-block"><h3>Destinos</h3><div class="partner-detail-kv"><strong>${profileValue(partner.destinations)}</strong></div></div><div class="partner-detail-block"><h3>Rede</h3><div class="partner-detail-kv"><strong>${profileValue(partner.networks)}</strong></div></div><div class="partner-detail-block"><h3>Certificações</h3><div class="partner-detail-kv"><strong>${profileValue(partner.certifications)}</strong></div></div><div class="partner-detail-block" style="grid-column:span 2"><h3>Endereço</h3><div class="partner-detail-kv"><strong>${profileValue(partner.address)}</strong></div></div></div>`;
 }
 
 function renderPartnerFees() {
@@ -8996,9 +9010,11 @@ function editAgent(agent) {
   try { groundCapabilities = JSON.parse(agent.groundServiceCapabilities || '[]'); } catch {}
   document.querySelectorAll('input[name="ground-capability"]').forEach(cb => { cb.checked = groundCapabilities.includes(cb.value); });
   
-  tagifyNetworks.removeAllTags();
-  if (agent.networks) tagifyNetworks.addTags(agent.networks.split(',').map(s=>s.trim()));
-  
+  const networksArr = (agent.networks || '').split(',').map(s => s.trim()).filter(Boolean);
+  document.querySelectorAll('input[name="agent-network"]').forEach(cb => { cb.checked = networksArr.includes(cb.value); });
+  const certificationsArr = (agent.certifications || '').split(',').map(s => s.trim()).filter(Boolean);
+  document.querySelectorAll('input[name="agent-certification"]').forEach(cb => { cb.checked = certificationsArr.includes(cb.value); });
+
   tagifyOrigins.removeAllTags();
   if (agent.origins) tagifyOrigins.addTags(agent.origins.split(',').map(s=>s.trim()));
   
@@ -9066,7 +9082,8 @@ async function saveAgent() {
   const finalOrigins = !requiresCoverage && !originsStr ? 'Global' : originsStr;
   
   const destinationsStr = tagifyDestinations.value.map(t => t.value).join(', ');
-  const networksStr = tagifyNetworks.value.map(t => t.value).join(', ');
+  const networksStr = Array.from(document.querySelectorAll('input[name="agent-network"]:checked')).map(cb => cb.value).join(', ');
+  const certificationsStr = Array.from(document.querySelectorAll('input[name="agent-certification"]:checked')).map(cb => cb.value).join(', ');
 
   const contacts = [];
   document.querySelectorAll('.agent-contact-row').forEach(row => {
@@ -9085,6 +9102,7 @@ async function saveAgent() {
     type,
     types,
     networks: networksStr,
+    certifications: certificationsStr,
     address: document.getElementById('agent-address').value,
     phone: document.getElementById('agent-phone').value,
     website: document.getElementById('agent-website').value,
