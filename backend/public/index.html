@@ -407,7 +407,7 @@
     background: var(--bg-card); min-width: 220px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
     border: 1px solid var(--border); z-index: 1000; border-radius: 8px; padding: 4px 0; text-align: left;
   }
-  .k-dropdown:hover .k-dropdown-menu { display: block; }
+  .k-dropdown.open .k-dropdown-menu { display: block; }
   .k-dropdown-item {
     display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px;
     background: none; border: none; color: var(--text); font-size: 13px; font-family: inherit;
@@ -3301,6 +3301,24 @@ function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t); setTimeout(() => t.remove(), 4000);
 }
+
+// Menu de ações (⋮) da lista de cotações — clique pra abrir/fechar em vez de
+// :hover, que fechava sozinho se o mouse saísse da área ao descer até uma
+// opção mais abaixo na lista.
+function closeActionsMenus() {
+  document.querySelectorAll('.k-dropdown.open').forEach(el => el.classList.remove('open'));
+}
+
+function toggleActionsMenu(buttonEl) {
+  const dropdown = buttonEl.closest('.k-dropdown');
+  const wasOpen = dropdown.classList.contains('open');
+  closeActionsMenus();
+  if (!wasOpen) dropdown.classList.add('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.k-dropdown')) closeActionsMenus();
+});
 
 // Substitui confirm()/prompt() nativos (que expõem a URL do Railway no título
 // do diálogo) por um modal com a identidade visual do app. type 'confirm'
@@ -7290,13 +7308,13 @@ function renderTable() {
       <td>${dateStr}</td>
       <td>
         <div class="k-dropdown" onclick="event.stopPropagation()">
-          <button class="k-dropdown-toggle" title="Ações">⋮</button>
+          <button class="k-dropdown-toggle" title="Ações" onclick="toggleActionsMenu(this)">⋮</button>
           <div class="k-dropdown-menu">
-            <button class="k-dropdown-item" onclick="reuseQuotation('${q.id}')">🔄 Reaproveitar Cotação</button>
-            <button class="k-dropdown-item" onclick="openEditQuotationModal('${q.id}')">✏️ Editar Cotação</button>
-            <button class="k-dropdown-item" onclick="downloadPdf('${q.id}')">📄 Baixar PDF</button>
-            <button class="k-dropdown-item" onclick="copyPublicLink('${q.id}')">🔗 Copiar Link da Versão Web</button>
-            <button class="k-dropdown-item danger" onclick="deleteQuotation('${q.id}')">🗑️ Excluir</button>
+            <button class="k-dropdown-item" onclick="closeActionsMenus();reuseQuotation('${q.id}')">🔄 Reaproveitar Cotação</button>
+            <button class="k-dropdown-item" onclick="closeActionsMenus();openEditQuotationModal('${q.id}')">✏️ Editar Cotação</button>
+            <button class="k-dropdown-item" onclick="closeActionsMenus();downloadPdf('${q.id}')">📄 Baixar PDF</button>
+            <button class="k-dropdown-item" onclick="closeActionsMenus();copyPublicLink('${q.id}')">🔗 Copiar Link da Versão Web</button>
+            <button class="k-dropdown-item danger" onclick="closeActionsMenus();deleteQuotation('${q.id}')">🗑️ Excluir</button>
           </div>
         </div>
       </td>
