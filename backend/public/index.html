@@ -1469,7 +1469,6 @@
             <option value="">Nenhum parceiro encontrado</option>
           </select>
           <div style="display:flex; gap:8px; margin-top:8px;">
-            <button type="button" class="btn btn-secondary" id="partner-show-all-action" onclick="showAllCompatiblePartners()" style="display:none;flex:1;">Mostrar todos os parceiros compatíveis</button>
             <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;flex:1;">+ Cadastrar parceiro</button>
           </div>
         </div>
@@ -3932,7 +3931,7 @@ function openMissingPartnerRegistration() {
 
 async function resumeWizardPartnerSelectionAfterRegistration(partnerId) {
   const originCountry = document.getElementById('r-origin-country')?.value || '';
-  await populateAgentDropdown(originCountry, true);
+  await populateAgentDropdown(originCountry);
   const select = document.getElementById('r-agent-email');
   if (select && partnerId) {
     select.value = partnerId;
@@ -3980,11 +3979,13 @@ function partnerSupportsModal(partner, loadType) {
   return registered.includes(modal) || (modal === 'sea' && (registered.includes('fcl') || registered.includes('lcl')));
 }
 
-function eligiblePartners(partners, { type = currentPartnerType, originCountry = '', loadType = '', includeAllCountries = false } = {}) {
+// País de origem nunca esconde um parceiro — só é usado depois, em
+// appendPartnerOptions, pra ordenar quem aparece primeiro no dropdown. Um
+// coloader/agente sem aquele país cadastrado ainda precisa ficar selecionável.
+function eligiblePartners(partners, { type = currentPartnerType, loadType = '' } = {}) {
   return (Array.isArray(partners) ? partners : []).filter(partner => partner?.active
     && partnerHasType(partner, type)
-    && partnerSupportsModal(partner, loadType)
-    && (includeAllCountries || type === 'ARMADOR' || type === 'CIA_AEREA' || partnerMatchesCountry(partner, originCountry)));
+    && partnerSupportsModal(partner, loadType));
 }
 
 function splitPartnerEmails(value) {
@@ -4057,47 +4058,28 @@ function partnerMatchesSearch(partner, query) {
   return normalizePartnerSearchText(`${partner?.name || ''} ${partner?.origins || ''} ${partner?.email || ''} ${contacts}`).includes(needle);
 }
 
-function showAllCompatiblePartners() {
-  window.partnerDropdownIncludesAll = true;
-  populateAgentDropdown(document.getElementById('r-origin-country').value, true, document.getElementById('partner-list-search')?.value || '');
-}
-
 function refreshPartnerDropdownSearch() {
-  const searchQuery = document.getElementById('partner-list-search')?.value || '';
-  // Uma busca por texto é uma ação deliberada — não faz sentido ainda barrar
-  // por país de origem, então ela já vale como "mostrar todos compatíveis".
-  const includeAllCountries = Boolean(window.partnerDropdownIncludesAll) || Boolean(searchQuery.trim());
-  populateAgentDropdown(document.getElementById('r-origin-country').value, includeAllCountries, searchQuery);
+  populateAgentDropdown(document.getElementById('r-origin-country').value, document.getElementById('partner-list-search')?.value || '');
 }
 
-async function populateAgentDropdown(originCountry, includeAllCountries = false, searchQuery = null) {
+async function populateAgentDropdown(originCountry, searchQuery = null) {
   const select = document.getElementById('r-agent-email');
   const emptyAction = document.getElementById('partner-empty-action');
-  const showAllAction = document.getElementById('partner-show-all-action');
   if (!select) return;
   if (searchQuery == null) searchQuery = document.getElementById('partner-list-search')?.value || '';
   if (emptyAction) emptyAction.style.display = 'none';
-  if (showAllAction) showAllAction.style.display = 'none';
-  window.partnerDropdownIncludesAll = includeAllCountries;
   select.innerHTML = '<option value="">Buscando parceiros...</option>';
   let partners;
   try { partners = await loadPartnerDirectory(); }
   catch (error) {
     select.innerHTML = '<option value="">Falha ao carregar parceiros — tente novamente</option>';
-    if (showAllAction) { showAllAction.textContent = 'Tentar carregar novamente'; showAllAction.style.display = 'block'; }
     return;
   }
   const loadType = document.getElementById('r-type')?.value || '';
-  const matchingAgents = eligiblePartners(partners, { originCountry, loadType, includeAllCountries }).filter(partner => partnerMatchesSearch(partner, searchQuery));
+  const matchingAgents = eligiblePartners(partners, { loadType }).filter(partner => partnerMatchesSearch(partner, searchQuery));
 
   if (matchingAgents.length === 0) {
-    const unrestrictedType = currentPartnerType === 'ARMADOR' || currentPartnerType === 'CIA_AEREA';
-    select.innerHTML = '<option value="">Nenhum parceiro encontrado para ' + (unrestrictedType ? 'atuação' : 'a origem ' + (originCountry||'Desconhecida')) + '</option>';
-    const allCompatible = eligiblePartners(partners, { originCountry, loadType, includeAllCountries: true });
-    if (!includeAllCountries && allCompatible.length && showAllAction) {
-      showAllAction.textContent = `Mostrar todos os ${allCompatible.length} parceiros compatíveis`;
-      showAllAction.style.display = 'block';
-    }
+    select.innerHTML = '<option value="">Nenhum parceiro encontrado' + (searchQuery.trim() ? ' para esta busca' : ' para atuação') + '</option>';
     if (emptyAction) {
       const singular = currentPartnerType === 'CIA_AEREA' ? 'Companhia Aérea' : currentPartnerType.charAt(0) + currentPartnerType.slice(1).toLowerCase();
       emptyAction.textContent = '+ Cadastrar ' + singular;
@@ -4106,7 +4088,7 @@ async function populateAgentDropdown(originCountry, includeAllCountries = false,
     return;
   }
 
-  select.innerHTML = includeAllCountries ? '<option value="">Selecione um parceiro</option>' : '';
+  select.innerHTML = '<option value="">Selecione um parceiro</option>';
   appendPartnerOptions(select, matchingAgents, originCountry);
   if (select.options.length === 0) select.innerHTML = '<option value="">Parceiros encontrados, mas sem e-mail válido</option>';
   onAgentSelectChange();
@@ -4794,7 +4776,11 @@ async function recommendAgents(originStr, modalStr) {
   container.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Buscando agentes compatíveis...</span>';
   try {
     const agents = await loadPartnerDirectory();
-    const matches = eligiblePartners(agents, { type: currentPartnerType, originCountry: originStr, loadType: modalStr });
+    // Recomendação é um atalho complementar (top 5), então aqui sim faz
+    // sentido restringir por país — quem não bater ainda está selecionável
+    // no dropdown completo do Passo 5.
+    const matches = eligiblePartners(agents, { type: currentPartnerType, loadType: modalStr })
+      .filter(partner => partnerMatchesCountry(partner, originStr));
     container.innerHTML = '';
     matches.slice(0, 5).forEach(partner => {
       const contact = partnerContactOptions(partner)[0];
@@ -4817,7 +4803,7 @@ async function selectRecommendedPartner(partnerId, email) {
   const select = document.getElementById('r-agent-email');
   let option = Array.from(select?.options || []).find(item => item.dataset.partnerId === partnerId && item.value.toLowerCase() === String(email).toLowerCase());
   if (!option) {
-    await populateAgentDropdown(document.getElementById('r-origin-country').value, true);
+    await populateAgentDropdown(document.getElementById('r-origin-country').value);
     option = Array.from(select?.options || []).find(item => item.dataset.partnerId === partnerId && item.value.toLowerCase() === String(email).toLowerCase());
   }
   if (!option) return toast('Contato recomendado sem e-mail disponível para envio.');
