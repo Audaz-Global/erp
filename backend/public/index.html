@@ -1393,11 +1393,15 @@
           <div class="form-group" id="r-hybrid-modal-warning" style="display:none;grid-column:1/-1;padding:12px 14px;border:1px solid var(--warning);border-radius:8px;background:rgba(251,191,36,0.08);">
             <strong style="color:var(--warning);font-size:12px;">⚠️ Possível embarque híbrido (dois modais na mesma solicitação)</strong>
             <p id="r-hybrid-modal-note" style="margin:6px 0 0;font-size:12px;color:var(--text-muted);"></p>
-            <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;cursor:pointer;font-size:12px;">
-              <input type="checkbox" id="r-hybrid-modal-ack" style="width:16px;height:16px;margin:0;" onchange="checkValidation()">
-              Confirmo que esta cotação é de um único modal e devo prosseguir assim.
-            </label>
-            <button type="button" class="btn btn-secondary" style="margin-top:10px;font-size:12px;" onclick="duplicateQuotationForOtherModal()">🔀 Duplicar cotação para o outro modal</button>
+            <input type="checkbox" id="r-hybrid-modal-ack" style="display:none;">
+            <div id="r-hybrid-modal-actions">
+              <p style="margin:10px 0 8px;font-size:12px;font-weight:600;">Recomendamos duplicar esta cotação — um modal para cada.</p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary" style="font-size:12px;padding:9px 16px;" onclick="duplicateQuotationForOtherModal()">🔀 Duplicar cotação para o outro modal</button>
+                <button type="button" class="btn btn-secondary" style="font-size:12px;padding:9px 16px;" onclick="confirmSingleModal()">Não, é um único modal mesmo — prosseguir assim</button>
+              </div>
+            </div>
+            <p id="r-hybrid-modal-resolved" style="display:none;margin:10px 0 0;font-size:12px;color:var(--success);font-weight:600;">✓ Confirmado — prosseguindo com um único modal.</p>
           </div>
         </div>
         <div id="incoterm-rules-preview" style="display:none; margin-top: 24px;"></div>
@@ -4651,6 +4655,10 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-hybrid-modal-note').textContent = d.cargo.hybrid_shipment_note
         || 'Foram identificados termos de frete aéreo e marítimo/LCL na mesma solicitação.';
       document.getElementById('r-hybrid-modal-ack').checked = Boolean(d.hybridModalAcknowledged);
+      updateHybridModalResolvedUI();
+      if (hybridDetected && !d.hybridModalAcknowledged) {
+        toast('⚠️ Dois modais identificados nesta solicitação — veja a recomendação no Passo 3.');
+      }
 
       document.getElementById('r-commercial-value').value = d.cargo.commercial_value_usd || '';
       document.getElementById('conf-commercial-value').innerHTML = renderConf(d.cargo.commercial_value_usd, d.cargo.confidence);
@@ -4856,6 +4864,22 @@ function hybridModalBlocked() {
   return warning.dataset.detected === 'true' && !document.getElementById('r-hybrid-modal-ack').checked;
 }
 
+// Alterna entre "ainda precisa decidir" (botões de ação) e "já resolvido"
+// (mensagem de confirmação) conforme o estado do campo oculto que guarda a
+// decisão. Chamado sempre que esse estado muda: extração, carregar cotação
+// salva, duplicar, ou confirmar modal único.
+function updateHybridModalResolvedUI() {
+  const resolved = document.getElementById('r-hybrid-modal-ack').checked;
+  document.getElementById('r-hybrid-modal-actions').style.display = resolved ? 'none' : 'block';
+  document.getElementById('r-hybrid-modal-resolved').style.display = resolved ? 'block' : 'none';
+}
+
+function confirmSingleModal() {
+  document.getElementById('r-hybrid-modal-ack').checked = true;
+  updateHybridModalResolvedUI();
+  checkValidation();
+}
+
 async function duplicateQuotationForOtherModal() {
   if (!currentQuotationId) {
     alert('Gere o rascunho ou salve a cotação antes de duplicar.');
@@ -4867,6 +4891,7 @@ async function duplicateQuotationForOtherModal() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Falha ao duplicar cotação.');
     document.getElementById('r-hybrid-modal-ack').checked = true;
+    updateHybridModalResolvedUI();
     checkValidation();
     await loadQuotations();
     toast(`✅ Cotação duplicada como ${data.reference || 'nova referência'}. Abrindo para ajuste do modal...`);
@@ -5464,7 +5489,7 @@ async function saveAsAwaitingAgent() {
     }
     if (hybridModalBlocked()) {
       alert('Confirme que esta cotação é de um único modal (ou duplique para o outro modal) antes de enviar ao parceiro.');
-      document.getElementById('r-hybrid-modal-ack').focus();
+      document.getElementById('r-hybrid-modal-warning').scrollIntoView({ behavior: 'smooth', block: 'center' });
       btn.disabled = false; btn.innerHTML = originalHtml;
       return;
     }
