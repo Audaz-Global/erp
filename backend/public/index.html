@@ -3907,19 +3907,34 @@ function setPartnerType(type, refresh = true) {
   }
 }
 
-function syncPartnerTypesForModal() {
-  const isAir = document.getElementById('r-type')?.value === 'AIR_GENERAL';
-  const carrierButton = document.getElementById('partner-type-carrier');
-  const airlineButton = document.getElementById('partner-type-airline');
-  if (!carrierButton || !airlineButton) return;
+// Desabilita cada botão de tipo de parceiro quando não existe nenhum parceiro
+// ativo daquele tipo cobrindo o modal atual da cotação (checagem real nos
+// dados cadastrados, não uma regra fixa por modal) — mesmo princípio que já
+// existia só entre Armador/Cia Aérea, agora vale pra todos os tipos.
+async function syncPartnerTypesForModal() {
+  const loadType = document.getElementById('r-type')?.value || '';
+  const buttons = {
+    AGENTE: document.getElementById('partner-type-agent'),
+    COLOADER: document.getElementById('partner-type-coloader'),
+    ARMADOR: document.getElementById('partner-type-carrier'),
+    CIA_AEREA: document.getElementById('partner-type-airline')
+  };
+  if (!buttons.ARMADOR || !buttons.CIA_AEREA) return;
 
-  carrierButton.disabled = isAir;
-  carrierButton.title = isAir ? 'Disponível para cotações marítimas.' : '';
-  airlineButton.disabled = !isAir;
-  airlineButton.title = isAir ? '' : 'Disponível para cotações aéreas.';
+  let partners = [];
+  try { partners = await loadPartnerDirectory(); } catch { /* mantém botões como estavam se a lista falhar */ }
+  if (!partners.length) { updateRequestCalculatedWeights(); return; }
 
-  if (isAir && currentPartnerType === 'ARMADOR') setPartnerType('CIA_AEREA');
-  else if (!isAir && currentPartnerType === 'CIA_AEREA') setPartnerType('ARMADOR');
+  let firstEnabledType = null;
+  for (const [type, button] of Object.entries(buttons)) {
+    if (!button) continue;
+    const hasCoverage = eligiblePartners(partners, { type, loadType }).length > 0;
+    button.disabled = !hasCoverage;
+    button.title = hasCoverage ? '' : 'Nenhum parceiro cadastrado para este modal.';
+    if (hasCoverage && !firstEnabledType) firstEnabledType = type;
+  }
+
+  if (buttons[currentPartnerType]?.disabled && firstEnabledType) setPartnerType(firstEnabledType);
   updateRequestCalculatedWeights();
 }
 
