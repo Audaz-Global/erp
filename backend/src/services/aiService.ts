@@ -621,9 +621,25 @@ export const extractAgentCosts = async (
             costs: {
               type: 'object',
               properties: {
-                freight_value: { type: 'number', description: 'Valor do frete internacional bruto calculado' },
+                freight_value: { type: 'number', description: 'Valor do frete internacional bruto calculado. Quando houver múltiplas opções (rate_options preenchido), repita aqui o valor da PRIMEIRA opção listada, apenas por compatibilidade — a escolha final é feita pelo usuário a partir de rate_options.' },
                 freight_currency: { type: 'string', description: 'Moeda original do frete (ex: USD, EUR, BRL)' },
                 freight_usd: { type: 'number', description: 'Valor do frete convertido em USD' },
+                rate_options: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      label: { type: 'string', description: 'Nome curto da opção como o agente descreveu ou como você a identificaria (ex: "Direto", "Via Miami", "1 escala", "Standard", "Express").' },
+                      freight_value: { type: 'number' },
+                      freight_currency: { type: 'string' },
+                      transit_time: { type: 'string' },
+                      carrier: { type: 'string' },
+                      frequency: { type: 'string' }
+                    },
+                    required: ['label', 'freight_value']
+                  },
+                  description: 'Preencha SOMENTE quando o agente oferecer explicitamente DUAS OU MAIS alternativas de frete/prazo para o MESMO embarque na mesma resposta (ex: rota direta vs com escala, standard vs express, via porto/aeroporto A vs B). NÃO é uma alternativa: equipamentos diferentes (20 pés vs 40 pés), destinos diferentes, ou embarques distintos — isso não entra aqui. Deixe o array vazio quando houver apenas uma opção de frete na resposta.'
+                },
                 iof_usd: { type: 'number', description: 'Valor de IOF em USD se aplicável (normalmente 3.5% do frete)' },
                 storage_brl: { type: 'number', description: 'Valor estimado de armazenagem em BRL se houver' },
                 services_brl: { type: 'number', description: 'Valor total de taxas locais e taxas de destino em BRL' },
@@ -793,6 +809,7 @@ export const extractAgentCosts = async (
        - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").
     7. **Seguro (Insurance):** Verifique se no texto do e-mail há pedido de "Seguro" (ex: "orçamento de frete aéreo com seguro", "incluir seguro"). Em caso positivo, marque "insurance_requested" como true e extraia o valor da mercadoria (Invoice) informado no texto (ex: "Valor da Invoice USD 186.855,66") e salve em "invoice_value". Se o valor não estiver explícito, salve 0.
     8. **Desambiguação de Carrier (coloader x armador/cia aérea):** O campo "carrier" só pode ser preenchido com o nome de uma companhia aérea ou armador/linha marítima real, citada explicitamente no texto como a operadora que executa o transporte (ex: "Cathay Pacific", "Maersk", "COSCO", "KLM"). NUNCA use o nome da empresa remetente da resposta (o coloader, agente ou desconsolidador que está cotando) como carrier — mesmo que seja o único nome de empresa presente no e-mail, apareça em destaque na assinatura, rodapé ou cabeçalho. Consulte o campo "Tipo de parceiro respondendo (partner_type)" no CONTEXTO DA COTAÇÃO ORIGINAL: se for COLOADER, AGENTE ou DESCONSOLIDADOR, redobre a atenção — o nome dessa empresa NUNCA é o carrier. Se nenhuma operadora real for citada explicitamente no texto, retorne carrier como string vazia "" em vez de usar o nome do remetente.
+    9. **Múltiplas opções de frete (rate_options):** Se a resposta do agente apresentar mais de uma alternativa de frete/prazo para o MESMO embarque (ex: "Opção 1: direto USD 1200, 12 dias" / "Opção 2: com escala USD 950, 18 dias"), preencha rate_options com uma entrada por alternativa. NÃO escolha sozinho a mais barata nem a mais rápida — liste todas, na ordem em que o agente apresentou, para o usuário decidir. Isso é diferente de cotações para equipamentos ou destinos diferentes, que não são "opções" e não entram em rate_options.
 
 
     Instruções Importantes para Modal Aéreo:

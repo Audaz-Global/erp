@@ -1702,6 +1702,12 @@
         <button class="btn btn-secondary" onclick="openManualAgentEntry()">✏️ Preencher manualmente</button>
       </div>
 
+      <div id="r-rate-options-panel" style="display:none;margin-top:20px;padding:12px 14px;border:1px solid var(--warning);border-radius:8px;background:rgba(251,191,36,0.08);">
+        <strong style="color:var(--warning);font-size:12px;">⚠️ O agente ofereceu mais de uma opção de frete — escolha qual usar</strong>
+        <div id="r-rate-options-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:10px;"></div>
+        <button type="button" class="btn btn-primary" style="margin-top:10px;font-size:12px;" onclick="validateAndGeneratePDF()">Continuar para Revisão Final</button>
+      </div>
+
       <div class="review-grid" style="margin-top: 32px; display: none;" id="costs-review-grid">
         <div class="review-col" style="grid-column: 1 / -1;">
           <div id="incoterm-rules-preview-panel3" style="display:none; margin-bottom: 24px;"></div>
@@ -3415,9 +3421,17 @@ async function runExtract(mode = 'CLIENT') {
       } else {
         window.lastExtractedAgentData = json.data;
         fillReviewForm(json.data, 'AGENT');
-        toast('🎉 Custos extraídos! Confira a Revisão Final antes de gerar o PDF.');
         isOnlyEditMode = false;
-        validateAndGeneratePDF();
+        // Com mais de uma opção de frete, a Revisão Final abriria por cima do
+        // painel de escolha antes do usuário conseguir ver/clicar nele — pausa
+        // aqui e deixa o botão do próprio painel levar pra Revisão Final.
+        if (Array.isArray(json.data.costs?.rate_options) && json.data.costs.rate_options.length > 1) {
+          toast('⚠️ O agente ofereceu mais de uma opção de frete — escolha uma antes de continuar.');
+          document.getElementById('r-rate-options-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          toast('🎉 Custos extraídos! Confira a Revisão Final antes de gerar o PDF.');
+          validateAndGeneratePDF();
+        }
       }
     } else {
       alert('Erro na extração: ' + (json.error || 'Desconhecido'));
@@ -3498,6 +3512,49 @@ function normalizeCostCurrency(value) {
   if (['US$','U$','USD','DOLAR','DOLLAR'].includes(currency)) return 'USD';
   if (['€','EUR','EURO','EUROS'].includes(currency)) return 'EUR';
   return currency || 'USD';
+}
+
+// Quando o agente oferece mais de uma opção de frete na mesma resposta, o
+// formulário já vem preenchido com a primeira (compatibilidade), e este
+// painel deixa as demais visíveis pra troca — a IA não decide sozinha qual
+// enviar ao cliente.
+window.lastAgentRateOptions = [];
+
+function renderRateOptionsPicker(options) {
+  window.lastAgentRateOptions = Array.isArray(options) ? options : [];
+  const panel = document.getElementById('r-rate-options-panel');
+  const cards = document.getElementById('r-rate-options-cards');
+  if (!panel || !cards) return;
+  if (window.lastAgentRateOptions.length < 2) { panel.style.display = 'none'; cards.innerHTML = ''; return; }
+  panel.style.display = 'block';
+  cards.innerHTML = window.lastAgentRateOptions.map((opt, idx) => `
+    <div style="padding:10px;border:2px solid ${idx === 0 ? 'var(--gold)' : 'var(--border)'};border-radius:8px;background:var(--bg)">
+      <strong style="font-size:12px;display:block;margin-bottom:6px;">${ifrEscape(opt.label || ('Opção ' + (idx + 1)))}</strong>
+      <div style="font-size:13px;font-weight:700;color:var(--gold);">${ifrEscape(normalizeCostCurrency(opt.freight_currency))} ${Number(opt.freight_value || 0).toFixed(2)}</div>
+      ${opt.transit_time ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${ifrEscape(opt.transit_time)}</div>` : ''}
+      ${opt.carrier ? `<div style="font-size:11px;color:var(--text-muted);">${ifrEscape(opt.carrier)}</div>` : ''}
+      <button type="button" class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:11px;padding:7px;" onclick="selectAgentRateOption(${idx})">Usar esta opção</button>
+    </div>`).join('');
+}
+
+function selectAgentRateOption(idx) {
+  const opt = window.lastAgentRateOptions[idx];
+  if (!opt) return;
+  const freightInput = document.getElementById('r-freight');
+  freightInput.value = opt.freight_value ?? '';
+  freightInput.dispatchEvent(new Event('input'));
+  if (document.getElementById('r-freight-currency')) {
+    document.getElementById('r-freight-currency').value = normalizeCostCurrency(opt.freight_currency || 'USD');
+  }
+  if (opt.transit_time) {
+    const days = parseInt(String(opt.transit_time).match(/\d+/)?.[0] || '', 10);
+    if (!isNaN(days)) document.getElementById('r-transit-time').value = days;
+  }
+  if (opt.carrier) document.getElementById('r-agent-carrier').value = opt.carrier;
+  document.querySelectorAll('#r-rate-options-cards > div').forEach((card, i) => {
+    card.style.borderColor = i === idx ? 'var(--gold)' : 'var(--border)';
+  });
+  toast('✅ Usando: ' + (opt.label || ('opção ' + (idx + 1))));
 }
 
 function inferFeeClassification(name, scope, ispsClassification, chargedBy) {
@@ -4720,8 +4777,9 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-freight-currency').value = origCurrency;
       }
       document.getElementById('conf-freight').innerHTML = renderConf(origValue, d.costs.confidence);
-      
+
       freightInput.dispatchEvent(new Event('input'));
+      renderRateOptionsPicker(d.costs.rate_options);
       
       if (d.costs.iof_usd && parseFloat(d.costs.iof_usd) > 0) {
         document.getElementById('r-iof').value = d.costs.iof_usd;
