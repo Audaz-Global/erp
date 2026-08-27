@@ -3229,9 +3229,13 @@ async function sendPartnerReply() {
 
 async function loadQuotationDocuments() {
   if (!currentQuotationId) { quotationDocuments = []; renderQuotationDocuments(); return; }
-  const response = await fetch(`${API}/quotations/${currentQuotationId}/documents`);
-  if (!response.ok) return;
-  quotationDocuments = await response.json();
+  try {
+    const response = await fetch(`${API}/quotations/${currentQuotationId}/documents`);
+    if (!response.ok) throw new Error('Falha ao carregar documentos.');
+    quotationDocuments = await response.json();
+  } catch (e) {
+    quotationDocuments = [];
+  }
   renderQuotationDocuments();
 }
 
@@ -5191,12 +5195,11 @@ async function saveQuotationRecord() {
 // registro só existia depois de clicar "Gerar Rascunho" no passo 8, e o
 // passo 7 (que vem antes) sempre aparecia vazio.
 async function ensureQuotationRecordForStep7() {
-  if (currentQuotationId) { await loadQuotationDocuments(); return; }
-  try {
-    await saveQuotationRecord();
-  } catch (e) {
-    console.warn('Não foi possível pré-criar a cotação ao entrar no passo de documentos:', e.message);
+  if (!currentQuotationId) {
+    try { await saveQuotationRecord(); }
+    catch (e) { console.warn('Não foi possível pré-criar a cotação ao entrar no passo de documentos:', e.message); }
   }
+  await loadQuotationDocuments();
 }
 
 async function generateDraftEmail() {
