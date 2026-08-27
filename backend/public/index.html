@@ -1654,7 +1654,7 @@
 
       <div class="form-group" style="margin-bottom: 24px;">
         <label>Selecione a Cotação</label>
-        <select id="pending-quotations" class="req" onchange="loadPendingQuotationData()"><option value="">Carregando...</option></select>
+        <select id="pending-quotations" class="req" onchange="pinnedComparisonQuotationId=null;loadPendingQuotationData()"><option value="">Carregando...</option></select>
       </div>
       <div id="agent-response-history" style="display:none;margin:-8px 0 20px;padding:12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)"></div>
       <div id="proposal-comparison-panel" class="proposal-compare-panel" style="display:none"></div>
@@ -6552,17 +6552,33 @@ async function confirmAndGeneratePDF() {
   }
 }
 
+// Cotação "fixada" pelo botão de comparação (fora da fila de aguardando parceiro),
+// pra sobreviver ao reload em segundo plano que loadQuotations()/switchTab('return')
+// disparam e que, sem isso, reconstroem o <select> e perdem a seleção.
+let pinnedComparisonQuotationId = null;
+
 function loadPendingQuotationsDropdown() {
   const select = document.getElementById('pending-quotations');
   const pending = allQuotations.filter(q => q.status === 'AGUARDANDO_PARCEIRO');
-  if (pending.length === 0) {
+
+  const pinned = pinnedComparisonQuotationId && !pending.some(p => p.id === pinnedComparisonQuotationId)
+    ? allQuotations.find(q => q.id === pinnedComparisonQuotationId)
+    : null;
+
+  if (pending.length === 0 && !pinned) {
     select.innerHTML = '<option value="">Nenhuma cotação aguardando agente.</option>';
     return;
   }
-  
-  select.innerHTML = '<option value="">-- Selecione uma cotação --</option>' + 
+
+  const pinnedOption = pinned ? `<option value="${pinned.id}">${pinned.reference || 'S/Ref'} - ${pinned.client?.name || 'S/N'} (fora da fila de aguardando parceiro)</option>` : '';
+  select.innerHTML = '<option value="">-- Selecione uma cotação --</option>' + pinnedOption +
     pending.map(q => `<option value="${q.id}">${q.reference || 'S/Ref'} - ${q.client?.name || 'S/N'}</option>`).join('');
-    
+
+  if (pinned) {
+    select.value = pinned.id;
+    return;
+  }
+
   // Auto-selecionar a última caso a tela pareça vazia para o usuário
   if (currentQuotationId && pending.some(p => p.id === currentQuotationId)) {
     select.value = currentQuotationId;
@@ -6755,6 +6771,24 @@ function resetAgentReturnFields() {
   setRateValidityStatus('r', { source: 'CONTINGENCY', needsReview: true, evidence: 'Aguardando leitura do retorno do agente.' });
   document.getElementById('r-carrier-controls').style.display = 'none';
   document.querySelectorAll('#costs-review-grid [id^="conf-"]').forEach(el => el.innerHTML = '');
+}
+
+// Abre a aba "Retorno do Parceiro" e carrega o comparativo de propostas
+// direto pra esta cotação, mesmo quando ela já saiu do status Aguardando
+// Parceiro (o dropdown daquela aba só lista as que ainda estão aguardando —
+// aqui a gente injeta uma opção avulsa pra reaproveitar a mesma tela).
+async function openProposalComparisonFor(quotationId) {
+  // switchTab('return') dispara sua própria atualização de cotações em
+  // segundo plano (reconstrói o <select>). pinnedComparisonQuotationId faz
+  // loadPendingQuotationsDropdown() re-adicionar e reselecionar essa cotação
+  // (mesmo fora da fila de aguardando parceiro) toda vez que ela reconstruir
+  // a lista, então a seleção sobrevive a essa atualização tardia.
+  pinnedComparisonQuotationId = quotationId;
+  await loadQuotations();
+  const q = allQuotations.find(item => item.id === quotationId);
+  if (!q) { pinnedComparisonQuotationId = null; alert('Cotação não encontrada.'); return; }
+  switchTab('return');
+  await loadPendingQuotationData();
 }
 
 async function loadPendingQuotationData() {
@@ -7207,12 +7241,14 @@ function toggleDetail(idx, rowEl) {
   let partnersGroup = '';
   const requestCycles = Array.isArray(q.requestCycles) ? q.requestCycles : [];
   if (requestCycles.length) {
+    const hasCompletedCycle = requestCycles.some(cycle => cycle.status === 'COMPLETED');
     partnersGroup = `<div class="detail-group">
       <h4>Parceiros Solicitados</h4>
       ${requestCycles.map(cycle => {
         const cycleStatus = CYCLE_STATUS_DISPLAY[cycle.status] || { label: cycle.status, cls: 'draft', icon: '❓' };
         return `<div class="dl"><span class="dt">${ifrEscape(cycle.partnerName || cycle.partnerEmail)}</span><span class="dd"><span class="status-badge ${cycleStatus.cls}">${cycleStatus.icon} ${cycleStatus.label}</span></span></div>`;
       }).join('')}
+      ${hasCompletedCycle ? `<button class="btn btn-secondary" style="width:100%;margin-top:10px;" onclick="event.stopPropagation();openProposalComparisonFor('${q.id}')">🔍 Comparar Propostas</button>` : ''}
     </div>`;
   }
 
