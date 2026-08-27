@@ -24,7 +24,7 @@ export async function loadProfessionalSignature(professionalId: unknown) {
       jobTitle: professional.jobTitle, phone: professional.phone, signatureVersion: professional.signatureVersion
     },
     attachment,
-    html: `<div data-audaz-professional-signature="${escapeHtml(professional.id)}" style="margin-top:18px"><img src="cid:${contentId}" alt="Assinatura de ${escapeHtml(professional.name)}" style="display:block;max-width:620px;width:auto;height:auto;border:0"></div>`
+    html: `<div data-audaz-professional-signature="${escapeHtml(professional.id)}" style="margin-top:18px"><img src="cid:${contentId}" alt="Assinatura de ${escapeHtml(professional.name)}" style="display:block;max-width:450px;width:auto;height:auto;border:0"></div>`
   };
 }
 

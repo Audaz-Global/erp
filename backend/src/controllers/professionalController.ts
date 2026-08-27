@@ -2,11 +2,12 @@ import { Request, Response } from 'express';
 import sharp from 'sharp';
 import { prisma } from '../prisma';
 
-// Mantém consistência com o max-width:620px usado no HTML da assinatura de e-mail
+// Mantém consistência com o max-width:450px usado no HTML da assinatura de e-mail
 // (professionalSignatureService.ts) — o arquivo já nasce dentro do limite, sem depender
-// do cliente de e-mail respeitar CSS em imagens inline.
-const MAX_SIGNATURE_WIDTH = 620;
-const MAX_SIGNATURE_HEIGHT = 300;
+// do cliente de e-mail respeitar CSS em imagens inline (o Outlook, por exemplo,
+// costuma ignorar max-width e mostrar a imagem no tamanho real do arquivo).
+const MAX_SIGNATURE_WIDTH = 450;
+const MAX_SIGNATURE_HEIGHT = 200;
 
 async function resizeSignatureImage(buffer: Buffer): Promise<Buffer> {
   return sharp(buffer)
