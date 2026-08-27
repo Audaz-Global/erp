@@ -277,6 +277,12 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 },
                 dangerous_goods_source: { type: 'string', description: 'Trecho ou documento que fundamenta a classificacao DG.' },
                 dangerous_goods_confidence: { type: 'number' },
+                stackable_status: {
+                  type: 'string', enum: ['STACKABLE', 'NOT_STACKABLE', 'TO_CONFIRM'],
+                  description: 'STACKABLE somente se o cliente/agente confirmar explicitamente que a carga pode ser empilhada ("stackable", "empilhável"); NOT_STACKABLE somente com restrição explícita ("não empilhável", "do not stack", "non-stackable", "fragile - no stacking"); TO_CONFIRM quando não houver menção explícita. NUNCA infira pelo tipo de produto ou embalagem.'
+                },
+                stackable_source: { type: 'string', description: 'Trecho que fundamenta a classificação de empilhamento.' },
+                stackable_confidence: { type: 'number' },
                 msds_status: {
                   type: 'string', enum: ['NOT_REQUESTED', 'REQUESTED', 'PENDING', 'RECEIVED', 'VALIDATED', 'WAIVED'],
                   description: 'RECEIVED quando houver MSDS/SDS anexada; PENDING para carga DG sem documento; NOT_REQUESTED para carga nao DG ou a confirmar.'
@@ -448,6 +454,7 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - MSDS: ${data.msdsStatus || 'NÃO INFORMADO'}
     - UN / Classe de risco: ${data.unNumber || 'Não informado'} / ${data.dangerousGoodsClass || 'Não informada'}
     - Produtos perigosos distintos: ${data.dangerousGoodsProductCount ?? 'Não informado'}
+    - Carga empilhável: ${data.stackableStatus === 'STACKABLE' ? 'SIM' : data.stackableStatus === 'NOT_STACKABLE' ? 'NÃO' : 'A CONFIRMAR'}
     - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
     - Estimativa de armazenagem solicitada: ${data.requiresStorageEstimate ? 'SIM' : 'NÃO'}
     - Evidência da solicitação de armazenagem: ${data.storageRequestEvidence || 'Não aplicável'}

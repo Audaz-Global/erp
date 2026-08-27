@@ -1347,6 +1347,12 @@
             <input type="number" id="r-packages">
           </div>
           <div class="form-group">
+            <label>Carga empilhável? <span id="conf-stackable"></span></label>
+            <select id="r-stackable">
+              <option value="TO_CONFIRM">A confirmar</option><option value="STACKABLE">Sim</option><option value="NOT_STACKABLE">Não</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label>Carga perigosa (DG / IMO)? <span id="conf-imo"></span></label>
             <select id="r-imo" onchange="onDangerousGoodsChange('r')">
               <option value="TO_CONFIRM">A confirmar</option><option value="NOT_DANGEROUS">Não</option><option value="CONFIRMED">Sim</option>
@@ -2181,6 +2187,10 @@
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Valor Comercial (USD)</label>
           <input type="number" id="rev-commercial-value" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">Carga empilhável?</label>
+          <select id="rev-stackable"><option value="TO_CONFIRM">A confirmar</option><option value="STACKABLE">Sim</option><option value="NOT_STACKABLE">Não</option></select>
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Carga perigosa (DG / IMO)?</label>
@@ -4617,6 +4627,11 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-imo').innerHTML = renderConf(d.cargo.dangerous_goods_status || d.cargo.is_imo, d.cargo.dangerous_goods_confidence || d.cargo.confidence);
       renderDangerousGoodsAlerts('r');
 
+      document.getElementById('r-stackable').value = d.cargo.stackable_status || 'TO_CONFIRM';
+      document.getElementById('r-stackable').dataset.source = d.cargo.stackable_source || '';
+      document.getElementById('r-stackable').dataset.confidence = d.cargo.stackable_confidence ?? d.cargo.confidence ?? '';
+      document.getElementById('conf-stackable').innerHTML = renderConf(d.cargo.stackable_status, d.cargo.stackable_confidence || d.cargo.confidence);
+
       document.getElementById('r-insurance').value = d.cargo.requires_insurance ? "true" : "false";
       document.getElementById('conf-insurance').innerHTML = renderConf(d.cargo.requires_insurance, d.cargo.confidence);
       const storageRequest = document.getElementById('r-storage-request');
@@ -5113,6 +5128,9 @@ async function saveQuotationRecord() {
       dangerousGoodsProductCount: parseInt(document.getElementById('r-dg-product-count').value) || null,
       dangerousPackagesCount: parseInt(document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount) || null,
       unNumberCount: parseInt(document.getElementById('r-dg-product-count').dataset.unNumberCount) || null,
+      stackableStatus: document.getElementById('r-stackable').value,
+      stackableSource: document.getElementById('r-stackable').dataset.source || 'MANUAL',
+      stackableConfidence: parseFloat(document.getElementById('r-stackable').dataset.confidence) || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       requiresStorageEstimate: document.getElementById('r-storage-request').checked,
       storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
@@ -5472,6 +5490,9 @@ async function saveAsAwaitingAgent() {
       dangerousGoodsProductCount: parseInt(document.getElementById('r-dg-product-count').value) || null,
       dangerousPackagesCount: parseInt(document.getElementById('r-dg-product-count').dataset.dangerousPackagesCount) || null,
       unNumberCount: parseInt(document.getElementById('r-dg-product-count').dataset.unNumberCount) || null,
+      stackableStatus: document.getElementById('r-stackable').value,
+      stackableSource: document.getElementById('r-stackable').dataset.source || 'MANUAL',
+      stackableConfidence: parseFloat(document.getElementById('r-stackable').dataset.confidence) || null,
       requiresInsurance: document.getElementById('r-insurance').value === 'true',
       requiresStorageEstimate: document.getElementById('r-storage-request').checked,
       storageRequestEvidence: document.getElementById('r-storage-request').dataset.evidence || null,
@@ -5983,6 +6004,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-commercial-value').value = q.commercialValue || '';
     document.getElementById('rev-imo').value = q.dangerousGoodsStatus || (q.isImo ? 'CONFIRMED' : 'TO_CONFIRM');
     document.getElementById('rev-msds').value = q.msdsStatus || (q.isImo ? 'PENDING' : 'NOT_REQUESTED');
+    document.getElementById('rev-stackable').value = q.stackableStatus || 'TO_CONFIRM';
     document.getElementById('rev-un-number').value = q.unNumber || '';
     document.getElementById('rev-dg-class').value = q.dangerousGoodsClass || '';
     document.getElementById('rev-dg-product-count').value = q.dangerousGoodsProductCount || '';
@@ -6557,6 +6579,7 @@ async function confirmAndGeneratePDF() {
         unNumber: document.getElementById('rev-un-number').value || null,
         dangerousGoodsClass: document.getElementById('rev-dg-class').value || null,
         dangerousGoodsProductCount: parseInt(document.getElementById('rev-dg-product-count').value) || null,
+        stackableStatus: document.getElementById('rev-stackable').value,
         requiresInsurance: document.getElementById('rev-insurance').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
@@ -7363,6 +7386,7 @@ function toggleDetail(idx, rowEl) {
         <div class="dl"><span class="dt">CBM</span><span class="dd">${q.totalCbm || '—'}</span></div>
         <div class="dl"><span class="dt">Volumes</span><span class="dd">${q.totalPackages || '—'}</span></div>
         <div class="dl"><span class="dt">DG / IMO</span><span class="dd">${q.dangerousGoodsStatus === 'CONFIRMED' || q.isImo ? '⚠️ Sim' : q.dangerousGoodsStatus === 'TO_CONFIRM' ? '⚠️ A confirmar' : 'Não'}</span></div>
+        <div class="dl"><span class="dt">Empilhável</span><span class="dd">${q.stackableStatus === 'STACKABLE' ? 'Sim' : q.stackableStatus === 'NOT_STACKABLE' ? 'Não' : 'A confirmar'}</span></div>
         <div class="dl"><span class="dt">Descrição</span><span class="dd">${q.cargoDescription || '—'}</span></div>
         <div class="dl"><span class="dt">Segmento</span><span class="dd">${PRODUCT_SEGMENT_LABELS[q.productSegment] || q.productSegment || '—'}</span></div>
       </div>

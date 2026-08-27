@@ -29,6 +29,7 @@ export interface DraftPayload {
   unNumber: string | null;
   dangerousGoodsClass: string | null;
   dangerousGoodsProductCount: number | null;
+  stackableStatus: string;
   requiresInsurance: boolean;
   requiresStorageEstimate: boolean;
   storageRequestEvidence: string | null;
@@ -74,6 +75,7 @@ export function buildDraftPayload(quotation: QuotationWithClient, originalEmailT
     unNumber: quotation.unNumber,
     dangerousGoodsClass: quotation.dangerousGoodsClass,
     dangerousGoodsProductCount: quotation.dangerousGoodsProductCount,
+    stackableStatus: quotation.stackableStatus || 'TO_CONFIRM',
     requiresInsurance: quotation.requiresInsurance,
     requiresStorageEstimate: quotation.requiresStorageEstimate,
     storageRequestEvidence: quotation.storageRequestEvidence,

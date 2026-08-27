@@ -137,6 +137,9 @@ model Quotation {
   requiresAnvisa     Boolean @default(false)
   requiresArmy       Boolean @default(false)
   requiresMapa       Boolean @default(false)
+  stackableStatus     String  @default("TO_CONFIRM") // STACKABLE, NOT_STACKABLE, TO_CONFIRM
+  stackableSource     String?
+  stackableConfidence Float?
 
   packages String? // Stored as JSON string
 
