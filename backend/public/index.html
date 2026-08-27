@@ -1504,13 +1504,27 @@
         <div id="dta-section" style="display:none;background:rgba(96,165,250,.025);border:1px dashed #60a5fa;border-radius:12px;padding:18px;margin-top:10px;margin-bottom:16px">
           <h4 style="margin:0 0 6px;color:#93c5fd">DTA — CARGA SOB CONTROLE ADUANEIRO</h4>
           <p style="font-size:11px;color:var(--text-muted);margin:0 0 14px">A carga ainda não foi nacionalizada. Este trecho será calculado como componente logístico vinculado ao frete internacional.</p>
+          <div class="form-group" style="margin:0 0 14px">
+            <label>Prestador habilitado para DTA</label>
+            <input type="search" id="r-dta-partner-search" oninput="refreshDtaDropdownSearch()" placeholder="Buscar prestador por nome, país ou e-mail" style="margin-bottom:8px;">
+            <select id="r-dta-partner" onchange="onDtaSelectChange()"><option value="">Selecione...</option></select>
+          </div>
+          <div class="form-group" id="r-dta-contacts-panel" style="display:none; margin:0 0 14px; padding:12px; border:1px solid rgba(96,165,250,.35); border-radius:10px; background:rgba(96,165,250,.03);">
+            <label style="margin-bottom:8px;">Selecione os contatos que vão receber</label>
+            <div id="r-dta-contacts-list"></div>
+            <button type="button" class="btn btn-secondary" onclick="addDtaRecipients()" style="width:100%;margin-top:10px;">+ Adicionar destinatário(s)</button>
+          </div>
+          <div id="r-dta-recipients-panel" style="margin:0 0 14px;padding:12px;border:1px solid rgba(96,165,250,.35);border-radius:10px;background:rgba(96,165,250,.015);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
+              <strong style="font-size:12px;">Destinatários do DTA</strong>
+              <span id="r-dta-recipients-count" style="font-size:11px;color:var(--text-muted);">0 destinatários</span>
+            </div>
+            <div id="r-dta-recipients-list"><small style="color:var(--text-muted);">Selecione um prestador e os contatos que vão receber.</small></div>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            <div class="form-group" style="margin:0"><label>Prestador habilitado para DTA</label><select id="r-dta-partner" onchange="onDtaSelectChange()"><option value="">Selecione...</option></select></div>
-            <div class="form-group" style="margin:0"><label>E-mail do prestador</label><input id="r-dta-email" type="email"></div>
             <div class="form-group" style="margin:0"><label>Rota DTA</label><input id="r-dta-route" placeholder="Ex: GRU → CLIA Campinas"></div>
             <div class="form-group" style="margin:0"><label>Unidade aduaneira de origem</label><input id="r-dta-customs-unit" placeholder="Ex: Alfândega de GRU"></div>
             <div class="form-group" style="margin:0"><label>Recinto alfandegado de destino</label><input id="r-dta-bonded-terminal" placeholder="Ex: CLIA / EADI / Porto Seco"></div>
-            <div class="form-group" style="margin:0"><label>Receber cópia (CC)</label><input id="r-dta-cc-email" type="email"></div>
           </div>
         </div>
 
@@ -1521,27 +1535,28 @@
         </div>
         <div id="transport-section" style="display: none; background: rgba(255,255,255,0.01); border: 1px dashed var(--gold); border-radius: 12px; padding: 18px; margin-top: 12px; margin-bottom: 20px;">
           <h4 style="margin-top: 0; color: var(--gold); display: flex; align-items: center; gap: 8px; font-size: 14px;"><span class="emoji">🚚</span> TRANSPORTE RODOVIÁRIO NACIONAL</h4>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
-            <div class="form-group" style="margin: 0;">
-              <label>Selecione a Transportadora</label>
-              <select id="r-trucker-email" onchange="onTruckerSelectChange()" style="margin: 0;">
-                <option value="">Selecione uma transportadora...</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin: 0;">
-              <label>E-mail de Envio da Transportadora</label>
-              <input type="text" id="r-trucker-send-email" placeholder="Ex: operacional@transportadora.com" style="margin: 0;">
-            </div>
+          <div class="form-group" style="margin: 0 0 14px;">
+            <label>Selecione a Transportadora</label>
+            <input type="search" id="r-trucker-partner-search" oninput="refreshTruckerDropdownSearch()" placeholder="Buscar transportadora por nome, país ou e-mail" style="margin-bottom:8px;">
+            <select id="r-trucker-email" onchange="onTruckerSelectChange()" style="margin: 0;">
+              <option value="">Selecione uma transportadora...</option>
+            </select>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <div class="form-group" style="margin: 0;">
-              <label>Trecho / Rota Terrestre</label>
-              <input type="text" id="r-transport-route" placeholder="Ex: Santos x Itatiba/SP" style="margin: 0;">
+          <div class="form-group" id="r-trucker-contacts-panel" style="display:none; margin:0 0 14px; padding:12px; border:1px solid var(--gold); border-radius:10px; background:rgba(245,166,35,.03);">
+            <label style="margin-bottom:8px;">Selecione os contatos que vão receber</label>
+            <div id="r-trucker-contacts-list"></div>
+            <button type="button" class="btn btn-secondary" onclick="addTruckerRecipients()" style="width:100%;margin-top:10px;">+ Adicionar destinatário(s)</button>
+          </div>
+          <div id="r-trucker-recipients-panel" style="margin:0 0 14px;padding:12px;border:1px solid var(--gold);border-radius:10px;background:rgba(245,166,35,.015);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
+              <strong style="font-size:12px;">Destinatários da transportadora</strong>
+              <span id="r-trucker-recipients-count" style="font-size:11px;color:var(--text-muted);">0 destinatários</span>
             </div>
-            <div class="form-group" style="margin: 0;">
-              <label>Receber Cópia (CC) da Transportadora</label>
-              <input type="email" id="r-trucker-cc-email" placeholder="Digite seu e-mail para receber cópia (ex: voce@audazglobal.com)" style="margin: 0;">
-            </div>
+            <div id="r-trucker-recipients-list"><small style="color:var(--text-muted);">Selecione uma transportadora e os contatos que vão receber.</small></div>
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label>Trecho / Rota Terrestre</label>
+            <input type="text" id="r-transport-route" placeholder="Ex: Santos x Itatiba/SP" style="margin: 0;">
           </div>
         </div>
         
@@ -4149,18 +4164,87 @@ function onAgentSelectChange() {
   panel.style.display = 'block';
 }
 
-function onTruckerSelectChange() {
-  const select = document.getElementById('r-trucker-email');
-  const sendEmailInput = document.getElementById('r-trucker-send-email');
-  if (select && sendEmailInput) {
-    sendEmailInput.value = select.value || '';
+function renderGroundContactsChecklist(selectId, panelId, listId) {
+  const select = document.getElementById(selectId);
+  const panel = document.getElementById(panelId);
+  const list = document.getElementById(listId);
+  if (!select || !panel || !list) return;
+  const partnerId = select.value;
+  const partner = partnerId ? (window.globalAgentsList || []).find(p => p.id === partnerId) : null;
+  if (!partner) {
+    panel.style.display = 'none';
+    list.innerHTML = '';
+    return;
   }
+  const contacts = partnerContactOptions(partner);
+  list.innerHTML = contacts.map((contact, index) => `
+    <label style="display:flex; align-items:center; gap:8px; padding:7px 0; cursor:pointer; ${index === 0 ? '' : 'border-top:1px solid var(--border);'}">
+      <input type="checkbox" class="ground-contact-checkbox" value="${ifrEscape(contact.email)}" data-contact-name="${ifrEscape(contact.contactName)}" style="width:16px;height:16px;margin:0;" ${index === 0 ? 'checked' : ''}>
+      <span style="font-size:13px;"><strong>${ifrEscape(contact.contactName)}</strong>${contact.role ? ` <span style="color:var(--text-muted);font-size:11px;">(${ifrEscape(contact.role)})</span>` : ''}<br><span style="color:var(--text-muted);font-size:12px;">${ifrEscape(contact.email)}</span></span>
+    </label>`).join('');
+  panel.style.display = 'block';
+}
+
+function onTruckerSelectChange() {
+  renderGroundContactsChecklist('r-trucker-email', 'r-trucker-contacts-panel', 'r-trucker-contacts-list');
 }
 
 function onDtaSelectChange() {
-  const select = document.getElementById('r-dta-partner');
-  const email = document.getElementById('r-dta-email');
-  if (select && email) email.value = select.value || '';
+  renderGroundContactsChecklist('r-dta-partner', 'r-dta-contacts-panel', 'r-dta-contacts-list');
+}
+
+let selectedDtaRecipients = [];
+let selectedTruckerRecipients = [];
+
+function addGroundRecipients(serviceType) {
+  const isDta = serviceType === 'DTA';
+  const select = document.getElementById(isDta ? 'r-dta-partner' : 'r-trucker-email');
+  const listId = isDta ? 'r-dta-contacts-list' : 'r-trucker-contacts-list';
+  const partnerId = select?.value;
+  const partner = partnerId ? (window.globalAgentsList || []).find(p => p.id === partnerId) : null;
+  const checkedContacts = Array.from(document.querySelectorAll(`#${listId} .ground-contact-checkbox:checked`));
+  if (!partner || !checkedContacts.length) {
+    alert('Selecione um parceiro e ao menos um contato para adicionar.');
+    return false;
+  }
+  const target = isDta ? selectedDtaRecipients : selectedTruckerRecipients;
+  checkedContacts.forEach(checkbox => {
+    const email = checkbox.value.toLowerCase();
+    const existing = target.find(item => item.email === email);
+    const recipient = { partnerId: partner.id, partnerName: partner.name, contactName: checkbox.dataset.contactName || 'Contato', email };
+    if (existing) Object.assign(existing, recipient);
+    else target.push(recipient);
+  });
+  renderGroundRecipients(serviceType);
+  return true;
+}
+function addDtaRecipients() { addGroundRecipients('DTA'); }
+function addTruckerRecipients() { addGroundRecipients('RODOVIARIO_NACIONAL'); }
+
+function removeGroundRecipient(serviceType, email) {
+  if (serviceType === 'DTA') selectedDtaRecipients = selectedDtaRecipients.filter(item => item.email !== email);
+  else selectedTruckerRecipients = selectedTruckerRecipients.filter(item => item.email !== email);
+  renderGroundRecipients(serviceType);
+}
+
+function renderGroundRecipients(serviceType) {
+  const isDta = serviceType === 'DTA';
+  const list = document.getElementById(isDta ? 'r-dta-recipients-list' : 'r-trucker-recipients-list');
+  const count = document.getElementById(isDta ? 'r-dta-recipients-count' : 'r-trucker-recipients-count');
+  const recipients = isDta ? selectedDtaRecipients : selectedTruckerRecipients;
+  if (!list || !count) return;
+  count.textContent = `${recipients.length} destinatário${recipients.length === 1 ? '' : 's'}`;
+  if (!recipients.length) {
+    list.innerHTML = `<small style="color:var(--text-muted);">Selecione um${isDta ? ' prestador' : 'a transportadora'} e os contatos que vão receber.</small>`;
+    return;
+  }
+  list.innerHTML = recipients.map((item, idx) => `
+    <div style="display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1fr) auto auto;gap:10px;align-items:center;padding:8px 0;${idx === 0 ? '' : 'border-top:1px solid var(--border);'}">
+      <div><strong style="font-size:12px;">${ifrEscape(item.contactName)}</strong> <span class="badge-pending" style="background:${idx === 0 ? 'rgba(52,211,153,0.15)' : 'rgba(148,163,184,0.15)'};color:${idx === 0 ? 'var(--success)' : 'var(--text-muted)'};">${idx === 0 ? 'Para' : 'Cc'}</span></div>
+      <span style="font-size:12px;">${ifrEscape(item.email)}</span>
+      <span></span>
+      <button type="button" class="action-btn danger" onclick="removeGroundRecipient('${serviceType}', decodeURIComponent('${encodeURIComponent(item.email)}'))" title="Remover">×</button>
+    </div>`).join('');
 }
 
 function toggleDtaSection(show) {
@@ -4188,102 +4272,75 @@ function toggleOriginInlandSection(show) {
   if (checkbox) checkbox.checked = !!show;
 }
 
+function groundPartnerServesType(partner, serviceType) {
+  let capabilities = [];
+  try { capabilities = typeof partner.groundServiceCapabilities === 'string' ? JSON.parse(partner.groundServiceCapabilities || '[]') : (partner.groundServiceCapabilities || []); } catch (e) {}
+  return !capabilities.length || capabilities.includes(serviceType);
+}
+
+function eligibleGroundPartners(serviceType) {
+  return (window.globalAgentsList || []).filter(p => p.active && partnerHasType(p, 'TRANSPORTADORA') && groundPartnerServesType(p, serviceType) && partnerContactOptions(p).length);
+}
+
+function populateGroundPartnerSelect(select, serviceType, searchQuery) {
+  if (!select) return;
+  const matching = eligibleGroundPartners(serviceType).filter(p => partnerMatchesSearch(p, searchQuery));
+  const emptyLabel = serviceType === 'DTA' ? 'prestador DTA' : 'transportadora';
+  if (!matching.length) {
+    select.innerHTML = `<option value="">Nenhum${serviceType === 'DTA' ? '' : 'a'} ${emptyLabel} ${searchQuery ? 'encontrado(a) para a busca' : 'ativo(a) cadastrado(a)'}</option>`;
+    return;
+  }
+  select.innerHTML = `<option value="">Selecione ${serviceType === 'DTA' ? 'um prestador DTA' : 'uma transportadora'}...</option>`;
+  matching.forEach(partner => {
+    const option = document.createElement('option');
+    option.value = partner.id;
+    option.textContent = partner.name;
+    select.appendChild(option);
+  });
+}
+
+function refreshTruckerDropdownSearch() {
+  populateGroundPartnerSelect(document.getElementById('r-trucker-email'), 'RODOVIARIO_NACIONAL', document.getElementById('r-trucker-partner-search')?.value || '');
+  onTruckerSelectChange();
+}
+
+function refreshDtaDropdownSearch() {
+  populateGroundPartnerSelect(document.getElementById('r-dta-partner'), 'DTA', document.getElementById('r-dta-partner-search')?.value || '');
+  onDtaSelectChange();
+}
+
 async function populateTruckerDropdown() {
   const select = document.getElementById('r-trucker-email');
   const dtaSelect = document.getElementById('r-dta-partner');
   if (!select && !dtaSelect) return;
-  
+
   if (select) select.innerHTML = '<option value="">Buscando transportadoras...</option>';
   if (dtaSelect) dtaSelect.innerHTML = '<option value="">Buscando prestadores DTA...</option>';
-  
-  let partners = window.globalAgentsList;
-  if (!partners) {
-    try {
-      const res = await fetch(API + '/agents');
-      partners = await res.json();
-      window.globalAgentsList = partners;
-    } catch (e) {
-      partners = [];
-    }
-  }
-  
-  const truckers = partners.filter(p => p.active && partnerHasType(p, 'TRANSPORTADORA'));
-  
-  if (truckers.length === 0) {
-    if (select) select.innerHTML = '<option value="">Nenhuma transportadora ativa cadastrada</option>';
-    if (dtaSelect) dtaSelect.innerHTML = '<option value="">Nenhum prestador DTA cadastrado</option>';
-    return;
-  }
-  
-  if (select) select.innerHTML = '<option value="">Selecione uma transportadora...</option>';
-  if (dtaSelect) dtaSelect.innerHTML = '<option value="">Selecione um prestador DTA...</option>';
-  truckers.forEach(t => {
-    let contacts = [];
-    try {
-      contacts = typeof t.contacts === 'string' ? JSON.parse(t.contacts) : (t.contacts || []);
-    } catch(e){}
-    
-    const mainEmail = t.email || '';
-    let serviceCapabilities = [];
-    try { serviceCapabilities = JSON.parse(t.groundServiceCapabilities || '[]'); } catch {}
-    const servesRoad = !serviceCapabilities.length || serviceCapabilities.includes('RODOVIARIO_NACIONAL');
-    const servesDta = !serviceCapabilities.length || serviceCapabilities.includes('DTA');
-    const appendServiceOption = option => {
-      if (servesRoad && select) select.appendChild(option.cloneNode(true));
-      if (servesDta && dtaSelect) dtaSelect.appendChild(option);
-    };
-    
-    if (contacts.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = mainEmail;
-      opt.dataset.contactName = 'Contato';
-      opt.dataset.agentName = t.name;
-      opt.textContent = `${t.name} ${mainEmail ? '- Principal ('+mainEmail+')' : '(Sem e-mail)'}`;
-      appendServiceOption(opt);
-    } else {
-      contacts.forEach(c => {
-         if(!c.email) return;
-         const opt = document.createElement('option');
-         opt.value = c.email;
-         opt.dataset.contactName = c.name || 'Contato';
-         opt.dataset.agentName = t.name;
-         opt.textContent = `${t.name} - ${c.name || 'Contato'} (${c.email})`;
-         appendServiceOption(opt);
-      });
-      if (mainEmail) {
-        const opt = document.createElement('option');
-        opt.value = mainEmail;
-        opt.dataset.contactName = 'Principal';
-        opt.dataset.agentName = t.name;
-        opt.textContent = `${t.name} - Geral (${mainEmail})`;
-        appendServiceOption(opt);
-      }
-    }
-  });
+
+  try { await loadPartnerDirectory(); } catch (e) {}
+
+  populateGroundPartnerSelect(select, 'RODOVIARIO_NACIONAL', document.getElementById('r-trucker-partner-search')?.value || '');
+  populateGroundPartnerSelect(dtaSelect, 'DTA', document.getElementById('r-dta-partner-search')?.value || '');
   onTruckerSelectChange();
   onDtaSelectChange();
-}
-
-function selectedGroundPartner(selectId) {
-  const select = document.getElementById(selectId);
-  const option = select?.options?.[select.selectedIndex];
-  return { partnerName:option?.dataset?.agentName || null };
 }
 
 function collectGroundServiceLegs() {
   const legs = [];
   if (document.getElementById('r-needs-dta')?.checked) {
-    const partner = selectedGroundPartner('r-dta-partner');
+    const [primary, ...rest] = selectedDtaRecipients;
     legs.push({ serviceType:'DTA', requested:true, route:document.getElementById('r-dta-route').value || null,
       originLocation:document.getElementById('r-dta-customs-unit').value || null, customsUnit:document.getElementById('r-dta-customs-unit').value || null,
       destinationLocation:document.getElementById('r-dta-bonded-terminal').value || null, bondedTerminal:document.getElementById('r-dta-bonded-terminal').value || null,
-      partnerName:partner.partnerName, partnerEmail:document.getElementById('r-dta-email').value.trim() || null,
+      partnerId:primary?.partnerId || null, partnerName:primary?.partnerName || null, partnerContactName:primary?.contactName || null,
+      partnerEmail:primary?.email || null, partnerCcEmail:rest.map(item => item.email).join('; ') || null,
       customsStatus:'SOB_CONTROLE_ADUANEIRO', currency:'BRL', requestEvidence:document.getElementById('r-dta-decision')?.dataset?.evidence || null });
   }
   if (document.getElementById('r-needs-transport')?.checked) {
-    const partner = selectedGroundPartner('r-trucker-email');
+    const [primary, ...rest] = selectedTruckerRecipients;
     legs.push({ serviceType:'RODOVIARIO_NACIONAL', requested:true, route:document.getElementById('r-transport-route').value || null,
-      partnerName:partner.partnerName, partnerEmail:document.getElementById('r-trucker-send-email').value.trim() || null,
+      partnerId:primary?.partnerId || null, partnerName:primary?.partnerName || null, partnerContactName:primary?.contactName || null,
+      partnerEmail:primary?.email || null, partnerCcEmail:rest.map(item => item.email).join('; ') || null,
       customsStatus:'NACIONALIZADA', currency:'BRL', requestEvidence:document.getElementById('r-transport-decision')?.dataset?.evidence || null });
   }
   return legs;
@@ -4301,21 +4358,32 @@ function fillReviewForm(d, mode) {
     document.getElementById('r-trucker-draft-text').value = d.truckerDraftEmail || '';
     const savedDta = Array.isArray(d.groundServiceLegs) ? d.groundServiceLegs.find(item => item.serviceType === 'DTA') : null;
     const savedRoad = Array.isArray(d.groundServiceLegs) ? d.groundServiceLegs.find(item => item.serviceType === 'RODOVIARIO_NACIONAL') : null;
+    selectedDtaRecipients = [];
+    selectedTruckerRecipients = [];
     if (savedDta) {
       toggleDtaSection(savedDta.requested);
       document.getElementById('r-dta-route').value = savedDta.route || '';
       document.getElementById('r-dta-customs-unit').value = savedDta.customsUnit || savedDta.originLocation || '';
       document.getElementById('r-dta-bonded-terminal').value = savedDta.bondedTerminal || savedDta.destinationLocation || '';
-      document.getElementById('r-dta-email').value = savedDta.partnerEmail || '';
+      if (savedDta.partnerEmail) {
+        selectedDtaRecipients.push({ partnerId: savedDta.partnerId || null, partnerName: savedDta.partnerName || null, contactName: savedDta.partnerContactName || 'Contato', email: savedDta.partnerEmail });
+        splitUiRecipientEmails(savedDta.partnerCcEmail).forEach(email => selectedDtaRecipients.push({ partnerId: savedDta.partnerId || null, partnerName: savedDta.partnerName || null, contactName: 'Contato adicional', email }));
+      }
       document.getElementById('r-dta-draft-text').value = savedDta.draftEmail || '';
     }
     if (savedRoad) {
       toggleTransportSection(savedRoad.requested);
       document.getElementById('r-transport-route').value = savedRoad.route || '';
-      document.getElementById('r-trucker-send-email').value = savedRoad.partnerEmail || '';
+      if (savedRoad.partnerEmail) {
+        selectedTruckerRecipients.push({ partnerId: savedRoad.partnerId || null, partnerName: savedRoad.partnerName || null, contactName: savedRoad.partnerContactName || 'Contato', email: savedRoad.partnerEmail });
+        splitUiRecipientEmails(savedRoad.partnerCcEmail).forEach(email => selectedTruckerRecipients.push({ partnerId: savedRoad.partnerId || null, partnerName: savedRoad.partnerName || null, contactName: 'Contato adicional', email }));
+      }
       document.getElementById('r-trucker-draft-text').value = savedRoad.draftEmail || d.truckerDraftEmail || '';
+    } else if (d.truckerEmail) {
+      selectedTruckerRecipients.push({ partnerId: null, partnerName: d.truckerName || null, contactName: 'Contato', email: d.truckerEmail });
     }
-    if (d.truckerEmail) document.getElementById('r-trucker-send-email').value = d.truckerEmail;
+    renderGroundRecipients('DTA');
+    renderGroundRecipients('RODOVIARIO_NACIONAL');
     if(d.client) {
       document.getElementById('r-client-name').value = d.client.name || '';
       document.getElementById('conf-client-name').innerHTML = renderConf(d.client.name, d.client.confidence);
@@ -4958,8 +5026,8 @@ async function saveQuotationRecord() {
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       groundServiceLegs: collectGroundServiceLegs(),
-      truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
-      truckerEmail: document.getElementById('r-trucker-email').value || null,
+      truckerName: selectedTruckerRecipients[0]?.partnerName || null,
+      truckerEmail: selectedTruckerRecipients[0]?.email || null,
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
@@ -5134,34 +5202,25 @@ async function sendOutlookEmail() {
     const ccEmail = activeProfessional?.email || '';
     const needsTransport = document.getElementById('r-needs-transport').checked;
     const groundServiceLegs = collectGroundServiceLegs();
-    let truckerEmail = null;
-    let truckerName = null;
-    let truckerCcEmail = null;
 
-    if (needsTransport) {
-      truckerEmail = document.getElementById('r-trucker-send-email').value.trim();
-      if (!truckerEmail) {
-        alert('Por favor, preencha o E-mail de Envio da Transportadora.');
-        setDraftDispatchState('DRAFT');
-        return;
-      }
-      const selectTrucker = document.getElementById('r-trucker-email');
-      const selectedTruckerOpt = selectTrucker.options[selectTrucker.selectedIndex];
-      const truckerContactName = selectedTruckerOpt ? (selectedTruckerOpt.dataset.contactName || '') : '';
-      const truckerNameFromData = selectedTruckerOpt ? (selectedTruckerOpt.dataset.agentName || '') : 'Transportadora';
-      truckerName = truckerNameFromData ? `${truckerNameFromData} - ${truckerContactName}` : truckerContactName;
-      truckerCcEmail = splitUiRecipientEmails(document.getElementById('r-trucker-cc-email').value).join('; ');
+    const roadLeg = groundServiceLegs.find(item => item.serviceType === 'RODOVIARIO_NACIONAL');
+    if (needsTransport && !roadLeg?.partnerEmail) {
+      alert('Selecione a transportadora e adicione ao menos um destinatário.');
+      setDraftDispatchState('DRAFT');
+      return;
     }
+    const truckerEmail = roadLeg?.partnerEmail || null;
+    const truckerName = roadLeg?.partnerName || null;
 
     const dtaLeg = groundServiceLegs.find(item => item.serviceType === 'DTA');
     if (dtaLeg && !dtaLeg.partnerEmail) {
-      alert('Preencha o e-mail do prestador de DTA.');
+      alert('Selecione o prestador de DTA e adicione ao menos um destinatário.');
       setDraftDispatchState('DRAFT');
       return;
     }
     const groundServices = groundServiceLegs.map(leg => ({
-      serviceType:leg.serviceType, email:leg.partnerEmail, partnerName:leg.partnerName,
-      ccEmail:leg.serviceType === 'DTA' ? splitUiRecipientEmails(document.getElementById('r-dta-cc-email').value).join('; ') : truckerCcEmail,
+      serviceType:leg.serviceType, email:leg.partnerEmail, partnerName:leg.partnerName, partnerContactName:leg.partnerContactName,
+      ccEmail: [leg.partnerCcEmail, ccEmail].filter(Boolean).join('; ') || null,
       draftEmail:leg.serviceType === 'DTA' ? document.getElementById('r-dta-draft-text').value : document.getElementById('r-trucker-draft-text').value,
       attachmentIds:selectedQuotationDocumentIds(leg.serviceType === 'DTA' ? 'dta' : 'trucker')
     }));
@@ -5183,7 +5242,7 @@ async function sendOutlookEmail() {
         needsTransport,
         truckerEmail,
         truckerName,
-        truckerCcEmail: truckerCcEmail || null,
+        truckerCcEmail: roadLeg?.partnerCcEmail || null,
         groundServices,
         attachmentIds: selectedQuotationDocumentIds('partner'),
         truckerAttachmentIds: selectedQuotationDocumentIds('trucker')
@@ -5313,8 +5372,8 @@ async function saveAsAwaitingAgent() {
       originInlandRoute: document.getElementById('r-origin-inland-route').value || null,
       needsTransport: document.getElementById('r-needs-transport').checked,
       groundServiceLegs: collectGroundServiceLegs(),
-      truckerName: document.getElementById('r-trucker-email').selectedIndex >= 0 && document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].value ? document.getElementById('r-trucker-email').options[document.getElementById('r-trucker-email').selectedIndex].dataset.agentName : null,
-      truckerEmail: document.getElementById('r-trucker-send-email').value.trim() || null,
+      truckerName: selectedTruckerRecipients[0]?.partnerName || null,
+      truckerEmail: selectedTruckerRecipients[0]?.email || null,
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };

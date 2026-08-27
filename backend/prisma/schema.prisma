@@ -449,6 +449,8 @@ model GroundServiceLeg {
   partnerId          String?
   partnerName        String?
   partnerEmail       String?
+  partnerContactName String?
+  partnerCcEmail     String? // e-mails extras (; separado) de outros contatos do mesmo parceiro — recebem em cópia junto com partnerEmail
   draftEmail         String?
   sentAt             DateTime?
   responseRaw        String?

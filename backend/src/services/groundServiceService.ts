@@ -27,6 +27,7 @@ export function normalizeGroundServiceLegs(input: unknown, legacy: any = {}) {
       customsStatus:serviceType === 'DTA' ? 'SOB_CONTROLE_ADUANEIRO' : 'NACIONALIZADA',
       bondedTerminal:text(row.bondedTerminal), customsUnit:text(row.customsUnit), vehicleType:text(row.vehicleType),
       partnerId:text(row.partnerId), partnerName:text(row.partnerName), partnerEmail:text(row.partnerEmail),
+      partnerContactName:text(row.partnerContactName), partnerCcEmail:text(row.partnerCcEmail),
       currency:normalizeCurrency(row.currency || 'BRL'), taxesIncluded:nullableBoolean(row.taxesIncluded),
       requestEvidence:text(row.requestEvidence), operationalNotes:text(row.operationalNotes)
     });

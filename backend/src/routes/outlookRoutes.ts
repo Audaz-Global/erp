@@ -160,7 +160,8 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           const groundSubject = `${prefix} ${mailSubject}`;
           const rawGroundDraft = String(request?.draftEmail || leg.draftEmail || '').trim();
           if (!rawGroundDraft) throw new Error(`Gere e revise o rascunho de ${label} antes do envio.`);
-          const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(rawGroundDraft)}</body></html>`, signature.html);
+          const groundContactName = String(request?.partnerContactName || leg.partnerContactName || '');
+          const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(personalizeGreeting(rawGroundDraft, groundContactName))}</body></html>`, signature.html);
           const groundCcEmail = String(request?.ccEmail || '') || undefined;
           const sent = await sendOutlookEmail(email, groundSubject, groundHtml, groundCcEmail,
             [...documents.map(document => ({ name:document.originalName, contentType:document.blob.mimeType, content:Buffer.from(document.blob.content) })), signature.attachment]);

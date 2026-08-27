@@ -391,8 +391,8 @@ export const generateDraft = async (req: Request, res: Response) => {
       try {
         const legPayload = { ...payload, transportRoute:leg.route };
         const text = leg.serviceType === 'DTA'
-          ? await generateDtaDraft(legPayload, leg, contextRules)
-          : await generateTruckerDraft(legPayload, contextRules);
+          ? await generateDtaDraft(legPayload, leg, contextRules, leg.partnerContactName || undefined)
+          : await generateTruckerDraft(legPayload, contextRules, leg.partnerContactName || undefined);
         groundServiceDrafts[leg.serviceType] = text;
         if (leg.serviceType === 'RODOVIARIO_NACIONAL') truckerDraftText = text;
         await prisma.groundServiceLeg.update({ where:{ id:leg.id }, data:{ draftEmail:text } });
