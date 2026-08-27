@@ -3974,7 +3974,11 @@ function showAllCompatiblePartners() {
 }
 
 function refreshPartnerDropdownSearch() {
-  populateAgentDropdown(document.getElementById('r-origin-country').value, Boolean(window.partnerDropdownIncludesAll), document.getElementById('partner-list-search')?.value || '');
+  const searchQuery = document.getElementById('partner-list-search')?.value || '';
+  // Uma busca por texto é uma ação deliberada — não faz sentido ainda barrar
+  // por país de origem, então ela já vale como "mostrar todos compatíveis".
+  const includeAllCountries = Boolean(window.partnerDropdownIncludesAll) || Boolean(searchQuery.trim());
+  populateAgentDropdown(document.getElementById('r-origin-country').value, includeAllCountries, searchQuery);
 }
 
 async function populateAgentDropdown(originCountry, includeAllCountries = false, searchQuery = null) {
