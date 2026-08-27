@@ -137,7 +137,32 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
     let truckerResult: { status: string; email?: string; message?: string; conversationId?: string | null } | null = null;
     const groundServiceResults: Array<{ serviceType:string; status:string; email?:string; message?:string; conversationId?:string|null }> = [];
 
-    const requestedGroundServices = Array.isArray(req.body?.groundServices) ? req.body.groundServices : [];
+    // Um destinatário por linha (não agrupado ainda) — igual ao array `recipients`
+    // do agente. Contatos com o mesmo parceiro (mesmo serviceType) viram 1 e-mail
+    // só (Para + Cc); parceiros diferentes viram e-mails separados, cada um com
+    // sua própria saudação personalizada.
+    const rawGroundServices = Array.isArray(req.body?.groundServices) ? req.body.groundServices : [];
+    const requestedGroundServices: any[] = [];
+    {
+      const primaryByKey = new Map<string, any>();
+      for (const item of rawGroundServices) {
+        const email = String(item?.email || '').trim().toLowerCase();
+        if (!email) continue;
+        const key = `${String(item?.serviceType || '').toUpperCase()}:${item?.partnerId || email}`;
+        const primary = primaryByKey.get(key);
+        if (!primary) {
+          const clone = { ...item, email };
+          primaryByKey.set(key, clone);
+          requestedGroundServices.push(clone);
+          continue;
+        }
+        const ccSet = new Set(splitRecipientEmails(primary.ccEmail));
+        ccSet.add(email);
+        primary.ccEmail = [...ccSet].join('; ');
+      }
+    }
+
+    const sentByLeg = new Map<string, { emails: string[]; names: string[] }>();
     if (newlySent.length && requestedGroundServices.length) {
       for (const request of requestedGroundServices) {
         const serviceType = String(request?.serviceType || '').toUpperCase();
@@ -168,12 +193,23 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           await recordSuccessfulDispatch({ quotationId, recipientType:serviceType === 'DTA' ? 'DTA_PROVIDER' : 'TRUCKER', recipientEmail:email,
             partnerName:String(request?.partnerName || leg.partnerName || '') || null, ccEmails: groundCcEmail || null,
             subject:groundSubject, conversationId:sent.conversationId, documents, professional:signature.professional });
-          await prisma.groundServiceLeg.update({ where:{ id:leg.id }, data:{ sentAt:new Date(), partnerEmail:email,
-            partnerName:String(request?.partnerName || leg.partnerName || '') || null, draftEmail:String(request?.draftEmail || leg.draftEmail || '') } });
+          const legAccumulator = sentByLeg.get(leg.id) || { emails: [], names: [] };
+          legAccumulator.emails.push(email);
+          const sentPartnerName = String(request?.partnerName || leg.partnerName || '');
+          if (sentPartnerName) legAccumulator.names.push(sentPartnerName);
+          sentByLeg.set(leg.id, legAccumulator);
           groundServiceResults.push({ serviceType, status:'SENT', email, conversationId:sent.conversationId, message:'Enviado com sucesso.' });
         } catch (error: any) {
           groundServiceResults.push({ serviceType, status:'FAILED', email, message:String(error?.message || 'Falha no envio.') });
         }
+      }
+      for (const [legId, info] of sentByLeg) {
+        const leg = quotation.groundServiceLegs.find(item => item.id === legId);
+        await prisma.groundServiceLeg.update({ where:{ id:legId }, data:{
+          sentAt:new Date(),
+          partnerEmail: [...new Set([...splitRecipientEmails(leg?.partnerEmail), ...info.emails])].join('; '),
+          partnerName: [...new Set([...(leg?.partnerName ? [leg.partnerName] : []), ...info.names])].join(' | ')
+        } });
       }
     }
 

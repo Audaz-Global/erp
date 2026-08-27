@@ -1419,7 +1419,7 @@
             <label>Destino (País)</label>
             <input type="text" id="r-destination-country" placeholder="Ex: Brazil">
           </div>
-          <div class="form-group" style="grid-column: 1 / -1;">
+          <div class="form-group" id="r-connections-group" style="display:none; grid-column: 1 / -1;">
             <label>Conexões do Voo ou do Porto</label>
             <input type="text" id="r-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
           </div>
@@ -4242,13 +4242,31 @@ function renderGroundRecipients(serviceType) {
     list.innerHTML = `<small style="color:var(--text-muted);">Selecione um${isDta ? ' prestador' : 'a transportadora'} e os contatos que vão receber.</small>`;
     return;
   }
-  list.innerHTML = recipients.map((item, idx) => `
-    <div style="display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1fr) auto auto;gap:10px;align-items:center;padding:8px 0;${idx === 0 ? '' : 'border-top:1px solid var(--border);'}">
-      <div><strong style="font-size:12px;">${ifrEscape(item.contactName)}</strong> <span class="badge-pending" style="background:${idx === 0 ? 'rgba(52,211,153,0.15)' : 'rgba(148,163,184,0.15)'};color:${idx === 0 ? 'var(--success)' : 'var(--text-muted)'};">${idx === 0 ? 'Para' : 'Cc'}</span></div>
+
+  const renderRow = (item, roleLabel) => `
+    <div style="display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--border);">
+      <div><strong style="font-size:12px;">${ifrEscape(item.partnerName || item.contactName)}</strong>${roleLabel ? ` <span class="badge-pending" style="background:${roleLabel === 'Para' ? 'rgba(52,211,153,0.15)' : 'rgba(148,163,184,0.15)'};color:${roleLabel === 'Para' ? 'var(--success)' : 'var(--text-muted)'};">${roleLabel}</span>` : ''}<small style="display:block;color:var(--text-muted);">${ifrEscape(item.contactName)}</small></div>
       <span style="font-size:12px;">${ifrEscape(item.email)}</span>
-      <span></span>
       <button type="button" class="action-btn danger" onclick="removeGroundRecipient('${serviceType}', decodeURIComponent('${encodeURIComponent(item.email)}'))" title="Remover">×</button>
-    </div>`).join('');
+    </div>`;
+
+  // Mesma regra do Parceiro: contatos da mesma empresa saem juntos num e-mail
+  // (Para + Cc), empresas diferentes viram grupos (e e-mails) separados.
+  const groups = [];
+  const groupIndexByKey = new Map();
+  recipients.forEach(item => {
+    const key = item.partnerId || `single:${item.email}`;
+    if (!groupIndexByKey.has(key)) { groupIndexByKey.set(key, groups.length); groups.push([]); }
+    groups[groupIndexByKey.get(key)].push(item);
+  });
+
+  list.innerHTML = groups.map(group => {
+    if (group.length === 1) return renderRow(group[0], null);
+    return `<div style="border:1px dashed var(--gold);border-radius:8px;padding:0 10px;margin-top:8px;">
+      <div style="font-size:10px;color:var(--gold);padding-top:8px;">📧 1 e-mail · ${group.length} destinatários desta empresa</div>
+      ${group.map((item, idx) => renderRow(item, idx === 0 ? 'Para' : 'Cc')).join('')}
+    </div>`;
+  }).join('');
 }
 
 function toggleDtaSection(show) {
@@ -4329,22 +4347,33 @@ async function populateTruckerDropdown() {
   onDtaSelectChange();
 }
 
+// Mesma regra do Parceiro: com destinatários de uma empresa só, usa o nome de
+// quem é "Para"; com empresas diferentes na fila, usa o token visível — cada
+// e-mail ainda sai personalizado à parte no envio (backend agrupa por parceiro).
+function resolveGroundContactName(recipients) {
+  if (!recipients.length) return null;
+  const distinctPartnerIds = new Set(recipients.map(item => item.partnerId));
+  return distinctPartnerIds.size > 1 ? '{Nome do Contato}' : recipients[0].contactName;
+}
+
 function collectGroundServiceLegs() {
   const legs = [];
   if (document.getElementById('r-needs-dta')?.checked) {
     const [primary, ...rest] = selectedDtaRecipients;
+    const siblings = rest.filter(item => item.partnerId === primary?.partnerId);
     legs.push({ serviceType:'DTA', requested:true, route:document.getElementById('r-dta-route').value || null,
       originLocation:document.getElementById('r-dta-customs-unit').value || null, customsUnit:document.getElementById('r-dta-customs-unit').value || null,
       destinationLocation:document.getElementById('r-dta-bonded-terminal').value || null, bondedTerminal:document.getElementById('r-dta-bonded-terminal').value || null,
-      partnerId:primary?.partnerId || null, partnerName:primary?.partnerName || null, partnerContactName:primary?.contactName || null,
-      partnerEmail:primary?.email || null, partnerCcEmail:rest.map(item => item.email).join('; ') || null,
+      partnerId:primary?.partnerId || null, partnerName:primary?.partnerName || null, partnerContactName:resolveGroundContactName(selectedDtaRecipients),
+      partnerEmail:primary?.email || null, partnerCcEmail:siblings.map(item => item.email).join('; ') || null,
       customsStatus:'SOB_CONTROLE_ADUANEIRO', currency:'BRL', requestEvidence:document.getElementById('r-dta-decision')?.dataset?.evidence || null });
   }
   if (document.getElementById('r-needs-transport')?.checked) {
     const [primary, ...rest] = selectedTruckerRecipients;
+    const siblings = rest.filter(item => item.partnerId === primary?.partnerId);
     legs.push({ serviceType:'RODOVIARIO_NACIONAL', requested:true, route:document.getElementById('r-transport-route').value || null,
-      partnerId:primary?.partnerId || null, partnerName:primary?.partnerName || null, partnerContactName:primary?.contactName || null,
-      partnerEmail:primary?.email || null, partnerCcEmail:rest.map(item => item.email).join('; ') || null,
+      partnerId:primary?.partnerId || null, partnerName:primary?.partnerName || null, partnerContactName:resolveGroundContactName(selectedTruckerRecipients),
+      partnerEmail:primary?.email || null, partnerCcEmail:siblings.map(item => item.email).join('; ') || null,
       customsStatus:'NACIONALIZADA', currency:'BRL', requestEvidence:document.getElementById('r-transport-decision')?.dataset?.evidence || null });
   }
   return legs;
@@ -4426,6 +4455,7 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-destination-country').value = d.route.destination_country || '';
       document.getElementById('r-destination-port').value = d.route.destination_airport || '';
       document.getElementById('r-connections').value = d.route.connections || '';
+      document.getElementById('r-connections-group').style.display = d.route.connections ? 'block' : 'none';
 
       const needsOriginInland = !!d.route.needs_origin_inland;
       document.getElementById('r-needs-origin-inland').checked = needsOriginInland;
@@ -5222,12 +5252,26 @@ async function sendOutlookEmail() {
       setDraftDispatchState('DRAFT');
       return;
     }
-    const groundServices = groundServiceLegs.map(leg => ({
-      serviceType:leg.serviceType, email:leg.partnerEmail, partnerName:leg.partnerName, partnerContactName:leg.partnerContactName,
-      ccEmail: [leg.partnerCcEmail, ccEmail].filter(Boolean).join('; ') || null,
-      draftEmail:leg.serviceType === 'DTA' ? document.getElementById('r-dta-draft-text').value : document.getElementById('r-trucker-draft-text').value,
-      attachmentIds:selectedQuotationDocumentIds(leg.serviceType === 'DTA' ? 'dta' : 'trucker')
-    }));
+    // Um item por destinatário (não agrupado ainda) — o backend agrupa quem é
+    // do mesmo parceiro num único e-mail (Para+Cc) e separa parceiros
+    // diferentes em e-mails distintos, cada um com sua própria saudação.
+    const groundServices = [];
+    if (needsTransport) {
+      selectedTruckerRecipients.forEach(r => groundServices.push({
+        serviceType:'RODOVIARIO_NACIONAL', email:r.email, partnerId:r.partnerId, partnerName:r.partnerName, partnerContactName:r.contactName,
+        ccEmail: ccEmail || null,
+        draftEmail: document.getElementById('r-trucker-draft-text').value,
+        attachmentIds: selectedQuotationDocumentIds('trucker')
+      }));
+    }
+    if (dtaLeg) {
+      selectedDtaRecipients.forEach(r => groundServices.push({
+        serviceType:'DTA', email:r.email, partnerId:r.partnerId, partnerName:r.partnerName, partnerContactName:r.contactName,
+        ccEmail: ccEmail || null,
+        draftEmail: document.getElementById('r-dta-draft-text').value,
+        attachmentIds: selectedQuotationDocumentIds('dta')
+      }));
+    }
 
     const draftSubject = document.getElementById('r-draft-subject').value.trim();
 
