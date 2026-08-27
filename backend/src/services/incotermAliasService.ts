@@ -31,5 +31,17 @@ export function normalizeIncotermText(raw: unknown): string {
   const key = normalizeKey(original);
   if (CANONICAL_INCOTERMS.has(key)) return key;
   const mapped = INCOTERM_ALIAS_MAP[key];
-  return mapped || original;
+  if (mapped) return mapped;
+
+  // Notação padrão Incoterms 2020: código + local nomeado (ex: "EXW Jasienica",
+  // "FOB Shanghai, China"). Se a IA extraiu a frase inteira, usa só o código
+  // no início, senão o <select> do Passo 3 não bate com nenhuma opção e o
+  // campo fica em branco mesmo com o incoterm certo na auditoria.
+  const leadingMatch = original.match(/^([A-Za-z]{2,4})\b/);
+  if (leadingMatch) {
+    const leadingKey = normalizeKey(leadingMatch[1]);
+    if (CANONICAL_INCOTERMS.has(leadingKey)) return leadingKey;
+  }
+
+  return original;
 }
