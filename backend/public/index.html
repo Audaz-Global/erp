@@ -1032,6 +1032,11 @@
   .professional-choice-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:16px; }
   .professional-choice { padding:14px; text-align:left; border:1px solid var(--border); border-radius:11px; background:rgba(255,255,255,.025); color:var(--text); cursor:pointer; }
   .professional-choice:hover,.professional-choice.selected { border-color:var(--gold); background:rgba(245,166,35,.07); }
+  .partner-autocomplete-list { max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; background:var(--bg); }
+  .partner-autocomplete-group { padding:6px 12px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); background:rgba(255,255,255,.02); }
+  .partner-autocomplete-item { padding:9px 12px; font-size:13px; cursor:pointer; border-top:1px solid var(--border); }
+  .partner-autocomplete-item:hover { background:rgba(245,166,35,.08); color:var(--gold); }
+  .partner-autocomplete-empty { padding:12px; font-size:12px; color:var(--text-muted); }
   .app-confirm-overlay { position:fixed; inset:0; z-index:9600; background:rgba(0,0,0,.76); display:flex; align-items:center; justify-content:center; padding:24px; animation:appConfirmFadeIn .15s ease; }
   @keyframes appConfirmFadeIn { from{opacity:0} to{opacity:1} }
   .app-confirm-dialog { width:min(420px,100%); padding:24px; border:1px solid var(--border); border-radius:16px; background:var(--bg-card); box-shadow:0 24px 70px rgba(0,0,0,.55); }
@@ -1469,9 +1474,10 @@
         <div class="form-group" style="margin: 0 0 16px;">
           <label id="partner-select-label">Selecione o Agente</label>
           <input type="search" id="partner-list-search" oninput="refreshPartnerDropdownSearch()" placeholder="Buscar parceiro por nome, país ou e-mail" style="margin-bottom:8px;">
-          <select id="r-agent-email" onchange="onAgentSelectChange()" style="margin: 0;">
+          <select id="r-agent-email" onchange="onAgentSelectChange()" style="display:none;">
             <option value="">Nenhum parceiro encontrado</option>
           </select>
+          <div id="partner-autocomplete-list" class="partner-autocomplete-list"></div>
           <div style="display:flex; gap:8px; margin-top:8px;">
             <button type="button" class="btn btn-secondary" id="partner-empty-action" onclick="openMissingPartnerRegistration()" style="display:none;flex:1;">+ Cadastrar parceiro</button>
           </div>
@@ -1531,7 +1537,8 @@
           <div class="form-group" style="margin:0 0 14px">
             <label>Prestador habilitado para DTA</label>
             <input type="search" id="r-dta-partner-search" oninput="refreshDtaDropdownSearch()" placeholder="Buscar prestador por nome, país ou e-mail" style="margin-bottom:8px;">
-            <select id="r-dta-partner" onchange="onDtaSelectChange()"><option value="">Selecione...</option></select>
+            <select id="r-dta-partner" onchange="onDtaSelectChange()" style="display:none;"><option value="">Selecione...</option></select>
+            <div id="r-dta-autocomplete-list" class="partner-autocomplete-list"></div>
           </div>
           <div class="form-group" id="r-dta-contacts-panel" style="display:none; margin:0 0 14px; padding:12px; border:1px solid rgba(96,165,250,.35); border-radius:10px; background:rgba(96,165,250,.03);">
             <label style="margin-bottom:8px;">Selecione os contatos que vão receber</label>
@@ -1562,9 +1569,10 @@
           <div class="form-group" style="margin: 0 0 14px;">
             <label>Selecione a Transportadora</label>
             <input type="search" id="r-trucker-partner-search" oninput="refreshTruckerDropdownSearch()" placeholder="Buscar transportadora por nome, país ou e-mail" style="margin-bottom:8px;">
-            <select id="r-trucker-email" onchange="onTruckerSelectChange()" style="margin: 0;">
+            <select id="r-trucker-email" onchange="onTruckerSelectChange()" style="display:none;">
               <option value="">Selecione uma transportadora...</option>
             </select>
+            <div id="r-trucker-autocomplete-list" class="partner-autocomplete-list"></div>
           </div>
           <div class="form-group" id="r-trucker-contacts-panel" style="display:none; margin:0 0 14px; padding:12px; border:1px solid var(--gold); border-radius:10px; background:rgba(245,166,35,.03);">
             <label style="margin-bottom:8px;">Selecione os contatos que vão receber</label>
@@ -4183,13 +4191,47 @@ async function populateAgentDropdown(originCountry, searchQuery = null) {
       emptyAction.textContent = '+ Cadastrar ' + singular;
       emptyAction.style.display = 'block';
     }
+    renderAutocompleteFromSelect('r-agent-email', 'partner-autocomplete-list', pickAgentPartner);
     return;
   }
 
   select.innerHTML = '<option value="">Selecione um parceiro</option>';
   appendPartnerOptions(select, matchingAgents, originCountry);
   if (select.options.length === 0) select.innerHTML = '<option value="">Parceiros encontrados, mas sem e-mail válido</option>';
+  renderAutocompleteFromSelect('r-agent-email', 'partner-autocomplete-list', pickAgentPartner);
   onAgentSelectChange();
+}
+
+// Lista clicável derivada do <select> oculto (que continua sendo populado
+// normalmente pela lógica de busca/filtro existente) — evita duplicar essa
+// lógica só pra ter uma UI de autocomplete em vez de <select> nativo.
+function renderAutocompleteFromSelect(selectId, listId, onPick) {
+  const select = document.getElementById(selectId);
+  const list = document.getElementById(listId);
+  if (!select || !list) return;
+  const groups = Array.from(select.children).filter(el => el.tagName === 'OPTGROUP');
+  const topLevelOptions = Array.from(select.children).filter(el => el.tagName === 'OPTION' && el.value);
+  if (!groups.length && !topLevelOptions.length) {
+    list.innerHTML = `<div class="partner-autocomplete-empty">${ifrEscape(select.options[0]?.textContent || 'Nenhum resultado')}</div>`;
+    return;
+  }
+  const renderOption = opt => `<div class="partner-autocomplete-item" data-value="${ifrEscape(opt.value)}">${ifrEscape(opt.textContent)}</div>`;
+  let html = topLevelOptions.map(renderOption).join('');
+  groups.forEach(group => {
+    html += `<div class="partner-autocomplete-group">${ifrEscape(group.label)}</div>`;
+    html += Array.from(group.children).filter(o => o.value).map(renderOption).join('');
+  });
+  list.innerHTML = html || `<div class="partner-autocomplete-empty">Nenhum resultado</div>`;
+  list.querySelectorAll('.partner-autocomplete-item').forEach(el => {
+    el.onclick = () => onPick(el.dataset.value);
+  });
+}
+
+function pickAgentPartner(partnerId) {
+  document.getElementById('r-agent-email').value = partnerId;
+  document.getElementById('partner-list-search').value = '';
+  onAgentSelectChange();
+  populateAgentDropdown(document.getElementById('r-origin-country').value, '');
 }
 
 let selectedPartnerRecipients = [];
@@ -4328,16 +4370,38 @@ function onAgentSelectChange() {
     return;
   }
 
-  const contacts = partnerContactOptions(partner);
-  list.innerHTML = contacts.map((contact, index) => `
+  const [primary, ...secondary] = partnerContactOptions(partner);
+
+  // O contato principal já entra direto nos destinatários ao escolher a
+  // empresa — sobra só marcar quem mais (contatos secundários) deve receber
+  // em cópia, em vez de precisar marcar o principal manualmente toda vez.
+  if (primary) {
+    const email = primary.email.toLowerCase();
+    const existing = selectedPartnerRecipients.find(item => item.email === email);
+    const recipient = {
+      partnerId: partner.id, partnerName: partner.name,
+      contactName: primary.contactName || 'Contato',
+      partnerType: currentPartnerType, email, status: 'PENDING', message: ''
+    };
+    if (existing) Object.assign(existing, recipient);
+    else selectedPartnerRecipients.push(recipient);
+    renderPartnerRecipients();
+  }
+
+  if (!secondary.length) {
+    panel.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = secondary.map((contact, index) => `
     <label style="display:flex; align-items:center; gap:8px; padding:7px 0; cursor:pointer; ${index === 0 ? '' : 'border-top:1px solid var(--border);'}">
-      <input type="checkbox" class="partner-contact-checkbox" value="${ifrEscape(contact.email)}" data-contact-name="${ifrEscape(contact.contactName)}" style="width:16px;height:16px;margin:0;" ${index === 0 ? 'checked' : ''}>
+      <input type="checkbox" class="partner-contact-checkbox" value="${ifrEscape(contact.email)}" data-contact-name="${ifrEscape(contact.contactName)}" style="width:16px;height:16px;margin:0;">
       <span style="font-size:13px;"><strong>${ifrEscape(contact.contactName)}</strong>${contact.role ? ` <span style="color:var(--text-muted);font-size:11px;">(${ifrEscape(contact.role)})</span>` : ''}<br><span style="color:var(--text-muted);font-size:12px;">${ifrEscape(contact.email)}</span></span>
     </label>`).join('');
   panel.style.display = 'block';
 }
 
-function renderGroundContactsChecklist(selectId, panelId, listId) {
+function renderGroundContactsChecklist(selectId, panelId, listId, serviceType) {
   const select = document.getElementById(selectId);
   const panel = document.getElementById(panelId);
   const list = document.getElementById(listId);
@@ -4349,21 +4413,39 @@ function renderGroundContactsChecklist(selectId, panelId, listId) {
     list.innerHTML = '';
     return;
   }
-  const contacts = partnerContactOptions(partner);
-  list.innerHTML = contacts.map((contact, index) => `
+  const [primary, ...secondary] = partnerContactOptions(partner);
+
+  // Mesma lógica do Passo 5: o contato principal já entra direto nos
+  // destinatários ao escolher a empresa; só os secundários ficam pra marcar.
+  if (primary) {
+    const target = serviceType === 'DTA' ? selectedDtaRecipients : selectedTruckerRecipients;
+    const email = primary.email.toLowerCase();
+    const existing = target.find(item => item.email === email);
+    const recipient = { partnerId: partner.id, partnerName: partner.name, contactName: primary.contactName || 'Contato', email };
+    if (existing) Object.assign(existing, recipient);
+    else target.push(recipient);
+    renderGroundRecipients(serviceType);
+  }
+
+  if (!secondary.length) {
+    panel.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = secondary.map((contact, index) => `
     <label style="display:flex; align-items:center; gap:8px; padding:7px 0; cursor:pointer; ${index === 0 ? '' : 'border-top:1px solid var(--border);'}">
-      <input type="checkbox" class="ground-contact-checkbox" value="${ifrEscape(contact.email)}" data-contact-name="${ifrEscape(contact.contactName)}" style="width:16px;height:16px;margin:0;" ${index === 0 ? 'checked' : ''}>
+      <input type="checkbox" class="ground-contact-checkbox" value="${ifrEscape(contact.email)}" data-contact-name="${ifrEscape(contact.contactName)}" style="width:16px;height:16px;margin:0;">
       <span style="font-size:13px;"><strong>${ifrEscape(contact.contactName)}</strong>${contact.role ? ` <span style="color:var(--text-muted);font-size:11px;">(${ifrEscape(contact.role)})</span>` : ''}<br><span style="color:var(--text-muted);font-size:12px;">${ifrEscape(contact.email)}</span></span>
     </label>`).join('');
   panel.style.display = 'block';
 }
 
 function onTruckerSelectChange() {
-  renderGroundContactsChecklist('r-trucker-email', 'r-trucker-contacts-panel', 'r-trucker-contacts-list');
+  renderGroundContactsChecklist('r-trucker-email', 'r-trucker-contacts-panel', 'r-trucker-contacts-list', 'RODOVIARIO_NACIONAL');
 }
 
 function onDtaSelectChange() {
-  renderGroundContactsChecklist('r-dta-partner', 'r-dta-contacts-panel', 'r-dta-contacts-list');
+  renderGroundContactsChecklist('r-dta-partner', 'r-dta-contacts-panel', 'r-dta-contacts-list', 'DTA');
 }
 
 let selectedDtaRecipients = [];
@@ -4477,8 +4559,11 @@ function populateGroundPartnerSelect(select, serviceType, searchQuery) {
   if (!select) return;
   const matching = eligibleGroundPartners(serviceType).filter(p => partnerMatchesSearch(p, searchQuery));
   const emptyLabel = serviceType === 'DTA' ? 'prestador DTA' : 'transportadora';
+  const autocompleteListId = serviceType === 'DTA' ? 'r-dta-autocomplete-list' : 'r-trucker-autocomplete-list';
+  const onPick = serviceType === 'DTA' ? pickDtaPartner : pickTruckerPartner;
   if (!matching.length) {
     select.innerHTML = `<option value="">Nenhum${serviceType === 'DTA' ? '' : 'a'} ${emptyLabel} ${searchQuery ? 'encontrado(a) para a busca' : 'ativo(a) cadastrado(a)'}</option>`;
+    renderAutocompleteFromSelect(select.id, autocompleteListId, onPick);
     return;
   }
   select.innerHTML = `<option value="">Selecione ${serviceType === 'DTA' ? 'um prestador DTA' : 'uma transportadora'}...</option>`;
@@ -4488,7 +4573,18 @@ function populateGroundPartnerSelect(select, serviceType, searchQuery) {
     option.textContent = partner.name;
     select.appendChild(option);
   });
+  renderAutocompleteFromSelect(select.id, autocompleteListId, onPick);
 }
+
+function pickGroundPartner(serviceType, searchInputId, partnerId) {
+  const select = document.getElementById(serviceType === 'DTA' ? 'r-dta-partner' : 'r-trucker-email');
+  select.value = partnerId;
+  document.getElementById(searchInputId).value = '';
+  if (serviceType === 'DTA') onDtaSelectChange(); else onTruckerSelectChange();
+  populateGroundPartnerSelect(select, serviceType, '');
+}
+function pickDtaPartner(partnerId) { pickGroundPartner('DTA', 'r-dta-partner-search', partnerId); }
+function pickTruckerPartner(partnerId) { pickGroundPartner('RODOVIARIO_NACIONAL', 'r-trucker-partner-search', partnerId); }
 
 function refreshTruckerDropdownSearch() {
   populateGroundPartnerSelect(document.getElementById('r-trucker-email'), 'RODOVIARIO_NACIONAL', document.getElementById('r-trucker-partner-search')?.value || '');
