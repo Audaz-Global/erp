@@ -3944,13 +3944,10 @@ function scheduleIncotermApplicabilityAlerts(prefix) {
   incotermAlertsDebounce = setTimeout(() => renderIncotermApplicabilityAlerts(prefix), 400);
 }
 
-async function renderIncotermApplicabilityAlerts(prefix) {
-  const panel = document.getElementById(`${prefix}-incoterm-alerts`);
-  if (!panel) return;
+function buildIncotermApplicabilityBody(prefix) {
   const incoterm = document.getElementById(`${prefix}-incoterm`)?.value;
-  if (!incoterm) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
-
-  const body = {
+  if (!incoterm) return null;
+  return {
     incoterm,
     modal: document.getElementById(`${prefix}-modal`)?.value || '',
     loadType: document.getElementById(`${prefix}-load-type`)?.value || '',
@@ -3961,19 +3958,30 @@ async function renderIncotermApplicabilityAlerts(prefix) {
     insuranceRequested: document.getElementById(`${prefix}-insurance`)?.value === 'true',
     customsClearanceContracted: Boolean(document.getElementById(`${prefix}-customs-clearance`)?.checked),
   };
+}
 
+async function fetchIncotermApplicabilityAlerts(prefix) {
+  const body = buildIncotermApplicabilityBody(prefix);
+  if (!body) return [];
   try {
     const res = await fetch(API + '/quotations/incoterm-applicability-preview', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
     const data = await res.json();
-    const alerts = res.ok ? (data.alerts || []) : [];
-    panel.innerHTML = alerts.map(a => `<div style="margin-top:6px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">⚠️ ${ifrEscape(a.message)}</div>`).join('');
-    panel.style.display = alerts.length ? 'block' : 'none';
+    return res.ok ? (data.alerts || []) : [];
   } catch (e) {
-    panel.style.display = 'none';
-    panel.innerHTML = '';
+    return [];
   }
+}
+
+async function renderIncotermApplicabilityAlerts(prefix) {
+  const panel = document.getElementById(`${prefix}-incoterm-alerts`);
+  if (!panel) return;
+  if (!buildIncotermApplicabilityBody(prefix)) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+  const alerts = await fetchIncotermApplicabilityAlerts(prefix);
+  panel.innerHTML = alerts.map(a => `<div style="margin-top:6px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">⚠️ ${ifrEscape(a.message)}</div>`).join('');
+  panel.style.display = alerts.length ? 'block' : 'none';
 }
 
 const RATE_VALIDITY_LABELS = { AGENT_EMAIL: 'Lida do e-mail do agente', TARIFF: 'Lida do tarifário', CONTINGENCY: 'Contingência de até 15 dias — revisar', MANUAL: 'Definida manualmente' };
@@ -6621,6 +6629,14 @@ async function confirmAndGeneratePDF() {
   const qId = currentPdfQuotationId;
   if (!qId) return;
   syncReviewCostEditor();
+
+  const incotermAlerts = await fetchIncotermApplicabilityAlerts('rev');
+  const missingRequired = incotermAlerts.filter(a => a.code === 'INCOTERM_REQUIRED_MISSING');
+  if (missingRequired.length) {
+    const incotermValue = document.getElementById('rev-incoterm').value;
+    const feeList = missingRequired.map(a => (a.feeNames || []).join(', ') || a.message).join('\n• ');
+    if (!window.confirm(`Taxas obrigatórias para o Incoterm ${incotermValue} estão ausentes:\n• ${feeList}\n\nConfirma que deseja gerar o PDF mesmo assim?`)) return;
+  }
 
   const validityInput = document.getElementById('rev-rate-valid-until');
   if (!validityInput.value) {
