@@ -4227,11 +4227,16 @@ function renderAutocompleteFromSelect(selectId, listId, onPick) {
   });
 }
 
-function pickAgentPartner(partnerId) {
-  document.getElementById('r-agent-email').value = partnerId;
+async function pickAgentPartner(partnerId) {
+  // populateAgentDropdown reconstrói o <select> do zero e já chama
+  // onAgentSelectChange() sozinha ao final — se essa chamada rodasse depois
+  // da nossa, o valor recém-atribuído seria perdido na reconstrução e o
+  // painel de contatos secundários fecharia de novo. Por isso ela roda
+  // primeiro, e só depois fixamos o valor e dessa vez chamamos por último.
   document.getElementById('partner-list-search').value = '';
+  await populateAgentDropdown(document.getElementById('r-origin-country').value, '');
+  document.getElementById('r-agent-email').value = partnerId;
   onAgentSelectChange();
-  populateAgentDropdown(document.getElementById('r-origin-country').value, '');
 }
 
 let selectedPartnerRecipients = [];
