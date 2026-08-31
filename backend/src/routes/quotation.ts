@@ -13,7 +13,8 @@ import {
   generateQuotationPdf,
   updatePhase,
   duplicateQuotation,
-  getPublicWebView
+  getPublicWebView,
+  previewIncotermApplicability
 } from '../controllers/quotationController';
 
 const router = Router();
@@ -28,6 +29,7 @@ router.use(authenticate);
 router.post('/', createQuotation);
 router.get('/', getQuotations);
 router.get('/metrics/partner-responses', getPartnerResponseMetrics);
+router.post('/incoterm-applicability-preview', previewIncotermApplicability);
 router.get('/:id/timeline', getQuotationTimeline);
 router.get('/:id/proposals', getProposalComparison);
 router.post('/:id/proposals/:proposalId/select', selectPartnerProposal);

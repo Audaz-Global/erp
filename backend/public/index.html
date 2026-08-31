@@ -2091,7 +2091,7 @@
       <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;">
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Incoterm</label>
-          <select id="rev-incoterm">
+          <select id="rev-incoterm" onchange="scheduleIncotermApplicabilityAlerts('rev')">
             <option value="FOB">FOB</option><option value="EXW">EXW</option><option value="CIF">CIF</option>
             <option value="CFR">CFR</option><option value="CPT">CPT</option><option value="CIP">CIP</option><option value="DAP">DAP</option><option value="DPU">DPU</option><option value="DDP">DDP</option><option value="FCA">FCA</option>
           </select>
@@ -2179,6 +2179,7 @@
         <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Destino (Itemizadas)</label>
           <textarea id="rev-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+          <div id="rev-incoterm-alerts" style="grid-column:1/-1;"></div>
           <div id="rev-destination-fees-preview" style="margin-top:8px;overflow:auto;"></div>
           <div id="rev-isps-alerts" style="margin-top:8px;"></div>
         </div>
@@ -3842,6 +3843,7 @@ function syncReviewCostEditor() {
   const equivalentBrl=all.reduce((sum,line)=>sum+brlValue(line),0);
   const grandEl=document.getElementById('cost-grand-values'); if(grandEl) grandEl.innerHTML=`${escapeFeeHtml(grandLabel)}<small>Equivalente estimado: BRL ${reviewCostAmount(equivalentBrl)} · USD 5,05 · EUR 5,50</small>`;
   document.getElementById('r-total').value = equivalentBrl.toFixed(2);
+  scheduleIncotermApplicabilityAlerts('rev');
 }
 
 function syncCustomsPanelToCostEditor() {
@@ -3929,6 +3931,49 @@ function onDangerousGoodsChange(prefix) {
   if (msds && status === 'CONFIRMED' && ['NOT_REQUESTED', ''].includes(msds.value)) msds.value = 'PENDING';
   if (msds && status !== 'CONFIRMED' && msds.value === 'PENDING') msds.value = 'NOT_REQUESTED';
   renderDangerousGoodsAlerts(prefix);
+}
+
+// Alertas de taxa obrigatória ausente para o Incoterm, calculados a partir do
+// que está NA TELA agora (não do que já foi salvo) — a Revisão Final pode
+// estar mostrando taxas recém-extraídas do parceiro que ainda não foram
+// persistidas, então calcular a partir da cotação salva mostraria alertas
+// desatualizados.
+let incotermAlertsDebounce = null;
+function scheduleIncotermApplicabilityAlerts(prefix) {
+  clearTimeout(incotermAlertsDebounce);
+  incotermAlertsDebounce = setTimeout(() => renderIncotermApplicabilityAlerts(prefix), 400);
+}
+
+async function renderIncotermApplicabilityAlerts(prefix) {
+  const panel = document.getElementById(`${prefix}-incoterm-alerts`);
+  if (!panel) return;
+  const incoterm = document.getElementById(`${prefix}-incoterm`)?.value;
+  if (!incoterm) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+  const body = {
+    incoterm,
+    modal: document.getElementById(`${prefix}-modal`)?.value || '',
+    loadType: document.getElementById(`${prefix}-load-type`)?.value || '',
+    direction: document.getElementById(`${prefix}-direction`)?.value || '',
+    originServices: parseFeeText(document.getElementById(`${prefix}-origin-services`)?.value),
+    destinationServices: parseFeeText(document.getElementById(`${prefix}-destination-services`)?.value),
+    isDangerousGoods: document.getElementById(`${prefix}-imo`)?.value === 'CONFIRMED',
+    insuranceRequested: document.getElementById(`${prefix}-insurance`)?.value === 'true',
+    customsClearanceContracted: Boolean(document.getElementById(`${prefix}-customs-clearance`)?.checked),
+  };
+
+  try {
+    const res = await fetch(API + '/quotations/incoterm-applicability-preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const alerts = res.ok ? (data.alerts || []) : [];
+    panel.innerHTML = alerts.map(a => `<div style="margin-top:6px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">⚠️ ${ifrEscape(a.message)}</div>`).join('');
+    panel.style.display = alerts.length ? 'block' : 'none';
+  } catch (e) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+  }
 }
 
 const RATE_VALIDITY_LABELS = { AGENT_EMAIL: 'Lida do e-mail do agente', TARIFF: 'Lida do tarifário', CONTINGENCY: 'Contingência de até 15 dias — revisar', MANUAL: 'Definida manualmente' };

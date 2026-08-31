@@ -12,7 +12,7 @@ import { getPtaxRate } from '../services/ptaxService';
 import { applyRateValidityPolicy, rateValidityFields } from '../services/rateValidityService';
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
-import { withIncotermApplicability } from '../services/incotermApplicabilityService';
+import { evaluateIncotermApplicability, withIncotermApplicability } from '../services/incotermApplicabilityService';
 import { normalizeIncotermText } from '../services/incotermAliasService';
 import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
@@ -1095,5 +1095,30 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     `);
   } catch (error: any) {
     res.status(500).send('Erro ao renderizar visualização web: ' + error.message);
+  }
+};
+
+// Calcula os alertas de aplicabilidade de Incoterm a partir do estado ATUAL
+// do formulário (ainda não salvo) — a Revisão Final pode estar mostrando
+// taxas recém-extraídas do parceiro que ainda não foram persistidas, então
+// calcular a partir da cotação salva no banco mostraria alertas
+// desatualizados. Não depende de uma cotação existente.
+export const previewIncotermApplicability = async (req: Request, res: Response) => {
+  try {
+    const {
+      incoterm, modal, loadType, direction,
+      originServices, destinationServices,
+      isDangerousGoods, insuranceRequested, customsClearanceContracted
+    } = req.body || {};
+    const result = await evaluateIncotermApplicability({
+      incoterm, modal, loadType, direction,
+      originServices, destinationServices,
+      dangerousGoodsProductCount: isDangerousGoods ? 1 : 0,
+      requiresInsurance: Boolean(insuranceRequested),
+      customsClearanceIncluded: Boolean(customsClearanceContracted)
+    });
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 };
