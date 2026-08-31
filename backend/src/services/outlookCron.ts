@@ -63,34 +63,7 @@ async function matchByConversationId(conversationId: string | undefined) {
 }
 
 /**
- * Camada 3: Busca cotação pelo e-mail do remetente.
- * Só faz match se houver EXATAMENTE 1 cotação pendente para aquele agente.
- * Se houver múltiplas cotações pendentes, retorna null (ambiguidade).
- */
-async function matchBySenderEmail(senderEmail: string | undefined) {
-  if (!senderEmail) return null;
-
-  const pendingQuotations = await prisma.quotation.findMany({
-    where: {
-      agentEmail: { contains: senderEmail, mode: 'insensitive' as const },
-      status: 'AGUARDANDO_PARCEIRO'
-    }
-  });
-
-  if (pendingQuotations.length === 1) {
-    console.log(`[Outlook Match] ✅ Camada 3 — Cotação ${pendingQuotations[0]!.id} encontrada por remetente (match único)`);
-    return pendingQuotations[0]!;
-  }
-
-  if (pendingQuotations.length > 1) {
-    console.log(`[Outlook Match] ⚠️ Camada 3 — ${pendingQuotations.length} cotações pendentes para ${senderEmail}. Pulando (ambiguidade).`);
-  }
-
-  return null;
-}
-
-/**
- * Camada 4: Busca referência da cotação dentro do corpo/assunto do e-mail.
+ * Camada 3: Busca referência da cotação dentro do corpo/assunto do e-mail.
  * Procura padrões como ADZ-QIA26060010, QIS26060117, QIA26060065, etc.
  */
 async function matchByBodyReference(subject: string, bodyContent: string) {
@@ -109,8 +82,8 @@ async function matchByBodyReference(subject: string, bodyContent: string) {
     if (matches) {
       for (const match of matches) {
         const ref = match.trim();
-        console.log(`[Outlook Match] Camada 4 — Referência encontrada no corpo: ${ref}`);
-        
+        console.log(`[Outlook Match] Camada 3 — Referência encontrada no corpo: ${ref}`);
+
         const quotation = await prisma.quotation.findFirst({
           where: {
             OR: [
@@ -121,7 +94,7 @@ async function matchByBodyReference(subject: string, bodyContent: string) {
         });
 
         if (quotation) {
-          console.log(`[Outlook Match] ✅ Camada 4 — Cotação ${quotation.id} encontrada por referência no corpo`);
+          console.log(`[Outlook Match] ✅ Camada 3 — Cotação ${quotation.id} encontrada por referência no corpo`);
           return quotation;
         }
       }
@@ -132,13 +105,19 @@ async function matchByBodyReference(subject: string, bodyContent: string) {
 }
 
 /**
- * Orquestra as 4 camadas de matching em sequência (fallback).
+ * Orquestra as 3 camadas de matching em sequência (fallback).
  * Retorna a cotação vinculada ou null se nenhuma camada encontrar.
+ *
+ * Havia uma Camada 3 anterior que casava só pelo e-mail do remetente quando
+ * ele tinha exatamente 1 cotação "Aguardando Parceiro" no sistema — removida
+ * porque não checava o CONTEÚDO do e-mail: um agente com negociações
+ * paralelas fora deste sistema podia ter um e-mail de outro embarque
+ * (thread e assunto sem nenhuma relação) grudado na única cotação pendente
+ * dele aqui, sobrescrevendo o frete com valores de outro processo.
  */
 async function findQuotationForEmail(email: any) {
   const subject = email.subject || '';
   const bodyContent = email.body?.content || email.bodyPreview || '';
-  const senderEmail = email.from?.emailAddress?.address?.toLowerCase();
   const conversationId = email.conversationId;
 
   // Camada 1: REF no assunto
@@ -149,13 +128,9 @@ async function findQuotationForEmail(email: any) {
   const q2 = await matchByConversationId(conversationId);
   if (q2) return { quotation: q2, matchLayer: 2 };
 
-  // Camada 3: E-mail do remetente (match único)
-  const q3 = await matchBySenderEmail(senderEmail);
+  // Camada 3: Referência no corpo do e-mail
+  const q3 = await matchByBodyReference(subject, bodyContent);
   if (q3) return { quotation: q3, matchLayer: 3 };
-
-  // Camada 4: Referência no corpo do e-mail
-  const q4 = await matchByBodyReference(subject, bodyContent);
-  if (q4) return { quotation: q4, matchLayer: 4 };
 
   return null;
 }
@@ -387,7 +362,7 @@ async function processMatchedEmail(email: any, quotation: any, matchLayer: numbe
 }
 
 export const startOutlookWatcher = () => {
-  console.log('👀 Iniciando watcher de e-mails do Outlook (matching inteligente em 4 camadas)...');
+  console.log('👀 Iniciando watcher de e-mails do Outlook (matching inteligente em 3 camadas)...');
   
   // Set para rastrear e-mails não vinculados já logados (evita logs repetitivos)
   const loggedUnmatchedIds = new Set<string>();
