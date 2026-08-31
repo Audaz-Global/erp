@@ -5550,12 +5550,11 @@ async function saveAsAwaitingAgent() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> ...';
 
   try {
+    // Sem destinatário selecionado, a cotação fica "Aguardando Parceiro" sem
+    // um parceiro pré-associado — a resposta ainda é reconhecida depois pela
+    // referência da cotação no assunto do e-mail (Camada 1 do matching), não
+    // depende deste campo estar preenchido.
     const agentEmail = selectedPartnerRecipients.map(item => item.email).join('; ');
-    if (!agentEmail) {
-      alert('Adicione ao menos um destinatário antes de marcar como aguardando.');
-      btn.disabled = false; btn.innerHTML = originalHtml;
-      return;
-    }
     const cnpjField = document.getElementById('r-client-cnpj');
     if (cnpjIsRequiredForQuotation(document.getElementById('r-type').value, document.getElementById('r-storage-request').checked) && !cnpjField.value.trim()) {
       alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
@@ -5662,9 +5661,9 @@ async function saveAsAwaitingAgent() {
 
     toast('✅ Enviado para Aguardando Parceiro!');
     loadQuotations();
-    switchTab('quotation');
-  } catch(e) { 
-    alert('Erro: ' + e.message); 
+    switchTab('return');
+  } catch(e) {
+    alert('Erro: ' + e.message);
   } finally {
     btn.disabled = false; btn.innerHTML = originalHtml;
   }
@@ -10968,6 +10967,14 @@ function updateWizardUI() {
     document.getElementById('btnWizardNext').style.display = 'none';
     document.getElementById('btnSendAgent').style.display = 'inline-block';
     document.getElementById('btnSendOutlook').style.display = 'inline-block';
+  } else if (currentWizardStep === 5) {
+    // Passo 5 é o único lugar onde "Só Marcar Aguardando" faz sentido sem
+    // seguir o resto do wizard: quando não há parceiro pra selecionar aqui
+    // (ele será associado automaticamente depois, pela referência da
+    // cotação no assunto do e-mail de resposta).
+    document.getElementById('btnWizardNext').style.display = 'inline-block';
+    document.getElementById('btnSendAgent').style.display = 'inline-block';
+    document.getElementById('btnSendOutlook').style.display = 'none';
   } else {
     document.getElementById('btnWizardNext').style.display = 'inline-block';
     document.getElementById('btnSendAgent').style.display = 'none';
