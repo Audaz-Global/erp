@@ -7016,9 +7016,10 @@ function formatReturnFees(fees) {
 
 function toReturnBrl(value, currency) {
   const current = normalizeCostCurrency(currency);
-  if (current === 'BRL') return value;
-  if (current === 'EUR') return value * 5.50;
-  return value * 5.05;
+  const num = Number(value) || 0;
+  if (current === 'BRL') return num;
+  if (current === 'EUR') return num * 5.50;
+  return num * 5.05;
 }
 
 function calculateReturnRuleFees(q) {
@@ -7104,20 +7105,23 @@ function applyReturnIncotermRules(q, preserveExisting = false) {
   const taxes = findByName(['imposto', 'tributo']);
   const serviceFees = destinationFees.filter(f => f !== iof && f !== storage && f !== taxes);
 
-  if (iof) {
+  if (iof && !iof.pending) {
     document.getElementById('r-iof').value = Number(iof.value).toFixed(2);
     if (iof.source === 'INCOTERM') document.getElementById('conf-iof').innerHTML = estimateBadge(1);
   }
-  if (storage) {
+  if (storage && !storage.pending) {
     document.getElementById('r-storage').value = toReturnBrl(storage.value, storage.currency).toFixed(2);
     if (storage.source === 'INCOTERM') document.getElementById('conf-storage').innerHTML = estimateBadge(1);
   }
-  if (taxes) {
+  if (taxes && !taxes.pending) {
     document.getElementById('r-taxes').value = toReturnBrl(taxes.value, taxes.currency).toFixed(2);
     if (taxes.source === 'INCOTERM') document.getElementById('conf-taxes').innerHTML = estimateBadge(1);
   }
+  const pricedServiceFees = serviceFees.filter(fee => !fee.pending);
+  if (pricedServiceFees.length) {
+    document.getElementById('r-services').value = pricedServiceFees.reduce((sum, fee) => sum + toReturnBrl(fee.value, fee.currency), 0).toFixed(2);
+  }
   if (serviceFees.length) {
-    document.getElementById('r-services').value = serviceFees.reduce((sum, fee) => sum + toReturnBrl(fee.value, fee.currency), 0).toFixed(2);
     const estimatedServiceCount = serviceFees.filter(fee => fee.source === 'INCOTERM').length;
     if (estimatedServiceCount) document.getElementById('conf-services').innerHTML = estimateBadge(estimatedServiceCount);
   }
