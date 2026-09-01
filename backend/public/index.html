@@ -2422,15 +2422,15 @@
           <label style="font-size:11px;">Distribuir Profit Em: <span id="rev-profit-split-warning" style="color:#F59E0B; font-weight:700;"></span></label>
           <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; height:38px;">
             <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
-              <input type="checkbox" id="rev-profit-target-freight" checked onchange="onProfitTargetToggle()"> Frete
+              <input type="checkbox" id="rev-profit-target-freight" checked onchange="onProfitTargetToggle()" style="width:15px; height:15px; flex-shrink:0; accent-color:#10B981;"> Frete
               <input type="number" id="rev-profit-pct-freight" value="100" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" onchange="onProfitPctInput()">%
             </label>
             <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
-              <input type="checkbox" id="rev-profit-target-origin" onchange="onProfitTargetToggle()"> Origem
+              <input type="checkbox" id="rev-profit-target-origin" onchange="onProfitTargetToggle()" style="width:15px; height:15px; flex-shrink:0; accent-color:#10B981;"> Origem
               <input type="number" id="rev-profit-pct-origin" value="0" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" disabled onchange="onProfitPctInput()">%
             </label>
             <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
-              <input type="checkbox" id="rev-profit-target-destination" onchange="onProfitTargetToggle()"> Destino
+              <input type="checkbox" id="rev-profit-target-destination" onchange="onProfitTargetToggle()" style="width:15px; height:15px; flex-shrink:0; accent-color:#10B981;"> Destino
               <input type="number" id="rev-profit-pct-destination" value="0" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" disabled onchange="onProfitPctInput()">%
             </label>
           </div>
@@ -3720,6 +3720,7 @@ function reviewMainFreightLine(quotation = {}) {
 }
 
 function initializeReviewCostEditor(quotation = {}) {
+  window.profitPctManuallyEdited = false;
   const origin = enrichFeeMetadata(parseFeeText(document.getElementById('rev-origin-services')?.value || ''), window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
   const destination = enrichFeeMetadata(parseFeeText(document.getElementById('rev-destination-services')?.value || ''), window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
   const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
@@ -6057,12 +6058,12 @@ function updateBuyVsSellTable() {
 
   // ITENS DA TABELA
   const items = [
-    { label: 'Frete Internacional', cost: costFreightUsd, sell: sellFreightUsd },
-    { label: 'Inland / Transporte Origem', cost: costInlandUsd, sell: sellInlandUsd },
-    { label: 'Taxas Locais Origem', cost: costOriginFeesUsd, sell: sellOriginFeesUsd },
-    { label: 'Seguro Internacional', cost: costInsuranceUsd, sell: sellInsuranceUsd },
-    { label: 'Taxas Destino / Serviços', cost: costDestFeesUsd, sell: sellDestFeesUsd },
-    { label: 'Desembaraço Aduaneiro', cost: costCustomsUsd, sell: sellCustomsUsd }
+    { key: 'freight', label: 'Frete Internacional', cost: costFreightUsd, sell: sellFreightUsd },
+    { key: 'inland', label: 'Inland / Transporte Origem', cost: costInlandUsd, sell: sellInlandUsd },
+    { key: 'origin', label: 'Taxas Locais Origem', cost: costOriginFeesUsd, sell: sellOriginFeesUsd },
+    { key: 'insurance', label: 'Seguro Internacional', cost: costInsuranceUsd, sell: sellInsuranceUsd },
+    { key: 'destination', label: 'Taxas Destino / Serviços', cost: costDestFeesUsd, sell: sellDestFeesUsd },
+    { key: 'customs', label: 'Desembaraço Aduaneiro', cost: costCustomsUsd, sell: sellCustomsUsd }
   ];
 
   let totalCostSum = 0;
@@ -6083,7 +6084,7 @@ function updateBuyVsSellTable() {
       <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
         <td style="padding:6px 12px; font-weight:600;">${item.label}</td>
         <td style="padding:6px 12px; text-align:right; font-family:monospace; color:var(--text-muted);">$${item.cost.toFixed(2)}</td>
-        <td style="padding:6px 12px; text-align:right; font-family:monospace; font-weight:700;">$${item.sell.toFixed(2)}</td>
+        <td style="padding:2px 8px; text-align:right;"><input type="number" step="0.01" value="${item.sell.toFixed(2)}" onchange="onBuyVsSellEdit('${item.key}', this.value, ${item.sell})" style="width:100px; text-align:right; font-family:monospace; font-weight:700; background:transparent; border:1px solid rgba(16,185,129,0.3); border-radius:6px; color:var(--text); padding:4px 6px;"></td>
         <td style="padding:6px 12px; text-align:right; font-family:monospace; font-weight:700; color:${profitColor};">${profitText}</td>
         <td style="padding:6px 12px; text-align:right; font-family:monospace; color:${profitColor};">${margin.toFixed(1)}%</td>
       </tr>
@@ -6137,17 +6138,24 @@ function getProfitTargets() {
 function onProfitTargetToggle() {
   const targets = getProfitTargets();
   const checked = targets.filter(t => t.checked);
+  // Só recalcula a divisão igualitária automaticamente enquanto o usuário
+  // não tiver customizado nenhum percentual manualmente — depois disso,
+  // marcar/desmarcar outra área só habilita/desabilita o campo, sem apagar
+  // o que já foi digitado.
   const evenPct = checked.length ? (100 / checked.length) : 0;
   targets.forEach(t => {
     const pctInput = document.getElementById(`rev-profit-pct-${t.key}`);
     if (!pctInput) return;
     pctInput.disabled = !t.checked;
-    pctInput.value = t.checked ? evenPct.toFixed(0) : 0;
+    if (!window.profitPctManuallyEdited) {
+      pctInput.value = t.checked ? evenPct.toFixed(0) : 0;
+    }
   });
   updateProfitSplitWarning();
 }
 
 function onProfitPctInput() {
+  window.profitPctManuallyEdited = true;
   updateProfitSplitWarning();
 }
 
@@ -6218,6 +6226,60 @@ function applySmartProfit() {
   recalculateModalDestinationServicesTotal();
   updateBuyVsSellTable();
   alert(`Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}`);
+}
+
+// Edição direta do preço de Venda na tabela Compra vs. Venda. Frete/Inland/
+// Seguro/Desembaraço mapeiam pra um campo único; Origem/Destino são somas de
+// várias taxas, então o ajuste vira uma linha "Spread / Profit" com o delta
+// necessário pra fechar o novo total (mesmo mecanismo do Aplicar Profit).
+function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
+  const newSellUsd = parseFloat(valueStr);
+  if (isNaN(newSellUsd) || newSellUsd < 0) { updateBuyVsSellTable(); return; }
+
+  const usdRate = 5.05;
+  const eurRate = 5.50;
+
+  if (key === 'freight') {
+    const currency = document.getElementById('rev-freight-currency')?.value || 'USD';
+    let converted = newSellUsd;
+    if (currency === 'EUR') converted = newSellUsd * (usdRate / eurRate);
+    else if (currency === 'BRL') converted = newSellUsd * usdRate;
+    document.getElementById('rev-freight').value = converted.toFixed(2);
+    const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
+    if (mainFreight) mainFreight.unitValue = converted / (reviewCostNumber(mainFreight.quantity, 1) || 1);
+  } else if (key === 'inland') {
+    const currency = document.getElementById('rev-origin-inland-currency')?.value || 'USD';
+    let converted = newSellUsd;
+    if (currency === 'EUR') converted = newSellUsd / 1.08;
+    else if (currency === 'BRL') converted = newSellUsd * usdRate;
+    document.getElementById('rev-origin-inland-value').value = converted.toFixed(2);
+  } else if (key === 'insurance') {
+    document.getElementById('rev-insurance-val').value = newSellUsd.toFixed(2);
+  } else if (key === 'customs') {
+    document.getElementById('rev-customs-value').value = (newSellUsd * usdRate).toFixed(2);
+  } else if (key === 'origin' || key === 'destination') {
+    const deltaUsd = newSellUsd - (Number(previousSellUsd) || 0);
+    const textareaId = key === 'origin' ? 'rev-origin-services' : 'rev-destination-services';
+    const feesTextarea = document.getElementById(textareaId);
+    const lines = (feesTextarea.value || '').split('\n');
+    const spreadLineIdx = lines.findIndex(line => /spread\s*\/\s*profit/i.test(line));
+    const existingSpread = spreadLineIdx >= 0 ? (parseFeeLine(lines[spreadLineIdx])?.totalValue || 0) : 0;
+    const newSpreadValue = existingSpread + deltaUsd;
+    const otherLines = lines.filter((_, i) => i !== spreadLineIdx);
+    if (Math.abs(newSpreadValue) > 0.005) {
+      otherLines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: newSpreadValue, value: newSpreadValue, currency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: newSpreadValue }));
+    }
+    feesTextarea.value = otherLines.filter(Boolean).join('\n');
+
+    window.reviewCostLines[key] = (window.reviewCostLines[key] || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
+    if (Math.abs(newSpreadValue) > 0.005) {
+      window.reviewCostLines[key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: newSpreadValue, currency: 'USD', applicationScope: key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+    }
+  }
+
+  renderReviewCostEditor();
+  recalculateModalDestinationServicesTotal();
+  updateBuyVsSellTable();
 }
 
 async function validateAndGeneratePDF(qIdParam = null) {
