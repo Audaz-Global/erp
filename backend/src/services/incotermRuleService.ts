@@ -192,6 +192,37 @@ export function calculateFee(
   totalOrigin: number,
   context: FeeCalculationContext = {}
 ): CalculatedFee {
+  // Taxa "a cotar" (sem valor fixado ainda) — insere como pendente, em vez de
+  // calcular silenciosamente um total de $0,00 fácil de passar despercebido.
+  if ((rule as any).pricingStatus === 'ON_REQUEST') {
+    return {
+      name: rule.feeName,
+      value: 0,
+      currency: rule.currency,
+      chargeType: rule.chargeType,
+      description: rule.description || undefined,
+      qty: '-',
+      unit: 'A confirmar',
+      valueUnit: 'A confirmar',
+      min: rule.minValue ? rule.minValue.toFixed(2) : '0,00',
+      total: 'A confirmar',
+      unitValue: 0,
+      billingUnit: 'PER_SHIPMENT',
+      originalUnit: 'A confirmar',
+      quantity: null,
+      totalValue: 0,
+      quantitySource: 'INCOTERM_RULE',
+      minValue: rule.minValue || 0,
+      percentBase: rule.percentBase || null,
+      percentageBaseValue: null,
+      classificationSource: 'RULE',
+      provenanceType: 'SYSTEM_RULE',
+      provenanceLabel: 'Regra automática · Incoterm (a cotar)',
+      evidence: rule.description || null,
+      needsReview: true
+    };
+  }
+
   let value = 0;
   let qty: number | string = 1;
   let unit = 'Fixo';
