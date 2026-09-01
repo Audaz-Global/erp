@@ -11110,11 +11110,17 @@ function renderTreeFees(type, containerId) {
           <option value="CARGO_VALUE" ${fee.percentBase === 'CARGO_VALUE' ? 'selected' : ''}>Base: Valor da Mercadoria (moeda original do Hawb)</option>
           <option value="FREIGHT_PLUS_CARGO_VALUE" ${fee.percentBase === 'FREIGHT_PLUS_CARGO_VALUE' ? 'selected' : ''}>Base: Frete Intl (Hawb) + Valor da Mercadoria</option>
         </select>
-        <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
-          <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width:56px;" placeholder="Compra" title="Alíquota de compra (custo)" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
-          <span style="font-size:10px;color:var(--text-muted);">→</span>
-          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width:56px;" placeholder="Venda" title="Alíquota de venda (sugestão)" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
-          <span style="font-size:11px;color:var(--text-muted);">%</span>
+        <div style="display:flex;align-items:flex-end;gap:4px;margin-top:4px;">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;">Compra</span>
+            <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width:56px;" title="Alíquota de compra (custo)" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
+          </div>
+          <span style="font-size:10px;color:var(--text-muted);margin-bottom:8px;">→</span>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.03em;">Venda</span>
+            <input type="number" step="0.01" value="${fee.value ?? ''}" style="width:56px;" title="Alíquota de venda (sugestão)" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+          </div>
+          <span style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">%</span>
         </div>
         ` : ''}
       </td>
@@ -11132,11 +11138,17 @@ function renderTreeFees(type, containerId) {
         </select>
         <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">sem valor fixo</span>
         ` : `
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width: 80px;" placeholder="Compra" title="Custo padrão" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
-          <span style="font-size:10px;color:var(--text-muted);">→</span>
-          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 80px;" placeholder="Venda" title="Venda sugerida" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
-          <select style="width: 70px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
+        <div style="display:flex;gap:6px;align-items:flex-end;">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;">Compra</span>
+            <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width: 80px;" title="Custo padrão" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
+          </div>
+          <span style="font-size:10px;color:var(--text-muted);margin-bottom:8px;">→</span>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.03em;">Venda</span>
+            <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 80px;" title="Venda sugerida" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+          </div>
+          <select style="width: 70px;margin-bottom:1px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
             <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
             <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
           </select>
