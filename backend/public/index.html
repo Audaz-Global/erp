@@ -11083,7 +11083,7 @@ function renderTreeFees(type, containerId) {
     return;
   }
 
-  let html = '<table class="k-table"><thead><tr><th>Ordem</th><th>Nome da Taxa</th><th>Tipo de Cobrança</th><th>Valor</th><th>Aplicabilidade</th><th>Remover</th></tr></thead><tbody>';
+  let html = '<table class="k-table"><thead><tr><th>Ordem</th><th>Nome da Taxa</th><th>Tipo de Cobrança</th><th>Compra → Venda</th><th>Aplicabilidade</th><th>Remover</th></tr></thead><tbody>';
 
   fees.forEach((fee, index) => {
     const isOnRequest = fee.pricingStatus === 'ON_REQUEST';
@@ -11111,8 +11111,10 @@ function renderTreeFees(type, containerId) {
           <option value="FREIGHT_PLUS_CARGO_VALUE" ${fee.percentBase === 'FREIGHT_PLUS_CARGO_VALUE' ? 'selected' : ''}>Base: Frete Intl (Hawb) + Valor da Mercadoria</option>
         </select>
         <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
-          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width:70px;" placeholder="Ex: 3.5" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
-          <span style="font-size:11px;color:var(--text-muted);">% (alíquota)</span>
+          <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width:56px;" placeholder="Compra" title="Alíquota de compra (custo)" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
+          <span style="font-size:10px;color:var(--text-muted);">→</span>
+          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width:56px;" placeholder="Venda" title="Alíquota de venda (sugestão)" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+          <span style="font-size:11px;color:var(--text-muted);">%</span>
         </div>
         ` : ''}
       </td>
@@ -11130,8 +11132,10 @@ function renderTreeFees(type, containerId) {
         </select>
         <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">sem valor fixo</span>
         ` : `
-        <div style="display:flex;gap:6px;">
-          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 90px;" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width: 80px;" placeholder="Compra" title="Custo padrão" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
+          <span style="font-size:10px;color:var(--text-muted);">→</span>
+          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 80px;" placeholder="Venda" title="Venda sugerida" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
           <select style="width: 70px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
             <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
             <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
@@ -11170,13 +11174,25 @@ function renderTreeFees(type, containerId) {
 function updateTreeFee(type, index, field, value) {
   let parsed = value;
   if (field === 'sortOrder') parsed = Number(value);
-  else if (field === 'value') parsed = value === '' ? '' : Number(value);
+  else if (field === 'value' || field === 'costValue') parsed = value === '' ? '' : Number(value);
   else if (field === 'minValue') parsed = value === '' ? null : Number(value);
   getTreeFeeList(type)[index][field] = parsed;
 }
 
+// Grava a Compra e, se a Venda ainda estiver vazia, sugere Venda = Compra + 10%
+// (só um ponto de partida — o operador sempre pode ajustar depois).
+const TREE_FEE_SUGGESTED_MARKUP = 0.10;
+function updateTreeFeeCost(type, index, value) {
+  const fee = getTreeFeeList(type)[index];
+  const parsed = value === '' ? null : Number(value);
+  fee.costValue = parsed;
+  if (parsed != null && !fee.value) {
+    fee.value = Math.round(parsed * (1 + TREE_FEE_SUGGESTED_MARKUP) * 100) / 100;
+  }
+}
+
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
+  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
   getTreeFeeList(type).push(newFee);
   renderTreeFees(type, TREE_FEE_CONTAINER_ID[type]);
 }

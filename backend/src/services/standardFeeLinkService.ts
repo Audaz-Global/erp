@@ -12,6 +12,7 @@ export function standardFeeSnapshot(fee: StandardFee) {
     feeName: fee.name,
     chargeType: fee.chargeType,
     value: fee.value,
+    costValue: (fee as any).costValue ?? null,
     pricingStatus: (fee as any).pricingStatus || 'PRICED',
     minValue: fee.minValue,
     currency: fee.currency,

@@ -633,6 +633,7 @@ model StandardFee {
   type          String // ORIGIN, DESTINATION
   chargeType    String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
   value         Float
+  costValue     Float? // Taxa de compra (custo padrão) — value continua sendo a venda/sugestão
   pricingStatus String   @default("PRICED") // PRICED, ON_REQUEST
   minValue      Float?
   currency      String
@@ -661,7 +662,8 @@ model IncotermRule {
   feeType          String // ORIGIN, DESTINATION
   feeName          String // Ex: "Airport Fee", "AWB Fee", "Origin Charges"
   chargeType       String // FIXED, PER_KG, PER_DOCUMENT, PERCENTAGE
-  value            Float // Valor unitário ou percentual
+  value            Float // Valor unitário ou percentual (venda/sugestão)
+  costValue        Float? // Taxa de compra (custo padrão) — mesma unidade/base do value
   pricingStatus    String   @default("PRICED") // snapshot da taxa: PRICED, ON_REQUEST
   minValue         Float? // Valor mínimo (ex: Airport Fee mín USD 45)
   currency         String   @default("USD")

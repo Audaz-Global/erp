@@ -19,6 +19,7 @@ export interface CalculatedFee {
   min?: string;
   total?: string;
   unitValue?: number;
+  costUnitValue?: number;
   billingUnit?: string;
   originalUnit?: string;
   quantity?: number | null;
@@ -207,6 +208,7 @@ export function calculateFee(
       min: rule.minValue ? rule.minValue.toFixed(2) : '0,00',
       total: 'A confirmar',
       unitValue: 0,
+      costUnitValue: 0,
       billingUnit: 'PER_SHIPMENT',
       originalUnit: 'A confirmar',
       quantity: null,
@@ -320,6 +322,11 @@ export function calculateFee(
     }
   }
 
+  // unitValue já é a taxa por unidade (não o total) — costUnitValue segue o
+  // mesmo formato: a taxa de compra por unidade, pra o front derivar o total
+  // com a mesma quantidade/base já usada pro lado da venda.
+  const costUnitValue = (rule as any).costValue != null ? Number((rule as any).costValue) : rule.value;
+
   return {
     name: rule.feeName,
     value,
@@ -332,6 +339,7 @@ export function calculateFee(
     min,
     total: `${rule.currency} ${value.toFixed(2)}`,
     unitValue: rule.value,
+    costUnitValue,
     billingUnit: ({ FIXED:'PER_SHIPMENT', PER_SHIPMENT:'PER_SHIPMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PER_DOCUMENT:'PER_DOCUMENT', PERCENTAGE:'PERCENTAGE' } as Record<string,string>)[rule.chargeType] || 'UNKNOWN',
     originalUnit: unit,
     quantity: typeof qty === 'number' ? qty : null,
@@ -360,7 +368,8 @@ export function formatFeesForPdf(fees: CalculatedFee[]): any[] {
     min: f.min,
     max: '0,00',
     currency: f.currency,
-    total: f.total
+    total: f.total,
+    costUnitValue: f.costUnitValue
   }));
 }
 
@@ -375,6 +384,10 @@ export function formatFeesForController(
     name: f.name,
     val: f.value,
     currency: f.currency,
-    brl: getBrlValue(f.value, f.currency)
+    brl: getBrlValue(f.value, f.currency),
+    costUnitValue: f.costUnitValue,
+    unitValue: f.unitValue,
+    billingUnit: f.billingUnit,
+    quantity: f.quantity
   }));
 }

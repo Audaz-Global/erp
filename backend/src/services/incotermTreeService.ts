@@ -13,6 +13,7 @@ export interface IncotermTreeFeePayload {
   feeType?: string;
   chargeType?: string;
   value?: number;
+  costValue?: number;
   pricingStatus?: string;
   minValue?: number;
   currency?: string;
@@ -107,6 +108,7 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
           feeName: String(feeData.feeName).trim(),
           chargeType: feeData.chargeType,
           value: pricingStatus === 'ON_REQUEST' ? 0 : Number(feeData.value),
+          costValue: feeData.costValue !== undefined && feeData.costValue !== null && (feeData.costValue as any) !== '' ? Number(feeData.costValue) : null,
           pricingStatus,
           minValue: feeData.minValue !== undefined && feeData.minValue !== null && (feeData.minValue as any) !== '' ? Number(feeData.minValue) : null,
           currency: feeData.currency || 'USD',
