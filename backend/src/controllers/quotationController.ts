@@ -651,7 +651,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const modalStr = String(quotation.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotation.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const containerInfo = extractContainerInfo(quotation.packages, quotation.totalPackages, quotation.loadType);
-    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0, insuranceRequested: Boolean(quotation.requiresInsurance), customsClearanceContracted: Boolean(quotation.customsClearanceIncluded) };
+    const feeContext = { totalCbm: cbm, containerCount: containerInfo.qty, grossWeightKg: bruto, dangerousGoodsProductCount: quotation.dangerousGoodsProductCount || 0, insuranceRequested: Boolean(quotation.requiresInsurance), customsClearanceContracted: Boolean(quotation.customsClearanceIncluded), commercialValue: Number(quotation.commercialValue) || 0 };
 
     const resolvedFreight = shouldHydrateAutomaticCosts(quotation)
       ? await resolveFreightValue(incotermStr, modalForRules, quotation.direction, fVal, fCurr, feeContext)

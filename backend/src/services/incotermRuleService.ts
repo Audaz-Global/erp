@@ -41,6 +41,7 @@ export interface FeeCalculationContext {
   dangerousGoodsProductCount?: number;
   insuranceRequested?: boolean;
   customsClearanceContracted?: boolean;
+  commercialValue?: number;
 }
 
 /**
@@ -204,6 +205,12 @@ export function calculateFee(
       unit = 'Fixo';
       break;
 
+    case 'PER_SHIPMENT':
+      value = rule.value;
+      qty = 1;
+      unit = 'Por embarque';
+      break;
+
     case 'PER_KG':
       value = rule.value * chargableWeight;
       if (rule.minValue && value < rule.minValue) {
@@ -258,11 +265,16 @@ export function calculateFee(
       break;
 
     case 'PERCENTAGE': {
+      const cargoValue = Number(context.commercialValue) || 0;
       let base = 0;
       if (rule.percentBase === 'FREIGHT') {
         base = freightValue;
       } else if (rule.percentBase === 'FREIGHT_PLUS_ORIGIN') {
         base = freightValue + totalOrigin;
+      } else if (rule.percentBase === 'CARGO_VALUE') {
+        base = cargoValue;
+      } else if (rule.percentBase === 'FREIGHT_PLUS_CARGO_VALUE') {
+        base = freightValue + cargoValue;
       } else {
         base = freightValue;
       }
@@ -289,7 +301,7 @@ export function calculateFee(
     min,
     total: `${rule.currency} ${value.toFixed(2)}`,
     unitValue: rule.value,
-    billingUnit: ({ FIXED:'PER_SHIPMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PER_DOCUMENT:'PER_DOCUMENT', PERCENTAGE:'PERCENTAGE' } as Record<string,string>)[rule.chargeType] || 'UNKNOWN',
+    billingUnit: ({ FIXED:'PER_SHIPMENT', PER_SHIPMENT:'PER_SHIPMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PER_DOCUMENT:'PER_DOCUMENT', PERCENTAGE:'PERCENTAGE' } as Record<string,string>)[rule.chargeType] || 'UNKNOWN',
     originalUnit: unit,
     quantity: typeof qty === 'number' ? qty : null,
     totalValue: value,

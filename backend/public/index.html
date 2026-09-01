@@ -3680,7 +3680,10 @@ function reviewPercentageBase(line) {
   const targetCurrency=line.currency || 'USD';
   const freight=(window.reviewCostLines?.freight || []).filter(item=>item.special==='MAIN_FREIGHT').reduce((sum,item)=>sum+reviewConvertCost(reviewCostNumber(item.quantity,0)*reviewCostNumber(item.unitValue,0),item.currency,targetCurrency),0);
   const origin=(window.reviewCostLines?.origin || []).filter(item=>item.billingUnit!=='PERCENTAGE').reduce((sum,item)=>sum+reviewConvertCost(reviewCostWithLimits(reviewCostNumber(item.quantity,0)*reviewCostNumber(item.unitValue,0),item),item.currency,targetCurrency),0);
+  const cargoValue=reviewConvertCost(reviewCostNumber(document.getElementById('rev-commercial-value')?.value),'USD',targetCurrency);
   if (configured === 'FREIGHT_PLUS_ORIGIN') return freight + origin;
+  if (configured === 'CARGO_VALUE') return cargoValue;
+  if (configured === 'FREIGHT_PLUS_CARGO_VALUE') return freight + cargoValue;
   if (configured === 'FREIGHT') return freight;
   const savedBase=reviewCostNumber(line.percentageBaseValue); return savedBase > 0 ? savedBase : freight;
 }
@@ -7123,25 +7126,29 @@ function calculateReturnRuleFees(q) {
   const calculated = [];
   let originTotal = 0;
 
+  const cargoValue = Number(q.commercialValue) || 0;
   const calculateRule = rule => {
     let value = null;
-    if (rule.chargeType === 'FIXED' || rule.chargeType === 'PER_DOCUMENT') value = Number(rule.value) || 0;
+    if (rule.chargeType === 'FIXED' || rule.chargeType === 'PER_DOCUMENT' || rule.chargeType === 'PER_SHIPMENT') value = Number(rule.value) || 0;
     if (rule.chargeType === 'PER_KG') value = (Number(rule.value) || 0) * taxable;
     if (rule.chargeType === 'PER_TON') value = grossTons > 0 ? (Number(rule.value) || 0) * grossTons : null;
     if (rule.chargeType === 'PER_CBM') value = cbm > 0 ? (Number(rule.value) || 0) * cbm : null;
     if (rule.chargeType === 'PER_WM') { const wm = Math.max(grossTons, cbm); value = wm > 0 ? (Number(rule.value) || 0) * wm : null; }
     if (rule.chargeType === 'PER_CONTAINER') value = containerQty > 0 ? (Number(rule.value) || 0) * containerQty : null;
     if (rule.chargeType === 'PER_DG_PRODUCT') value = Number(q.dangerousGoodsProductCount) > 0 ? (Number(rule.value) || 0) * Number(q.dangerousGoodsProductCount) : null;
-    if (rule.chargeType === 'PERCENTAGE' && freight > 0) {
-      const base = rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freight + originTotal : freight;
+    if (rule.chargeType === 'PERCENTAGE' && (freight > 0 || cargoValue > 0)) {
+      const base = rule.percentBase === 'FREIGHT_PLUS_ORIGIN' ? freight + originTotal
+        : rule.percentBase === 'CARGO_VALUE' ? cargoValue
+        : rule.percentBase === 'FREIGHT_PLUS_CARGO_VALUE' ? freight + cargoValue
+        : freight;
       value = base * ((Number(rule.value) || 0) / 100);
     }
     if (value != null && rule.minValue != null) value = Math.max(value, Number(rule.minValue) || 0);
     return value;
   };
   const structuredRuleFee = (rule, totalValue) => {
-    const unitMap = { FIXED:'PER_SHIPMENT', PER_DOCUMENT:'PER_DOCUMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PERCENTAGE:'PERCENTAGE' };
-    const quantityMap = { FIXED:1, PER_DOCUMENT:1, PER_KG:taxable, PER_TON:grossTons, PER_CBM:cbm, PER_WM:Math.max(grossTons, cbm), PER_CONTAINER:containerQty, PER_DG_PRODUCT:Number(q.dangerousGoodsProductCount)||null };
+    const unitMap = { FIXED:'PER_SHIPMENT', PER_SHIPMENT:'PER_SHIPMENT', PER_DOCUMENT:'PER_DOCUMENT', PER_KG:'PER_CHARGEABLE_WEIGHT', PER_TON:'PER_TON', PER_CBM:'PER_CBM', PER_WM:'PER_WM', PER_CONTAINER:'PER_CONTAINER', PER_DG_PRODUCT:'PER_DG_PRODUCT', PERCENTAGE:'PERCENTAGE' };
+    const quantityMap = { FIXED:1, PER_SHIPMENT:1, PER_DOCUMENT:1, PER_KG:taxable, PER_TON:grossTons, PER_CBM:cbm, PER_WM:Math.max(grossTons, cbm), PER_CONTAINER:containerQty, PER_DG_PRODUCT:Number(q.dangerousGoodsProductCount)||null };
     const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
     const quantity = quantityMap[rule.chargeType] ?? null;
     const percentageBaseValue = rule.chargeType === 'PERCENTAGE' && Number(rule.value) > 0 ? totalValue * 100 / Number(rule.value) : null;
@@ -11086,6 +11093,7 @@ function renderTreeFees(type, containerId) {
       <td>
         <select style="width:180px;" onchange="updateTreeFee('${type}', ${index}, 'chargeType', this.value); renderTreeFees('${type}', '${containerId}')">
           <option value="FIXED" ${fee.chargeType === 'FIXED' ? 'selected' : ''}>Fixo</option>
+          <option value="PER_SHIPMENT" ${fee.chargeType === 'PER_SHIPMENT' ? 'selected' : ''}>Por Embarque</option>
           <option value="PER_KG" ${fee.chargeType === 'PER_KG' ? 'selected' : ''}>Por Kg</option>
           <option value="PER_DOCUMENT" ${fee.chargeType === 'PER_DOCUMENT' ? 'selected' : ''}>Por Documento</option>
           <option value="PER_CONTAINER" ${fee.chargeType === 'PER_CONTAINER' ? 'selected' : ''}>Por Contêiner</option>
@@ -11097,13 +11105,25 @@ function renderTreeFees(type, containerId) {
         </select>
         ${fee.chargeType === 'PERCENTAGE' ? `
         <select style="width:180px;margin-top:4px;" onchange="updateTreeFee('${type}', ${index}, 'percentBase', this.value)">
-          <option value="FREIGHT" ${(fee.percentBase || 'FREIGHT') === 'FREIGHT' ? 'selected' : ''}>Base: Frete</option>
+          <option value="FREIGHT" ${(fee.percentBase || 'FREIGHT') === 'FREIGHT' ? 'selected' : ''}>Base: Total Frete Intl (Hawb)</option>
           <option value="FREIGHT_PLUS_ORIGIN" ${fee.percentBase === 'FREIGHT_PLUS_ORIGIN' ? 'selected' : ''}>Base: Frete + Origem</option>
+          <option value="CARGO_VALUE" ${fee.percentBase === 'CARGO_VALUE' ? 'selected' : ''}>Base: Valor da Mercadoria (moeda original do Hawb)</option>
+          <option value="FREIGHT_PLUS_CARGO_VALUE" ${fee.percentBase === 'FREIGHT_PLUS_CARGO_VALUE' ? 'selected' : ''}>Base: Frete Intl (Hawb) + Valor da Mercadoria</option>
         </select>
+        <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+          <input type="number" step="0.01" value="${fee.value ?? ''}" style="width:70px;" placeholder="Ex: 3.5" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
+          <span style="font-size:11px;color:var(--text-muted);">% (alíquota)</span>
+        </div>
         ` : ''}
       </td>
       <td style="min-width:170px;">
-        ${isOnRequest ? `
+        ${fee.chargeType === 'PERCENTAGE' ? `
+        <select style="width: 80px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
+          <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+          <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
+        </select>
+        <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+        ` : isOnRequest ? `
         <select style="width: 80px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
           <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
           <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
@@ -11119,9 +11139,11 @@ function renderTreeFees(type, containerId) {
         </div>
         <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
         `}
+        ${fee.chargeType !== 'PERCENTAGE' ? `
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">
           <input type="checkbox" ${isOnRequest ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'pricingStatus', this.checked ? 'ON_REQUEST' : 'PRICED'); renderTreeFees('${type}', '${containerId}')"> A cotar
         </label>
+        ` : ''}
       </td>
       <td>
         <select style="width:140px;" onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value); renderTreeFees('${type}', '${containerId}')">

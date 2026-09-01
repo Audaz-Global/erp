@@ -1256,7 +1256,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     const modalStr = String(quotationData.modal || 'AIR').toUpperCase();
     const modalForRules = modalStr === 'AIR' ? 'AIR' : (String(quotationData.loadType || '').includes('LCL') ? 'SEA_LCL' : 'SEA_FCL');
     const ruleContainerInfo = extractContainerInfo(quotationData.packages, quotationData.totalPackages, quotationData.loadType);
-    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0), insuranceRequested: Boolean(quotationData.requiresInsurance), customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded) };
+    const feeContext = { totalCbm: Number(quotationData.totalCbm || 0), containerCount: ruleContainerInfo.qty, grossWeightKg: Number(quotationData.totalGrossWeightKg || 0), dangerousGoodsProductCount: Number(quotationData.dangerousGoodsProductCount || 0), insuranceRequested: Boolean(quotationData.requiresInsurance), customsClearanceContracted: Boolean(quotationData.customsClearanceIncluded), commercialValue: Number(quotationData.commercialValue) || 0 };
 
     if (!isTestCase && shouldHydrateAutomaticCosts(quotationData)) {
       const resolvedFreight = await resolveFreightValue(incotermStr, modalForRules, quotationData.direction, fVal, fCurr, feeContext);
