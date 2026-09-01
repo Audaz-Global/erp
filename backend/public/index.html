@@ -2032,15 +2032,6 @@
       </div>
     </div>
 
-    <section class="quotation-documents" id="revQuotationDocumentsPanel" style="margin-bottom:24px;">
-      <div class="quotation-documents-head">
-        <div><strong>Documentos da cotação</strong><small>Anexos do cliente e arquivos adicionados manualmente. Exclua um arquivo inserido por engano.</small></div>
-        <label class="btn btn-secondary document-upload-button">Adicionar documentos<input id="revManualDocumentInput" type="file" multiple accept=".eml,.msg,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt,.zip" onchange="uploadManualQuotationDocuments(this.files, this)"></label>
-      </div>
-      <div class="document-selection-legend"><span>Parceiro</span><span>DTA</span><span>Rodoviário</span></div>
-      <div id="revQuotationDocumentsList"><p class="document-empty">Carregando documentos...</p></div>
-    </section>
-
     <!-- DADOS DO CLIENTE E REFERÊNCIA -->
     <div style="margin-bottom:24px;">
       <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">📁 Dados do Cliente</div>
@@ -3205,7 +3196,7 @@ function renderQuotationDocuments() {
       <label class="document-check" title="Enviar à transportadora"><input type="checkbox" data-document-role="trucker" value="${document.id}"><span style="display:none">Transportadora</span></label>
       <button type="button" class="document-delete" onclick="deleteQuotationDocument('${document.id}')">Excluir</button>
     </div>`).join('');
-  ['quotationDocumentsList', 'revQuotationDocumentsList'].forEach(id => {
+  ['quotationDocumentsList'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = rowsHtml;
   });
