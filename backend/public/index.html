@@ -143,12 +143,22 @@
   box-shadow: 0 4px 15px rgba(0,0,0,0.5);
   color: var(--text);
 }
-.tagify__dropdown__item {
-  color: var(--text);
+.tagify__dropdown__wrapper {
+  background: var(--bg-card) !important;
 }
-.tagify__dropdown__item--active {
-  background: var(--navy-light);
-  color: var(--gold);
+.tagify__dropdown__item {
+  color: var(--text) !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: var(--text) !important;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 10px;
+}
+.tagify__dropdown__item--active,
+.tagify__dropdown__item:hover {
+  background: var(--navy-light) !important;
+  color: var(--gold) !important;
+  -webkit-text-fill-color: var(--gold) !important;
 }
 </style>
 <style>
@@ -260,7 +270,7 @@
   
   .form-group { margin-bottom: 16px; position: relative; }
   .form-group label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
-  .form-group input, .form-group select, .form-input { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; transition: all 0.3s; min-width: 0; }
+  .form-group input:not([type="checkbox"]):not([type="radio"]), .form-group select, .form-input { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; transition: all 0.3s; min-width: 0; }
   .form-group select option { background: #1e293b; color: #f8fafc; }
   .form-group input:focus, .form-group select:focus, .form-input:focus { outline: none; border-color: var(--gold); }
   .form-group input.error, .form-group select.error, .form-input.error { border-color: var(--error) !important; background: rgba(248,113,113,0.1) !important; box-shadow: 0 0 0 2px rgba(248,113,113,0.3) !important; }
@@ -736,7 +746,7 @@
   .review-section-title { color:#d8deea; font-size:11px; letter-spacing:.12em; border-color:rgba(255,255,255,.07); }
   .form-group { margin-bottom:15px; }
   .form-group label { color:#a8b2c5; font-size:11px; letter-spacing:.015em; }
-  .form-group input, .form-group select, .form-input, textarea, .filter-select, .history-toolbar .search-box input {
+  .form-group input:not([type="checkbox"]):not([type="radio"]), .form-group select, .form-input, textarea, .filter-select, .history-toolbar .search-box input {
     min-height:44px; background:#0a101c; border:1px solid #2a3650; border-radius:9px; color:var(--text);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.015); transition:border-color .18s, box-shadow .18s, background .18s;
   }
@@ -2553,7 +2563,7 @@
 
 <!-- ════════════ MODAL DE AGENTE ════════════ -->
 <div id="agentModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9100; overflow-y:auto; padding:20px;">
-  <div style="max-width:500px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+  <div style="max-width:760px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
     <button onclick="closeAgentModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
     <h2 style="font-size:18px; margin-bottom: 20px;" id="agentModalTitle">Novo Agente</h2>
     
@@ -2568,19 +2578,14 @@
     <div class="form-group">
       <label>Papéis do Parceiro *</label>
       <div class="partner-type-checks" id="agent-types">
-        <label><input type="checkbox" name="agent-type" value="AGENTE"> Agente</label>
-        <label><input type="checkbox" name="agent-type" value="COLOADER"> Coloader</label>
-        <label><input type="checkbox" name="agent-type" value="DESCONSOLIDADOR"> Desconsolidador</label>
-        <label><input type="checkbox" name="agent-type" value="ARMADOR"> Armador</label>
-        <label><input type="checkbox" name="agent-type" value="CIA_AEREA"> Companhia aérea</label>
-        <label><input type="checkbox" name="agent-type" value="TRANSPORTADORA"> Transportadora</label>
+        <label><input type="checkbox" name="agent-type" value="AGENTE" onchange="toggleAgentGroundServicesVisibility()"> Agente</label>
+        <label><input type="checkbox" name="agent-type" value="COLOADER" onchange="toggleAgentGroundServicesVisibility()"> Coloader</label>
+        <label><input type="checkbox" name="agent-type" value="DESCONSOLIDADOR" onchange="toggleAgentGroundServicesVisibility()"> Desconsolidador</label>
+        <label><input type="checkbox" name="agent-type" value="ARMADOR" onchange="toggleAgentGroundServicesVisibility()"> Armador</label>
+        <label><input type="checkbox" name="agent-type" value="CIA_AEREA" onchange="toggleAgentGroundServicesVisibility()"> Companhia aérea</label>
+        <label><input type="checkbox" name="agent-type" value="TRANSPORTADORA" onchange="toggleAgentGroundServicesVisibility()"> Transportadora</label>
       </div>
       <small style="display:block;margin-top:7px;color:var(--text-muted)">Uma empresa pode exercer mais de um papel.</small>
-    </div>
-    
-    <div class="form-group">
-      <label>E-mail Principal (Opcional para Armadores, Transportadoras e Cias Aéreas) *</label>
-      <input type="email" id="agent-email" placeholder="Ex: booking@yongsheng.com">
     </div>
     
     <div class="form-group">
@@ -2621,9 +2626,10 @@
 
     <div style="margin-top:20px; margin-bottom:20px; border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--bg);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <label style="margin:0; font-weight:600; color:var(--gold);">Contatos (Opcional)</label>
+        <label style="margin:0; font-weight:600; color:var(--gold);">Contatos *</label>
         <button type="button" class="btn btn-secondary" onclick="addAgentContact()" style="padding:6px 12px; font-size:12px; border-radius:6px;">➕ Novo Contato</button>
       </div>
+      <small style="display:block;margin-bottom:10px;color:var(--text-muted)">Cadastre ao menos um contato e marque qual é o Principal — o e-mail dele vira o e-mail de contato do parceiro.</small>
       <div id="agent-contacts-container" style="display:flex; flex-direction:column; gap:12px;">
         <!-- contatos dinâmicos serão inseridos aqui -->
       </div>
@@ -2638,11 +2644,11 @@
         <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:14px; margin:0;"><input type="checkbox" name="agent-modal" value="ROAD" style="width:16px;height:16px;"> ROAD</label>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="agent-ground-services-group" style="display:none;">
       <label>Serviços terrestres/aduaneiros habilitados</label>
       <div style="display:flex;gap:18px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
-        <label style="display:flex;align-items:center;gap:7px;margin:0"><input type="checkbox" name="ground-capability" value="DTA"> DTA — Trânsito Aduaneiro</label>
-        <label style="display:flex;align-items:center;gap:7px;margin:0"><input type="checkbox" name="ground-capability" value="RODOVIARIO_NACIONAL"> Frete Rodoviário Nacional</label>
+        <label style="display:flex;align-items:center;gap:7px;margin:0"><input type="checkbox" name="ground-capability" value="DTA" style="width:16px;height:16px;flex-shrink:0;"> DTA — Trânsito Aduaneiro</label>
+        <label style="display:flex;align-items:center;gap:7px;margin:0"><input type="checkbox" name="ground-capability" value="RODOVIARIO_NACIONAL" style="width:16px;height:16px;flex-shrink:0;"> Frete Rodoviário Nacional</label>
       </div>
     </div>
     
@@ -8865,18 +8871,30 @@ async function deleteKnowledge(id) {
 
 // ════════════ GESTÃO DE AGENTES ════════════
 let tagifyOrigins, tagifyDestinations;
-const countryWhitelist = ['Alemanha', 'Argentina', 'Austrália', 'Brasil', 'Canadá', 'Chile', 'China', 'Colômbia', 'Coreia do Sul', 'Emirados Árabes Unidos', 'Espanha', 'Estados Unidos', 'França', 'Hong Kong', 'Índia', 'Itália', 'Japão', 'México', 'Nova Zelândia', 'Portugal', 'Reino Unido', 'África do Sul', 'Taiwan', 'Europa', 'Latam', 'APAC', 'América do Norte'];
+const countryWhitelist = ['Afeganistão', 'África do Sul', 'Albânia', 'Alemanha', 'Andorra', 'Angola', 'Arábia Saudita', 'Argélia', 'Argentina', 'Armênia', 'Austrália', 'Áustria', 'Azerbaijão', 'Bahamas', 'Bahrein', 'Bangladesh', 'Barbados', 'Bélgica', 'Belize', 'Benin', 'Bielorrússia', 'Bolívia', 'Bósnia e Herzegovina', 'Botsuana', 'Brasil', 'Brunei', 'Bulgária', 'Burkina Faso', 'Burundi', 'Butão', 'Cabo Verde', 'Camarões', 'Camboja', 'Canadá', 'Catar', 'Cazaquistão', 'Chade', 'Chile', 'China', 'Chipre', 'Cingapura', 'Colômbia', 'Congo', 'Coreia do Norte', 'Coreia do Sul', 'Costa do Marfim', 'Costa Rica', 'Croácia', 'Cuba', 'Dinamarca', 'Djibouti', 'Egito', 'El Salvador', 'Emirados Árabes Unidos', 'Equador', 'Eritreia', 'Eslováquia', 'Eslovênia', 'Espanha', 'Estados Unidos', 'Estônia', 'Etiópia', 'Fiji', 'Filipinas', 'Finlândia', 'França', 'Gabão', 'Gâmbia', 'Gana', 'Geórgia', 'Grécia', 'Groenlândia', 'Guatemala', 'Guiana', 'Guiné', 'Haiti', 'Holanda', 'Honduras', 'Hong Kong', 'Hungria', 'Iêmen', 'Ilhas Maurício', 'Índia', 'Indonésia', 'Irã', 'Iraque', 'Irlanda', 'Islândia', 'Israel', 'Itália', 'Jamaica', 'Japão', 'Jordânia', 'Kuwait', 'Laos', 'Lesoto', 'Letônia', 'Líbano', 'Libéria', 'Líbia', 'Liechtenstein', 'Lituânia', 'Luxemburgo', 'Macau', 'Macedônia do Norte', 'Madagascar', 'Malásia', 'Malawi', 'Maldivas', 'Mali', 'Malta', 'Marrocos', 'Mauritânia', 'México', 'Moçambique', 'Moldávia', 'Mônaco', 'Mongólia', 'Montenegro', 'Myanmar', 'Namíbia', 'Nepal', 'Nicarágua', 'Níger', 'Nigéria', 'Noruega', 'Nova Zelândia', 'Omã', 'Panamá', 'Papua-Nova Guiné', 'Paquistão', 'Paraguai', 'Peru', 'Polônia', 'Portugal', 'Quênia', 'Reino Unido', 'República Democrática do Congo', 'República Dominicana', 'República Tcheca', 'Romênia', 'Ruanda', 'Rússia', 'Senegal', 'Sérvia', 'Serra Leoa', 'Síria', 'Somália', 'Sri Lanka', 'Sudão', 'Suécia', 'Suíça', 'Suriname', 'Tailândia', 'Taiwan', 'Tanzânia', 'Tajiquistão', 'Timor-Leste', 'Togo', 'Trinidad e Tobago', 'Tunísia', 'Turcomenistão', 'Turquia', 'Ucrânia', 'Uganda', 'Uruguai', 'Uzbequistão', 'Venezuela', 'Vietnã', 'Zâmbia', 'Zimbábue', 'Europa', 'Latam', 'APAC', 'América do Norte'];
 
-function addAgentContact(name = '', email = '', phone = '', role = '') {
+function toggleAgentGroundServicesVisibility() {
+  const isTrucker = document.querySelector('input[name="agent-type"][value="TRANSPORTADORA"]')?.checked;
+  const group = document.getElementById('agent-ground-services-group');
+  if (!group) return;
+  group.style.display = isTrucker ? 'block' : 'none';
+  if (!isTrucker) document.querySelectorAll('input[name="ground-capability"]').forEach(cb => cb.checked = false);
+}
+
+function addAgentContact(name = '', email = '', phone = '', role = '', isPrimary = false) {
   const container = document.getElementById('agent-contacts-container');
   const div = document.createElement('div');
   div.className = 'agent-contact-row';
   div.style.display = 'grid';
-  div.style.gridTemplateColumns = '1.2fr 1fr 1.5fr 1fr auto';
+  div.style.gridTemplateColumns = 'auto 1.2fr 1fr 1.5fr 1fr auto';
   div.style.gap = '8px';
   div.style.alignItems = 'center';
-  
+
+  const isFirst = !document.querySelector('.agent-contact-row');
   div.innerHTML = `
+    <label style="display:flex;align-items:center;gap:5px;margin:0;font-size:11px;color:var(--text-muted);white-space:nowrap;" title="Contato principal">
+      <input type="radio" name="agent-contact-principal" class="contact-principal" style="width:15px;height:15px;flex-shrink:0;" ${isPrimary || isFirst ? 'checked' : ''}> Principal
+    </label>
     <input type="text" class="form-input contact-name" placeholder="Nome" value="${name}">
     <input type="text" class="form-input contact-role" placeholder="Cargo" value="${role}">
     <input type="email" class="form-input contact-email" placeholder="E-mail" value="${email}">
@@ -8890,13 +8908,13 @@ function initTagify() {
   if (!tagifyOrigins) {
     tagifyOrigins = new Tagify(document.getElementById('agent-origins'), {
       whitelist: countryWhitelist,
-      dropdown: { maxItems: 20, enabled: 0, closeOnSelect: false }
+      dropdown: { maxItems: 30, enabled: 0, closeOnSelect: false }
     });
   }
   if (!tagifyDestinations) {
     tagifyDestinations = new Tagify(document.getElementById('agent-destinations'), {
       whitelist: countryWhitelist,
-      dropdown: { maxItems: 20, enabled: 0, closeOnSelect: false }
+      dropdown: { maxItems: 30, enabled: 0, closeOnSelect: false }
     });
   }
 }
@@ -8929,22 +8947,22 @@ function openAgentModal(id = null, preferredType = null) {
     document.getElementById('agentModalTitle').innerText = 'Novo Parceiro';
     document.getElementById('agent-id').value = '';
     document.getElementById('agent-name').value = '';
-    document.getElementById('agent-email').value = '';
     document.querySelectorAll('input[name="agent-type"]').forEach(input => { input.checked = input.value === (preferredType && PARTNER_META[preferredType] ? preferredType : 'AGENTE'); });
     document.getElementById('agent-address').value = '';
     document.getElementById('agent-phone').value = '';
     document.getElementById('agent-website').value = '';
     document.getElementById('agent-contacts-container').innerHTML = '';
-    
+
     document.querySelectorAll('input[name="agent-modal"]').forEach(cb => cb.checked = false);
     document.querySelectorAll('input[name="ground-capability"]').forEach(cb => cb.checked = false);
     document.querySelectorAll('input[name="agent-network"]').forEach(cb => cb.checked = false);
     document.querySelectorAll('input[name="agent-certification"]').forEach(cb => cb.checked = false);
     tagifyOrigins.removeAllTags();
     tagifyDestinations.removeAllTags();
-    
+
     document.getElementById('agent-active').checked = true;
     resetAtlantisLink('agent', null);
+    toggleAgentGroundServicesVisibility();
   }
 }
 
@@ -9381,18 +9399,23 @@ function editAgent(agent) {
   document.getElementById('agentModalTitle').innerText = 'Editar Parceiro';
   document.getElementById('agent-id').value = agent.id;
   document.getElementById('agent-name').value = agent.name;
-  document.getElementById('agent-email').value = agent.email || '';
   const agentTypes = partnerTypesOf(agent);
   document.querySelectorAll('input[name="agent-type"]').forEach(input => { input.checked = agentTypes.includes(input.value); });
+  toggleAgentGroundServicesVisibility();
   document.getElementById('agent-address').value = agent.address || '';
   document.getElementById('agent-phone').value = agent.phone || '';
   document.getElementById('agent-website').value = agent.website || '';
-  
+
   document.getElementById('agent-contacts-container').innerHTML = '';
-  if (agent.contacts && Array.isArray(agent.contacts)) {
-    agent.contacts.forEach(c => addAgentContact(c.name || '', c.email || '', c.phone || '', c.role || ''));
+  if (agent.contacts && Array.isArray(agent.contacts) && agent.contacts.length) {
+    // Registros antigos não têm um contato marcado como principal — usa o
+    // que bate com o e-mail legado do parceiro, ou o primeiro da lista.
+    const primaryIndex = agent.contacts.findIndex(c => c.isPrimary) >= 0
+      ? agent.contacts.findIndex(c => c.isPrimary)
+      : agent.contacts.findIndex(c => c.email && agent.email && c.email.toLowerCase() === agent.email.toLowerCase());
+    agent.contacts.forEach((c, i) => addAgentContact(c.name || '', c.email || '', c.phone || '', c.role || '', i === (primaryIndex >= 0 ? primaryIndex : 0)));
   }
-  
+
   const modalsArr = (agent.modals || '').split(',').map(m => m.trim());
   document.querySelectorAll('input[name="agent-modal"]').forEach(cb => {
     cb.checked = modalsArr.includes(cb.value) || agent.modals === 'ALL';
@@ -9428,10 +9451,9 @@ async function saveAgent() {
   btn.innerText = 'Salvando...';
   
   const name = document.getElementById('agent-name').value;
-  const email = document.getElementById('agent-email').value;
   const types = Array.from(document.querySelectorAll('input[name="agent-type"]:checked')).map(input => input.value);
   const type = types[0];
-  
+
   if (!name) {
     toast('⚠️ Nome do parceiro é obrigatório.');
     btn.disabled = false;
@@ -9445,15 +9467,9 @@ async function saveAgent() {
     btn.innerText = 'Salvar Parceiro';
     return;
   }
-  
+
   const requiresCoverage = types.some(value => ['AGENTE', 'COLOADER', 'DESCONSOLIDADOR'].includes(value));
-  if (requiresCoverage && !email) {
-    toast('⚠️ E-mail é obrigatório para agentes, coloaders e desconsolidadores.');
-    btn.disabled = false;
-    btn.innerText = 'Salvar Parceiro';
-    return;
-  }
-  
+
   const selectedModals = Array.from(document.querySelectorAll('input[name="agent-modal"]:checked')).map(cb => cb.value);
   if (requiresCoverage && selectedModals.length === 0) {
     toast('⚠️ Por favor, selecione ao menos um Modal Atendido.');
@@ -9482,10 +9498,36 @@ async function saveAgent() {
     const cRole = row.querySelector('.contact-role').value.trim();
     const cEmail = row.querySelector('.contact-email').value.trim();
     const cPhone = row.querySelector('.contact-phone').value.trim();
+    const cPrincipal = row.querySelector('.contact-principal').checked;
     if (cName || cEmail || cPhone || cRole) {
-      contacts.push({ name: cName, role: cRole, email: cEmail, phone: cPhone });
+      contacts.push({ name: cName, role: cRole, email: cEmail, phone: cPhone, isPrimary: cPrincipal });
     }
   });
+
+  if (!contacts.length) {
+    toast('⚠️ Cadastre pelo menos um contato antes de salvar o parceiro.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Parceiro';
+    return;
+  }
+  const principalIndex = contacts.findIndex(c => c.isPrimary);
+  if (principalIndex === -1) {
+    toast('⚠️ Marque qual contato é o Principal.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Parceiro';
+    return;
+  }
+  if (!contacts[principalIndex].email) {
+    toast('⚠️ O contato Principal precisa ter um e-mail informado.');
+    btn.disabled = false;
+    btn.innerText = 'Salvar Parceiro';
+    return;
+  }
+  // Mantém o contato Principal como o primeiro do array — outras partes do
+  // sistema já assumem que o primeiro contato da lista é o principal.
+  const [principalContact] = contacts.splice(principalIndex, 1);
+  contacts.unshift(principalContact);
+  const email = principalContact.email;
 
   const payload = {
     name,
