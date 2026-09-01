@@ -153,7 +153,7 @@ Para cada imagem, transcreva apenas texto legível e extraia nome, telefone, e-m
 Marque isSignature=false quando for apenas logo/ícone. Não invente dados e não use texto de outras imagens para completar uma leitura. Retorne confiança entre 0 e 1.`;
   const selectedMedia = mediaParts.slice(0, 6);
   const content = await buildTokenSafeContent(model, prompt, selectedMedia);
-  const result = await model.generateContent(content);
+  const result = await withRetry(() => model.generateContent(content));
   const parsed = JSON.parse(result.response.text().trim());
   return Array.isArray(parsed?.readings) ? parsed.readings.map((item: any, index: number) => ({
     ...item, filename: item.filename || selectedMedia[index]?.filename || `signature_${index + 1}`,
@@ -163,29 +163,37 @@ Marque isSignature=false quando for apenas logo/ícone. Não invente dados e nã
   })).filter((item: any) => item.isSignature && Number(item.confidence || 0) >= 0.45) : [];
 }
 
-// Retry com backoff exponencial para lidar com 429 temporários da API Gemini
+// Retry com backoff exponencial para lidar com falhas temporárias da API Gemini
+// (429 rate limit e 503 sobrecarga/high demand — ambos a própria Google
+// recomenda tentar de novo).
 async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   const delays = [5000, 10000, 20000];
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (error: any) {
-      const is429 = error?.message?.includes('429') || error?.message?.includes('Too Many Requests');
-      const isBilling = error?.message?.includes('prepayment') || error?.message?.includes('depleted');
-      
-      // Se for 429 temporário (rate limit), tenta novamente
-      if (is429 && !isBilling && attempt < maxAttempts - 1) {
+      const message = String(error?.message || '');
+      const is429 = message.includes('429') || message.includes('Too Many Requests');
+      const is503 = message.includes('503') || /service unavailable|overloaded|high demand/i.test(message);
+      const isBilling = message.includes('prepayment') || message.includes('depleted');
+      const isRetryable = (is429 || is503) && !isBilling;
+
+      if (isRetryable && attempt < maxAttempts - 1) {
         const wait = delays[attempt] || 20000;
-        console.warn(`[Gemini] 429 recebido. Tentativa ${attempt + 1}/${maxAttempts}. Aguardando ${wait/1000}s...`);
+        console.warn(`[Gemini] Falha temporária (${is503 ? '503' : '429'}). Tentativa ${attempt + 1}/${maxAttempts}. Aguardando ${wait/1000}s...`);
         await new Promise(r => setTimeout(r, wait));
         continue;
       }
-      // Se for billing (créditos esgotados) ou última tentativa, lança imediatamente
+      // Esgotou as tentativas de um erro retryable, ou é um erro definitivo
+      // (billing, etc.) — sinaliza pro chamador dar uma mensagem amigável.
+      if (isRetryable) error.isRetryExhausted = true;
       throw error;
     }
   }
   throw new Error('Máximo de tentativas atingido');
 }
+
+const AI_OVERLOAD_MESSAGE = 'O serviço de IA está temporariamente sobrecarregado. Tentamos algumas vezes automaticamente e não conseguimos — tente novamente em alguns minutos.';
 
 export const extractClientData = async (text: string, contextRules: string = '', mediaParts: any[] = []) => {
 
@@ -390,7 +398,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
 
     const contentPayload = await buildTokenSafeContent(model, prompt, mediaParts);
 
-    const result = await model.generateContent(contentPayload);
+    const result = await withRetry(() => model.generateContent(contentPayload));
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.route?.incoterm) {
       parsed.route.incoterm = normalizeIncotermText(parsed.route.incoterm);
@@ -420,6 +428,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
   } catch (error: any) {
     console.error('[extractClientData] ERRO REAL:', error?.message || error);
     if (error?.response) console.error('[extractClientData] API response:', JSON.stringify(error.response));
+    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
     throw new Error('Falha ao processar dados do cliente com IA: ' + (error?.message || String(error)));
   }
 };
@@ -529,9 +538,12 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
 
     Retorne APENAS o corpo do e-mail.`;
 
-    const result = await model.generateContent(prompt);
+    const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
-  } catch (error) { throw new Error('Falha ao gerar rascunho com IA'); }
+  } catch (error: any) {
+    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
+    throw new Error('Falha ao gerar rascunho com IA');
+  }
 };
 
 export const generateTruckerDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string) => {
@@ -565,9 +577,10 @@ export const generateTruckerDraft = async (data: DraftPayload, contextRules: str
 
     Retorne APENAS o corpo do e-mail.`;
 
-    const result = await model.generateContent(prompt);
+    const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
     throw new Error('Falha ao gerar rascunho de transportadora com IA');
   }
 };
@@ -598,9 +611,12 @@ REGRAS CADASTRADAS:
 ${contextRules}
 
 Finalize apenas com "Atenciosamente,". Retorne somente o corpo do e-mail.`;
-    const result = await model.generateContent(prompt);
+    const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
-  } catch { throw new Error('Falha ao gerar rascunho de DTA com IA'); }
+  } catch (error: any) {
+    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
+    throw new Error('Falha ao gerar rascunho de DTA com IA');
+  }
 };
 
 export const extractAgentCosts = async (
@@ -844,7 +860,7 @@ export const extractAgentCosts = async (
 
     const contentPayload = await buildTokenSafeContent(model, prompt, mediaParts);
 
-    const result = await model.generateContent(contentPayload);
+    const result = await withRetry(() => model.generateContent(contentPayload));
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.costs) {
       parsed.costs.freight_currency = normalizeCurrency(parsed.costs.freight_currency);
@@ -868,6 +884,7 @@ export const extractAgentCosts = async (
     if (String(error?.message || '').toLowerCase().includes('token')) {
       throw new Error('O retorno do agente contém mais informações do que a IA consegue processar de uma vez. Remova anexos que não contenham valores da cotação e tente novamente.');
     }
+    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
     throw new Error('Falha ao processar custos com IA: ' + (error?.message || String(error)));
   }
 };
@@ -898,10 +915,11 @@ export const translateDraftText = async (text: string, targetLanguage: string, o
     E-MAIL ORIGINAL:
     ${text}`;
 
-    const result = await model.generateContent(prompt);
+    const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
   } catch (error: any) {
     console.error('[translateDraftText] ERRO:', error);
+    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
     throw new Error('Falha ao traduzir rascunho com IA: ' + (error?.message || String(error)));
   }
 };
