@@ -2270,15 +2270,15 @@
           </div>
           
           <div id="rev-calc-cubed-container" style="display:flex; flex-direction:column; gap:4px; transition: opacity 0.2s ease;">
-            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Peso Cubado Aéreo (kg)</span>
+            <span id="rev-calc-cubed-label" style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Peso Cubado Aéreo (kg)</span>
             <div style="display:flex; align-items:baseline; gap:4px;">
               <span id="rev-calc-cubed-weight" style="font-size:20px; font-weight:800; color:var(--gold); font-family:monospace;">0.00</span>
               <span style="font-size:12px; font-weight:600; color:var(--text-muted);">kg</span>
             </div>
           </div>
-          
+
           <div id="rev-calc-taxable-container" style="display:flex; flex-direction:column; gap:4px; border-left:1px solid rgba(255,255,255,0.1); padding-left:16px;">
-            <span style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
+            <span id="rev-calc-taxable-label" style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
               ⚖️ Peso/Medida Taxável Final
             </span>
             <div style="display:flex; align-items:baseline; gap:4px;">
@@ -2831,6 +2831,10 @@ function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType,
         taxavel = minWeight;
       }
     }
+    // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
+    // (padrão IATA TACT) — aplicado aqui na fonte pra manter frete por kg,
+    // taxas PER_KG do Incoterm e o painel de cubagem sempre consistentes.
+    taxavel = Math.ceil(taxavel * 2) / 2;
   } else if (isLcl) {
     taxavel = parseFloat(totalCbm) || 0;
     if (taxavel <= 0) {
@@ -2928,11 +2932,15 @@ function updateModalCalculatedWeights() {
   const cubedEl = document.getElementById('rev-calc-cubed-weight');
   const taxEl = document.getElementById('rev-calc-taxable-weight');
   const taxUnitEl = document.getElementById('rev-calc-taxable-unit');
+  const cubedLabelEl = document.getElementById('rev-calc-cubed-label');
+  const taxLabelEl = document.getElementById('rev-calc-taxable-label');
 
   if (cbmEl) cbmEl.textContent = cbmFormatted;
   if (cubedEl) cubedEl.textContent = airCubadoFormatted;
   if (taxEl) taxEl.textContent = taxableFormatted;
   if (taxUnitEl) taxUnitEl.textContent = taxableUnit;
+  if (cubedLabelEl) cubedLabelEl.textContent = isAir ? 'Chargeable Weight (kg)' : 'Peso Cubado Aéreo (kg)';
+  if (taxLabelEl) taxLabelEl.textContent = isAir ? '⚖️ Chargeable Weight Taxável' : '⚖️ Peso/Medida Taxável Final';
 
   // Destaques baseados no modal
   const cbmContainer = document.getElementById('rev-calc-cbm-container');
