@@ -746,6 +746,8 @@
     border-color:rgba(245,166,35,.72); box-shadow:0 0 0 3px rgba(245,166,35,.10); background:#0c1321;
   }
   input[type="checkbox"] { accent-color:var(--gold); }
+  .profit-pct-input { appearance:textfield; -moz-appearance:textfield; }
+  .profit-pct-input::-webkit-inner-spin-button, .profit-pct-input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   .form-group .compact-checkbox {
     min-height:44px; margin:0; display:inline-flex; align-items:center; justify-content:flex-start; gap:8px;
     cursor:pointer;
@@ -2423,15 +2425,15 @@
           <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; height:38px;">
             <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
               <input type="checkbox" id="rev-profit-target-freight" checked onchange="onProfitTargetToggle()" style="width:15px; height:15px; flex-shrink:0; accent-color:#10B981;"> Frete
-              <input type="number" id="rev-profit-pct-freight" value="100" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" onchange="onProfitPctInput()">%
+              <input type="number" id="rev-profit-pct-freight" value="100" min="0" max="100" step="1" class="profit-pct-input" style="width:58px; border:1px solid #10B981; text-align:center;" onchange="onProfitPctInput()">%
             </label>
             <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
               <input type="checkbox" id="rev-profit-target-origin" onchange="onProfitTargetToggle()" style="width:15px; height:15px; flex-shrink:0; accent-color:#10B981;"> Origem
-              <input type="number" id="rev-profit-pct-origin" value="0" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" disabled onchange="onProfitPctInput()">%
+              <input type="number" id="rev-profit-pct-origin" value="0" min="0" max="100" step="1" class="profit-pct-input" style="width:58px; border:1px solid #10B981; text-align:center;" disabled onchange="onProfitPctInput()">%
             </label>
             <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;">
               <input type="checkbox" id="rev-profit-target-destination" onchange="onProfitTargetToggle()" style="width:15px; height:15px; flex-shrink:0; accent-color:#10B981;"> Destino
-              <input type="number" id="rev-profit-pct-destination" value="0" min="0" max="100" step="1" style="width:52px; border:1px solid #10B981;" disabled onchange="onProfitPctInput()">%
+              <input type="number" id="rev-profit-pct-destination" value="0" min="0" max="100" step="1" class="profit-pct-input" style="width:58px; border:1px solid #10B981; text-align:center;" disabled onchange="onProfitPctInput()">%
             </label>
           </div>
         </div>
