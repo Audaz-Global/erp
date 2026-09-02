@@ -13,6 +13,7 @@ import { applyRateValidityPolicy, rateValidityFields } from '../services/rateVal
 import { quotationChanges, recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
 import { evaluateIncotermApplicability, withIncotermApplicability } from '../services/incotermApplicabilityService';
+import { getGeographicComparisonAlerts } from '../services/geographicComparisonService';
 import { normalizeIncotermText } from '../services/incotermAliasService';
 import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
@@ -1118,6 +1119,27 @@ export const previewIncotermApplicability = async (req: Request, res: Response) 
       customsClearanceIncluded: Boolean(customsClearanceContracted)
     });
     res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Compara o custo histórico da rota atual com o de portos/aeroportos
+// próximos (mesmo cluster geográfico) para o mesmo modal/direção, alertando
+// quando uma alternativa próxima sai significativamente mais barata.
+export const previewGeographicComparison = async (req: Request, res: Response) => {
+  try {
+    const {
+      originPort, originCountry, destinationPort, destinationCountry,
+      modal, direction, freightValue, freightCurrency
+    } = req.body || {};
+    const alerts = await getGeographicComparisonAlerts({
+      originPort, originCountry, destinationPort, destinationCountry,
+      modal, direction,
+      freightValue: freightValue != null && freightValue !== '' ? Number(freightValue) : null,
+      freightCurrency
+    });
+    res.json({ alerts });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

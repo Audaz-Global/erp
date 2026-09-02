@@ -14,7 +14,8 @@ import {
   updatePhase,
   duplicateQuotation,
   getPublicWebView,
-  previewIncotermApplicability
+  previewIncotermApplicability,
+  previewGeographicComparison
 } from '../controllers/quotationController';
 
 const router = Router();
@@ -30,6 +31,7 @@ router.post('/', createQuotation);
 router.get('/', getQuotations);
 router.get('/metrics/partner-responses', getPartnerResponseMetrics);
 router.post('/incoterm-applicability-preview', previewIncotermApplicability);
+router.post('/geographic-comparison-preview', previewGeographicComparison);
 router.get('/:id/timeline', getQuotationTimeline);
 router.get('/:id/proposals', getProposalComparison);
 router.post('/:id/proposals/:proposalId/select', selectPartnerProposal);

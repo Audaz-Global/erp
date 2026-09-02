@@ -2101,7 +2101,7 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Modal</label>
-          <select id="rev-modal">
+          <select id="rev-modal" onchange="scheduleGeoComparisonAlerts('rev')">
             <option value="AIR">✈️ Aéreo (AIR)</option>
             <option value="SEA">🚢 Marítimo (SEA)</option>
           </select>
@@ -2122,14 +2122,14 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Direção</label>
-          <select id="rev-direction">
+          <select id="rev-direction" onchange="scheduleGeoComparisonAlerts('rev')">
             <option value="IMPORT">Importação (IMPORT)</option>
             <option value="EXPORT">Exportação (EXPORT)</option>
           </select>
         </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Origem (Porto ou Aeroporto)</label>
-          <input type="text" id="rev-origin-port" placeholder="Ex: SZX - Shenzhen">
+          <input type="text" id="rev-origin-port" placeholder="Ex: SZX - Shenzhen" onchange="scheduleGeoComparisonAlerts('rev')">
         </div>
         <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Local Inicial (Cidade/Estado/País)</label>
@@ -2137,11 +2137,11 @@
         </div>
         <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Origem (País)</label>
-          <input type="text" id="rev-origin-country" placeholder="Ex: China">
+          <input type="text" id="rev-origin-country" placeholder="Ex: China" onchange="scheduleGeoComparisonAlerts('rev')">
         </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Destino (Porto ou Aeroporto)</label>
-          <input type="text" id="rev-dest-port" placeholder="Ex: GRU - Guarulhos">
+          <input type="text" id="rev-dest-port" placeholder="Ex: GRU - Guarulhos" onchange="scheduleGeoComparisonAlerts('rev')">
         </div>
         <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Destino Final (Cidade/Estado/País)</label>
@@ -2149,8 +2149,9 @@
         </div>
         <div class="form-group" style="margin:0;grid-column:span 2;">
           <label style="font-size:11px;">Destino (País)</label>
-          <input type="text" id="rev-dest-country" placeholder="Ex: Brazil">
+          <input type="text" id="rev-dest-country" placeholder="Ex: Brazil" onchange="scheduleGeoComparisonAlerts('rev')">
         </div>
+        <div id="rev-geo-alerts" style="grid-column:1/-1;"></div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Conexões do Voo ou do Porto</label>
           <input type="text" id="rev-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
@@ -3882,6 +3883,7 @@ function syncReviewCostEditor() {
   const grandEl=document.getElementById('cost-grand-values'); if(grandEl) grandEl.innerHTML=`${escapeFeeHtml(grandLabel)}<small>Equivalente estimado: BRL ${reviewCostAmount(equivalentBrl)} · USD 5,05 · EUR 5,50</small>`;
   document.getElementById('r-total').value = equivalentBrl.toFixed(2);
   scheduleIncotermApplicabilityAlerts('rev');
+  scheduleGeoComparisonAlerts('rev');
 }
 
 function syncCustomsPanelToCostEditor() {
@@ -4019,6 +4021,56 @@ async function renderIncotermApplicabilityAlerts(prefix) {
 
   const alerts = await fetchIncotermApplicabilityAlerts(prefix);
   panel.innerHTML = alerts.map(a => `<div style="margin-top:6px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">⚠️ ${ifrEscape(a.message)}</div>`).join('');
+  panel.style.display = alerts.length ? 'block' : 'none';
+}
+
+// Análise Geográfica Comparativa: alerta quando a rota atual, com base no
+// histórico de cotações, sai significativamente mais cara que um porto/
+// aeroporto próximo (mesmo cluster geográfico) para o mesmo modal/direção.
+let geoComparisonDebounce = null;
+function scheduleGeoComparisonAlerts(prefix) {
+  clearTimeout(geoComparisonDebounce);
+  geoComparisonDebounce = setTimeout(() => renderGeoComparisonAlerts(prefix), 400);
+}
+
+function buildGeoComparisonBody(prefix) {
+  const modal = document.getElementById(`${prefix}-modal`)?.value;
+  const direction = document.getElementById(`${prefix}-direction`)?.value;
+  const originPort = document.getElementById(`${prefix}-origin-port`)?.value;
+  const destPort = document.getElementById(prefix === 'rev' ? 'rev-dest-port' : `${prefix}-destination-port`)?.value;
+  if (!modal || !direction || (!originPort && !destPort)) return null;
+  return {
+    modal, direction,
+    originPort,
+    originCountry: document.getElementById(`${prefix}-origin-country`)?.value,
+    destinationPort: destPort,
+    destinationCountry: document.getElementById(prefix === 'rev' ? 'rev-dest-country' : `${prefix}-destination-country`)?.value,
+    freightValue: document.getElementById(`${prefix}-freight`)?.value || null,
+    freightCurrency: document.getElementById(`${prefix}-freight-currency`)?.value || null
+  };
+}
+
+async function fetchGeoComparisonAlerts(prefix) {
+  const body = buildGeoComparisonBody(prefix);
+  if (!body) return [];
+  try {
+    const res = await fetch(API + '/quotations/geographic-comparison-preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    return res.ok ? (data.alerts || []) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function renderGeoComparisonAlerts(prefix) {
+  const panel = document.getElementById(`${prefix}-geo-alerts`);
+  if (!panel) return;
+  if (!buildGeoComparisonBody(prefix)) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+  const alerts = await fetchGeoComparisonAlerts(prefix);
+  panel.innerHTML = alerts.map(a => `<div style="margin-top:6px;padding:9px 11px;border:1px solid rgba(64,156,255,.35);border-radius:8px;background:rgba(64,156,255,.06);color:#7fb2ff;font-size:12px;">🗺️ ${ifrEscape(a.message)}</div>`).join('');
   panel.style.display = alerts.length ? 'block' : 'none';
 }
 
