@@ -3994,6 +3994,20 @@ function buildIncotermApplicabilityBody(prefix) {
     direction: document.getElementById(`${prefix}-direction`)?.value || '',
     originServices: parseFeeText(document.getElementById(`${prefix}-origin-services`)?.value),
     destinationServices: parseFeeText(document.getElementById(`${prefix}-destination-services`)?.value),
+    // O catálogo de regras de Incoterm usa um único financialGroup
+    // (FREIGHT_COMPONENT) tanto para o frete base quanto para os componentes
+    // extras — não existe uma regra dedicada ao financialGroup INTERNATIONAL_FREIGHT
+    // usado internamente pelo editor de custos para a linha principal do frete.
+    // Por isso aqui todas as linhas de frete (principal + extras) são enviadas
+    // com FREIGHT_COMPONENT, para casar com a convenção real do catálogo.
+    freightServices: prefix === 'rev'
+      ? (window.reviewCostLines?.freight || []).map(line => ({
+          name: line.name,
+          financialGroup: 'FREIGHT_COMPONENT',
+          applicationScope: 'FREIGHT',
+          totalValue: reviewCostTotal(line)
+        }))
+      : [],
     isDangerousGoods: document.getElementById(`${prefix}-imo`)?.value === 'CONFIRMED',
     insuranceRequested: document.getElementById(`${prefix}-insurance`)?.value === 'true',
     customsClearanceContracted: Boolean(document.getElementById(`${prefix}-customs-clearance`)?.checked),

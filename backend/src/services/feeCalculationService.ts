@@ -232,7 +232,7 @@ export function normalizeFee(fee: any) {
   };
 }
 
-export function normalizeFeeList(value: unknown, defaultScope?: 'ORIGIN' | 'DESTINATION'): any[] {
+export function normalizeFeeList(value: unknown, defaultScope?: 'ORIGIN' | 'DESTINATION' | 'FREIGHT'): any[] {
   let fees: any[] = [];
   if (Array.isArray(value)) fees = value;
   else if (typeof value === 'string') {

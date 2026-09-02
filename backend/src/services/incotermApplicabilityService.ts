@@ -86,7 +86,7 @@ function specificityScore(rule: { incoterm: string; modal: string; direction: st
  * fallback para regras legadas sem financialGroup cadastrado.
  */
 function matchRuleForFee(fee: any, rules: any[]) {
-  const feeType = fee.applicationScope === 'ORIGIN' ? 'ORIGIN' : fee.applicationScope === 'DESTINATION' ? 'DESTINATION' : null;
+  const feeType = fee.applicationScope === 'ORIGIN' ? 'ORIGIN' : fee.applicationScope === 'DESTINATION' ? 'DESTINATION' : fee.applicationScope === 'FREIGHT' ? 'FREIGHT' : null;
   if (!feeType) return null;
   const candidates = rules.filter(rule => rule.feeType === feeType);
   const byFinancialGroup = fee.financialGroup && fee.financialGroup !== 'TO_CONFIRM'
@@ -136,11 +136,11 @@ function annotateFee(fee: any, rules: any[], ctx: ApplicabilityContext, alerts: 
   return { ...fee, incotermApplicability: rule.applicability, incotermRuleReason: rule.reason || null };
 }
 
-function requiredMissingAlerts(originFees: any[], destinationFees: any[], rules: any[]) {
+function requiredMissingAlerts(originFees: any[], destinationFees: any[], freightFees: any[], rules: any[]) {
   const alerts: Array<{ code: string; level: 'INFO' | 'WARNING'; message: string; feeNames?: string[] }> = [];
   const requiredRules = rules.filter(rule => rule.applicability === APPLICABILITY.REQUIRED && rule.financialGroup);
   for (const rule of requiredRules) {
-    const fees = rule.feeType === 'ORIGIN' ? originFees : destinationFees;
+    const fees = rule.feeType === 'ORIGIN' ? originFees : rule.feeType === 'FREIGHT' ? freightFees : destinationFees;
     const present = fees.some(fee => fee.financialGroup === rule.financialGroup && (fee.totalValue ?? fee.value ?? 0) > 0);
     if (!present) {
       alerts.push({
@@ -167,15 +167,33 @@ export async function evaluateIncotermApplicability(quotation: any) {
     customsClearanceContracted: Boolean(quotation.customsClearanceIncluded)
   };
 
+  // Cotações persistidas não têm um array de linhas de frete — só o campo
+  // escalar freightValue. O preview ao vivo da Revisão Final (que tem acesso às
+  // linhas de window.reviewCostLines.freight, incluindo a linha principal) envia
+  // freightServices como array. Aceita os dois formatos.
+  const freightFeesInput = quotation.freightServices != null
+    ? quotation.freightServices
+    : Number(quotation.freightValue) > 0
+      ? [{ name: 'Frete', financialGroup: 'FREIGHT_COMPONENT', applicationScope: 'FREIGHT', totalValue: Number(quotation.freightValue) }]
+      : [];
+
   const rules = await getRulesForApplicability(incoterm, modal, direction);
-  if (rules.length === 0) return { originFees: normalizeFeeList(quotation.originServices, 'ORIGIN'), destinationFees: normalizeFeeList(quotation.destinationServices, 'DESTINATION'), alerts: [] };
+  if (rules.length === 0) {
+    return {
+      originFees: normalizeFeeList(quotation.originServices, 'ORIGIN'),
+      destinationFees: normalizeFeeList(quotation.destinationServices, 'DESTINATION'),
+      freightFees: normalizeFeeList(freightFeesInput, 'FREIGHT'),
+      alerts: []
+    };
+  }
 
   const alerts: Array<{ code: string; level: 'INFO' | 'WARNING'; message: string; feeNames?: string[] }> = [];
   const originFees = normalizeFeeList(quotation.originServices, 'ORIGIN').map(fee => annotateFee(fee, rules, ctx, alerts));
   const destinationFees = normalizeFeeList(quotation.destinationServices, 'DESTINATION').map(fee => annotateFee(fee, rules, ctx, alerts));
-  alerts.push(...requiredMissingAlerts(originFees, destinationFees, rules));
+  const freightFees = normalizeFeeList(freightFeesInput, 'FREIGHT').map(fee => annotateFee(fee, rules, ctx, alerts));
+  alerts.push(...requiredMissingAlerts(originFees, destinationFees, freightFees, rules));
 
-  return { originFees, destinationFees, alerts };
+  return { originFees, destinationFees, freightFees, alerts };
 }
 
 export async function withIncotermApplicability<T extends object>(quotation: T): Promise<T & { incotermApplicability: Awaited<ReturnType<typeof evaluateIncotermApplicability>> }> {

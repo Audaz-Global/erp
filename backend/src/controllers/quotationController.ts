@@ -1108,12 +1108,12 @@ export const previewIncotermApplicability = async (req: Request, res: Response) 
   try {
     const {
       incoterm, modal, loadType, direction,
-      originServices, destinationServices,
+      originServices, destinationServices, freightServices,
       isDangerousGoods, insuranceRequested, customsClearanceContracted
     } = req.body || {};
     const result = await evaluateIncotermApplicability({
       incoterm, modal, loadType, direction,
-      originServices, destinationServices,
+      originServices, destinationServices, freightServices,
       dangerousGoodsProductCount: isDangerousGoods ? 1 : 0,
       requiresInsurance: Boolean(insuranceRequested),
       customsClearanceIncluded: Boolean(customsClearanceContracted)
