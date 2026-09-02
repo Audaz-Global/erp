@@ -59,6 +59,13 @@ export interface GeoComparisonInput {
   direction?: string | null;
   freightValue?: number | null;
   freightCurrency?: string | null;
+  // Coleta até o porto/aeroporto de origem — o mesmo frete pode ficar mais
+  // caro no total se o porto escolhido exigir um inland maior.
+  originInlandValue?: number | null;
+  originInlandCurrency?: string | null;
+  // Taxas locais de destino (proxy para custo de entrega/last-mile) — já
+  // convertido para USD pelo frontend, no mesmo padrão salvo no banco.
+  destinationServicesTotalUsd?: number | null;
 }
 
 export interface GeoComparisonAlert {
@@ -87,14 +94,27 @@ async function historicalAveragesByPort(
       freightValue: { not: null, gt: 0 },
       createdAt: { gte: since }
     },
-    select: { [portField]: true, freightValue: true, freightCurrency: true } as any
+    select: {
+      [portField]: true,
+      freightValue: true,
+      freightCurrency: true,
+      ...(side === 'ORIGIN'
+        ? { originInlandValue: true, originInlandCurrency: true }
+        : { destinationServicesTotal: true })
+    } as any
   });
 
   const byLabel = new Map<string, { total: number; count: number }>();
   for (const row of rows as any[]) {
     const label = matchedPortLabel(cluster, row[portField]);
     if (!label) continue;
-    const usd = toUsdApprox(Number(row.freightValue), row.freightCurrency);
+    let usd = toUsdApprox(Number(row.freightValue), row.freightCurrency);
+    if (side === 'ORIGIN' && row.originInlandValue) {
+      usd += toUsdApprox(Number(row.originInlandValue), row.originInlandCurrency);
+    } else if (side === 'DESTINATION' && row.destinationServicesTotal) {
+      // destinationServicesTotal já é salvo em USD-equivalente.
+      usd += Number(row.destinationServicesTotal);
+    }
     if (!Number.isFinite(usd) || usd <= 0) continue;
     const entry = byLabel.get(label) || { total: 0, count: 0 };
     entry.total += usd;
@@ -109,7 +129,8 @@ async function evaluateSide(
   portText: string | undefined | null,
   modal: string,
   direction: string,
-  currentFreightUsd: number | null
+  currentTotalUsd: number | null,
+  hasExtraCostSignal: boolean
 ): Promise<GeoComparisonAlert | null> {
   if (!portText) return null;
   const cluster = findCluster(portText);
@@ -119,7 +140,7 @@ async function evaluateSide(
 
   const averages = await historicalAveragesByPort(side, cluster, modal, direction);
 
-  let currentAvg = currentFreightUsd;
+  let currentAvg = currentTotalUsd;
   if (currentAvg == null) {
     const own = averages.get(ownLabel);
     if (!own || own.count < MIN_SAMPLES) return null;
@@ -140,13 +161,15 @@ async function evaluateSide(
   if (diffPercent < MIN_DIFF_PERCENT) return null;
 
   const sideLabel = side === 'ORIGIN' ? 'origem' : 'destino';
+  const costLabel = side === 'ORIGIN' ? 'frete + transporte até o porto/aeroporto' : 'frete + taxas locais estimadas de destino';
+  const caveat = hasExtraCostSignal ? '' : ' (estimativa considera só o frete — informe o inland/taxas locais para uma comparação mais precisa)';
   return {
     side,
     currentPort: ownLabel,
     cheaperPort: best.label,
     diffPercent: Math.round(diffPercent),
     sampleCount: best.count,
-    message: `Rotas via ${ownLabel} (${sideLabel}) custam em média ${Math.round(diffPercent)}% a mais que via ${best.label}, com base em ${best.count} cotações recentes. Vale avaliar ${best.label} como alternativa.`
+    message: `Considerando ${costLabel}, rotas via ${ownLabel} (${sideLabel}) saem em média ${Math.round(diffPercent)}% mais caras que via ${best.label}, com base em ${best.count} cotações recentes${caveat}. Vale avaliar ${best.label} como alternativa.`
   };
 }
 
@@ -155,13 +178,21 @@ export async function getGeographicComparisonAlerts(input: GeoComparisonInput): 
   const direction = (input.direction || '').toUpperCase();
   if (!modal || !direction) return [];
 
-  const currentFreightUsd = input.freightValue && input.freightValue > 0
+  const freightUsd = input.freightValue && input.freightValue > 0
     ? toUsdApprox(Number(input.freightValue), input.freightCurrency)
     : null;
 
+  const hasOriginInland = Boolean(input.originInlandValue && input.originInlandValue > 0);
+  const currentOriginTotalUsd = freightUsd == null ? null
+    : freightUsd + (hasOriginInland ? toUsdApprox(Number(input.originInlandValue), input.originInlandCurrency) : 0);
+
+  const hasDestinationExtra = Boolean(input.destinationServicesTotalUsd && input.destinationServicesTotalUsd > 0);
+  const currentDestinationTotalUsd = freightUsd == null ? null
+    : freightUsd + (hasDestinationExtra ? Number(input.destinationServicesTotalUsd) : 0);
+
   const [originAlert, destinationAlert] = await Promise.all([
-    evaluateSide('ORIGIN', input.originPort, modal, direction, currentFreightUsd),
-    evaluateSide('DESTINATION', input.destinationPort, modal, direction, currentFreightUsd)
+    evaluateSide('ORIGIN', input.originPort, modal, direction, currentOriginTotalUsd, hasOriginInland),
+    evaluateSide('DESTINATION', input.destinationPort, modal, direction, currentDestinationTotalUsd, hasDestinationExtra)
   ]);
 
   return [originAlert, destinationAlert].filter((a): a is GeoComparisonAlert => Boolean(a));

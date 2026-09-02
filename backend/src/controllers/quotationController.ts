@@ -1131,13 +1131,17 @@ export const previewGeographicComparison = async (req: Request, res: Response) =
   try {
     const {
       originPort, originCountry, destinationPort, destinationCountry,
-      modal, direction, freightValue, freightCurrency
+      modal, direction, freightValue, freightCurrency,
+      originInlandValue, originInlandCurrency, destinationServicesTotalUsd
     } = req.body || {};
     const alerts = await getGeographicComparisonAlerts({
       originPort, originCountry, destinationPort, destinationCountry,
       modal, direction,
       freightValue: freightValue != null && freightValue !== '' ? Number(freightValue) : null,
-      freightCurrency
+      freightCurrency,
+      originInlandValue: originInlandValue != null && originInlandValue !== '' ? Number(originInlandValue) : null,
+      originInlandCurrency,
+      destinationServicesTotalUsd: destinationServicesTotalUsd != null && destinationServicesTotalUsd !== '' ? Number(destinationServicesTotalUsd) : null
     });
     res.json({ alerts });
   } catch (error: any) {

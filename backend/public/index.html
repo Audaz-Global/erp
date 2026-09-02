@@ -2175,14 +2175,14 @@
           <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:10px;">🚚 INLAND DE ORIGEM (COLETA) — OPCIONAL</div>
           <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;">
             <div class="form-group" style="margin:0;"><label style="font-size:11px;">Rota</label><input type="text" id="rev-origin-inland-route" placeholder="Aachen → Frankfurt Airport"></div>
-            <div class="form-group" style="margin:0;"><label style="font-size:11px;">Valor</label><input type="number" id="rev-origin-inland-value" step="0.01" placeholder="0.00"></div>
+            <div class="form-group" style="margin:0;"><label style="font-size:11px;">Valor</label><input type="number" id="rev-origin-inland-value" step="0.01" placeholder="0.00" onchange="scheduleGeoComparisonAlerts('rev')"></div>
             <div class="form-group" style="margin:0;"><label style="font-size:11px;">Moeda</label><select id="rev-origin-inland-currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="BRL">BRL</option></select></div>
             <div class="form-group" style="margin:0;"><label style="font-size:11px;">Prazo</label><input type="text" id="rev-origin-inland-transit" placeholder="Ex: 1 dia"></div>
           </div>
         </div>
         <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Destino (Itemizadas)</label>
-          <textarea id="rev-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;"></textarea>
+          <textarea id="rev-destination-services" rows="4" placeholder="CCT fee: 10.00 USD&#10;Delivery Fee: 55.00 USD" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text); resize:vertical;" onchange="scheduleGeoComparisonAlerts('rev')"></textarea>
           <div id="rev-incoterm-alerts" style="grid-column:1/-1;"></div>
           <div id="rev-destination-fees-preview" style="margin-top:8px;overflow:auto;"></div>
           <div id="rev-isps-alerts" style="margin-top:8px;"></div>
@@ -4033,6 +4033,21 @@ function scheduleGeoComparisonAlerts(prefix) {
   geoComparisonDebounce = setTimeout(() => renderGeoComparisonAlerts(prefix), 400);
 }
 
+function geoComparisonDestinationServicesUsd(prefix) {
+  const raw = document.getElementById(`${prefix}-destination-services`)?.value || '';
+  if (!raw.trim()) return null;
+  let totalUsd = 0;
+  parseFeeText(raw).forEach(fee => {
+    const currency = fee.currency;
+    const value = fee.totalValue || 0;
+    if (!fee.name) return;
+    if (currency === 'EUR') totalUsd += value * 1.08;
+    else if (currency === 'BRL') totalUsd += value / 5.05;
+    else totalUsd += value;
+  });
+  return totalUsd || null;
+}
+
 function buildGeoComparisonBody(prefix) {
   const modal = document.getElementById(`${prefix}-modal`)?.value;
   const direction = document.getElementById(`${prefix}-direction`)?.value;
@@ -4046,7 +4061,10 @@ function buildGeoComparisonBody(prefix) {
     destinationPort: destPort,
     destinationCountry: document.getElementById(prefix === 'rev' ? 'rev-dest-country' : `${prefix}-destination-country`)?.value,
     freightValue: document.getElementById(`${prefix}-freight`)?.value || null,
-    freightCurrency: document.getElementById(`${prefix}-freight-currency`)?.value || null
+    freightCurrency: document.getElementById(`${prefix}-freight-currency`)?.value || null,
+    originInlandValue: document.getElementById(`${prefix}-origin-inland-value`)?.value || null,
+    originInlandCurrency: document.getElementById(`${prefix}-origin-inland-currency`)?.value || null,
+    destinationServicesTotalUsd: geoComparisonDestinationServicesUsd(prefix)
   };
 }
 
