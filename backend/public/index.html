@@ -5915,10 +5915,14 @@ async function saveAsAwaitingAgent() {
           agentEmail: undefined
         })
       });
-      await fetch(API + `/quotations/${currentQuotationId}/phase`, {
+      const resPhase = await fetch(API + `/quotations/${currentQuotationId}/phase`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO', agentEmail })
       });
+      if (!resPhase.ok) {
+        const errData = await resPhase.json().catch(() => ({}));
+        throw new Error(errData.error || 'Falha ao marcar cotação como Aguardando Parceiro');
+      }
     }
 
     toast('✅ Enviado para Aguardando Parceiro!');
@@ -7710,6 +7714,7 @@ function renderTable() {
             <button class="k-dropdown-item" onclick="closeActionsMenus();openEditQuotationModal('${q.id}')">✏️ Editar Cotação</button>
             <button class="k-dropdown-item" onclick="closeActionsMenus();downloadPdf('${q.id}')">📄 Baixar PDF</button>
             <button class="k-dropdown-item" onclick="closeActionsMenus();copyPublicLink('${q.id}')">🔗 Copiar Link da Versão Web</button>
+            ${q.status === 'CRIADA' ? `<button class="k-dropdown-item" onclick="closeActionsMenus();markAwaitingPartner('${q.id}')">📨 Marcar como Aguardando Parceiro</button>` : ''}
             <button class="k-dropdown-item danger" onclick="closeActionsMenus();deleteQuotation('${q.id}')">🗑️ Excluir</button>
           </div>
         </div>
@@ -7970,6 +7975,29 @@ async function deleteQuotation(id) {
       throw new Error('Falha ao excluir');
     }
   } catch(e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+// Recuperação manual para cotações que ficaram travadas em CRIADA — o rascunho
+// do e-mail foi gerado mas o envio ao parceiro nunca foi concluído (às vezes por
+// falha de validação de negócio, ex: CNPJ do cliente ausente). Não envia nada;
+// só reabre a cotação para a aba "Retorno do Parceiro", reaproveitando as mesmas
+// validações do fluxo normal de envio (updatePhase).
+async function markAwaitingPartner(id) {
+  if (!confirm('Marcar esta cotação como "Aguardando Parceiro"?\n\nIsso NÃO envia nenhum e-mail — use apenas se o e-mail já foi enviado ao parceiro por fora do sistema, ou para reativar um rascunho abandonado.')) return;
+  try {
+    const res = await fetch(`${API}/quotations/${id}/phase`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO' })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Falha ao marcar cotação como Aguardando Parceiro');
+    }
+    toast('📨 Cotação marcada como Aguardando Parceiro!');
+    loadQuotations();
+  } catch (e) {
     alert('Erro: ' + e.message);
   }
 }
