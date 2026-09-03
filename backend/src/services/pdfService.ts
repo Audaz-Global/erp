@@ -524,6 +524,12 @@ const defaultTemplate = `
     </table>
   </div>
 
+  {{#if stackableDisclaimer}}
+    <div style="margin-top: 15px; padding: 12px; border: 2px solid #F5A623; background-color: #FFF7E6; border-radius: 4px; font-size: 10px; color: #7A4B00; text-align: center; font-weight: 700;">
+      ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+    </div>
+  {{/if}}
+
   {{#if publicWebViewUrl}}
     <div style="margin-top: 15px; padding: 10px; border: 1.5px solid #1B2B6B; background-color: #f7f9ff; border-radius: 4px; font-size: 9px; color: #1B2B6B; text-align: center;">
       🌐 <strong>Versão Interativa BRL (R$):</strong> Para visualizar esta proposta convertida em reais (BRL) com a cotação do câmbio de hoje, <a href="{{publicWebViewUrl}}" style="color: #F5A623; font-weight: 700; text-decoration: underline;">clique aqui para acessar a versão web online</a>.
@@ -984,6 +990,12 @@ const defaultAirTemplate = `
       </tr>
     </table>
   </div>
+
+  {{#if stackableDisclaimer}}
+    <div style="margin-top: 15px; padding: 12px; border: 2px solid #F5A623; background-color: #FFF7E6; border-radius: 4px; font-size: 10px; color: #7A4B00; text-align: center; font-weight: 700;">
+      ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+    </div>
+  {{/if}}
 
   {{#if publicWebViewUrl}}
     <div style="margin-top: 15px; padding: 10px; border: 1.5px solid #1B2B6B; background-color: #f7f9ff; border-radius: 4px; font-size: 9px; color: #1B2B6B; text-align: center;">
@@ -1511,6 +1523,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
     hideCarrierName: Boolean(quotationData.hideCarrierName),
     dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
+    stackableDisclaimer: quotationData.stackableStatus === 'TO_CONFIRM',
     client: quotationData.client || { name: '—' },
     referenceNumber,
     referenceRich,
@@ -2083,6 +2096,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       totalGeralLabel,
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
       dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
+      stackableDisclaimer: quotationData.stackableStatus === 'TO_CONFIRM',
       logoBase64,
       hasOversizedAlert: hasOversizedCargo(quotationData.packages || ''),
       modalLabel,

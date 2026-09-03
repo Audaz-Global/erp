@@ -11,7 +11,7 @@ import { resolveFeeQuantities } from '../services/feeCalculationService';
 import { applyDomesticTransportEvidencePolicy } from '../utils/quotationRequestPolicy';
 import { applyStorageEstimateRequestPolicy, ensureStorageEstimateRequest } from '../services/storageEstimateService';
 import { applyHybridModalPolicy } from '../services/hybridModalService';
-import { tagPartnerCosts } from '../services/agentResponseService';
+import { tagPartnerCosts, applyStackableReviewPolicy } from '../services/agentResponseService';
 import { resolveFirstResponseContact } from '../services/contactResolutionService';
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
 
@@ -227,6 +227,7 @@ export const extractData = async (req: Request, res: Response) => {
       if (aiResult?.costs) {
         tagPartnerCosts(aiResult.costs, (quotation as any)?.partnerType);
         applyRateValidityPolicy(aiResult.costs);
+        applyStackableReviewPolicy(aiResult.costs, quotation);
       }
       if (aiResult?.costs && quotation) {
         aiResult.costs.origin_fees = resolveFeeQuantities(aiResult.costs.origin_fees, quotation);

@@ -794,6 +794,13 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       --success: #34d399;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    @keyframes stackable-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .stackable-disclaimer {
+      margin-top: 20px; padding: 14px; border: 2px solid var(--gold);
+      background: rgba(245, 166, 35, 0.12); border-radius: 8px;
+      color: var(--gold); text-align: center; font-weight: 700; font-size: 13px;
+      animation: stackable-blink 1.2s ease-in-out infinite;
+    }
     body {
       font-family: 'Outfit', sans-serif;
       background: var(--bg);
@@ -1085,6 +1092,11 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         </tr>
       </tbody>
     </table>
+
+    ${quotation.stackableStatus === 'TO_CONFIRM' ? `
+    <div class="stackable-disclaimer">
+      ⚠️ Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+    </div>` : ''}
 
     <div class="footer">
       AUDAZ GLOBAL LOGISTICA LTDA | https://audazglobal.com<br>

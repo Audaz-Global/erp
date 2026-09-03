@@ -34,6 +34,20 @@ export function tagPartnerCosts(costs: any, partnerType: unknown) {
   return costs;
 }
 
+// A solicitação de cotação assume "empilhável" quando o status ainda está
+// TO_CONFIRM (para evitar frete inflado por precaução do parceiro). Se o
+// parceiro responder dizendo explicitamente que a carga NÃO é empilhável,
+// essa suposição precisa ser sinalizada para revisão — o frete pode ter sido
+// calculado sobre uma premissa que o próprio parceiro acabou de contradizer.
+export function applyStackableReviewPolicy(costs: any, quotation: any) {
+  if (!costs || typeof costs !== 'object') return costs;
+  const wasAssumedStackable = quotation?.stackableStatus === 'TO_CONFIRM';
+  if (wasAssumedStackable && costs.stackable_status === 'NOT_STACKABLE') {
+    costs.stackable_review_alert = 'O parceiro indicou que a carga NÃO é empilhável, mas a cotação foi solicitada assumindo que sim (para evitar frete inflado) — revise o frete/coleta antes de prosseguir.';
+  }
+  return costs;
+}
+
 const crop = (value: string, max: number) => value.length > max ? value.slice(0, max) + '\n[conteúdo reduzido]' : value;
 
 export function splitAgentReply(body: string): ReplyParts {

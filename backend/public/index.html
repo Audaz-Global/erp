@@ -5089,6 +5089,19 @@ function fillReviewForm(d, mode) {
       document.getElementById('r-vessel-name').value = d.costs.vessel_name || '';
       document.getElementById('r-voyage-number').value = d.costs.voyage_number || '';
       document.getElementById('r-free-time-days').value = d.costs.free_time_days ?? '';
+
+      // A solicitação assume "empilhável" quando o status estava A Confirmar
+      // (backend/src/services/aiService.ts, buildAgentDraftDataContext). Se o
+      // parceiro respondeu com uma posição explícita, ela prevalece sobre a
+      // suposição — nunca fica presa em "SIM" silenciosamente.
+      if (d.costs.stackable_status) {
+        document.getElementById('r-stackable').value = d.costs.stackable_status;
+        document.getElementById('r-stackable').dataset.source = d.costs.stackable_source || '';
+        document.getElementById('r-stackable').dataset.confidence = d.costs.stackable_confidence ?? '';
+      }
+      if (d.costs.stackable_review_alert) {
+        alert('⚠️ ' + d.costs.stackable_review_alert);
+      }
       document.getElementById('r-rate-valid-until').value = /^\d{4}-\d{2}-\d{2}/.test(d.costs.rate_valid_until || '') ? d.costs.rate_valid_until.slice(0,10) : '';
       setRateValidityStatus('r', d.costs);
       document.getElementById('r-transshipments').value = formatTransshipments(d.costs.transshipments);

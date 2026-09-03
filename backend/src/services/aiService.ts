@@ -463,7 +463,7 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - MSDS: ${data.msdsStatus || 'NÃO INFORMADO'}
     - UN / Classe de risco: ${data.unNumber || 'Não informado'} / ${data.dangerousGoodsClass || 'Não informada'}
     - Produtos perigosos distintos: ${data.dangerousGoodsProductCount ?? 'Não informado'}
-    - Carga empilhável: ${data.stackableStatus === 'STACKABLE' ? 'SIM' : data.stackableStatus === 'NOT_STACKABLE' ? 'NÃO' : 'A CONFIRMAR'}
+    - Carga empilhável: ${data.stackableStatus === 'NOT_STACKABLE' ? 'NÃO' : 'SIM'}
     - Seguro solicitado: ${data.requiresInsurance ? 'SIM' : 'NÃO'}
     - Estimativa de armazenagem solicitada: ${data.requiresStorageEstimate ? 'SIM' : 'NÃO'}
     - Evidência da solicitação de armazenagem: ${data.storageRequestEvidence || 'Não aplicável'}
@@ -481,6 +481,7 @@ export function buildTruckerDraftDataContext(data: DraftPayload): string {
     - CBM Total: ${data.totalCbm || 'Não informado'}
     - Descrição da Carga: ${data.cargoDescription || 'Não informada'}
     - Valor da Carga (para Seguro/GR): ${data.commercialValue ? `${data.commercialCurrency || 'USD'} ${data.commercialValue}` : 'Não informado'}
+    - Carga empilhável: ${data.stackableStatus === 'NOT_STACKABLE' ? 'NÃO' : 'SIM'}
     - Carga Perigosa (DG/IMO): ${data.dangerousGoodsStatus === 'CONFIRMED' ? 'SIM (verificar MOPP e veículo adequado)' : data.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A CONFIRMAR' : 'NÃO'}
     - MSDS: ${data.msdsStatus || 'NÃO INFORMADO'}
     ${data.reference ? `- Referência do Processo: ${data.reference}` : ''}`;
@@ -663,6 +664,12 @@ export const extractAgentCosts = async (
                 total_brl: { type: 'number', description: 'Valor total em BRL se houver' },
                 invoice_value: { type: 'number', description: 'Valor da mercadoria ou Invoice (em USD) citado no e-mail, se houver' },
                 insurance_requested: { type: 'boolean', description: 'Verdadeiro (true) se o e-mail solicitar cotação ou inclusão de Seguro Internacional (insurance)' },
+                stackable_status: {
+                  type: 'string', enum: ['STACKABLE', 'NOT_STACKABLE', 'TO_CONFIRM'],
+                  description: 'STACKABLE somente se o parceiro confirmar explicitamente que a carga pode ser empilhada ("stackable", "empilhável"); NOT_STACKABLE somente com restrição explícita do parceiro ("não empilhável", "do not stack", "non-stackable", "fragile - no stacking", ou justificando um frete/coleta mais caro por causa disso); TO_CONFIRM quando o parceiro não mencionar o assunto. NUNCA infira pelo tipo de produto, embalagem ou pelo valor do frete sozinho.'
+                },
+                stackable_source: { type: 'string', description: 'Trecho literal da resposta do parceiro que fundamenta a classificação de empilhamento.' },
+                stackable_confidence: { type: 'number' },
                 carrier: { type: 'string', description: 'Nome completo da Cia Aérea ou Armador (operadora real do transporte) por extenso. NUNCA o nome da empresa remetente da resposta (coloader/agente/desconsolidador) — veja regra de desambiguação nas instruções.' },
                 vessel_name: { type: 'string', description: 'Nome do navio informado no retorno marítimo.' },
                 voyage_number: { type: 'string', description: 'Número da viagem/voyage do navio.' },
@@ -824,6 +831,7 @@ export const extractAgentCosts = async (
        - Calcule o valor total de cada taxa local de destino encontrada da mesma forma que na origem (valores fixos ou baseados em peso/Hawb).
        - Retorne a lista de taxas em "destination_fees" com o respectivo "name", "value" (número) e "currency" (moeda, ex: "USD", "BRL").
     7. **Seguro (Insurance):** Verifique se no texto do e-mail há pedido de "Seguro" (ex: "orçamento de frete aéreo com seguro", "incluir seguro"). Em caso positivo, marque "insurance_requested" como true e extraia o valor da mercadoria (Invoice) informado no texto (ex: "Valor da Invoice USD 186.855,66") e salve em "invoice_value". Se o valor não estiver explícito, salve 0.
+    7.1. **Empilhamento (stackable_status):** Verifique se o parceiro se manifestou explicitamente sobre a carga ser ou não empilhável (ex: "carga não empilhável", "not stackable", "cannot be stacked", ou justificando frete/coleta mais caro por causa disso). Só marque STACKABLE ou NOT_STACKABLE com menção explícita do parceiro; caso contrário, retorne TO_CONFIRM.
     8. **Desambiguação de Carrier (coloader x armador/cia aérea):** O campo "carrier" só pode ser preenchido com o nome de uma companhia aérea ou armador/linha marítima real, citada explicitamente no texto como a operadora que executa o transporte (ex: "Cathay Pacific", "Maersk", "COSCO", "KLM"). NUNCA use o nome da empresa remetente da resposta (o coloader, agente ou desconsolidador que está cotando) como carrier — mesmo que seja o único nome de empresa presente no e-mail, apareça em destaque na assinatura, rodapé ou cabeçalho. Consulte o campo "Tipo de parceiro respondendo (partner_type)" no CONTEXTO DA COTAÇÃO ORIGINAL: se for COLOADER, AGENTE ou DESCONSOLIDADOR, redobre a atenção — o nome dessa empresa NUNCA é o carrier. Se nenhuma operadora real for citada explicitamente no texto, retorne carrier como string vazia "" em vez de usar o nome do remetente.
     9. **Múltiplas opções de frete (rate_options):** Se a resposta do agente apresentar mais de uma alternativa de frete/prazo para o MESMO embarque (ex: "Opção 1: direto USD 1200, 12 dias" / "Opção 2: com escala USD 950, 18 dias"), preencha rate_options com uma entrada por alternativa. NÃO escolha sozinho a mais barata nem a mais rápida — liste todas, na ordem em que o agente apresentou, para o usuário decidir. Isso é diferente de cotações para equipamentos ou destinos diferentes, que não são "opções" e não entram em rate_options.
 
