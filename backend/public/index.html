@@ -3617,6 +3617,7 @@ function parseFeeLine(line) {
   const percentBaseSegment = segments.find(value => /^PERCENTBASE\s+/i.test(value));
   const baseValueSegment = segments.find(value => /^BASEVALUE\s+/i.test(value));
   const costSegment = segments.find(value => /^COST\s+/i.test(value));
+  const costCurrencySegment = segments.find(value => /^COSTCURRENCY\s+/i.test(value));
   let ispsClassification = ispsSegment ? ispsSegment.replace(/^ISPS\s+/i, '').trim().toUpperCase() : null;
   if (isIsps && !['ISPS_CARRIER','ISPS_TERMINAL'].includes(ispsClassification)) {
     const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(name);
@@ -3636,12 +3637,13 @@ function parseFeeLine(line) {
   const percentBase = percentBaseSegment ? percentBaseSegment.replace(/^PERCENTBASE\s+/i, '').trim().toUpperCase() : null;
   const percentageBaseValue = baseValueSegment ? parseFloat(baseValueSegment.replace(/^BASEVALUE\s+/i, '').trim().replace(',','.')) : null;
   const costUnitValue = costSegment ? parseFloat(costSegment.replace(/^COST\s+/i, '').trim().replace(',','.')) : null;
+  const costCurrency = costCurrencySegment ? normalizeCostCurrency(costCurrencySegment.replace(/^COSTCURRENCY\s+/i, '').trim()) : null;
   const ispsUnclassified = isIsps && ispsClassification === 'ISPS_UNCLASSIFIED';
   const ispsInclusionPending = isIsps && includedInFreight !== 'NOT_INCLUDED';
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons };
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -3671,7 +3673,8 @@ function formatFeeLine(fee) {
   const inferredProvenance = fee.provenanceType || (fee.source === 'PARTNER' || fee.classificationSource === 'AI' ? 'AGENT_EMAIL' : fee.source === 'INCOTERM' ? 'SYSTEM_RULE' : fee.classificationSource === 'MANUAL' ? 'MANUAL' : 'SYSTEM_RULE');
   const provenanceDetails = ` | PROVENANCE ${cleanMeta(inferredProvenance)}${fee.provenanceLabel ? ` | SOURCELABEL ${cleanMeta(fee.provenanceLabel)}` : ''}${fee.evidence ? ` | EVIDENCE ${cleanMeta(fee.evidence)}` : ''}${fee.percentBase ? ` | PERCENTBASE ${cleanMeta(fee.percentBase)}` : ''}${Number(fee.percentageBaseValue) > 0 ? ` | BASEVALUE ${Number(fee.percentageBaseValue).toFixed(4)}` : ''}`;
   const currency = normalizeCostCurrency(fee.currency);
-  const costDetails = fee.costUnitValue != null && Number.isFinite(Number(fee.costUnitValue)) ? ` | COST ${Number(fee.costUnitValue).toFixed(2)}` : '';
+  const costCurrency = fee.costCurrency ? normalizeCostCurrency(fee.costCurrency) : currency;
+  const costDetails = fee.costUnitValue != null && Number.isFinite(Number(fee.costUnitValue)) ? ` | COST ${Number(fee.costUnitValue).toFixed(2)}${costCurrency !== currency ? ` | COSTCURRENCY ${costCurrency}` : ''}` : '';
   return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${costDetails}${ispsDetails}`;
 }
 
@@ -3696,15 +3699,27 @@ function reviewPercentageBase(line) {
 }
 function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostWithLimits(raw,line); }
 function reviewCostBuyTotal(line) { const costUnitValue=reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)); const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(costUnitValue/100) : reviewCostNumber(line.quantity,0)*costUnitValue; return reviewCostWithLimits(raw,line); }
+// Conversão aproximada só para tornar Compra e Venda comparáveis quando estão
+// em moedas diferentes (ex: compra em EUR, venda em USD) — sem isso, o lucro
+// por linha vira uma subtração sem sentido entre números de moedas distintas.
+function reviewCostToUsd(value, currency) {
+  const c = normalizeCostCurrency(currency);
+  if (c === 'BRL') return value / 5.05;
+  if (c === 'EUR') return value * (5.50 / 5.05);
+  return value;
+}
 function reviewCostProfitLabel(line) {
   const sell = reviewCostTotal(line);
   const buy = reviewCostBuyTotal(line);
-  const profit = sell - buy;
+  const sellUsd = reviewCostToUsd(sell, line.currency);
+  const buyUsd = reviewCostToUsd(buy, line.costCurrency || line.currency);
+  const profit = sellUsd - buyUsd;
   if (Math.abs(profit) < 0.005) return '';
   const color = profit > 0 ? '#10B981' : '#EF4444';
   const sign = profit > 0 ? '+' : '-';
-  const margin = sell > 0 ? (profit / sell) * 100 : 0;
-  return `<div class="cost-line-profit-label" style="font-size:9px;color:${color};margin-top:2px;white-space:nowrap;">${sign}${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(Math.abs(profit))} (${margin.toFixed(0)}%)</div>`;
+  const margin = sellUsd > 0 ? (profit / sellUsd) * 100 : 0;
+  const sameCurrency = normalizeCostCurrency(line.costCurrency || line.currency) === normalizeCostCurrency(line.currency);
+  return `<div class="cost-line-profit-label" style="font-size:9px;color:${color};margin-top:2px;white-space:nowrap;">${sign}${sameCurrency ? escapeFeeHtml(line.currency || 'USD') : 'USD'} ${reviewCostAmount(Math.abs(profit))} (${margin.toFixed(0)}%)</div>`;
 }
 
 function reviewCostProvenance(line) {
@@ -3806,7 +3821,7 @@ function renderReviewCostEditor() {
       <div><label>Qtd.</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
       <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
-      <div><label>Compra</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div>
+      <div><label>Compra</label><div style="display:flex;gap:4px;"><select style="width:58px;flex-shrink:0;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div></div>
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
       <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div>${reviewCostProfitLabel(line)}</div>
@@ -3818,8 +3833,8 @@ function renderReviewCostEditor() {
 
 function updateReviewCostLine(group, id, field, value) {
   const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
-  line[field] = ['quantity','unitValue','costUnitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : field === 'currency' ? normalizeCostCurrency(value) : value;
-  if (!line.locked || ['unitValue','costUnitValue','currency','minValue','maxValue'].includes(field)) line.editedManually = true;
+  line[field] = ['quantity','unitValue','costUnitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : ['currency','costCurrency'].includes(field) ? normalizeCostCurrency(value) : value;
+  if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
   const row = document.querySelector(`[data-cost-id="${id}"]`);
   const total = row?.querySelector('.cost-line-total');
