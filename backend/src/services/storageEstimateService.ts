@@ -20,7 +20,11 @@ export function findExplicitStorageEstimateRequest(sourceText: string): StorageE
 
 export function applyStorageEstimateRequestPolicy(extracted: any, sourceText: string) {
   if (!extracted?.cargo) return extracted;
-  const decision = findExplicitStorageEstimateRequest(sourceText);
+  // Armazenagem no destino é uma cobrança de terminal marítimo/porto — não se
+  // aplica ao modal Aéreo, então nunca marca como solicitada nesse caso, ainda
+  // que o cliente tenha mencionado o termo no texto.
+  const isAir = String(extracted.cargo.type || '').toUpperCase().includes('AIR');
+  const decision = isAir ? { requested: false, evidence: '', source: 'NOT_REQUESTED' as const } : findExplicitStorageEstimateRequest(sourceText);
   extracted.cargo.requires_storage_estimate = decision.requested;
   extracted.cargo.storage_request_evidence = decision.evidence;
   extracted.cargo.storage_request_source = decision.source;
