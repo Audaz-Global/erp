@@ -1408,13 +1408,13 @@
             <small id="r-calc-chargeable-rule" style="display:block;margin-top:10px;color:var(--text-muted);">Maior entre peso bruto e peso cubado. Cubagem aérea: C × L × A ÷ 6.000 (aprox. 167 kg/m³).</small>
           </div>
           <div class="form-group" id="r-hybrid-modal-warning" style="display:none;grid-column:1/-1;padding:12px 14px;border:1px solid var(--warning);border-radius:8px;background:rgba(251,191,36,0.08);">
-            <strong style="color:var(--warning);font-size:12px;">⚠️ Possível embarque híbrido (dois modais na mesma solicitação)</strong>
+            <strong style="color:var(--warning);font-size:12px;">⚠️ Identifiquei uma cotação aérea e uma marítima. É isso mesmo?</strong>
             <p id="r-hybrid-modal-note" style="margin:6px 0 0;font-size:12px;color:var(--text-muted);"></p>
             <input type="checkbox" id="r-hybrid-modal-ack" style="display:none;">
             <div id="r-hybrid-modal-actions">
-              <p style="margin:10px 0 8px;font-size:12px;font-weight:600;">Recomendamos duplicar esta cotação — um modal para cada.</p>
+              <p style="margin:10px 0 8px;font-size:12px;font-weight:600;">Se sim, eu separo automaticamente em duas cotações, uma para cada modal.</p>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button type="button" class="btn btn-primary" style="font-size:12px;padding:9px 16px;" onclick="duplicateQuotationForOtherModal()">🔀 Duplicar cotação para o outro modal</button>
+                <button type="button" class="btn btn-primary" style="font-size:12px;padding:9px 16px;" onclick="splitHybridModalIntoTwoQuotations()">✅ Sim, separar em 2 cotações</button>
                 <button type="button" class="btn btn-secondary" style="font-size:12px;padding:9px 16px;" onclick="confirmSingleModal()">Não, é um único modal mesmo — prosseguir assim</button>
               </div>
             </div>
@@ -5245,24 +5245,48 @@ function confirmSingleModal() {
   checkValidation();
 }
 
-async function duplicateQuotationForOtherModal() {
-  if (!currentQuotationId) {
-    alert('Gere o rascunho ou salve a cotação antes de duplicar.');
+// Reextrai o texto original duas vezes, uma vez focado só no embarque AÉREO e
+// outra só no MARÍTIMO (backend/src/services/aiService.ts, extractClientData
+// com modalFocus), em vez de duplicar a cotação com os mesmos dados brutos —
+// cada cotação resultante já nasce com peso/volumes/rota do modal certo.
+async function extractModalFocused(modalFocus) {
+  const form = new FormData();
+  form.append('mode', 'CLIENT');
+  form.append('text', window.lastExtractedRawText || '');
+  form.append('modalFocus', modalFocus);
+  const res = await fetch(API + '/extract', { method: 'POST', body: form });
+  const json = await readApiJson(res, `A extração focada em ${modalFocus === 'AIR' ? 'aéreo' : 'marítimo'}`);
+  if (!json.data) throw new Error(`Não foi possível extrair os dados do embarque ${modalFocus === 'AIR' ? 'aéreo' : 'marítimo'}.`);
+  return json.data;
+}
+
+async function splitHybridModalIntoTwoQuotations() {
+  if (!window.lastExtractedRawText) {
+    alert('Não encontrei o texto original da extração. Extraia novamente antes de separar.');
     return;
   }
-  if (!window.confirm('Isso cria uma segunda cotação com os mesmos dados de cliente e carga, para você ajustar o modal separadamente. Continuar?')) return;
+  const btn = document.querySelector('#r-hybrid-modal-actions .btn-primary');
+  const originalHtml = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Separando...'; }
+
   try {
-    const res = await fetch(API + '/quotations/' + currentQuotationId + '/duplicate', { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Falha ao duplicar cotação.');
-    document.getElementById('r-hybrid-modal-ack').checked = true;
-    updateHybridModalResolvedUI();
-    checkValidation();
+    const airData = await extractModalFocused('AIR');
+    currentQuotationId = null;
+    fillReviewForm(airData, 'CLIENT');
+    const airQuotation = await saveQuotationRecord();
+
+    const seaData = await extractModalFocused('SEA');
+    currentQuotationId = null;
+    fillReviewForm(seaData, 'CLIENT');
+    const seaQuotation = await saveQuotationRecord();
+
     await loadQuotations();
-    toast(`✅ Cotação duplicada como ${data.reference || 'nova referência'}. Abrindo para ajuste do modal...`);
-    await loadQuotationIntoDraft(data.id);
+    toast(`✅ Separado em 2 cotações: ${airQuotation.reference || 'aéreo'} e ${seaQuotation.reference || 'marítimo'}. Abrindo a aérea para revisão...`);
+    await loadQuotationIntoDraft(airQuotation.id);
   } catch (error) {
     alert('❌ ' + error.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
   }
 }
 

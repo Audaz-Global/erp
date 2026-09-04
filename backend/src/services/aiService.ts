@@ -195,7 +195,7 @@ async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
 
 const AI_OVERLOAD_MESSAGE = 'O serviço de IA está temporariamente sobrecarregado. Tentamos algumas vezes automaticamente e não conseguimos — tente novamente em alguns minutos.';
 
-export const extractClientData = async (text: string, contextRules: string = '', mediaParts: any[] = []) => {
+export const extractClientData = async (text: string, contextRules: string = '', mediaParts: any[] = [], modalFocus?: 'AIR' | 'SEA') => {
 
   try {
     const model = genAI.getGenerativeModel({
@@ -331,10 +331,14 @@ export const extractClientData = async (text: string, contextRules: string = '',
     const safeSourceText = compactAiText(text, MAX_SOURCE_TEXT_CHARS);
     const safeContextRules = compactAiText(contextRules, MAX_CONTEXT_TEXT_CHARS);
 
+    const modalFocusInstruction = modalFocus
+      ? `\n    ATENÇÃO — EMBARQUE HÍBRIDO SENDO SEPARADO: Esta mensagem descreve DOIS embarques distintos (um aéreo e um marítimo). Extraia SOMENTE os dados do embarque ${modalFocus === 'AIR' ? 'AÉREO' : 'MARÍTIMO'} — peso, volumes, dimensões, rota, mercadoria e valor comercial correspondentes exclusivamente a esse modal. Ignore completamente os dados do embarque ${modalFocus === 'AIR' ? 'MARÍTIMO' : 'AÉREO'} mencionado na mesma mensagem, mesmo que estejam misturados no mesmo texto/tabela.\n`
+      : '';
+
     const prompt = `Você é um especialista em comércio exterior brasileiro.
     Analise a SOLICITAÇÃO DO CLIENTE e os documentos anexos para extrair os dados principais.
     NÃO se preocupe com custos ou valores de frete, pois isso será cotado depois com os agentes.
-
+    ${modalFocusInstruction}
     CONTEXTO DE REGRAS DE NEGÓCIO:
     ${safeContextRules}
 

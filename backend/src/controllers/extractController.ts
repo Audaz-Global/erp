@@ -83,6 +83,7 @@ export const extractData = async (req: Request, res: Response) => {
   try {
     const rawText = req.body.text || '';
     const mode = req.body.mode || 'CLIENT'; // 'CLIENT' ou 'AGENT'
+    const modalFocus = ['AIR', 'SEA'].includes(req.body.modalFocus) ? req.body.modalFocus : undefined; // separação de embarque híbrido
     let extractedFileText = '';
     const mediaParts: any[] = [];
     const signatureMediaParts: any[] = [];
@@ -169,10 +170,24 @@ export const extractData = async (req: Request, res: Response) => {
 
     let aiResult;
     if (mode === 'CLIENT') {
-      aiResult = await extractClientData(combinedText, contextRules, mediaParts);
+      aiResult = await extractClientData(combinedText, contextRules, mediaParts, modalFocus);
       aiResult = applyDomesticTransportEvidencePolicy(aiResult, combinedText);
       aiResult = applyStorageEstimateRequestPolicy(aiResult, combinedText);
-      aiResult = applyHybridModalPolicy(aiResult, combinedText);
+      // Ao separar um embarque híbrido, o texto-fonte ainda contém termos dos
+      // dois modais — não roda a varredura de novo, senão o aviso reaparece em
+      // cada uma das duas cotações já filtradas para um único modal. A IA
+      // também pode ecoar hybrid_shipment_detected=true no JSON bruto mesmo
+      // com o foco de modal (ela ainda "vê" o texto todo), então força false.
+      if (modalFocus) {
+        if (aiResult?.cargo) {
+          aiResult.cargo.hybrid_shipment_detected = false;
+          aiResult.cargo.hybrid_shipment_note = null;
+          aiResult.cargo.hybrid_shipment_air_evidence = null;
+          aiResult.cargo.hybrid_shipment_sea_evidence = null;
+        }
+      } else {
+        aiResult = applyHybridModalPolicy(aiResult, combinedText);
+      }
     } else {
       // Buscar cotação original para passar como contexto de cálculo
       const quotationId = req.body.quotationId || '';
