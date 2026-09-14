@@ -85,7 +85,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
     // saudação genérica pelo nome de quem ficou como "Para" em cada e-mail,
     // sem precisar gerar o rascunho de novo pela IA.
     const buildFinalHtmlEmail = async (contactName?: string | null) =>
-      appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(personalizeGreeting(rawMarkdown, contactName))}</body></html>`, signature.html);
+      appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await parseMarkdown(personalizeGreeting(rawMarkdown, contactName))}</body></html>`, signature.html);
     const selectedDocuments = await prisma.quotationDocument.findMany({
       where: { quotationId, id: { in: attachmentIds } }, include: { blob: true }
     });
@@ -191,7 +191,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
           const rawGroundDraft = String(request?.draftEmail || leg.draftEmail || '').trim();
           if (!rawGroundDraft) throw new Error(`Gere e revise o rascunho de ${label} antes do envio.`);
           const groundContactName = String(request?.partnerContactName || leg.partnerContactName || '');
-          const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(personalizeGreeting(rawGroundDraft, groundContactName))}</body></html>`, signature.html);
+          const groundHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await parseMarkdown(personalizeGreeting(rawGroundDraft, groundContactName))}</body></html>`, signature.html);
           const groundCcEmail = String(request?.ccEmail || '') || undefined;
           const sent = await sendOutlookEmail(email, groundSubject, groundHtml, groundCcEmail,
             [...documents.map(document => ({ name:document.originalName, contentType:document.blob.mimeType, content:Buffer.from(document.blob.content) })), signature.attachment]);
@@ -224,7 +224,7 @@ router.post('/send-draft-batch', async (req: Request, res: Response) => {
         truckerResult = { status: 'SKIPPED', email: truckerEmail, message: 'Transportadora já acionada anteriormente.' };
       } else {
         try {
-          const truckerHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await marked.parse(String(quotation.truckerDraftEmail || ''))}</body></html>`, signature.html);
+          const truckerHtml = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${await parseMarkdown(String(quotation.truckerDraftEmail || ''))}</body></html>`, signature.html);
           const truckerDocuments = await prisma.quotationDocument.findMany({
             where: { quotationId, id: { in: truckerAttachmentIds } }, include: { blob: true }
           });
@@ -360,7 +360,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
     `;
 
     // Processa o markdown e transforma em string HTML
-    const renderedHtml = await marked.parse(rawMarkdown);
+    const renderedHtml = await parseMarkdown(rawMarkdown);
     const finalHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${renderedHtml}</body></html>`, signature.html);
 
     // Envia usando a Microsoft Graph API (draft+send para capturar conversationId)
@@ -380,7 +380,7 @@ router.post('/send-draft', async (req: Request, res: Response) => {
       try {
         const truckerSubject = `[RODOVIÁRIO] ${mailSubject}`;
         const truckerMarkdown = quotation.truckerDraftEmail || '';
-        const renderedTruckerHtml = await marked.parse(truckerMarkdown);
+        const renderedTruckerHtml = await parseMarkdown(truckerMarkdown);
         const finalTruckerHtmlEmail = appendProfessionalSignature(`<html><head>${emailStyle}</head><body>${renderedTruckerHtml}</body></html>`, signature.html);
         
         const selectedTruckerDocuments = await prisma.quotationDocument.findMany({
@@ -451,7 +451,7 @@ router.post('/reply/:responseId', async (req: Request, res: Response) => {
     const documents = await prisma.quotationDocument.findMany({
       where: { quotationId: responseVersion.quotationId, id: { in: attachmentIds } }, include: { blob: true }
     });
-    const renderedHtml = await marked.parse(htmlBody);
+    const renderedHtml = await parseMarkdown(htmlBody);
     const result = await replyOutlookEmail(responseVersion.messageId, String(renderedHtml), documents.map(document => ({
       name: document.originalName, contentType: document.blob.mimeType, content: Buffer.from(document.blob.content)
     })));

@@ -1570,7 +1570,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const html = template(templateData);
 
-  const browser = await puppeteer.launch({ 
+  const puppeteerModule = await import('puppeteer');
+  const puppeteer = puppeteerModule.default || puppeteerModule;
+  const browser = await (puppeteer as any).launch({ 
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
