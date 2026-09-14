@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import sharp from 'sharp';
 import { prisma } from '../prisma';
 
 // Mantém consistência com o max-width:450px usado no HTML da assinatura de e-mail
@@ -10,10 +9,17 @@ const MAX_SIGNATURE_WIDTH = 450;
 const MAX_SIGNATURE_HEIGHT = 200;
 
 async function resizeSignatureImage(buffer: Buffer): Promise<Buffer> {
-  return sharp(buffer)
-    .resize({ width: MAX_SIGNATURE_WIDTH, height: MAX_SIGNATURE_HEIGHT, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
-    .toBuffer();
+  try {
+    const sharpModule: any = await import('sharp');
+    const sharp = sharpModule.default || sharpModule;
+    return sharp(buffer)
+      .resize({ width: MAX_SIGNATURE_WIDTH, height: MAX_SIGNATURE_HEIGHT, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+  } catch {
+    console.warn('[WARN] Módulo sharp indisponível no Node v18, utilizando imagem de assinatura original.');
+    return buffer;
+  }
 }
 
 function professionalData(req: Request, requireSignature: boolean) {

@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer';
 import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
@@ -2143,7 +2142,9 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     const html = template(templateData);
 
-    const browser = await puppeteer.launch({ 
+    const puppeteerModule = await import('puppeteer');
+    const puppeteer = puppeteerModule.default || puppeteerModule;
+    const browser = await (puppeteer as any).launch({ 
       headless: 'new' as any,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [

@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { replyOutlookEmail, sendOutlookEmail, searchEmails } from '../services/outlookService';
-import { marked } from 'marked';
 import { recordQuotationEvent } from '../services/quotationHistoryService';
 import { normalizePartnerType } from '../services/agentResponseService';
 import { mapWithConcurrency, normalizeBatchRecipients, splitRecipientEmails } from '../utils/outlookBatch';
@@ -11,8 +10,14 @@ import { personalizeGreeting } from '../utils/draftGreeting';
 const router = Router();
 const activeBatchDispatches = new Set<string>();
 
-// Configuração do marked para quebrar linhas normalmente
-marked.setOptions({ breaks: true });
+async function parseMarkdown(text: string): Promise<string> {
+  const markedModule: any = await import('marked');
+  const markedObj = markedModule.marked || markedModule.default || markedModule;
+  if (typeof markedObj.setOptions === 'function') {
+    markedObj.setOptions({ breaks: true });
+  }
+  return typeof markedObj.parse === 'function' ? markedObj.parse(text) : markedObj(text);
+}
 
 async function recordSuccessfulDispatch(input: {
   quotationId: string; recipientType: string; recipientEmail: string; partnerName?: string | null; ccEmails?: string | null;
