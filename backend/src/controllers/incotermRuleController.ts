@@ -245,11 +245,7 @@ function getDefaultRules() {
     // EXW - Ex Works (Aéreo)
     // Comprador responsável por TUDO desde a fábrica do vendedor
     // ============================
-    {
-      incoterm: 'EXW', modal: 'AIR', feeType: 'ORIGIN', feeName: 'Origin Charges (Coleta, Doc, Handling, Despacho)',
-      chargeType: 'FIXED', value: 91.00, currency: 'USD', sortOrder: 1,
-      description: 'Custos consolidados de coleta na fábrica, documentação, handling e despacho de exportação — responsabilidade do comprador no EXW'
-    },
+    // (Sem taxas de origem padrão genéricas — as taxas devem ser fornecidas pelo e-mail do agente ou cadastrada manualmente)
 
     // ============================
     // FCA - Free Carrier (Aéreo)
