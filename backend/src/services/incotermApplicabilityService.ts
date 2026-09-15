@@ -138,10 +138,16 @@ function annotateFee(fee: any, rules: any[], ctx: ApplicabilityContext, alerts: 
 
 function requiredMissingAlerts(originFees: any[], destinationFees: any[], freightFees: any[], rules: any[]) {
   const alerts: Array<{ code: string; level: 'INFO' | 'WARNING'; message: string; feeNames?: string[] }> = [];
-  const requiredRules = rules.filter(rule => rule.applicability === APPLICABILITY.REQUIRED && rule.financialGroup);
+  const requiredRules = rules.filter(rule => rule.applicability === APPLICABILITY.REQUIRED);
   for (const rule of requiredRules) {
     const fees = rule.feeType === 'ORIGIN' ? originFees : rule.feeType === 'FREIGHT' ? freightFees : destinationFees;
-    const present = fees.some(fee => fee.financialGroup === rule.financialGroup && (fee.totalValue ?? fee.value ?? 0) > 0);
+    const present = fees.some(fee => {
+      const val = fee.totalValue ?? fee.value ?? 0;
+      if (rule.financialGroup && fee.financialGroup === rule.financialGroup) return val > 0 || fee.explicitZero || fee.pricingStatus === 'PRICED';
+      const nameNorm = plain(fee.name);
+      const ruleNameNorm = plain(rule.feeName);
+      return (nameNorm.includes(ruleNameNorm) || ruleNameNorm.includes(nameNorm)) && (val > 0 || fee.explicitZero);
+    });
     if (!present) {
       alerts.push({
         code: 'INCOTERM_REQUIRED_MISSING', level: 'WARNING',

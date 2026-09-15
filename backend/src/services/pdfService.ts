@@ -1303,6 +1303,10 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       });
     }
 
+    if (detailedFeesOrigem.some(f => !f.name.toLowerCase().includes('origin charges (coleta'))) {
+      detailedFeesOrigem = detailedFeesOrigem.filter(f => !f.name.toLowerCase().includes('origin charges (coleta'));
+    }
+
     // Calcular base proporcional para totais
     let baseProporcional = fVal;
     detailedFeesOrigem.forEach(f => {

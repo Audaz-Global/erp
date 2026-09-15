@@ -314,28 +314,33 @@ function getDefaultRules() {
     {
       incoterm: 'EXW', modal: 'AIR', feeType: 'DESTINATION', feeName: 'CCT fee',
       chargeType: 'FIXED', value: 10.00, currency: 'USD', sortOrder: 1,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de controle de carga terminal'
     },
     {
       incoterm: 'EXW', modal: 'AIR', feeType: 'DESTINATION', feeName: 'Collect Fee',
       chargeType: 'PERCENTAGE', value: 3.00, minValue: 50.00, currency: 'USD',
       percentBase: 'FREIGHT_PLUS_ORIGIN', sortOrder: 2,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de coleta — 3% sobre frete + taxas de origem, mínimo USD 50'
     },
     {
       incoterm: 'EXW', modal: 'AIR', feeType: 'DESTINATION', feeName: 'Delivery Fee',
       chargeType: 'PER_DOCUMENT', value: 55.00, currency: 'USD', sortOrder: 3,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de entrega por documento'
     },
     {
       incoterm: 'EXW', modal: 'AIR', feeType: 'DESTINATION', feeName: 'Desconsolidação / Deconsolidation',
       chargeType: 'PER_DOCUMENT', value: 55.00, currency: 'USD', sortOrder: 4,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de desconsolidação de carga'
     },
     {
       incoterm: 'EXW', modal: 'AIR', feeType: 'DESTINATION', feeName: 'IOF - FRETE + TX ORIGEM',
       chargeType: 'PERCENTAGE', value: 3.50, currency: 'USD',
       percentBase: 'FREIGHT_PLUS_ORIGIN', sortOrder: 5,
+      financialGroup: 'TAX_IOF', applicability: 'REQUIRED',
       description: 'IOF sobre frete + taxas de origem — 3.5%'
     },
 
@@ -343,28 +348,33 @@ function getDefaultRules() {
     {
       incoterm: 'FCA', modal: 'AIR', feeType: 'DESTINATION', feeName: 'CCT fee',
       chargeType: 'FIXED', value: 10.00, currency: 'USD', sortOrder: 1,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de controle de carga terminal'
     },
     {
       incoterm: 'FCA', modal: 'AIR', feeType: 'DESTINATION', feeName: 'Collect Fee',
       chargeType: 'PERCENTAGE', value: 3.00, minValue: 50.00, currency: 'USD',
       percentBase: 'FREIGHT_PLUS_ORIGIN', sortOrder: 2,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de coleta — 3% sobre frete + taxas de origem, mínimo USD 50'
     },
     {
       incoterm: 'FCA', modal: 'AIR', feeType: 'DESTINATION', feeName: 'Delivery Fee',
       chargeType: 'PER_DOCUMENT', value: 55.00, currency: 'USD', sortOrder: 3,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de entrega por documento'
     },
     {
       incoterm: 'FCA', modal: 'AIR', feeType: 'DESTINATION', feeName: 'Desconsolidação / Deconsolidation',
       chargeType: 'PER_DOCUMENT', value: 55.00, currency: 'USD', sortOrder: 4,
+      financialGroup: 'DESTINATION_CHARGE', applicability: 'REQUIRED',
       description: 'Taxa de desconsolidação de carga'
     },
     {
       incoterm: 'FCA', modal: 'AIR', feeType: 'DESTINATION', feeName: 'IOF - FRETE + TX ORIGEM',
       chargeType: 'PERCENTAGE', value: 3.50, currency: 'USD',
       percentBase: 'FREIGHT_PLUS_ORIGIN', sortOrder: 5,
+      financialGroup: 'TAX_IOF', applicability: 'REQUIRED',
       description: 'IOF sobre frete + taxas de origem — 3.5%'
     },
 
