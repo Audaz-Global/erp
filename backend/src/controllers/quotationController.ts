@@ -683,6 +683,10 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       });
     }
 
+    if (detailedFeesOrigem.some(f => !f.name.toLowerCase().includes('origin charges (coleta'))) {
+      detailedFeesOrigem = detailedFeesOrigem.filter(f => !f.name.toLowerCase().includes('origin charges (coleta'));
+    }
+
     if (shouldHydrateAutomaticCosts(quotation) && detailedFeesDestino.length === 0) {
       try {
         const { destinationFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);

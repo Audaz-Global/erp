@@ -237,11 +237,11 @@
   .review-section { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .review-section-title { font-size: 13px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
   .cost-bases-grid { display:grid; grid-template-columns:1fr; gap:14px; }
-  .cost-base-card { border:1px solid rgba(255,255,255,.09); border-radius:12px; background:var(--bg-card); overflow:hidden; box-shadow:0 5px 18px rgba(0,0,0,.12); }
+  .cost-base-card { border:1px solid rgba(255,255,255,.09); border-radius:12px; background:var(--bg-card); overflow-x:auto; box-shadow:0 5px 18px rgba(0,0,0,.12); }
   .cost-base-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); }
   .cost-base-title { font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
   .cost-base-subtotal { font-size:11px; color:var(--text-muted); text-align:right; }
-  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(170px,1.8fr) minmax(120px,1.15fr) 62px 72px 88px 88px 76px 76px 104px 42px; gap:8px; }
+  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 38px; gap:8px; min-width:1050px; }
   .cost-columns-head { padding:8px 12px; background:rgba(255,255,255,.025); border-bottom:1px solid rgba(255,255,255,.07); color:var(--text-muted); font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
   .cost-lines { display:flex; flex-direction:column; min-height:58px; }
   .cost-line { align-items:start; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.065); background:transparent; transition:background .15s ease; }
@@ -467,7 +467,7 @@
     .cost-bases-grid { grid-template-columns:1fr; }
     .cost-base-card { overflow-x:auto; }
     .cost-lines { overflow:visible; }
-    .cost-columns-head,.cost-line { min-width:1060px; grid-template-columns:1.6fr 1fr 60px 68px 82px 82px 72px 72px 96px 38px; }
+    .cost-columns-head,.cost-line { min-width:1050px; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 38px; }
     .cost-add-line { min-width:960px; }
     .summary-cards { grid-template-columns: repeat(2, 1fr); }
     .detail-content { grid-template-columns: 1fr; }
@@ -3931,7 +3931,7 @@ function renderReviewCostEditor() {
       <div><label>Qtd.</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
       <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
-      <div><label>Compra</label><div style="display:flex;gap:4px;"><select style="width:58px;flex-shrink:0;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div></div>
+      <div><label>Compra</label><div style="display:flex;gap:4px;align-items:center;"><select style="width:54px;flex-shrink:0;padding:5px 2px;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" style="flex:1;min-width:55px;" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div></div>
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
       <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div>${reviewCostProfitLabel(line)}</div>
