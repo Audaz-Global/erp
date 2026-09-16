@@ -202,6 +202,17 @@ const defaultTemplate = `
     }
     .t-right { text-align: right; }
     .t-center { text-align: center; }
+    /* Tabelas de taxas (Frete/Origem/Destino): larguras fixas para nomes
+       longos (ex: rota de inland entre parênteses) não espremerem os
+       valores numéricos uns nos outros. */
+    table.fee-table { table-layout: fixed; }
+    table.fee-table th:nth-child(1), table.fee-table td:nth-child(1) { width: 30%; word-break: break-word; }
+    table.fee-table th:nth-child(2), table.fee-table td:nth-child(2) { width: 7%; }
+    table.fee-table th:nth-child(3), table.fee-table td:nth-child(3) { width: 17%; }
+    table.fee-table th:nth-child(4), table.fee-table td:nth-child(4) { width: 16%; white-space: nowrap; }
+    table.fee-table th:nth-child(5), table.fee-table td:nth-child(5) { width: 10%; white-space: nowrap; }
+    table.fee-table th:nth-child(6), table.fee-table td:nth-child(6) { width: 10%; white-space: nowrap; }
+    table.fee-table th:nth-child(7), table.fee-table td:nth-child(7) { width: 10%; white-space: nowrap; }
 
     /* Totals */
     .totals-box {
@@ -358,7 +369,7 @@ const defaultTemplate = `
   <div class="section-banner">{{loadTypeLabel}}</div>
   
   <div class="section-banner-sm">Frete</div>
-  <table>
+  <table class="fee-table">
     <thead>
       <tr>
         <th>Taxas</th>
@@ -402,7 +413,7 @@ const defaultTemplate = `
 
   {{#if hasOriginSection}}
   <div class="section-banner-sm">Origem</div>
-  <table>
+  <table class="fee-table">
     <thead><tr><th>Taxas</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Min</th><th class="t-right">Max</th><th class="t-right">Total</th></tr></thead>
     <tbody>{{#if hasOriginInland}}<tr>
       <td>Inland de Origem / Coleta{{#if originInlandRoute}} ({{originInlandRoute}}){{/if}}</td>
@@ -421,7 +432,7 @@ const defaultTemplate = `
   {{/if}}
 
   <div class="section-banner-sm">Destino</div>
-  <table>
+  <table class="fee-table">
     <thead>
       <tr>
         <th>Taxas</th>
@@ -698,6 +709,17 @@ const defaultAirTemplate = `
     }
     .t-right { text-align: right; }
     .t-center { text-align: center; }
+    /* Tabelas de taxas (Frete/Origem/Destino): larguras fixas para nomes
+       longos (ex: rota de inland entre parênteses) não espremerem os
+       valores numéricos uns nos outros. */
+    table.fee-table { table-layout: fixed; }
+    table.fee-table th:nth-child(1), table.fee-table td:nth-child(1) { width: 30%; word-break: break-word; }
+    table.fee-table th:nth-child(2), table.fee-table td:nth-child(2) { width: 7%; }
+    table.fee-table th:nth-child(3), table.fee-table td:nth-child(3) { width: 17%; }
+    table.fee-table th:nth-child(4), table.fee-table td:nth-child(4) { width: 16%; white-space: nowrap; }
+    table.fee-table th:nth-child(5), table.fee-table td:nth-child(5) { width: 10%; white-space: nowrap; }
+    table.fee-table th:nth-child(6), table.fee-table td:nth-child(6) { width: 10%; white-space: nowrap; }
+    table.fee-table th:nth-child(7), table.fee-table td:nth-child(7) { width: 10%; white-space: nowrap; }
 
     /* Totals */
     .totals-box {
@@ -858,7 +880,7 @@ const defaultAirTemplate = `
   <div class="section-banner">{{loadTypeLabel}}</div>
   
   <div class="section-banner-sm">Frete</div>
-  <table>
+  <table class="fee-table">
     <thead>
       <tr>
         <th>Taxas</th>
@@ -896,7 +918,7 @@ const defaultAirTemplate = `
   </table>
 
   <div class="section-banner-sm">Origem</div>
-  <table>
+  <table class="fee-table">
     <thead>
       <tr>
         <th>Taxas</th>
@@ -930,7 +952,7 @@ const defaultAirTemplate = `
   </table>
 
   <div class="section-banner-sm">Destino</div>
-  <table>
+  <table class="fee-table">
     <thead>
       <tr>
         <th>Taxas</th>
@@ -1298,6 +1320,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         unit: quotationData.originInlandTransitTime || 'Por coleta',
         valueUnit: inlandValue.toFixed(2),
         min: '0,00',
+        max: '0,00',
         currency: inlandCurrency,
         total: `${inlandCurrency} ${inlandValue.toFixed(2)}`
       });
@@ -1505,18 +1528,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const dtaLeg = (quotationData.groundServiceLegs || []).find((leg:any) => leg.serviceType === 'DTA' && leg.requested);
   const roadLeg = (quotationData.groundServiceLegs || []).find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
-  let roadFreightRich = roadLeg?.route || '';
-  const destCity = quotationData.destinationCity ? String(quotationData.destinationCity).trim() : '';
-  const destPort = quotationData.destinationPort ? String(quotationData.destinationPort).trim() : '';
-  if (!roadFreightRich && destCity && destPort) {
-    const cleanPort = destPort.toLowerCase();
-    const cleanCity = (destCity.toLowerCase().split(',')[0] || '').trim();
-    if (!cleanPort.includes(cleanCity)) {
-      const portCodeMatch = destPort.match(/^[A-Z]{3,4}/);
-      const portLabel = portCodeMatch ? portCodeMatch[0] : destPort;
-      roadFreightRich = `${portLabel} x ${destCity}`;
-    }
-  }
+  // Só mostra o aviso de Rodoviário quando o usuário marcou explicitamente a
+  // caixa de transporte rodoviário — não inferir a partir de porto/cidade.
+  const roadFreightRich = roadLeg?.route || '';
 
   const templateData = {
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
@@ -1550,7 +1564,9 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     detailedFeesOrigem,
     detailedFeesDestino,
     detailedFeesFreightComponents,
-    detailedFeesAdditionalGroups,
+    // Profit/spread do agente é informação interna: some da listagem visível
+    // ao cliente, mas o valor continua contando no subtotal abaixo.
+    detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT'),
     subtotalFrete: formatSubtotals([{ total: freightTotalValue }, ...detailedFeesFreightComponents]),
     subtotalOrigem: formatSubtotals(detailedFeesOrigem),
     subtotalDestino: formatSubtotals(detailedFeesDestino),
@@ -1579,8 +1595,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   const page = await browser.newPage();
   
   await page.setContent(html, { waitUntil: 'networkidle0' as any });
-  const pdfBuffer = await page.pdf({ 
-    format: 'A4', 
+  const pdfBuffer = await page.pdf({
+    format: 'A4',
     printBackground: true,
     margin: { top: '5mm', right: '5mm', bottom: '5mm', left: '5mm' }
   });
@@ -2123,7 +2139,9 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       detailedFees,
       originServiceRows,
       freightAccessories,
-      detailedFeesAdditionalGroups,
+      // Profit/spread do agente é informação interna: some da listagem
+      // visível ao cliente, mas o valor continua contando no subtotal abaixo.
+      detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT'),
       subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups),
       subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }, ...freightAccessories]),
       subtotalDestino: formatSubtotals(detailedFees),
@@ -2169,8 +2187,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       const page = await browser.newPage();
       
       await page.setContent(html, { waitUntil: 'networkidle0' as any, timeout: 30000 });
-      const pdfBuffer = await page.pdf({ 
-        format: 'A4', 
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
         printBackground: true,
         margin: { top: '5mm', right: '5mm', bottom: '5mm', left: '5mm' },
         timeout: 30000
