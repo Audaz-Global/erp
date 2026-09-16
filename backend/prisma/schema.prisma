@@ -636,7 +636,9 @@ model StandardFee {
   costValue     Float? // Taxa de compra (custo padrão) — value continua sendo a venda/sugestão
   pricingStatus String   @default("PRICED") // PRICED, ON_REQUEST
   minValue      Float?
-  currency      String
+  currency      String // Moeda da Venda (value)
+  costCurrency  String? // Moeda da Compra (costValue) — pode divergir da Venda
+  minCurrency   String? // Moeda do Mínimo (minValue) — pode divergir da Venda
   percentBase   String? // FREIGHT, FREIGHT_PLUS_ORIGIN
   description   String?
   modalScope    String   @default("ALL") // ALL ou lista CSV: AIR,SEA_FCL,SEA_LCL
@@ -665,8 +667,10 @@ model IncotermRule {
   value            Float // Valor unitário ou percentual (venda/sugestão)
   costValue        Float? // Taxa de compra (custo padrão) — mesma unidade/base do value
   pricingStatus    String   @default("PRICED") // snapshot da taxa: PRICED, ON_REQUEST
-  minValue         Float? // Valor mínimo (ex: Airport Fee mín USD 45)
-  currency         String   @default("USD")
+  minValue         Float? // Valor mínimo (ex: Airport Fee mín USD 45) — trava a Venda, nunca a Compra
+  currency         String   @default("USD") // Moeda da Venda (value)
+  costCurrency     String? // Moeda da Compra (costValue) — pode divergir da Venda
+  minCurrency      String? // Moeda do Mínimo (minValue) — pode divergir da Venda
   percentBase      String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
   description      String? // Descrição informativa para o operador
   sortOrder        Int      @default(0)

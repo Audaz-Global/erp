@@ -6,10 +6,22 @@ const prisma = new PrismaClient();
 
 type EffectiveIncotermRule = ReturnType<typeof effectiveIncotermRule>;
 
+// Câmbio aproximado só para comparar/converter valores em moedas diferentes
+// dentro da própria taxa (Compra/Venda/Mínimo) — mesma referência (BRL por
+// unidade de moeda) já usada no editor de custos da Revisão Final.
+const FX_TO_BRL: Record<string, number> = { BRL: 1, USD: 5.05, EUR: 5.50 };
+function convertCurrency(value: number, from?: string | null, to?: string | null): number {
+  const fromRate = FX_TO_BRL[(from || 'USD').toUpperCase()] || 5.05;
+  const toRate = FX_TO_BRL[(to || 'USD').toUpperCase()] || 5.05;
+  return value * fromRate / toRate;
+}
+
 export interface CalculatedFee {
   name: string;
   value: number;
   currency: string;
+  costCurrency?: string;
+  minCurrency?: string;
   chargeType: string;
   description?: string;
   // Campos extras para exibição no PDF
@@ -200,6 +212,8 @@ export function calculateFee(
       name: rule.feeName,
       value: 0,
       currency: rule.currency,
+      costCurrency: (rule as any).costCurrency || rule.currency,
+      minCurrency: (rule as any).minCurrency || rule.currency,
       chargeType: rule.chargeType,
       description: rule.description || undefined,
       qty: '-',
@@ -246,9 +260,6 @@ export function calculateFee(
 
     case 'PER_KG':
       value = rule.value * chargableWeight;
-      if (rule.minValue && value < rule.minValue) {
-        value = rule.minValue;
-      }
       qty = chargableWeight;
       unit = 'Por Kg/cm3 (6000)';
       valueUnit = rule.value.toFixed(2);
@@ -312,14 +323,19 @@ export function calculateFee(
         base = freightValue;
       }
       value = base * (rule.value / 100);
-      if (rule.minValue && value < rule.minValue) {
-        value = rule.minValue;
-      }
       qty = '-';
       unit = '% de Taxas Selecionadas';
       valueUnit = `${rule.value.toFixed(2)} %`;
       break;
     }
+  }
+
+  // Mínimo é uma trava de Venda — vale pra qualquer tipo de cobrança (antes só
+  // PER_KG/PERCENTAGE respeitavam), convertendo pra moeda da Venda quando o
+  // Mínimo estiver cadastrado numa moeda diferente. Nunca afeta a Compra.
+  if (rule.minValue) {
+    const minInSellCurrency = convertCurrency(rule.minValue, (rule as any).minCurrency || rule.currency, rule.currency);
+    if (value < minInSellCurrency) value = minInSellCurrency;
   }
 
   // unitValue já é a taxa por unidade (não o total) — costUnitValue segue o
@@ -331,6 +347,8 @@ export function calculateFee(
     name: rule.feeName,
     value,
     currency: rule.currency,
+    costCurrency: (rule as any).costCurrency || rule.currency,
+    minCurrency: (rule as any).minCurrency || rule.currency,
     chargeType: rule.chargeType,
     description: rule.description || undefined,
     qty,
@@ -369,7 +387,8 @@ export function formatFeesForPdf(fees: CalculatedFee[]): any[] {
     max: '0,00',
     currency: f.currency,
     total: f.total,
-    costUnitValue: f.costUnitValue
+    costUnitValue: f.costUnitValue,
+    costCurrency: f.costCurrency
   }));
 }
 
@@ -386,6 +405,7 @@ export function formatFeesForController(
     currency: f.currency,
     brl: getBrlValue(f.value, f.currency),
     costUnitValue: f.costUnitValue,
+    costCurrency: f.costCurrency,
     unitValue: f.unitValue,
     billingUnit: f.billingUnit,
     quantity: f.quantity
