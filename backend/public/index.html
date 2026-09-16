@@ -4035,7 +4035,7 @@ function renderFeeCalculationPreview() {
   [['rev-origin-services','rev-origin-fees-preview'],['rev-destination-services','rev-destination-fees-preview']].forEach(([fieldId,panelId]) => {
     const panel = document.getElementById(panelId); if (!panel) return;
     const fees = parseFeeText(document.getElementById(fieldId)?.value);
-    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong><br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue.toFixed(2)}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue.toFixed(2)}</td></tr>`).join('')}</tbody></table>` : '';
+    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong><br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
   });
   renderIspsAlerts();
 }
@@ -11376,7 +11376,7 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
       if (originRules.length) {
         rulesHtml += '<div style="color:var(--info); font-weight:600; margin-bottom:6px;">Origem:</div>';
         originRules.forEach(r => {
-          const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
+          const val = r.chargeType === 'PERCENTAGE' ? (r.value != null ? r.value + '%' : 'A cotar') : r.currency + ' ' + (r.value != null ? r.value.toFixed(2) : 'A cotar');
           rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
         });
       } else {
@@ -11386,7 +11386,7 @@ window.updateIncotermPreview = async function(incoterm, targetId = 'incoterm-rul
       if (destRules.length) {
         rulesHtml += '<div style="color:var(--warning); font-weight:600; margin-bottom:6px;">Destino:</div>';
         destRules.forEach(r => {
-          const val = r.chargeType === 'PERCENTAGE' ? r.value + '%' : r.currency + ' ' + r.value.toFixed(2);
+          const val = r.chargeType === 'PERCENTAGE' ? (r.value != null ? r.value + '%' : 'A cotar') : r.currency + ' ' + (r.value != null ? r.value.toFixed(2) : 'A cotar');
           rulesHtml += '<div style="color:var(--text-muted); margin-bottom:2px;">• ' + r.feeName + ': ' + val + '</div>';
         });
       } else {
