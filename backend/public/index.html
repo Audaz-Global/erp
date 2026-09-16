@@ -3793,8 +3793,18 @@ window.reviewCostLines = { freight: [], origin: [], destination: [] };
 
 function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
-function reviewCostWithLimits(raw, line) { const minimum=reviewCostNumber(line.minValue); const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(Math.max(raw,minimum),maximum) : Math.max(raw,minimum); }
+function reviewCostWithLimits(raw, line) { const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(raw,maximum) : raw; }
 function reviewConvertCost(value, fromCurrency, toCurrency) { const from=normalizeCostCurrency(fromCurrency), to=normalizeCostCurrency(toCurrency); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
+// O Mínimo é uma trava de Venda — nunca de Compra (custo é custo real, não deve
+// ser inflado por uma regra comercial de preço mínimo). Converte pra moeda da
+// Venda antes de comparar, já que o Mínimo pode estar cadastrado numa moeda
+// diferente (ex: mínimo em USD, venda calculada em BRL).
+function reviewCostSellFloor(raw, line) {
+  const minimum = reviewCostNumber(line.minValue);
+  if (minimum <= 0) return raw;
+  const minInSellCurrency = reviewConvertCost(minimum, line.minCurrency || line.currency, line.currency);
+  return Math.max(raw, minInSellCurrency);
+}
 function reviewPercentageBase(line) {
   const configured=String(line.percentBase || '').toUpperCase();
   const targetCurrency=line.currency || 'USD';
@@ -3807,7 +3817,7 @@ function reviewPercentageBase(line) {
   if (configured === 'FREIGHT') return freight;
   const savedBase=reviewCostNumber(line.percentageBaseValue); return savedBase > 0 ? savedBase : freight;
 }
-function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostWithLimits(raw,line); }
+function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostSellFloor(reviewCostWithLimits(raw,line),line); }
 function reviewCostBuyTotal(line) { const costUnitValue=reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)); const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(costUnitValue/100) : reviewCostNumber(line.quantity,0)*costUnitValue; return reviewCostWithLimits(raw,line); }
 // Conversão aproximada só para tornar Compra e Venda comparáveis quando estão
 // em moedas diferentes (ex: compra em EUR, venda em USD) — sem isso, o lucro
@@ -11447,7 +11457,13 @@ function renderTreeFees(type, containerId) {
           <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
           <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
         </select>
-        <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+        <div style="display:flex;gap:4px;margin-top:4px;align-items:center;">
+          <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+          <select style="width: 66px;" title="Moeda do Mínimo" onchange="updateTreeFee('${type}', ${index}, 'minCurrency', this.value)">
+            <option value="USD" ${(fee.minCurrency || fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${(fee.minCurrency || fee.currency) === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
+        </div>
         ` : isOnRequest ? `
         <select style="width: 80px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
           <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
@@ -11460,17 +11476,27 @@ function renderTreeFees(type, containerId) {
             <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;">Compra</span>
             <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width: 80px;" title="Custo padrão" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
           </div>
+          <select style="width: 62px;margin-bottom:1px;" title="Moeda da Compra" onchange="updateTreeFee('${type}', ${index}, 'costCurrency', this.value)">
+            <option value="USD" ${(fee.costCurrency || fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${(fee.costCurrency || fee.currency) === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
           <span style="font-size:10px;color:var(--text-muted);margin-bottom:8px;">→</span>
           <div style="display:flex;flex-direction:column;gap:2px;">
             <span style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.03em;">Venda</span>
             <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 80px;" title="Venda sugerida" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
           </div>
-          <select style="width: 70px;margin-bottom:1px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
+          <select style="width: 70px;margin-bottom:1px;" title="Moeda da Venda" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
             <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
             <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
           </select>
         </div>
-        <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+        <div style="display:flex;gap:4px;margin-top:4px;align-items:center;">
+          <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+          <select style="width: 66px;" title="Moeda do Mínimo — trava a Venda, nunca a Compra" onchange="updateTreeFee('${type}', ${index}, 'minCurrency', this.value)">
+            <option value="USD" ${(fee.minCurrency || fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${(fee.minCurrency || fee.currency) === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
+        </div>
         `}
         ${fee.chargeType !== 'PERCENTAGE' ? `
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">
@@ -11521,7 +11547,7 @@ function updateTreeFeeCost(type, index, value) {
 }
 
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
+  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', costCurrency: null, minValue: null, minCurrency: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
   getTreeFeeList(type).push(newFee);
   renderTreeFees(type, TREE_FEE_CONTAINER_ID[type]);
 }

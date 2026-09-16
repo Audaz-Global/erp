@@ -17,6 +17,8 @@ export interface IncotermTreeFeePayload {
   pricingStatus?: string;
   minValue?: number;
   currency?: string;
+  costCurrency?: string;
+  minCurrency?: string;
   percentBase?: string;
   description?: string;
   required?: boolean;
@@ -112,6 +114,8 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
           pricingStatus,
           minValue: feeData.minValue !== undefined && feeData.minValue !== null && (feeData.minValue as any) !== '' ? Number(feeData.minValue) : null,
           currency: feeData.currency || 'USD',
+          costCurrency: feeData.costCurrency || null,
+          minCurrency: feeData.minCurrency || null,
           percentBase: feeData.chargeType === 'PERCENTAGE' ? (feeData.percentBase || 'FREIGHT') : null,
           description: feeData.description || null,
           sortOrder: parseIncotermRuleSortOrder(feeData.sortOrder) || sortOrderCounter++,
