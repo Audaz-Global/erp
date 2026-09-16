@@ -1271,6 +1271,7 @@
               <input type="text" id="r-client-name" class="req" placeholder="Ex: GESTAMP">
             </div>
             <div id="r-client-registered-badge"></div>
+            <div id="r-client-contact-conflict"></div>
             <div class="form-group">
               <label>CNPJ / Tax ID <span id="conf-client-cnpj"></span></label>
               <input type="text" id="r-client-cnpj" placeholder="Ex: 00.000.000/0000-00">
@@ -2762,19 +2763,11 @@
       <input type="text" id="client-cnpj" placeholder="Ex: 00.000.000/0000-00">
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-      <div class="form-group">
-        <label>Nome do Contato</label>
-        <input type="text" id="client-contact-name" placeholder="Ex: Maria Silva">
-      </div>
-      <div class="form-group">
-        <label>Telefone do Contato</label>
-        <input type="text" id="client-contact-phone" placeholder="Ex: +55 12 3307-1704">
-      </div>
-    </div>
     <div class="form-group">
-      <label>E-mail do Contato</label>
-      <input type="email" id="client-contact-email" placeholder="Ex: contato@empresa.com">
+      <label>Contatos *</label>
+      <small style="display:block;margin:-2px 0 8px;color:var(--text-muted);">O contato marcado como Principal é usado como padrão nas cotações e na extração por IA deste cliente.</small>
+      <div id="client-contacts-container" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button type="button" class="btn btn-secondary" style="margin-top:8px;font-size:12px;" onclick="addClientContact()">➕ Adicionar contato</button>
     </div>
     <div class="form-group">
       <label>Segmento</label>
@@ -4963,6 +4956,61 @@ function collectGroundServiceLegs() {
   return legs;
 }
 
+// Quando o contato extraído do e-mail é uma pessoa diferente da já
+// cadastrada no cliente, oferece a escolha em vez de descartar silenciosamente
+// (ver extractController.ts, aiResult.client.contact_conflict).
+window.clientContactConflict = null;
+function renderClientContactConflict(client) {
+  const box = document.getElementById('r-client-contact-conflict');
+  if (!box) return;
+  const conflict = client?.contact_conflict;
+  if (!conflict) { box.innerHTML = ''; window.clientContactConflict = null; return; }
+  window.clientContactConflict = { clientId: client.registered_client_id, extracted: conflict.extracted, registeredContacts: conflict.registeredContacts };
+  const registeredLabel = (conflict.registeredContacts || []).map(c => escapeFeeHtml(c.name) + (c.phone ? ` (${escapeFeeHtml(c.phone)})` : '')).join(', ');
+  const extractedLabel = escapeFeeHtml(conflict.extracted.name || conflict.extracted.email || 'contato deste e-mail');
+  const options = (conflict.registeredContacts || []).map((c, i) => `<option value="${i}">${escapeFeeHtml(c.name)}${c.phone ? ' — ' + escapeFeeHtml(c.phone) : ''}</option>`).join('');
+  box.innerHTML = `
+    <div style="margin:-4px 0 12px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">
+      ⚠️ O contato deste e-mail (<strong>${extractedLabel}</strong>) é diferente do(s) cadastrado(s) para este cliente (${registeredLabel}).
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+        <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="useExtractedContactAsNew()">➕ Usar e adicionar como novo contato</button>
+        <select id="r-client-conflict-select" style="font-size:11px;padding:6px;">${options}</select>
+        <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="selectRegisteredClientContact()">🔁 Usar este contato cadastrado</button>
+      </div>
+    </div>`;
+}
+
+async function useExtractedContactAsNew() {
+  const conflict = window.clientContactConflict;
+  if (!conflict) return;
+  const { name, phone, email } = conflict.extracted;
+  document.getElementById('r-client-contact').value = name || '';
+  document.getElementById('r-client-phone').value = phone || '';
+  if (conflict.clientId) {
+    try {
+      const res = await fetch(API + '/clients/' + conflict.clientId + '/contacts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, email, isPrimary: false })
+      });
+      if (res.ok) toast('✅ Contato adicionado ao cadastro do cliente.');
+    } catch (e) { /* segue mesmo se a gravação do contato falhar — a cotação usa o valor informado de qualquer forma */ }
+  }
+  document.getElementById('r-client-contact-conflict').innerHTML = '';
+  window.clientContactConflict = null;
+}
+
+function selectRegisteredClientContact() {
+  const conflict = window.clientContactConflict;
+  const select = document.getElementById('r-client-conflict-select');
+  if (!conflict || !select) return;
+  const chosen = conflict.registeredContacts[Number(select.value)];
+  if (!chosen) return;
+  document.getElementById('r-client-contact').value = chosen.name || '';
+  document.getElementById('r-client-phone').value = chosen.phone || '';
+  document.getElementById('r-client-contact-conflict').innerHTML = '';
+  window.clientContactConflict = null;
+}
+
 function fillReviewForm(d, mode) {
   if (mode === 'CLIENT') {
     // Garante que os dropdowns de transportadora/DTA já estejam com as opções
@@ -5017,7 +5065,8 @@ function fillReviewForm(d, mode) {
       if (d.client.product_segment) setSelectValueWithFallback(document.getElementById('r-product-segment'), d.client.product_segment);
       const registeredBadge = document.getElementById('r-client-registered-badge');
       if (registeredBadge) registeredBadge.innerHTML = d.client.registered_client_id
-        ? '<small style="display:block;margin:-8px 0 12px;color:var(--success);">✓ Cliente já cadastrado — nome e segmento preenchidos com o registro existente.</small>' : '';
+        ? '<small style="display:block;margin:-8px 0 12px;color:var(--success);">✓ Cliente já cadastrado — nome, segmento e contato preenchidos com o registro existente.</small>' : '';
+      renderClientContactConflict(d.client);
     }
     if(d.route) {
       document.getElementById('r-incoterm').value = d.route.incoterm || '';
@@ -8618,7 +8667,7 @@ function atlantisFieldGroups() {
     'r-client': { nameId:'r-client-name', cnpjId:'r-client-cnpj', contactNameId:'r-client-contact', contactPhoneId:'r-client-phone', boxId:'r-client-atlantis-box', role:'CUSTOMER' },
     'rev-client': { nameId:'rev-client-name', cnpjId:'rev-client-cnpj', contactNameId:'rev-client-contact', contactPhoneId:'rev-client-phone', boxId:'rev-client-atlantis-box', role:'CUSTOMER' },
     'agent': { nameId:'agent-name', cnpjId:null, phoneId:'agent-phone', websiteId:'agent-website', addressId:'agent-address', boxId:'agent-atlantis-box', role:'AGENT' },
-    'client-modal': { nameId:'client-name', cnpjId:'client-cnpj', contactNameId:'client-contact-name', contactPhoneId:'client-contact-phone', boxId:'client-modal-atlantis-box', role:'CUSTOMER' }
+    'client-modal': { nameId:'client-name', cnpjId:'client-cnpj', boxId:'client-modal-atlantis-box', role:'CUSTOMER' }
   };
 }
 
@@ -8709,6 +8758,14 @@ function acceptAtlantisCandidate(groupKey, index) {
   if (group.cnpjId && candidate.cnpj) document.getElementById(group.cnpjId).value = candidate.cnpj;
   if (group.contactNameId && candidate.contactName) document.getElementById(group.contactNameId).value = candidate.contactName;
   if (group.contactPhoneId && candidate.contactPhone) document.getElementById(group.contactPhoneId).value = candidate.contactPhone;
+  if (groupKey === 'client-modal' && (candidate.contactName || candidate.contactPhone)) {
+    // Cliente usa lista de contatos, não campos únicos — preenche o primeiro
+    // contato (cria um se a lista ainda estiver vazia).
+    if (!document.querySelector('.client-contact-row')) addClientContact();
+    const firstRow = document.querySelector('.client-contact-row');
+    if (candidate.contactName) firstRow.querySelector('.contact-name').value = candidate.contactName;
+    if (candidate.contactPhone) firstRow.querySelector('.contact-phone').value = candidate.contactPhone;
+  }
   if (group.phoneId && candidate.phone) document.getElementById(group.phoneId).value = candidate.phone;
   if (group.websiteId && candidate.website) document.getElementById(group.websiteId).value = candidate.website;
   if (group.addressId && candidate.address) document.getElementById(group.addressId).value = candidate.address;
@@ -9605,15 +9662,36 @@ function closeClientModal() {
   document.getElementById('clientModal').style.display = 'none';
 }
 
+function addClientContact(name = '', phone = '', email = '', isPrimary = false) {
+  const container = document.getElementById('client-contacts-container');
+  const div = document.createElement('div');
+  div.className = 'client-contact-row';
+  div.style.display = 'grid';
+  div.style.gridTemplateColumns = 'auto 1.2fr 1fr 1.5fr auto';
+  div.style.gap = '8px';
+  div.style.alignItems = 'center';
+
+  const isFirst = !document.querySelector('.client-contact-row');
+  div.innerHTML = `
+    <label style="display:flex;align-items:center;gap:5px;margin:0;font-size:11px;color:var(--text-muted);white-space:nowrap;" title="Contato principal">
+      <input type="radio" name="client-contact-principal" class="contact-principal" style="width:15px;height:15px;flex-shrink:0;" ${isPrimary || isFirst ? 'checked' : ''}> Principal
+    </label>
+    <input type="text" class="form-input contact-name" placeholder="Nome" value="${escapeFeeHtml(name)}">
+    <input type="text" class="form-input contact-phone" placeholder="Telefone" value="${escapeFeeHtml(phone)}">
+    <input type="email" class="form-input contact-email" placeholder="E-mail" value="${escapeFeeHtml(email)}">
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.8;" title="Remover contato">🗑️</button>
+  `;
+  container.appendChild(div);
+}
+
 function openClientModal() {
   document.getElementById('clientModal').style.display = 'block';
   document.getElementById('clientModalTitle').innerText = 'Novo Cliente';
   document.getElementById('client-id').value = '';
   document.getElementById('client-name').value = '';
   document.getElementById('client-cnpj').value = '';
-  document.getElementById('client-contact-name').value = '';
-  document.getElementById('client-contact-email').value = '';
-  document.getElementById('client-contact-phone').value = '';
+  document.getElementById('client-contacts-container').innerHTML = '';
+  addClientContact('', '', '', true);
   document.getElementById('client-product-segment').value = '';
   document.getElementById('client-modal-pending-note').style.display = 'none';
   resetAtlantisLink('client-modal', null);
@@ -9627,9 +9705,11 @@ function editClientById(id) {
   document.getElementById('client-id').value = client.id;
   document.getElementById('client-name').value = client.name || '';
   document.getElementById('client-cnpj').value = client.cnpj || '';
-  document.getElementById('client-contact-name').value = client.contactName || '';
-  document.getElementById('client-contact-email').value = client.contactEmail || '';
-  document.getElementById('client-contact-phone').value = client.contactPhone || '';
+  document.getElementById('client-contacts-container').innerHTML = '';
+  const contacts = (client.contacts && client.contacts.length) ? client.contacts
+    : (client.contactName ? [{ name: client.contactName, phone: client.contactPhone, email: client.contactEmail, isPrimary: true }] : []);
+  if (contacts.length) contacts.forEach(c => addClientContact(c.name || '', c.phone || '', c.email || '', Boolean(c.isPrimary)));
+  else addClientContact('', '', '', true);
   setSelectValueWithFallback(document.getElementById('client-product-segment'), client.productSegment || '');
   resetAtlantisLink('client-modal', client.atlantisId || null);
 
@@ -9649,12 +9729,20 @@ async function saveClient() {
   const name = document.getElementById('client-name').value.trim();
   if (!name) { toast('⚠️ Nome do cliente é obrigatório.'); return; }
 
+  const contactRows = Array.from(document.querySelectorAll('.client-contact-row'));
+  const contacts = contactRows.map(row => ({
+    name: row.querySelector('.contact-name').value.trim(),
+    phone: row.querySelector('.contact-phone').value.trim() || null,
+    email: row.querySelector('.contact-email').value.trim() || null,
+    isPrimary: row.querySelector('.contact-principal').checked
+  })).filter(c => c.name);
+  if (!contacts.length) { toast('⚠️ Cadastre pelo menos 1 contato.'); return; }
+  if (!contacts.some(c => c.isPrimary)) contacts[0].isPrimary = true;
+
   const payload = {
     name,
     cnpj: document.getElementById('client-cnpj').value.trim() || null,
-    contactName: document.getElementById('client-contact-name').value.trim() || null,
-    contactEmail: document.getElementById('client-contact-email').value.trim() || null,
-    contactPhone: document.getElementById('client-contact-phone').value.trim() || null,
+    contacts,
     productSegment: document.getElementById('client-product-segment').value || null,
     ...(() => {
       const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
