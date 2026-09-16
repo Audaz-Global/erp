@@ -6365,17 +6365,22 @@ function updateBuyVsSellTable() {
 
   // 3. TAXAS ORIGEM
   let sellOriginFeesUsd = 0;
+  let sellOriginFeesExSpreadUsd = 0;
   const originServicesRaw = document.getElementById('rev-origin-services').value || '';
   if (originServicesRaw.trim()) {
     parseFeeText(originServicesRaw).forEach(fee => {
         const val = fee.totalValue || 0;
         const curr = fee.currency;
-        if (curr === 'USD') sellOriginFeesUsd += val;
-        else if (curr === 'EUR') sellOriginFeesUsd += val * 1.08;
-        else if (curr === 'BRL') sellOriginFeesUsd += val / usdRate;
+        let usd = val;
+        if (curr === 'EUR') usd = val * 1.08;
+        else if (curr === 'BRL') usd = val / usdRate;
+        sellOriginFeesUsd += usd;
+        // "Spread / Profit" é markup nosso, não cobrança do agente — não pode
+        // inflar o Custo (Compra) quando o profit é aplicado/ajustado.
+        if (!/spread\s*\/\s*profit/i.test(fee.name || '')) sellOriginFeesExSpreadUsd += usd;
     });
   }
-  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesUsd;
+  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesExSpreadUsd;
 
   // 4. SEGURO INTERNACIONAL
   const requiresIns = document.getElementById('rev-insurance').value === 'true';
@@ -6386,22 +6391,27 @@ function updateBuyVsSellTable() {
   const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
   const servicesBrl = parseFloat(document.getElementById('rev-services').value) || 0;
   const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  let sellDestFeesUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
+  const destBaseUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
+  let sellDestFeesUsd = destBaseUsd;
+  let sellDestFeesExSpreadUsd = destBaseUsd;
 
-  // Somar também linhas avulsas de destino (exceto Seguro e Spread)
+  // Somar também linhas avulsas de destino (exceto Seguro). "Spread / Profit"
+  // entra na Venda normalmente, mas fica de fora do custo do agente (abaixo).
   const destText = document.getElementById('rev-destination-services').value || '';
   parseFeeText(destText).forEach(fee => {
-    const l = fee.name.toLowerCase();
-    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional') && !l.includes('spread / profit')) {
+    const l = (fee.name || '').toLowerCase();
+    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
         const val = fee.totalValue || 0;
         const curr = fee.currency;
-        if (curr === 'USD') sellDestFeesUsd += val;
-        else if (curr === 'EUR') sellDestFeesUsd += val * 1.08;
-        else if (curr === 'BRL') sellDestFeesUsd += val / usdRate;
+        let usd = val;
+        if (curr === 'EUR') usd = val * 1.08;
+        else if (curr === 'BRL') usd = val / usdRate;
+        sellDestFeesUsd += usd;
+        if (!l.includes('spread / profit')) sellDestFeesExSpreadUsd += usd;
     }
   });
 
-  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesUsd;
+  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesExSpreadUsd;
 
   // 6. DESEMBARAÇO ADUANEIRO
   const customsIncluded = document.getElementById('rev-customs-clearance').checked;
@@ -6527,7 +6537,7 @@ function applySmartProfit() {
   }
 
   const profitValUsd = parseFloat(profitStr);
-  if (isNaN(profitValUsd) || profitValUsd <= 0) return;
+  if (isNaN(profitValUsd) || profitValUsd < 0) return;
 
   const targets = getProfitTargets().filter(t => t.checked);
   if (targets.length === 0) {
@@ -6547,7 +6557,6 @@ function applySmartProfit() {
 
   targets.forEach(t => {
     const shareUsd = profitValUsd * (t.pct / 100);
-    if (shareUsd <= 0) return;
 
     if (t.key === 'freight') {
       let freightVal = parseFloat(document.getElementById('rev-freight').value) || 0;
@@ -6558,18 +6567,32 @@ function applySmartProfit() {
       if (freightCurrency === 'EUR') profitConverted = shareUsd * (usdRate / eurRate);
       else if (freightCurrency === 'BRL') profitConverted = shareUsd * usdRate;
 
-      document.getElementById('rev-freight').value = (freightVal + profitConverted).toFixed(2);
+      // Remove o profit aplicado da última vez (se houver) antes de somar o
+      // novo, para SOBRESCREVER em vez de ACUMULAR a cada clique. Profit 0
+      // simplesmente remove o acréscimo anterior, voltando ao frete-base.
+      const prevAppliedConverted = window.lastAppliedFreightProfitConverted || 0;
+      const baseFreightVal = freightVal - prevAppliedConverted;
+      const newFreightVal = baseFreightVal + profitConverted;
+
+      document.getElementById('rev-freight').value = newFreightVal.toFixed(2);
+      window.lastAppliedFreightProfitConverted = profitConverted;
       const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
-      if (mainFreight) mainFreight.unitValue = (freightVal + profitConverted) / (reviewCostNumber(mainFreight.quantity, 1) || 1);
+      if (mainFreight) mainFreight.unitValue = newFreightVal / (reviewCostNumber(mainFreight.quantity, 1) || 1);
     } else {
       const textareaId = t.key === 'origin' ? 'rev-origin-services' : 'rev-destination-services';
       const feesTextarea = document.getElementById(textareaId);
-      const lines = (feesTextarea.value || '').split('\n').filter(line => !line.toLowerCase().includes('spread / profit'));
-      lines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: shareUsd, value: shareUsd, currency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: shareUsd }));
+      const lines = (feesTextarea.value || '').split('\n').filter(line => !/spread\s*\/\s*profit/i.test(line));
+      if (shareUsd > 0.005) {
+        lines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: shareUsd, value: shareUsd, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: shareUsd }));
+      }
       feesTextarea.value = lines.join('\n');
 
+      // Custo do agente nunca muda por causa do profit: a linha Spread/Profit
+      // é markup nosso, então costUnitValue fica travado em 0.
       window.reviewCostLines[t.key] = (window.reviewCostLines[t.key] || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
-      window.reviewCostLines[t.key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: shareUsd, currency: 'USD', applicationScope: t.key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+      if (shareUsd > 0.005) {
+        window.reviewCostLines[t.key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: shareUsd, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', applicationScope: t.key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+      }
     }
 
     appliedParts.push(`${AREA_LABELS[t.key]}: USD ${shareUsd.toFixed(2)}`);
@@ -6578,7 +6601,7 @@ function applySmartProfit() {
   renderReviewCostEditor();
   recalculateModalDestinationServicesTotal();
   updateBuyVsSellTable();
-  alert(`Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}`);
+  alert(profitValUsd > 0 ? `Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}` : 'Profit zerado nas áreas selecionadas.');
 }
 
 // Edição direta do preço de Venda na tabela Compra vs. Venda. Frete/Inland/
@@ -6598,6 +6621,10 @@ function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
     if (currency === 'EUR') converted = newSellUsd * (usdRate / eurRate);
     else if (currency === 'BRL') converted = newSellUsd * usdRate;
     document.getElementById('rev-freight').value = converted.toFixed(2);
+    // Edição manual do valor de Venda vira o novo "base" do frete — zera o
+    // rastreamento do Aplicar Profit pra não subtrair um acréscimo antigo
+    // que já não existe mais neste valor.
+    window.lastAppliedFreightProfitConverted = 0;
     const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
     if (mainFreight) mainFreight.unitValue = converted / (reviewCostNumber(mainFreight.quantity, 1) || 1);
   } else if (key === 'inland') {
@@ -6620,13 +6647,13 @@ function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
     const newSpreadValue = existingSpread + deltaUsd;
     const otherLines = lines.filter((_, i) => i !== spreadLineIdx);
     if (Math.abs(newSpreadValue) > 0.005) {
-      otherLines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: newSpreadValue, value: newSpreadValue, currency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: newSpreadValue }));
+      otherLines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: newSpreadValue, value: newSpreadValue, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: newSpreadValue }));
     }
     feesTextarea.value = otherLines.filter(Boolean).join('\n');
 
     window.reviewCostLines[key] = (window.reviewCostLines[key] || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
     if (Math.abs(newSpreadValue) > 0.005) {
-      window.reviewCostLines[key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: newSpreadValue, currency: 'USD', applicationScope: key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+      window.reviewCostLines[key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: newSpreadValue, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', applicationScope: key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
     }
   }
 
