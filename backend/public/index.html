@@ -3698,20 +3698,21 @@ function parseFeeLine(line) {
   if (separator < 0) return null;
   const name = line.slice(0, separator).trim();
   const segments = line.slice(separator + 1).split('|').map(value => value.trim());
+  const isPending = segments[0] === 'A COTAR';
   const first = segments[0].split(/\s+/);
-  const unitValue = parseFloat(String(first[0] || '').replace(',', '.'));
-  if (!name || !Number.isFinite(unitValue)) return null;
-  const currency = normalizeCostCurrency(first[1]);
-  const billingUnit = String(segments[1] || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
+  const unitValue = isPending ? null : parseFloat(String(first[0] || '').replace(',', '.'));
+  if (!name || (!isPending && !Number.isFinite(unitValue))) return null;
+  const currency = isPending ? 'USD' : normalizeCostCurrency(first[1]);
+  const billingUnit = isPending ? 'UNKNOWN' : String(segments[1] || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
   const quantityMatch = segments.find(value => /^(QTY|QTD)\s+/i.test(value))?.match(/(?:QTY|QTD)\s+([\d.,]+)/i);
-  const quantityPending = segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value));
+  const quantityPending = isPending || segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value));
   const totalMatch = segments.find(value => /^TOTAL\s+/i.test(value))?.match(/TOTAL\s+([\d.,]+)/i);
   const minimumMatch = segments.find(value => /^MIN\s+/i.test(value))?.match(/MIN\s+([\d.,]+)/i);
   const maximumMatch = segments.find(value => /^MAX\s+/i.test(value))?.match(/MAX\s+([\d.,]+)/i);
   const quantity = quantityMatch ? parseFloat(quantityMatch[1].replace(',', '.')) : (quantityPending ? null : (['TOTAL_SHIPMENT','PER_SHIPMENT','UNKNOWN'].includes(billingUnit) ? 1 : null));
   const explicitTotal = totalMatch ? parseFloat(totalMatch[1].replace(',', '.')) : null;
-  const totalValue = Number.isFinite(explicitTotal) ? explicitTotal : (Number.isFinite(quantity) ? unitValue * quantity : unitValue);
-  const mismatch = Number.isFinite(explicitTotal) && Number.isFinite(quantity) && Math.abs(unitValue * quantity - explicitTotal) > 0.01;
+  const totalValue = isPending ? null : (Number.isFinite(explicitTotal) ? explicitTotal : (Number.isFinite(quantity) ? unitValue * quantity : unitValue));
+  const mismatch = isPending ? false : (Number.isFinite(explicitTotal) && Number.isFinite(quantity) && Math.abs(unitValue * quantity - explicitTotal) > 0.01);
   const quantityMissing = !Number.isFinite(quantity) && !['PERCENTAGE'].includes(billingUnit);
   const isIsps = /\bISPS\b|\b(TERMINAL|PORT) SECURITY (FEE|CHARGE|SURCHARGE)\b/i.test(name);
   const ispsSegment = segments.find(value => /^ISPS\s+/i.test(value));
@@ -3753,7 +3754,7 @@ function parseFeeLine(line) {
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons };
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons, pending: isPending || undefined };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
