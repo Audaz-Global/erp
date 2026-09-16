@@ -1202,6 +1202,8 @@
       <li class="nav-section-title">CADASTROS</li>
       <li><button class="app-nav-item" id="tab-clients" onclick="switchTab('clients')"><span>🏢</span><span>Clientes</span></button></li>
       <li><button class="app-nav-item" id="tab-agents" onclick="switchTab('agents')"><span>🤝</span><span>Parceiros</span></button></li>
+      <li class="nav-section-title">SUPORTE</li>
+      <li><button class="app-nav-item" id="tab-tickets" onclick="switchTab('tickets')"><span>📋</span><span>Chamados</span></button></li>
     </ul>
     <div class="app-sidebar-footer">
       <img src="/assets/audaz-logo-dark.png" alt="Audaz Global">
@@ -1211,6 +1213,9 @@
     <header class="header">
       <button class="active-professional-btn" id="activeProfessionalButton" onclick="openProfessionalChooser()" aria-label="Escolher profissional responsável">
         <span class="active-professional-avatar" id="activeProfessionalInitials">?</span><span><small style="display:block;color:var(--text-muted);font-size:9px;text-align:left">COTANDO COMO</small><strong id="activeProfessionalName" style="font-size:11px">Escolher profissional</strong></span>
+      </button>
+      <button class="gear-btn" onclick="openNewTicketModal()" aria-label="Reportar um problema ou sugerir melhoria" title="Reportar problema / sugerir melhoria">
+        <span>🐞</span><span>Reportar problema</span>
       </button>
       <button class="gear-btn" onclick="openSettings()" aria-label="Abrir configurações">
         <svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span>Configurações</span>
@@ -1988,6 +1993,39 @@
         <table class="q-table" id="clientsTable">
           <thead><tr><th>Nome</th><th>CNPJ</th><th>Contato</th><th>Segmento</th><th>Status</th><th>Cotações</th><th>Ações</th></tr></thead>
           <tbody id="clientsTbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAINEL: CHAMADOS ════════════ -->
+  <div class="panel" id="panel-tickets">
+    <div class="card" style="padding: 20px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <h2 style="margin:0;"><span class="emoji">📋</span> Chamados</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="ticket-search" placeholder="Buscar por título..." style="min-width:200px;margin:0;" oninput="renderTicketsTable()">
+          <select id="ticket-filter-status" style="margin:0;" onchange="renderTicketsTable()">
+            <option value="">Todos os status</option>
+            <option value="ABERTO">Aberto</option>
+            <option value="EM_ANDAMENTO">Em andamento</option>
+            <option value="RESOLVIDO">Resolvido</option>
+            <option value="FECHADO">Fechado</option>
+          </select>
+          <select id="ticket-filter-type" style="margin:0;" onchange="renderTicketsTable()">
+            <option value="">Todos os tipos</option>
+            <option value="BUG">🐞 Erro</option>
+            <option value="MELHORIA">✨ Melhoria</option>
+            <option value="DUVIDA">❓ Dúvida</option>
+            <option value="OUTRO">Outro</option>
+          </select>
+          <button class="btn btn-primary" onclick="openNewTicketModal()">➕ Novo Chamado</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="q-table" id="ticketsTable">
+          <thead><tr><th>Título</th><th>Tipo</th><th>Prioridade</th><th>Módulo</th><th>Status</th><th>Aberto por</th><th>Data</th><th></th></tr></thead>
+          <tbody id="ticketsTbody"><tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Carregando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -2823,6 +2861,77 @@
   </div>
 </div>
 
+<div id="ticketModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9100; overflow-y:auto; padding:20px;">
+  <div style="max-width:600px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+    <button onclick="closeTicketModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    <h2 style="font-size:18px; margin-bottom: 6px;" id="ticketModalTitle">Novo Chamado</h2>
+    <div id="ticket-meta-line" style="display:none;font-size:11px;color:var(--text-muted);margin-bottom:16px;"></div>
+
+    <input type="hidden" id="ticket-id">
+
+    <div class="form-group">
+      <label>Título *</label>
+      <input type="text" id="ticket-title" placeholder="Ex: PDF não gera para modal aéreo">
+    </div>
+    <div class="form-group">
+      <label>Descrição *</label>
+      <textarea id="ticket-description" rows="4" placeholder="Descreva o problema/melhoria com o máximo de detalhe possível (passos, cotação afetada, etc.)"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="ticket-type">
+          <option value="BUG">🐞 Erro</option>
+          <option value="MELHORIA" selected>✨ Melhoria</option>
+          <option value="DUVIDA">❓ Dúvida</option>
+          <option value="OUTRO">Outro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Prioridade</label>
+        <select id="ticket-priority">
+          <option value="BAIXA">Baixa</option>
+          <option value="MEDIA" selected>Média</option>
+          <option value="ALTA">Alta</option>
+          <option value="URGENTE">Urgente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Módulo</label>
+        <input type="text" id="ticket-module" placeholder="Ex: PDF, Cotações...">
+      </div>
+    </div>
+
+    <div id="ticket-status-section" style="display:none;margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:8px;">
+      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:8px;">Status</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('ABERTO')">🟡 Aberto</button>
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('EM_ANDAMENTO')">🔵 Em andamento</button>
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('RESOLVIDO')">✅ Resolver</button>
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('FECHADO')">🔒 Fechar</button>
+      </div>
+    </div>
+
+    <div id="ticket-attachments-section" style="display:none;margin:14px 0;">
+      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:8px;">Anexos</label>
+      <div id="ticket-attachments-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+      <input type="file" id="ticket-attachment-input" multiple onchange="uploadTicketAttachments()">
+    </div>
+
+    <div id="ticket-comments-section" style="display:none;margin:14px 0;">
+      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:8px;">Comentários</label>
+      <div id="ticket-comments-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;max-height:220px;overflow-y:auto;"></div>
+      <textarea id="ticket-new-comment" rows="2" placeholder="Escrever comentário..."></textarea>
+      <button type="button" class="btn btn-secondary" style="margin-top:8px;font-size:12px;" onclick="submitTicketComment()">💬 Comentar</button>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+      <button onclick="closeTicketModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveTicket()" class="btn btn-primary" id="btnSaveTicket">Salvar Chamado</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = window.location.origin + '/api';
 let isOnlyEditMode = false;
@@ -3099,6 +3208,9 @@ function switchTab(name) {
   }
   if (name === 'clients') {
     loadClients();
+  }
+  if (name === 'tickets') {
+    loadTickets();
   }
 }
 
@@ -9793,6 +9905,223 @@ async function saveClient() {
   } finally {
     btn.disabled = false;
     btn.innerText = 'Salvar Cliente';
+  }
+}
+
+// ════════════ CHAMADOS ════════════
+const TICKET_STATUS_MAP = {
+  'ABERTO': { label: 'Aberto', cls: 'review', icon: '🟡' },
+  'EM_ANDAMENTO': { label: 'Em andamento', cls: 'sent', icon: '🔵' },
+  'RESOLVIDO': { label: 'Resolvido', cls: 'approved', icon: '✅' },
+  'FECHADO': { label: 'Fechado', cls: 'draft', icon: '🔒' }
+};
+const TICKET_TYPE_LABELS = { BUG: '🐞 Erro', MELHORIA: '✨ Melhoria', DUVIDA: '❓ Dúvida', OUTRO: 'Outro' };
+const TICKET_PRIORITY_LABELS = { BAIXA: 'Baixa', MEDIA: 'Média', ALTA: 'Alta', URGENTE: 'Urgente' };
+window.allTicketsList = [];
+window.currentTicketDetail = null;
+
+async function loadTickets() {
+  try {
+    const res = await fetch(API + '/tickets');
+    window.allTicketsList = await res.json();
+    renderTicketsTable();
+  } catch (e) {
+    console.error('Erro ao carregar chamados', e);
+  }
+}
+
+function renderTicketsTable() {
+  const tbody = document.getElementById('ticketsTbody');
+  if (!tbody) return;
+  const search = (document.getElementById('ticket-search')?.value || '').toLowerCase();
+  const statusFilter = document.getElementById('ticket-filter-status')?.value || '';
+  const typeFilter = document.getElementById('ticket-filter-type')?.value || '';
+  const filtered = (window.allTicketsList || []).filter(t =>
+    (!search || t.title.toLowerCase().includes(search)) &&
+    (!statusFilter || t.status === statusFilter) &&
+    (!typeFilter || t.type === typeFilter)
+  );
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Nenhum chamado encontrado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(t => {
+    const st = TICKET_STATUS_MAP[t.status] || { label: t.status, cls: 'draft', icon: '❓' };
+    const counts = [t._count?.comments ? `💬 ${t._count.comments}` : '', t._count?.documents ? `📎 ${t._count.documents}` : ''].filter(Boolean).join(' ');
+    return `
+    <tr style="cursor:pointer;" onclick="openTicketDetail('${t.id}')">
+      <td style="font-weight:600;">${ifrEscape(t.title)} ${counts ? `<span style="color:var(--text-muted);font-size:11px;">${counts}</span>` : ''}</td>
+      <td>${TICKET_TYPE_LABELS[t.type] || t.type}</td>
+      <td style="color:var(--text-muted);">${TICKET_PRIORITY_LABELS[t.priority] || t.priority}</td>
+      <td style="color:var(--text-muted);">${ifrEscape(t.module || '-')}</td>
+      <td><span class="status-badge ${st.cls}">${st.icon} ${st.label}</span></td>
+      <td style="color:var(--text-muted);">${ifrEscape(t.createdBy?.name || '-')}</td>
+      <td style="color:var(--text-muted);">${new Date(t.createdAt).toLocaleDateString('pt-BR')}</td>
+      <td><div class="action-btns"><button class="action-btn" onclick="event.stopPropagation();openTicketDetail('${t.id}')" title="Abrir">👁️</button></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function closeTicketModal() {
+  document.getElementById('ticketModal').style.display = 'none';
+  window.currentTicketDetail = null;
+}
+
+function resetTicketModalSections() {
+  document.getElementById('ticket-status-section').style.display = 'none';
+  document.getElementById('ticket-attachments-section').style.display = 'none';
+  document.getElementById('ticket-comments-section').style.display = 'none';
+  document.getElementById('ticket-meta-line').style.display = 'none';
+}
+
+function openNewTicketModal() {
+  document.getElementById('ticketModal').style.display = 'block';
+  document.getElementById('ticketModalTitle').innerText = 'Novo Chamado';
+  document.getElementById('ticket-id').value = '';
+  document.getElementById('ticket-title').value = '';
+  document.getElementById('ticket-description').value = '';
+  document.getElementById('ticket-type').value = 'MELHORIA';
+  document.getElementById('ticket-priority').value = 'MEDIA';
+  document.getElementById('ticket-module').value = '';
+  document.getElementById('btnSaveTicket').style.display = '';
+  resetTicketModalSections();
+  window.currentTicketDetail = null;
+}
+
+async function openTicketDetail(id) {
+  try {
+    const res = await fetch(API + '/tickets/' + id);
+    const ticket = await res.json();
+    if (!res.ok) throw new Error(ticket.error || 'Chamado não encontrado.');
+    window.currentTicketDetail = ticket;
+    document.getElementById('ticketModal').style.display = 'block';
+    document.getElementById('ticketModalTitle').innerText = 'Chamado';
+    document.getElementById('ticket-id').value = ticket.id;
+    document.getElementById('ticket-title').value = ticket.title || '';
+    document.getElementById('ticket-description').value = ticket.description || '';
+    document.getElementById('ticket-type').value = ticket.type || 'MELHORIA';
+    document.getElementById('ticket-priority').value = ticket.priority || 'MEDIA';
+    document.getElementById('ticket-module').value = ticket.module || '';
+    document.getElementById('btnSaveTicket').style.display = '';
+
+    const metaLine = document.getElementById('ticket-meta-line');
+    metaLine.style.display = 'block';
+    metaLine.textContent = `Aberto por ${ticket.createdBy?.name || '-'} em ${new Date(ticket.createdAt).toLocaleString('pt-BR')}${ticket.assignedTo ? ` · Atribuído a ${ticket.assignedTo.name}` : ''}`;
+
+    document.getElementById('ticket-status-section').style.display = 'block';
+    document.getElementById('ticket-attachments-section').style.display = 'block';
+    document.getElementById('ticket-comments-section').style.display = 'block';
+    renderTicketAttachments(ticket.documents || []);
+    renderTicketComments(ticket.comments || []);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+function renderTicketAttachments(documents) {
+  const list = document.getElementById('ticket-attachments-list');
+  const ticketId = document.getElementById('ticket-id').value;
+  if (!documents.length) { list.innerHTML = `<div style="color:var(--text-muted);font-size:12px;">Nenhum anexo.</div>`; return; }
+  list.innerHTML = documents.map(d => `
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+      <a href="${API}/tickets/${ticketId}/documents/${d.id}" target="_blank" style="color:var(--gold);">📎 ${ifrEscape(d.originalName)}</a>
+      <span style="color:var(--text-muted);">${((d.blob?.size || 0) / 1024).toFixed(0)} KB</span>
+    </div>
+  `).join('');
+}
+
+function renderTicketComments(comments) {
+  const list = document.getElementById('ticket-comments-list');
+  if (!comments.length) { list.innerHTML = `<div style="color:var(--text-muted);font-size:12px;">Nenhum comentário ainda.</div>`; return; }
+  list.innerHTML = comments.map(c => `
+    <div style="border-left:2px solid var(--border);padding-left:8px;">
+      <div style="font-size:11px;color:var(--text-muted);">${new Date(c.createdAt).toLocaleString('pt-BR')}</div>
+      <div style="font-size:13px;white-space:pre-wrap;">${ifrEscape(c.body)}</div>
+    </div>
+  `).join('');
+}
+
+async function saveTicket() {
+  const id = document.getElementById('ticket-id').value;
+  const btn = document.getElementById('btnSaveTicket');
+  const title = document.getElementById('ticket-title').value.trim();
+  if (!title) { toast('⚠️ Informe um título.'); return; }
+  const description = document.getElementById('ticket-description').value.trim();
+  if (!description) { toast('⚠️ Descreva o chamado.'); return; }
+
+  const payload = {
+    title, description,
+    type: document.getElementById('ticket-type').value,
+    priority: document.getElementById('ticket-priority').value,
+    module: document.getElementById('ticket-module').value.trim() || null
+  };
+
+  btn.disabled = true;
+  btn.innerText = 'Salvando...';
+  try {
+    const url = id ? API + '/tickets/' + id : API + '/tickets';
+    const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao salvar chamado.');
+    toast(id ? '✅ Chamado atualizado.' : '✅ Chamado aberto com sucesso.');
+    if (!id) { closeTicketModal(); } else { openTicketDetail(id); }
+    loadTickets();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Salvar Chamado';
+  }
+}
+
+async function updateTicketStatus(status) {
+  const id = document.getElementById('ticket-id').value;
+  if (!id) return;
+  try {
+    const res = await fetch(API + '/tickets/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao mudar status.');
+    toast('✅ Status atualizado: ' + (TICKET_STATUS_MAP[status]?.label || status));
+    openTicketDetail(id);
+    loadTickets();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+async function submitTicketComment() {
+  const id = document.getElementById('ticket-id').value;
+  const textarea = document.getElementById('ticket-new-comment');
+  const body = textarea.value.trim();
+  if (!id || !body) return;
+  try {
+    const res = await fetch(API + '/tickets/' + id + '/comments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao comentar.');
+    textarea.value = '';
+    openTicketDetail(id);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+async function uploadTicketAttachments() {
+  const id = document.getElementById('ticket-id').value;
+  const input = document.getElementById('ticket-attachment-input');
+  if (!id || !input.files || !input.files.length) return;
+  const form = new FormData();
+  Array.from(input.files).forEach(file => form.append('files', file));
+  try {
+    const res = await fetch(API + '/tickets/' + id + '/documents', { method: 'POST', body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao anexar arquivo.');
+    toast('✅ Anexo(s) salvo(s).');
+    input.value = '';
+    openTicketDetail(id);
+  } catch (err) {
+    toast('❌ ' + err.message);
   }
 }
 
