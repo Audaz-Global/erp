@@ -243,6 +243,7 @@ model Quotation {
   events          QuotationEvent[]
   requestCycles   QuotationRequestCycle[]
   groundServiceLegs GroundServiceLeg[]
+  tickets         Ticket[]
 
   @@index([carrierProfileId])
 }
@@ -800,6 +801,8 @@ model Ticket {
   priority     String    @default("MEDIA") // BAIXA, MEDIA, ALTA, URGENTE
   status       String    @default("ABERTO") // ABERTO, EM_ANDAMENTO, RESOLVIDO, FECHADO
   module       String?
+  quotationId  String?
+  quotation    Quotation? @relation(fields: [quotationId], references: [id])
   createdById  String
   createdBy    User      @relation("TicketCreatedBy", fields: [createdById], references: [id])
   assignedToId String?
@@ -814,6 +817,7 @@ model Ticket {
   @@index([status])
   @@index([createdById])
   @@index([assignedToId])
+  @@index([quotationId])
 }
 
 model TicketComment {

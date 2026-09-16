@@ -14,6 +14,7 @@ const ticketListSelect = {
   createdAt: true, updatedAt: true, resolvedAt: true,
   createdBy: { select: { id: true, name: true } },
   assignedTo: { select: { id: true, name: true } },
+  quotation: { select: { id: true, reference: true } },
   _count: { select: { comments: true, documents: true } }
 } as const;
 
@@ -47,6 +48,7 @@ export async function getTicket(req: Request, res: Response) {
     include: {
       createdBy: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
+      quotation: { select: { id: true, reference: true } },
       comments: { orderBy: { createdAt: 'asc' } },
       documents: { select: { id: true, originalName: true, createdAt: true, blob: { select: { mimeType: true, size: true } } }, orderBy: { createdAt: 'asc' } }
     }
@@ -65,7 +67,10 @@ export async function createTicket(req: Request, res: Response) {
     const priority = PRIORITY_VALUES.has(req.body?.priority) ? req.body.priority : 'MEDIA';
     const createdById = await resolveUserId(req);
     const ticket = await prisma.ticket.create({
-      data: { title, description, type, priority, module: req.body?.module || null, createdById },
+      data: {
+        title, description, type, priority, module: req.body?.module || null,
+        quotationId: req.body?.quotationId || null, createdById
+      },
       select: ticketListSelect
     });
     res.status(201).json(ticket);
