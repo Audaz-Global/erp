@@ -1078,10 +1078,17 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           <td class="t-right">R$ ${subtotalDestinoBrl.toFixed(2)}</td>
         </tr>
 
-        ${detailedFeesAdditionalGroups.length ? `
-        <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro, impostos e profit</td></tr>
-        ${detailedFeesAdditionalGroups.map(fee => `<tr><td>${fee.financialGroupLabel}: ${fee.name}</td><td>${fee.chargeNature || 'Outra'}</td><td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td></tr>`).join('')}
-        <tr class="total-row"><td>Subtotal de outras classificações</td><td></td><td></td><td class="t-right">R$ ${subtotalAdditionalBrl.toFixed(2)}</td></tr>` : ''}
+        ${(() => {
+          // Profit/spread do agente é informação interna: não aparece como
+          // linha nem rótulo aqui, mas seu valor continua contando no
+          // subtotal (subtotalAdditionalBrl já inclui o profit, sem exibi-lo).
+          const visibleAdditionalFees = detailedFeesAdditionalGroups.filter(fee => fee.financialGroup !== 'PROFIT');
+          if (!visibleAdditionalFees.length) return '';
+          return `
+        <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro e impostos</td></tr>
+        ${visibleAdditionalFees.map(fee => `<tr><td>${fee.financialGroupLabel}: ${fee.name}</td><td>${fee.chargeNature || 'Outra'}</td><td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td></tr>`).join('')}
+        <tr class="total-row"><td>Subtotal de outras classificações</td><td></td><td></td><td class="t-right">R$ ${subtotalAdditionalBrl.toFixed(2)}</td></tr>`;
+        })()}
 
         <!-- Total Geral -->
         <tr class="total-row grand-total">
