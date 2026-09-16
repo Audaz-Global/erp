@@ -2220,6 +2220,10 @@
           <label style="font-size:11px;">Conexões do Voo ou do Porto</label>
           <input type="text" id="rev-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
         </div>
+        <div class="form-group" style="margin:0;grid-column:span 2;">
+          <label style="font-size:11px;">Validade da tarifa</label>
+          <input type="date" id="rev-rate-valid-until">
+        </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Cia Aérea / Armador</label>
           <div style="display:flex; gap:10px; align-items:center;">
@@ -2228,7 +2232,7 @@
               <input type="checkbox" id="rev-hide-carrier"> Ocultar na proposta
             </label>
           </div>
-          <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Validade da tarifa</label><input type="date" id="rev-rate-valid-until"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
+          <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
         </div>
         <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
@@ -6990,21 +6994,30 @@ async function confirmAndGeneratePDF() {
   if (!qId) return;
   syncReviewCostEditor();
 
-  const incotermAlerts = await fetchIncotermApplicabilityAlerts('rev');
-  const missingRequired = incotermAlerts.filter(a => a.code === 'INCOTERM_REQUIRED_MISSING');
-  if (missingRequired.length) {
-    const incotermValue = document.getElementById('rev-incoterm').value;
-    const feeList = missingRequired.map(a => (a.feeNames || []).join(', ') || a.message).join('\n• ');
-    if (!window.confirm(`Taxas obrigatórias para o Incoterm ${incotermValue} estão ausentes:\n• ${feeList}\n\nConfirma que deseja gerar o PDF mesmo assim?`)) return;
-  }
+  // Essas duas checagens são específicas de gerar a proposta em PDF — não fazem
+  // sentido pra "Salvar Alterações" (editar uma cotação já existente sem gerar
+  // um PDF novo), então só rodam fora do modo de edição.
+  if (!isOnlyEditMode) {
+    const incotermAlerts = await fetchIncotermApplicabilityAlerts('rev');
+    const missingRequired = incotermAlerts.filter(a => a.code === 'INCOTERM_REQUIRED_MISSING');
+    if (missingRequired.length) {
+      const incotermValue = document.getElementById('rev-incoterm').value;
+      const feeList = missingRequired.map(a => (a.feeNames || []).join(', ') || a.message).join('\n• ');
+      if (!window.confirm(`Taxas obrigatórias para o Incoterm ${incotermValue} estão ausentes:\n• ${feeList}\n\nConfirma que deseja gerar o PDF mesmo assim?`)) return;
+    }
 
-  const validityInput = document.getElementById('rev-rate-valid-until');
-  if (!validityInput.value) {
-    alert('Informe a validade da tarifa antes de gerar o PDF.');
-    validityInput.focus();
-    return;
+    const validityInput = document.getElementById('rev-rate-valid-until');
+    if (!validityInput.value) {
+      // O próprio sistema já trata "sem data" como contingência de 15 dias
+      // (setRateValidityStatus) — em vez de travar sem saída, oferece essa
+      // mesma saída aqui.
+      if (!window.confirm('Nenhuma validade de tarifa informada — a cotação seguirá como contingência de 15 dias, precisando de revisão depois. Confirma?')) {
+        validityInput.focus();
+        return;
+      }
+      setRateValidityStatus('rev', { source: 'CONTINGENCY', needsReview: true, evidence: 'Confirmado sem data pelo operador ao gerar o PDF.' });
+    } else if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   }
-  if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   const storageInput = document.getElementById('rev-storage');
   if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
   if (!document.getElementById('rev-transit-time').value.trim() && !window.confirm('O tempo de trânsito não foi informado. Deseja continuar e gerar o PDF mesmo assim?')) return;
