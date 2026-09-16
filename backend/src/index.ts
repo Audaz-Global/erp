@@ -110,6 +110,18 @@ async function startServer() {
   const linkedRules = await backfillIncotermRuleStandardFees(prisma);
   if (linkedRules > 0) console.log(`✅ ${linkedRules} regra(s) de Incoterm vinculada(s) às taxas locais.`);
 
+  // Excluir exclusivamente a regra legada automática "Origin Charges (Coleta, Doc, Handling, Despacho)" do banco de dados
+  try {
+    const deletedRules = await prisma.incotermRule.deleteMany({
+      where: {
+        feeName: { in: ['Origin Charges (Coleta, Doc, Handling, Despacho)', 'Origin Charges'] }
+      }
+    });
+    if (deletedRules.count > 0) console.log(`✅ ${deletedRules.count} regra(s) legada(s) de Origin Charges removida(s) do banco de dados.`);
+  } catch (e) {
+    console.error('Erro ao limpar regra legada de Origin Charges:', e);
+  }
+
   const normalizedOrders = await normalizeIncotermRuleSortOrders(prisma);
   if (normalizedOrders > 0) console.log(`✅ ${normalizedOrders} ordem(ns) de regras de Incoterm corrigida(s).`);
 
