@@ -6,11 +6,14 @@ import { DG_STATUS, normalizeDangerousGoodsStatus, normalizeMsdsStatus } from '.
 import { normalizeCurrency, normalizeFeeList } from './feeCalculationService';
 import { normalizeIncotermText } from './incotermAliasService';
 
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  console.warn("WARNING: GEMINI_API_KEY environment variable is not defined.");
+export function getGenAI(): GoogleGenerativeAI {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("WARNING: GEMINI_API_KEY environment variable is not defined.");
+  }
+  return new GoogleGenerativeAI(apiKey || '');
 }
-const genAI = new GoogleGenerativeAI(apiKey || '');
+
 
 const MAX_AI_INPUT_TOKENS = 800_000;
 const MAX_SOURCE_TEXT_CHARS = 600_000;
@@ -131,7 +134,7 @@ export function extractPackagingFacts(sourceText: string): {
 
 export async function extractSignatureOcr(mediaParts: any[] = []) {
   if (!mediaParts.length) return [];
-  const model = genAI.getGenerativeModel({
+  const model = getGenAI().getGenerativeModel({
     model: 'gemini-2.5-flash',
     generationConfig: {
       responseMimeType: 'application/json',
@@ -198,7 +201,7 @@ const AI_OVERLOAD_MESSAGE = 'O serviço de IA está temporariamente sobrecarrega
 export const extractClientData = async (text: string, contextRules: string = '', mediaParts: any[] = [], modalFocus?: 'AIR' | 'SEA') => {
 
   try {
-    const model = genAI.getGenerativeModel({
+    const model = getGenAI().getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
@@ -497,7 +500,7 @@ export function buildTruckerDraftDataContext(data: DraftPayload): string {
 
 export const generateAgentDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string, requiredFieldLabels: string[] = []) => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezado(a) Agente,`;
     
     const prompt = `Você é um agente de pricing escrevendo um e-mail para solicitar cotação de frete internacional a um coloader/agente.
@@ -557,7 +560,7 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
 
 export const generateTruckerDraft = async (data: DraftPayload, contextRules: string = '', contactName?: string) => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie o email saudando o contato exatamente assim: Prezado(a) ${contactName},` : `Inicie o email com: Prezada Transportadora,`;
     
     const prompt = `Você é um analista de logística de comércio exterior escrevendo um e-mail para solicitar cotação de frete rodoviário nacional (transporte terrestre doméstico no Brasil).
@@ -596,7 +599,7 @@ export const generateTruckerDraft = async (data: DraftPayload, contextRules: str
 
 export const generateDtaDraft = async (data: DraftPayload, leg: any, contextRules: string = '', contactName?: string) => {
   try {
-    const model = genAI.getGenerativeModel({ model:'gemini-2.5-flash' });
+    const model = getGenAI().getGenerativeModel({ model:'gemini-2.5-flash' });
     const greeting = contactName ? `Inicie exatamente com: Prezado(a) ${contactName},` : 'Inicie com: Prezado(a),';
     const prompt = `Você é um analista de comércio exterior solicitando uma cotação de DTA (Declaração de Trânsito Aduaneiro) no Brasil.
 ${greeting}
@@ -636,7 +639,7 @@ export const extractAgentCosts = async (
   mediaParts: any[] = []
 ) => {
   try {
-    const model = genAI.getGenerativeModel({ 
+    const model = getGenAI().getGenerativeModel({ 
       model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
@@ -907,7 +910,7 @@ export const extractAgentCosts = async (
 
 export const translateDraftText = async (text: string, targetLanguage: string, originCountry: string = '') => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     let instruction = '';
     if (targetLanguage === 'ENGLISH') {

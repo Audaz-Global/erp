@@ -59,19 +59,25 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
   else if (dbModal.includes('LCL')) dbModal = 'SEA_LCL';
   const dbDirection = ['IMPORT', 'EXPORT'].includes(String(direction).toUpperCase()) ? String(direction).toUpperCase() : 'ALL';
 
-  const rules = await prisma.incotermRule.findMany({
-    where: {
-      incoterm: { in: [normalizedIncoterm, 'ALL'] },
-      modal: { in: [dbModal, 'ALL'] },
-      direction: { in: [dbDirection, 'ALL'] },
-      active: true
-    },
-    include: { standardFee: true },
-    orderBy: [
-      { feeType: 'asc' }, // DESTINATION vem antes de ORIGIN por ordem alfa, mas usamos sortOrder
-      { sortOrder: 'asc' }
-    ]
-  });
+  let rules: any[] = [];
+  try {
+    rules = await prisma.incotermRule.findMany({
+      where: {
+        incoterm: { in: [normalizedIncoterm, 'ALL'] },
+        modal: { in: [dbModal, 'ALL'] },
+        direction: { in: [dbDirection, 'ALL'] },
+        active: true
+      },
+      include: { standardFee: true },
+      orderBy: [
+        { feeType: 'asc' }, // DESTINATION vem antes de ORIGIN por ordem alfa, mas usamos sortOrder
+        { sortOrder: 'asc' }
+      ]
+    });
+  } catch (error) {
+    console.warn('Banco local offline em getRulesForIncoterm. Prosseguindo sem regras no modo de teste local:', error);
+    rules = [];
+  }
 
   // Se há regras específicas para o modal, elas têm prioridade.
   // Regras "ALL" só entram se não existir regra com mesmo feeName no modal específico.

@@ -769,3 +769,34 @@ model PartnerRule {
   @@index([partnerId, active])
   @@index([modal, direction, incoterm])
 }
+
+model AirExportTariffRate {
+  id              String   @id @default(uuid())
+  airlineCode     String   // Código IATA 2 letras: AA, 5Y, LA, DL, etc.
+  airlineName     String   // Nome completo por extenso: American Airlines Cargo, Atlas Air, etc.
+  originPort      String   // Porto/Aeroporto de origem: GRU, VCP, GIG, etc.
+  destinationPort String   // Aeroporto de destino: SCL, GYE, LIM, MEX, etc.
+  commodity       String?  // General Cargo, Pharma, Automotive, etc.
+  prodCode        String?  // CONFIRMED, EXPEDITE, etc.
+  rateType        String?  // Ai, Market, etc.
+  minRate         Float?   // Taxa mínima (M)
+  normalRate      Float?   // Taxa normal <45kg (N)
+  rate45k         Float?   // Taxa +45-KG
+  rate100k        Float?   // Taxa +100-KG
+  rate300k        Float?   // Taxa +300-KG
+  rate500k        Float?   // Taxa +500-KG
+  rate1000k       Float?   // Taxa +1000-KG
+  rate3000k       Float?   // Taxa +3000-KG
+  currency        String   @default("USD")
+  shcs            String?  // Special Handling Codes
+  aircraftTypes   String?  // ALL, NB, WB
+  day             String?
+  flightNo        String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([originPort, destinationPort, active])
+  @@index([airlineCode])
+  @@index([commodity])
+}
