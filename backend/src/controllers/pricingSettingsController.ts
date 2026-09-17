@@ -21,17 +21,19 @@ export const getPricingSettings = async (_req: Request, res: Response) => {
 
 export const updatePricingSettings = async (req: Request, res: Response) => {
   try {
-    const { ptaxMode, minLclStorageBrl } = req.body;
+    const { ptaxMode, minLclStorageBrl, iofRate } = req.body;
     const settings = await prisma.pricingSettings.upsert({
       where: { id: SINGLETON_ID },
       update: {
         ...(ptaxMode !== undefined && { ptaxMode }),
-        ...(minLclStorageBrl !== undefined && { minLclStorageBrl: Number(minLclStorageBrl) })
+        ...(minLclStorageBrl !== undefined && { minLclStorageBrl: Number(minLclStorageBrl) }),
+        ...(iofRate !== undefined && { iofRate: Number(iofRate) })
       },
       create: {
         id: SINGLETON_ID,
         ...(ptaxMode !== undefined && { ptaxMode }),
-        ...(minLclStorageBrl !== undefined && { minLclStorageBrl: Number(minLclStorageBrl) })
+        ...(minLclStorageBrl !== undefined && { minLclStorageBrl: Number(minLclStorageBrl) }),
+        ...(iofRate !== undefined && { iofRate: Number(iofRate) })
       }
     });
     res.json(settings);

@@ -134,8 +134,11 @@ export function normalizeFinancialGroup(value: unknown, context: any) {
   if (/\b(OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL)\b/.test(text)) return FINANCIAL_GROUPS.INTERNATIONAL_FREIGHT;
   if (/\b(PROFIT|MARGIN|MARKUP|SPREAD|MARGEM)\b/.test(text)) return FINANCIAL_GROUPS.PROFIT;
   if (/\b(INSURANCE|SEGURO)\b/.test(text)) return FINANCIAL_GROUPS.INSURANCE;
-  if (/\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text)) return FINANCIAL_GROUPS.TAX_IOF;
-  if (/\b(CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO ADUANEIRO)\b/.test(text)) return FINANCIAL_GROUPS.CUSTOMS_CHARGE;
+  // TAX_IOF é exclusivo do IOF (imposto sobre operações financeiras). Qualquer
+  // outro imposto/tributo/tax genérico é tratado como parte do desembaraço
+  // aduaneiro (CUSTOMS_CHARGE), não uma categoria "Impostos" à parte.
+  if (/\bIOF\b/.test(text)) return FINANCIAL_GROUPS.TAX_IOF;
+  if (/\b(TAX|TAXES|IMPOSTO|TRIBUTO|DUTY|CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO ADUANEIRO)\b/.test(text)) return FINANCIAL_GROUPS.CUSTOMS_CHARGE;
   if (/\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER|FUEL SURCHARGE|OCEAN SURCHARGE)\b/.test(text)) return FINANCIAL_GROUPS.FREIGHT_COMPONENT;
   if (category === 'ISPS_FEE' && context?.ispsClassification === ISPS_CLASSIFICATIONS.CARRIER) return FINANCIAL_GROUPS.FREIGHT_COMPONENT;
   if (category === 'DANGEROUS_GOODS_FEE' && carrierCharge) return FINANCIAL_GROUPS.FREIGHT_COMPONENT;
