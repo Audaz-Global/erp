@@ -753,7 +753,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     const detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => f.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
-    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', INSURANCE:'Seguro', TAX_IOF:'IOF', PROFIT:'Profit' };
     const detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => additionalGroups.has(f.financialGroup)).map(f => ({ ...f, financialGroupLabel: additionalLabels[f.financialGroup] || f.financialGroup }));
     detailedFeesOrigem = detailedFeesOrigem.filter(f => f.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(f.financialGroup));
     detailedFeesDestino = detailedFeesDestino.filter(f => f.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(f.financialGroup));

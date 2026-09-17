@@ -112,7 +112,10 @@ function clientData(body: any) {
     productSegment: body.productSegment || null,
     atlantisId: body.atlantisId || null,
     needsValidation: Boolean(body.needsValidation),
-    validationNote: body.validationNote || null
+    validationNote: body.validationNote || null,
+    insuranceRateOverride: body.insuranceRateOverride !== undefined && body.insuranceRateOverride !== null && body.insuranceRateOverride !== ''
+      ? Number(body.insuranceRateOverride)
+      : null
   };
 }
 

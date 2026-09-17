@@ -1466,7 +1466,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino]
       .filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','TAX_IOF','PROFIT']);
-    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', TAX_IOF:'IOF', PROFIT:'Profit' };
     detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino]
       .filter(fee => additionalGroups.has(fee.financialGroup))
       .map(fee => ({ ...fee, financialGroupLabel: additionalLabels[fee.financialGroup] || fee.financialGroup }))
@@ -1926,7 +1926,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     const isFreightAccessory = (fee: any) => fee.financialGroup === 'FREIGHT_COMPONENT';
     const freightAccessories = detailedFees.filter(isFreightAccessory);
     const maritimeAdditionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','TAX_IOF','PROFIT']);
-    const maritimeAdditionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const maritimeAdditionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', TAX_IOF:'IOF', PROFIT:'Profit' };
     const detailedFeesAdditionalGroups = detailedFees.filter((fee:any) => maritimeAdditionalGroups.has(fee.financialGroup))
       .map((fee:any) => ({ ...fee, financialGroupLabel:maritimeAdditionalLabels[fee.financialGroup] || fee.financialGroup }))
       .sort((a: any, b: any) => (a.financialGroup === 'TAX_IOF' ? 1 : 0) - (b.financialGroup === 'TAX_IOF' ? 1 : 0));

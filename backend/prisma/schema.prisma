@@ -56,6 +56,7 @@ model Client {
   atlantisId       String?  // ID do registro correspondente em M0130_CONTACT_GENERAL no Atlantis, quando confirmado
   needsValidation  Boolean  @default(false) // Sincronização com Atlantis encontrou múltiplos registros parecidos
   validationNote   String?  // Contexto para quem for revisar (ex: nomes/CNPJs candidatos encontrados)
+  insuranceRateOverride Float? // Taxa de seguro (%) diferenciada para este cliente — substitui o padrão do sistema (0,2%) quando preenchida
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -681,7 +682,7 @@ model IncotermRule {
   destinationScope String? // Porto/cidade/país de destino; nulo = qualquer destino
   required         Boolean  @default(false)
   applicability    String   @default("APPLICABLE") // REQUIRED, APPLICABLE, CONDITIONAL, NOT_APPLICABLE, TO_CONFIRM
-  financialGroup   String? // Casamento principal com taxas extraídas/manuais: ORIGIN_CHARGE, DESTINATION_CHARGE, INSURANCE, CUSTOMS_CHARGE, DG_CHARGE, TAX_IOF, FREIGHT_COMPONENT, INTERNATIONAL_FREIGHT
+  financialGroup   String? // Casamento principal com taxas extraídas/manuais: ORIGIN_CHARGE, DESTINATION_CHARGE, INSURANCE, CUSTOMS_CHARGE (desembaraço + impostos de importação em geral), DG_CHARGE, TAX_IOF (exclusivo do IOF), FREIGHT_COMPONENT, INTERNATIONAL_FREIGHT
   condition        String? // JSON: {"type":"DG_ONLY"|"INSURANCE_REQUESTED"|"CUSTOMS_CLEARANCE_CONTRACTED"|...}
   reason           String? // Justificativa da regra, exibida em alertas e na tela administrativa
   feeType          String // ORIGIN, DESTINATION
@@ -750,6 +751,7 @@ model PricingSettings {
   id               String   @id @default(uuid())
   ptaxMode         String   @default("D1_CLOSE") // D1_CLOSE (fechamento anterior) | D0_OPEN (abertura do dia)
   minLclStorageBrl Float    @default(5700)
+  iofRate          Float    @default(3.5) // Percentual de IOF aplicado sobre frete + taxas de origem
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

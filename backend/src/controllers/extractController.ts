@@ -195,7 +195,7 @@ export const extractData = async (req: Request, res: Response) => {
       let quotation = null;
       if (quotationId) {
         try {
-          quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+          quotation = await prisma.quotation.findUnique({ where: { id: quotationId }, include: { client: true } });
           if (quotation) {
             quotationContext = `
 - Tipo de parceiro respondendo (partner_type): ${quotation.partnerType || 'Não classificado'}
@@ -249,19 +249,17 @@ export const extractData = async (req: Request, res: Response) => {
         aiResult.costs.destination_fees = resolveFeeQuantities(aiResult.costs.destination_fees, quotation);
       }
       
-      // Regra de Negócio: Calcular Seguro Automático
+      // Regra de Negócio: Calcular Seguro Automático — padrão 0,2% sobre
+      // mercadoria (CIF) + frete (Hawb). Cliente com taxa personalizada
+      // cadastrada (Client.insuranceRateOverride) usa a taxa dele no lugar.
       if (aiResult && aiResult.costs && aiResult.costs.insurance_requested) {
         const invoiceValue = aiResult.costs.invoice_value || 0;
         const freight = aiResult.costs.freight_value || 0;
-        
-        // Sum origin fees
-        let originFeesTotal = 0;
-        if (Array.isArray(aiResult.costs.origin_fees)) {
-          originFeesTotal = aiResult.costs.origin_fees.reduce((sum: number, f: any) => sum + (parseFloat(f.totalValue ?? f.value) || 0), 0);
-        }
-        
-        const base = invoiceValue + freight + originFeesTotal;
-        const insuranceValue = Math.max(base * 0.002, 40.00);
+
+        const base = invoiceValue + freight;
+        const clientRateOverride = (quotation as any)?.client?.insuranceRateOverride;
+        const ratePercent = clientRateOverride != null ? Number(clientRateOverride) : 0.2;
+        const insuranceValue = Math.max(base * (ratePercent / 100), 40.00);
         
         if (!Array.isArray(aiResult.costs.destination_fees)) {
           aiResult.costs.destination_fees = [];

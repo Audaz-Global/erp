@@ -1787,8 +1787,8 @@
               </div>
             </div>
             <div class="form-group">
-              <label>IOF - Frete + Tx Origem (USD) <span id="conf-iof"></span></label>
-              <input type="number" id="r-iof" step="0.01" placeholder="0.00">
+              <label>IOF - Frete + Tx Origem (USD) <span id="conf-iof"></span> <small style="color:var(--text-muted);font-weight:400;">(calculado automaticamente)</small></label>
+              <input type="number" id="r-iof" step="0.01" placeholder="0.00" readonly title="Calculado automaticamente: frete + taxas de origem × taxa de IOF configurada.">
             </div>
             <div class="form-group">
               <label>Armazenagem Destino (BRL) <span id="conf-storage"></span></label>
@@ -2356,7 +2356,7 @@
           </div>
           <div class="form-group" style="margin:0;">
             <label style="font-size:11px; color:#60A5FA; font-weight:700;">Alíquota (%)</label>
-            <input type="number" id="rev-insurance-rate" step="0.01" value="0.15" placeholder="0.15" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
+            <input type="number" id="rev-insurance-rate" step="0.01" value="0.2" placeholder="0.2" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
           </div>
           <div class="form-group" style="margin:0;">
             <label style="font-size:11px; color:#60A5FA; font-weight:700;">Mínimo (USD)</label>
@@ -2450,8 +2450,8 @@
           </label>
         </div>
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">IOF - Frete + Tx Origem (USD)</label>
-          <input type="number" id="rev-iof" step="0.01" placeholder="0.00">
+          <label style="font-size:11px;">IOF - Frete + Tx Origem (USD) <small style="color:var(--text-muted);font-weight:400;">(automático)</small></label>
+          <input type="number" id="rev-iof" step="0.01" placeholder="0.00" readonly title="Calculado automaticamente: frete + taxas de origem × taxa de IOF configurada.">
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Tempo de Trânsito (Dias)</label>
@@ -2856,6 +2856,11 @@
         <option value="Operadores Logísticos">Operadores Logísticos</option>
         <option value="Agentes de Carga">Agentes de Carga</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Taxa de Seguro Personalizada (%)</label>
+      <input type="number" id="client-insurance-rate-override" step="0.01" min="0" placeholder="Padrão do sistema: 0,2%">
+      <small style="display:block;margin-top:4px;color:var(--text-muted);">Deixe em branco para usar a taxa padrão de seguro (0,2% sobre mercadoria + frete). Se preenchida, essa taxa substitui o padrão em todas as cotações deste cliente.</small>
     </div>
 
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
@@ -3835,7 +3840,7 @@ function setSelectValueWithFallback(selectEl, val) {
 }
 const FEE_UNIT_LABELS = { TOTAL_SHIPMENT:'Total do embarque', PER_DG_PRODUCT:'Produto perigoso', PER_ITEM:'Item', PER_PACKAGE:'Volume', PER_DOCUMENT:'Documento', PER_HAWB:'HAWB', PER_MAWB:'MAWB', PER_SHIPMENT:'Embarque', PER_CONTAINER:'Contêiner', PER_BL:'BL', PER_KG:'kg', PER_CHARGEABLE_WEIGHT:'Peso taxável', PER_CBM:'m³', PER_TON:'Tonelada', PER_WM:'Peso/medida (W/M)', PERCENTAGE:'Percentual', UNKNOWN:'Unidade não identificada' };
 
-const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
+const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Impostos', INSURANCE:'Seguro', TAX_IOF:'IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
 const CHARGE_NATURE_LABELS = { BASE_FREIGHT:'Frete base', FUEL:'Combustível', SECURITY:'Segurança / ISPS', DG:'Carga perigosa', CUSTOMS:'Aduaneira', INSURANCE:'Seguro', TAX:'Tributo', PROFIT:'Profit', LOCAL_SERVICE:'Serviço local', OTHER:'Outra' };
 
 function normalizeCostCurrency(value) {
@@ -3894,7 +3899,9 @@ function inferFeeClassification(name, scope, ispsClassification, chargedBy) {
   const dg = /\b(DG|IMO|DGR|DANGEROUS GOODS|HAZMAT)\b/.test(text);
   const isps = /\bISPS\b|SECURITY/.test(text);
   const chargeNature = dg ? 'DG' : isps ? 'SECURITY' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|FUEL|BUNKER)\b/.test(text) ? 'FUEL' : /CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text) ? 'TAX' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'BASE_FREIGHT' : /THC|HANDLING|DOCUMENT|TERMINAL|DELIVERY|PICK.?UP|COLLECTION|INLAND|STORAGE|ARMAZENAGEM/.test(text) ? 'LOCAL_SERVICE' : 'OTHER';
-  const financialGroup = /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'INTERNATIONAL_FREIGHT' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text) ? 'TAX_IOF' : /CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS_CHARGE' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER)\b/.test(text) ? 'FREIGHT_COMPONENT' : ispsClassification === 'ISPS_CARRIER' || (dg && /CARRIER|ARMADOR|SHIPPING LINE/.test(text)) ? 'FREIGHT_COMPONENT' : dg && (!scope || scope === 'UNKNOWN') ? 'DG_CHARGE' : scope === 'ORIGIN' ? 'ORIGIN_CHARGE' : scope === 'DESTINATION' ? 'DESTINATION_CHARGE' : 'TO_CONFIRM';
+  // TAX_IOF é exclusivo do IOF; qualquer outro imposto/tributo genérico ou
+  // taxa de desembaraço cai em CUSTOMS_CHARGE ("Impostos" na tela/PDF).
+  const financialGroup = /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'INTERNATIONAL_FREIGHT' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\bIOF\b/.test(text) ? 'TAX_IOF' : /\b(TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b|CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS_CHARGE' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER)\b/.test(text) ? 'FREIGHT_COMPONENT' : ispsClassification === 'ISPS_CARRIER' || (dg && /CARRIER|ARMADOR|SHIPPING LINE/.test(text)) ? 'FREIGHT_COMPONENT' : dg && (!scope || scope === 'UNKNOWN') ? 'DG_CHARGE' : scope === 'ORIGIN' ? 'ORIGIN_CHARGE' : scope === 'DESTINATION' ? 'DESTINATION_CHARGE' : 'TO_CONFIRM';
   return { financialGroup, chargeNature };
 }
 
@@ -4096,6 +4103,7 @@ function reviewMainFreightLine(quotation = {}) {
 
 function initializeReviewCostEditor(quotation = {}) {
   window.profitPctManuallyEdited = false;
+  recalculateRevIof();
   const origin = enrichFeeMetadata(parseFeeText(document.getElementById('rev-origin-services')?.value || ''), window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
   const destination = enrichFeeMetadata(parseFeeText(document.getElementById('rev-destination-services')?.value || ''), window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
   const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
@@ -4108,8 +4116,9 @@ function initializeReviewCostEditor(quotation = {}) {
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
     destination: cleanDestination.map(fee => decorate(fee, 'DESTINATION'))
   };
+  const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:3.5, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue:iof/0.035, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
@@ -4119,7 +4128,7 @@ function initializeReviewCostEditor(quotation = {}) {
   const storageProvenance=storageWasExtracted || /_RESPONSE$|AGENT_RESPONSE/.test(storageSource) ? `${partnerType}_EMAIL` : storageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL';
   if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:storageSource === 'MINIMUM_FALLBACK' && !storageWasExtracted ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:normalizeCostCurrency(quotation.destinationStorageCurrency || 'BRL'), financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:storageProvenance, evidence:window.lastExtractedAgentData?.costs?.field_evidence?.find(item=>item.field==='storage_brl')?.evidence || quotation.storageRequestEvidence || '' });
   const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
-  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED' });
   if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
   if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION', provenanceType:'MANUAL' });
   renderReviewCostEditor();
@@ -4133,6 +4142,7 @@ function refreshReviewMainFreightBasis() {
   current.quantity = calculated.quantity;
   current.billingUnit = calculated.billingUnit;
   current.unitValue = calculated.unitValue;
+  current.currency = calculated.currency;
   renderReviewCostEditor();
 }
 
@@ -5457,11 +5467,10 @@ function fillReviewForm(d, mode) {
 
       freightInput.dispatchEvent(new Event('input'));
       renderRateOptionsPicker(d.costs.rate_options);
-      
-      if (d.costs.iof_usd && parseFloat(d.costs.iof_usd) > 0) {
-        document.getElementById('r-iof').value = d.costs.iof_usd;
-      }
-      document.getElementById('conf-iof').innerHTML = renderConf(d.costs.iof_usd, d.costs.confidence);
+
+      // IOF é sempre calculado pelo sistema (ver listener de r-freight acima) —
+      // nunca aceita o valor citado pelo agente/IA, que não tem como saber
+      // calcular um imposto brasileiro corretamente.
 
       document.getElementById('r-storage').value = d.costs.storage_brl ?? '';
       if ((d.costs.present_fields || []).includes('storage_brl')) document.getElementById('r-storage').dataset.source = `${String(d.costs.partner_type || currentPartnerType || 'AGENTE').toUpperCase()}_RESPONSE`;
@@ -5773,12 +5782,11 @@ document.getElementById('r-freight').addEventListener('input', function() {
   const iofField = document.getElementById('r-iof');
   const currency = document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : 'USD';
   const originFeesUsd = parseFloat(document.getElementById('r-agent-origin-services-total')?.value) || 0;
-  if (!returnIncotermRules.length && freight > 0 && (!iofField.value || parseFloat(iofField.value) === 0)) {
-    iofField.value = calculateIOFValue(freight, originFeesUsd, currency);
-  }
-  
   const qId = document.getElementById('pending-quotations').value;
   const q = allQuotations.find(x => x.id === qId);
+  if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
+  else iofField.value = calculateIOFValue(freight, originFeesUsd, currency);
+
   let taxavel = 1;
   let loadType = 'AIR_GENERAL';
   const wBreak = document.getElementById('r-weight-break').value;
@@ -6466,8 +6474,59 @@ function calculateIOFValue(freightVal, originFeesUsd = 0, currency = 'USD') {
   else if (currency === 'BRL') freightUsd = freightUsd / usdRate;
 
   const totalBase = freightUsd + (parseFloat(originFeesUsd) || 0);
-  const rate = (window.settingsData && window.settingsData.iofRate) ? (parseFloat(window.settingsData.iofRate) / 100) : 0.035;
+  const rate = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? (parseFloat(window.pricingSettingsCache.iofRate) / 100) : 0.035;
   return (totalBase * rate).toFixed(2);
+}
+
+// Soma as taxas de origem (rev-origin-services) convertidas para USD — usada
+// como base do cálculo automático de IOF na Revisão Final.
+function getRevOriginFeesUsd() {
+  const usdRate = 5.05;
+  let sum = 0;
+  const raw = document.getElementById('rev-origin-services')?.value || '';
+  if (raw.trim()) {
+    parseFeeText(raw).forEach(fee => {
+      const val = fee.totalValue || 0;
+      const curr = fee.currency;
+      if (curr === 'EUR') sum += val * 1.08;
+      else if (curr === 'BRL') sum += val / usdRate;
+      else sum += val;
+    });
+  }
+  return sum;
+}
+
+// IOF é sempre calculado pelo sistema (frete + taxas de origem × taxa
+// configurada) — o campo rev-iof é somente leitura, nunca editado manualmente
+// nem sobrescrito por valores extraídos do e-mail do agente.
+function recalculateRevIof() {
+  const iofField = document.getElementById('rev-iof');
+  if (!iofField) return;
+  const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
+
+  if (window.reviewCostEditorReady && window.reviewCostLines?.freight) {
+    // reviewPercentageBase() (base do IOF, FREIGHT_PLUS_ORIGIN) recalcula a
+    // partir da linha MAIN_FREIGHT guardada no editor de custos — não a
+    // partir do campo rev-freight diretamente. Atualiza essa linha primeiro
+    // pra não calcular o IOF em cima de um frete desatualizado.
+    refreshReviewMainFreightBasis();
+    let iofLine = window.reviewCostLines.freight.find(line => line.special === 'IOF');
+    if (!iofLine) {
+      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' };
+      window.reviewCostLines.freight.push(iofLine);
+    }
+    iofLine.unitValue = iofRatePct;
+    const total = reviewCostTotal(iofLine);
+    iofField.value = total.toFixed(2);
+    if (total <= 0) window.reviewCostLines.freight = window.reviewCostLines.freight.filter(line => line.special !== 'IOF');
+    renderReviewCostEditor();
+  } else {
+    // Editor de custos ainda não inicializado — calcula direto a partir dos
+    // campos da tela (ex: primeiro cálculo ao abrir a Revisão Final).
+    const freight = parseFloat(document.getElementById('rev-freight')?.value) || 0;
+    const currency = document.getElementById('rev-freight-currency')?.value || 'USD';
+    iofField.value = calculateIOFValue(freight, getRevOriginFeesUsd(), currency);
+  }
 }
 
 function calculateAndInjectInsurance(isUserManualInsurance = false) {
@@ -6520,7 +6579,7 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
     } else {
       // Usar base de cálculo, alíquota e piso configurados
       const baseType = document.getElementById('rev-insurance-base') ? document.getElementById('rev-insurance-base').value : 'FOB_FREIGHT';
-      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.15) : 0.15;
+      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.2) : 0.2;
       const minUsd = document.getElementById('rev-insurance-min') ? (parseFloat(document.getElementById('rev-insurance-min').value) || 40.00) : 40.00;
 
       let baseSeguroUsd = valMercadoria;
@@ -6958,7 +7017,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = q.freightCurrency || 'USD';
       }
-      document.getElementById('rev-iof').value = q.iofUsd || '';
       document.getElementById('rev-storage').value = q.destinationStorage || '';
       document.getElementById('rev-services').value = q.destinationServicesTotal || '';
       document.getElementById('rev-taxes').value = q.destinationTaxes || '';
@@ -6999,7 +7057,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = (document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : '') || q.freightCurrency || 'USD';
       }
-      document.getElementById('rev-iof').value = document.getElementById('r-iof').value || q.iofUsd || '';
       document.getElementById('rev-storage').value = document.getElementById('r-storage').value || q.destinationStorage || '';
       document.getElementById('rev-services').value = document.getElementById('r-services').value || q.destinationServicesTotal || '';
       document.getElementById('rev-taxes').value = document.getElementById('r-taxes').value || q.destinationTaxes || '';
@@ -7079,7 +7136,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       } else {
         document.getElementById('rev-freight-unit').value = freight.toFixed(2);
       }
-      document.getElementById('rev-iof').value = (freight * 0.035).toFixed(2);
+      recalculateRevIof();
     };
 
     const recalculateModalUnit = function() {
@@ -7102,7 +7159,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
         tot = unit;
       }
       document.getElementById('rev-freight').value = tot.toFixed(2);
-      document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
+      recalculateRevIof();
     };
 
     const handleModalWeightBreakChange = function() {
@@ -7124,7 +7181,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
         tot = unit;
       }
       document.getElementById('rev-freight').value = tot.toFixed(2);
-      document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
+      recalculateRevIof();
       updateModalCalculatedWeights();
       refreshReviewMainFreightBasis();
     };
@@ -7204,6 +7261,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-freight').addEventListener('input', onInsuranceTriggerFieldsChange);
 
     if (document.getElementById('rev-freight-currency')) {
+      // recalculateRevIof precisa rodar ANTES de onInsuranceTriggerFieldsChange:
+      // esse último acaba ressincronizando rev-freight-currency a partir da
+      // linha de frete guardada no editor de custos (window.reviewCostLines),
+      // que só fica com a moeda nova depois que refreshReviewMainFreightBasis()
+      // (chamado dentro de recalculateRevIof) rodar.
+      document.getElementById('rev-freight-currency').removeEventListener('change', recalculateRevIof);
+      document.getElementById('rev-freight-currency').addEventListener('change', recalculateRevIof);
       document.getElementById('rev-freight-currency').removeEventListener('change', onInsuranceTriggerFieldsChange);
       document.getElementById('rev-freight-currency').addEventListener('change', onInsuranceTriggerFieldsChange);
     }
@@ -7262,6 +7326,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     }
     document.getElementById('rev-customs-clearance').checked = Boolean(q.customsClearanceIncluded);
     document.getElementById('rev-customs-value').value = '900.00';
+    // Taxa de seguro: usa a taxa personalizada do cliente quando cadastrada,
+    // senão o padrão do sistema (0,2%).
+    document.getElementById('rev-insurance-rate').value = (q.client && q.client.insuranceRateOverride != null) ? q.client.insuranceRateOverride : 0.2;
     calculateAndInjectInsurance(false);
     initializeReviewCostEditor(q);
     updateBuyVsSellTable();
@@ -8642,14 +8709,11 @@ function switchSettingsTab(tab) {
         <div class="settings-section">
           <h3>Taxas de Importação</h3>
           <div class="sg-row">
-            <div class="form-group"><label>IOF Padrão (%)</label>
-              <input type="number" id="s-iof-rate" step="0.1" value="${settingsData.iofRate || 3.5}" placeholder="3.5">
-            </div>
             <div class="form-group"><label>Validade Padrão da Cotação (dias)</label>
               <input type="number" id="s-validity-days" value="${settingsData.validityDays || 15}" placeholder="15">
             </div>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin-top:-4px;">Câmbio (PTAX) e Armazenagem Mínima LCL agora ficam em Configurações → "Câmbio & Armazenagem".</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:-4px;">Câmbio (PTAX), Armazenagem Mínima LCL e Taxa de IOF agora ficam em Configurações → "Câmbio & Armazenagem".</p>
         </div>
         <button class="btn btn-primary" onclick="saveTaxSettings()">💾 Salvar Taxas</button>`;
       break;
@@ -8683,13 +8747,22 @@ function switchSettingsTab(tab) {
           <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Taxa PTAX vigente agora: <strong id="ps-current-ptax" style="color:var(--gold);">Carregando...</strong></p>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section" style="margin-bottom: 24px;">
           <h3 style="margin:0 0 14px;">Armazenagem Mínima LCL</h3>
           <div class="form-group" style="max-width:260px;">
             <label>Valor Mínimo (BRL)</label>
             <input type="number" id="ps-min-lcl-storage" step="0.01" placeholder="Ex: 5700.00">
           </div>
           <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Aplicado automaticamente como piso quando a armazenagem informada (manual ou extraída pela IA) para uma cotação Marítima LCL vier abaixo deste valor.</p>
+        </div>
+
+        <div class="settings-section">
+          <h3 style="margin:0 0 14px;">IOF</h3>
+          <div class="form-group" style="max-width:260px;">
+            <label>Taxa Padrão de IOF (%)</label>
+            <input type="number" id="ps-iof-rate" step="0.1" placeholder="Ex: 3.5">
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Usada para calcular o IOF automaticamente (frete + taxas de origem × esta taxa) quando não há uma regra de Incoterm específica para a rota. O campo de IOF na cotação é sempre calculado pelo sistema — não é editável manualmente.</p>
         </div>
 
         <button class="btn btn-primary" onclick="savePricingSettings()" style="margin-top:20px;">💾 Salvar Configurações</button>
@@ -9314,7 +9387,6 @@ function saveCompanySettings() {
 // Salvar taxas (localStorage)
 function saveTaxSettings() {
   const data = JSON.parse(localStorage.getItem('audaz_settings') || '{}');
-  data.iofRate = parseFloat(document.getElementById('s-iof-rate').value) || 3.5;
   data.validityDays = parseInt(document.getElementById('s-validity-days').value) || 15;
   localStorage.setItem('audaz_settings', JSON.stringify(data));
   toast('✅ Taxas padrão salvas com sucesso!');
@@ -9941,6 +10013,7 @@ function openClientModal() {
   document.getElementById('client-contacts-container').innerHTML = '';
   addClientContact('', '', '', true);
   document.getElementById('client-product-segment').value = '';
+  document.getElementById('client-insurance-rate-override').value = '';
   document.getElementById('client-modal-pending-note').style.display = 'none';
   resetAtlantisLink('client-modal', null);
 }
@@ -9959,6 +10032,7 @@ function editClientById(id) {
   if (contacts.length) contacts.forEach(c => addClientContact(c.name || '', c.phone || '', c.email || '', Boolean(c.isPrimary)));
   else addClientContact('', '', '', true);
   setSelectValueWithFallback(document.getElementById('client-product-segment'), client.productSegment || '');
+  document.getElementById('client-insurance-rate-override').value = client.insuranceRateOverride ?? '';
   resetAtlantisLink('client-modal', client.atlantisId || null);
 
   const pendingNote = document.getElementById('client-modal-pending-note');
@@ -9992,6 +10066,7 @@ async function saveClient() {
     cnpj: document.getElementById('client-cnpj').value.trim() || null,
     contacts,
     productSegment: document.getElementById('client-product-segment').value || null,
+    insuranceRateOverride: document.getElementById('client-insurance-rate-override').value.trim() || null,
     ...(() => {
       const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
       return { atlantisId: state.atlantisId, needsValidation: state.needsValidation, validationNote: state.validationNote };
@@ -10996,9 +11071,15 @@ async function loadPricingSettings() {
   try {
     const res = await fetch(API + '/pricing-settings');
     const data = await res.json();
-    document.getElementById('ps-ptax-mode').value = data.ptaxMode || 'D1_CLOSE';
-    document.getElementById('ps-min-lcl-storage').value = data.minLclStorageBrl ?? '';
-    document.getElementById('ps-current-ptax').innerText = data.currentPtaxRate ? `R$ ${Number(data.currentPtaxRate).toFixed(4)}` : 'Indisponível';
+    window.pricingSettingsCache = data;
+    const ptaxEl = document.getElementById('ps-ptax-mode');
+    const storageEl = document.getElementById('ps-min-lcl-storage');
+    const iofEl = document.getElementById('ps-iof-rate');
+    const currentPtaxEl = document.getElementById('ps-current-ptax');
+    if (ptaxEl) ptaxEl.value = data.ptaxMode || 'D1_CLOSE';
+    if (storageEl) storageEl.value = data.minLclStorageBrl ?? '';
+    if (iofEl) iofEl.value = data.iofRate ?? '';
+    if (currentPtaxEl) currentPtaxEl.innerText = data.currentPtaxRate ? `R$ ${Number(data.currentPtaxRate).toFixed(4)}` : 'Indisponível';
   } catch (e) {
     toast('❌ Erro ao carregar configurações de câmbio/armazenagem.');
   }
@@ -11007,10 +11088,11 @@ async function loadPricingSettings() {
 async function savePricingSettings() {
   const ptaxMode = document.getElementById('ps-ptax-mode').value;
   const minLclStorageBrl = parseFloat(document.getElementById('ps-min-lcl-storage').value) || 0;
+  const iofRate = parseFloat(document.getElementById('ps-iof-rate').value) || 3.5;
   try {
     const res = await fetch(API + '/pricing-settings', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ptaxMode, minLclStorageBrl })
+      body: JSON.stringify({ ptaxMode, minLclStorageBrl, iofRate })
     });
     if (!res.ok) throw new Error('Falha ao salvar.');
     toast('✅ Configurações salvas!');
@@ -12081,9 +12163,10 @@ function modernizeLegacyUI(root = document.body) {
 document.addEventListener('DOMContentLoaded', function() {
   modernizeLegacyUI(document.body);
   loadProfessionals(true);
+  loadPricingSettings();
   ['rev-origin-services', 'rev-destination-services'].forEach(id => {
     const field = document.getElementById(id);
-    if (field) field.addEventListener('input', () => { renderDangerousGoodsAlerts('rev'); renderFeeCalculationPreview(); });
+    if (field) field.addEventListener('input', () => { renderDangerousGoodsAlerts('rev'); renderFeeCalculationPreview(); recalculateRevIof(); });
   });
   renderDangerousGoodsAlerts('r');
   ['r', 'rev'].forEach(prefix => {
