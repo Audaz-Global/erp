@@ -539,6 +539,16 @@ const defaultTemplate = `
       ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
     </div>
   {{/if}}
+  {{#if stackableConfirmedYes}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #37c98b; background-color: #EAFBF3; border-radius: 4px; font-size: 10px; color: #14532d; text-align: center; font-weight: 600;">
+      ✅ Carga considerada empilhável, conforme informado.
+    </div>
+  {{/if}}
+  {{#if stackableConfirmedNo}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #94a3b8; background-color: #F1F5F9; border-radius: 4px; font-size: 10px; color: #334155; text-align: center; font-weight: 600;">
+      📦 Carga considerada NÃO empilhável, conforme informado.
+    </div>
+  {{/if}}
 
   {{#if publicWebViewUrl}}
     <div style="margin-top: 15px; padding: 10px; border: 1.5px solid #1B2B6B; background-color: #f7f9ff; border-radius: 4px; font-size: 9px; color: #1B2B6B; text-align: center;">
@@ -1015,6 +1025,16 @@ const defaultAirTemplate = `
   {{#if stackableDisclaimer}}
     <div style="margin-top: 15px; padding: 12px; border: 2px solid #F5A623; background-color: #FFF7E6; border-radius: 4px; font-size: 10px; color: #7A4B00; text-align: center; font-weight: 700;">
       ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+    </div>
+  {{/if}}
+  {{#if stackableConfirmedYes}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #37c98b; background-color: #EAFBF3; border-radius: 4px; font-size: 10px; color: #14532d; text-align: center; font-weight: 600;">
+      ✅ Carga considerada empilhável, conforme informado.
+    </div>
+  {{/if}}
+  {{#if stackableConfirmedNo}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #94a3b8; background-color: #F1F5F9; border-radius: 4px; font-size: 10px; color: #334155; text-align: center; font-weight: 600;">
+      📦 Carga considerada NÃO empilhável, conforme informado.
     </div>
   {{/if}}
 
@@ -1534,6 +1554,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     hideCarrierName: Boolean(quotationData.hideCarrierName),
     dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
     stackableDisclaimer: quotationData.stackableStatus === 'TO_CONFIRM',
+    stackableConfirmedYes: quotationData.stackableStatus === 'STACKABLE',
+    stackableConfirmedNo: quotationData.stackableStatus === 'NOT_STACKABLE',
     client: quotationData.client || { name: '—' },
     referenceNumber,
     referenceRich,
@@ -2106,6 +2128,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
       dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
       stackableDisclaimer: quotationData.stackableStatus === 'TO_CONFIRM',
+      stackableConfirmedYes: quotationData.stackableStatus === 'STACKABLE',
+      stackableConfirmedNo: quotationData.stackableStatus === 'NOT_STACKABLE',
       logoBase64,
       hasOversizedAlert: hasOversizedCargo(quotationData.packages || ''),
       modalLabel,

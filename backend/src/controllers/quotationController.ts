@@ -801,6 +801,12 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       color: var(--gold); text-align: center; font-weight: 700; font-size: 13px;
       animation: stackable-blink 1.2s ease-in-out infinite;
     }
+    .stackable-note {
+      margin-top: 20px; padding: 12px; border: 1px solid;
+      border-radius: 8px; text-align: center; font-weight: 600; font-size: 13px;
+    }
+    .stackable-note.yes { border-color: #37c98b; background: rgba(55, 201, 139, 0.12); color: #37c98b; }
+    .stackable-note.no { border-color: #98a3b8; background: rgba(152, 163, 184, 0.12); color: #cbd3e0; }
     body {
       font-family: 'Outfit', sans-serif;
       background: var(--bg);
@@ -1103,6 +1109,12 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     ${quotation.stackableStatus === 'TO_CONFIRM' ? `
     <div class="stackable-disclaimer">
       ⚠️ Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+    </div>` : quotation.stackableStatus === 'STACKABLE' ? `
+    <div class="stackable-note yes">
+      ✅ Carga considerada empilhável, conforme informado.
+    </div>` : quotation.stackableStatus === 'NOT_STACKABLE' ? `
+    <div class="stackable-note no">
+      📦 Carga considerada NÃO empilhável, conforme informado.
     </div>` : ''}
 
     <div class="footer">
