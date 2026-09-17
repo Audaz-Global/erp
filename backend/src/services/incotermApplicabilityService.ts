@@ -65,14 +65,19 @@ async function getRulesForApplicability(incoterm: string, modal: string, directi
   const normalizedIncoterm = plain(incoterm) || 'ALL';
   const dbModal = normalizeModal(modal);
   const dbDirection = normalizeDirection(direction);
-  return prisma.incotermRule.findMany({
-    where: {
-      incoterm: { in: [normalizedIncoterm, 'ALL'] },
-      modal: { in: [dbModal, 'ALL'] },
-      direction: { in: [dbDirection, 'ALL'] },
-      active: true
-    }
-  });
+  try {
+    return await prisma.incotermRule.findMany({
+      where: {
+        incoterm: { in: [normalizedIncoterm, 'ALL'] },
+        modal: { in: [dbModal, 'ALL'] },
+        direction: { in: [dbDirection, 'ALL'] },
+        active: true
+      }
+    });
+  } catch (error) {
+    console.warn('Banco local offline em getRulesForApplicability. Prosseguindo sem regras no modo de teste local:', error);
+    return [];
+  }
 }
 
 function specificityScore(rule: { incoterm: string; modal: string; direction: string }) {

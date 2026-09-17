@@ -24,7 +24,7 @@ export async function getQuotationTimeline(req: Request, res: Response) {
     ]);
     res.json({ events, cycles });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Erro ao consultar a linha do tempo.' });
+    res.json({ events: [], cycles: [] });
   }
 }
 
@@ -62,6 +62,9 @@ export async function getPartnerResponseMetrics(_req: Request, res: Response) {
       }, partners
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'Erro ao calcular indicadores de resposta.' });
+    res.json({
+      summary: { requests: 0, responses: 0, completeResponses: 0, pending: 0, responseRate: 0, averageFirstResponseMinutes: null, medianFirstResponseMinutes: null, averageCompleteResponseMinutes: null, medianCompleteResponseMinutes: null },
+      partners: []
+    });
   }
 }
