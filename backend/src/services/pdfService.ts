@@ -1155,14 +1155,11 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     totalGrossWeightKg = rawBruto;
     
     pesoCubadoRich = calculateAirCubado(quotationData.packages || '', quotationData.totalPackages || 1);
-    
-    chargableWeight = Math.max(totalGrossWeightKg, pesoCubadoRich);
-    if (quotationData.weightBreak) {
-      const minWeight = parseFloat(quotationData.weightBreak.replace(/[^0-9]/g, ''));
-      if (!isNaN(minWeight) && chargableWeight < minWeight) {
-        chargableWeight = minWeight;
-      }
-    }
+
+    // Chargeable Weight: max(bruto, cubado), sem a faixa tarifária do agente
+    // (weightBreak) distorcer o valor — só informativa. Override manual do
+    // operador, quando preenchido, vale sobre o cálculo automático.
+    chargableWeight = parseFloat(quotationData.chargeableWeightOverride) || Math.max(totalGrossWeightKg, pesoCubadoRich);
 
     if (quotationData.originPort) {
       originPortRich = String(quotationData.originPort).trim();
@@ -2043,17 +2040,12 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       const bruto = parseFloat(quotationData.totalGrossWeightKg) || 0;
       const totalPackages = parseInt(quotationData.totalPackages || 1);
       const packagesStr = quotationData.packages || '';
-      const wBreak = quotationData.weightBreak || 'normal';
-      
+
+      // Chargeable Weight: max(bruto, cubado), sem a faixa tarifária do
+      // agente (weightBreak) distorcer o valor — só informativa. Override
+      // manual do operador, quando preenchido, vale sobre o cálculo automático.
       let cubado = calculateAirCubado(packagesStr, totalPackages);
-      let taxavel = Math.max(bruto, cubado);
-      
-      if (wBreak && wBreak !== 'normal') {
-        const minWeight = parseFloat(wBreak.replace(/[^0-9]/g, ''));
-        if (!isNaN(minWeight) && taxavel < minWeight) {
-          taxavel = minWeight;
-        }
-      }
+      let taxavel = parseFloat(quotationData.chargeableWeightOverride) || Math.max(bruto, cubado);
       if (taxavel <= 0) taxavel = 1;
       
       freightQtyRich = safeToFixed(taxavel, 2).replace('.', ',') + ' kg';

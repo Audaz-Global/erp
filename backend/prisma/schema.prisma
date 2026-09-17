@@ -198,6 +198,10 @@ model Quotation {
   totalUsd    Float?
   frequency   String?
   weightBreak String?
+  // Override manual do peso taxável (Chargeable Weight). Quando preenchido,
+  // vale sobre o cálculo automático (max(peso bruto, peso cubado)) em todo
+  // lugar que usa o CW como base — frete e taxas por kg/peso taxável.
+  chargeableWeightOverride Float?
 
   // Gestão de Profit
   costsData       String? // JSON string

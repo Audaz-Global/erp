@@ -2401,10 +2401,14 @@
             <span id="rev-calc-taxable-label" style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
               ⚖️ Peso/Medida Taxável Final
             </span>
-            <div style="display:flex; align-items:baseline; gap:4px;">
-              <span id="rev-calc-taxable-weight" style="font-size:20px; font-weight:800; color:#4cd964; font-family:monospace;">0.00</span>
+            <div style="display:flex; align-items:baseline; gap:6px;">
+              <input type="number" id="rev-calc-taxable-weight" step="0.01" min="0" oninput="onTaxableWeightManualEdit()" style="font-size:20px; font-weight:800; color:#4cd964; font-family:monospace; background:transparent; border:1px solid rgba(76,217,100,0.35); border-radius:6px; width:100px; padding:2px 6px;">
               <span id="rev-calc-taxable-unit" style="font-size:12px; font-weight:600; color:#4cd964;">kg</span>
+              <button type="button" id="rev-calc-taxable-reset" onclick="resetTaxableWeightOverride()" title="Recalcular automaticamente" style="display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:2px;">
+                <svg class="ui-icon sm" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+              </button>
             </div>
+            <small id="rev-calc-taxable-override-hint" style="display:none;color:var(--gold);font-size:10px;">Valor definido manualmente</small>
           </div>
         </div>
       </div>
@@ -3091,6 +3095,10 @@ function calculateAirCubadoLocal(packagesStr, defaultPackagesCount = 1) {
 }
 
 function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType, totalCbm = 0, weightBreak = 'normal') {
+  // weightBreak (a faixa tarifária informada pelo agente, ex: "+500") é só
+  // informativa — não deve inflar o Chargeable Weight calculado. O CW usado
+  // no frete e nas taxas por kg é sempre max(peso bruto, peso cubado), com
+  // override manual do operador tratado separadamente pelos chamadores.
   const isAir = String(loadType || '').toUpperCase().includes('AIR');
   const isLcl = String(loadType || '').toUpperCase().includes('LCL');
   const bruto = parseFloat(totalGrossWeight) || 0;
@@ -3098,12 +3106,6 @@ function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType,
   if (isAir) {
     const cubado = calculateAirCubadoLocal(packagesStr || '', totalPackages || 1);
     taxavel = Math.max(bruto, cubado);
-    if (weightBreak && weightBreak !== 'normal') {
-      const minWeight = parseFloat(weightBreak.replace(/[^0-9]/g, ''));
-      if (!isNaN(minWeight) && taxavel < minWeight) {
-        taxavel = minWeight;
-      }
-    }
     // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
     // (padrão IATA TACT) — aplicado aqui na fonte pra manter frete por kg,
     // taxas PER_KG do Incoterm e o painel de cubagem sempre consistentes.
@@ -3210,10 +3212,14 @@ function updateModalCalculatedWeights() {
 
   if (cbmEl) cbmEl.textContent = cbmFormatted;
   if (cubedEl) cubedEl.textContent = airCubadoFormatted;
-  if (taxEl) taxEl.textContent = taxableFormatted;
+  // Só sobrescreve o campo com o valor calculado quando não há override manual
+  // ativo — senão o que o operador digitou seria apagado a cada mudança nos
+  // campos de carga (peso/dimensões/volumes).
+  if (taxEl && window.chargeableWeightOverride == null) taxEl.value = taxableFormatted.replace(',', '.');
   if (taxUnitEl) taxUnitEl.textContent = taxableUnit;
   if (cubedLabelEl) cubedLabelEl.textContent = isAir ? 'Chargeable Weight (kg)' : 'Peso Cubado Aéreo (kg)';
   if (taxLabelEl) taxLabelEl.textContent = isAir ? '⚖️ Chargeable Weight Taxável' : '⚖️ Peso/Medida Taxável Final';
+  updateTaxableWeightOverrideUI();
 
   // Destaques baseados no modal
   const cbmContainer = document.getElementById('rev-calc-cbm-container');
@@ -3229,6 +3235,34 @@ function updateModalCalculatedWeights() {
     if (cbmContainer) cbmContainer.style.opacity = '0.4';
     if (cubedContainer) cubedContainer.style.opacity = '0.4';
   }
+}
+
+// Peso/Medida Taxável Final (Chargeable Weight) é calculado automaticamente
+// por padrão, mas o operador pode sobrescrever manualmente (divergências de
+// dimensões, volumes ou peso bruto). window.chargeableWeightOverride guarda
+// esse valor — null significa "usar o cálculo automático".
+window.chargeableWeightOverride = null;
+
+function updateTaxableWeightOverrideUI() {
+  const resetBtn = document.getElementById('rev-calc-taxable-reset');
+  const hint = document.getElementById('rev-calc-taxable-override-hint');
+  const active = window.chargeableWeightOverride != null;
+  if (resetBtn) resetBtn.style.display = active ? 'inline-flex' : 'none';
+  if (hint) hint.style.display = active ? 'block' : 'none';
+}
+
+function onTaxableWeightManualEdit() {
+  const input = document.getElementById('rev-calc-taxable-weight');
+  const val = parseFloat(input.value);
+  window.chargeableWeightOverride = (!isNaN(val) && val > 0) ? val : null;
+  updateTaxableWeightOverrideUI();
+  refreshReviewMainFreightBasis();
+}
+
+function resetTaxableWeightOverride() {
+  window.chargeableWeightOverride = null;
+  updateModalCalculatedWeights();
+  refreshReviewMainFreightBasis();
 }
 
 window.onerror = function(msg, url, lineNo, columnNo, error) {
@@ -4043,8 +4077,11 @@ function reviewMainFreightLine(quotation = {}) {
   const dimensions = document.getElementById('rev-dimensions')?.value || '';
   const cbm = calculateCbmLocal(dimensions, packages) || reviewCostNumber(document.getElementById('rev-calc-cbm')?.textContent);
   let quantity = 1, billingUnit = 'TOTAL_SHIPMENT';
-  if (loadType.includes('AIR')) { quantity = getLocalTaxavel(dimensions, packages, gross, loadType, cbm, document.getElementById('rev-weight-break')?.value || 'normal') || 1; billingUnit = 'PER_CHARGEABLE_WEIGHT'; }
-  else if (loadType.includes('LCL')) { quantity = cbm || 1; billingUnit = 'PER_CBM'; }
+  // Override manual do Peso/Medida Taxável Final (Chargeable Weight), quando
+  // ativo, vale sobre o cálculo automático — inclusive sobre a faixa
+  // tarifária do agente (weightBreak), que não deve mais distorcer o CW.
+  if (loadType.includes('AIR')) { quantity = window.chargeableWeightOverride || getLocalTaxavel(dimensions, packages, gross, loadType, cbm) || 1; billingUnit = 'PER_CHARGEABLE_WEIGHT'; }
+  else if (loadType.includes('LCL')) { quantity = window.chargeableWeightOverride || cbm || 1; billingUnit = 'PER_CBM'; }
   else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); quantity = containerMatch ? Number(containerMatch[1]) : 1; billingUnit = 'PER_CONTAINER'; }
   const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
   const source=quotationFreightEvidence(quotation);
@@ -7121,6 +7158,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-load-type').removeEventListener('change', onCargoFieldsChange);
     document.getElementById('rev-load-type').addEventListener('change', onCargoFieldsChange);
 
+    // Restaura o override manual do peso/medida taxável (Chargeable Weight)
+    // salvo nesta cotação, se houver, antes de calcular os pesos.
+    window.chargeableWeightOverride = q.chargeableWeightOverride != null ? Number(q.chargeableWeightOverride) : null;
+    if (window.chargeableWeightOverride != null) {
+      document.getElementById('rev-calc-taxable-weight').value = window.chargeableWeightOverride;
+    }
+
     // Calcular e atualizar os pesos e volumes calculados inicialmente
     updateModalCalculatedWeights();
 
@@ -7403,6 +7447,7 @@ async function confirmAndGeneratePDF() {
       transitTimeDays: parseInt(document.getElementById('rev-transit-time').value) || null,
       frequency: frequencyValue,
       weightBreak: weightBreakValue,
+      chargeableWeightOverride: window.chargeableWeightOverride,
       // Atualizar também os dados da cotação com os valores revisados
       originCity: document.getElementById('rev-origin-city').value,
       originCountry: document.getElementById('rev-origin-country').value,
@@ -7481,6 +7526,7 @@ async function confirmAndGeneratePDF() {
         ncmCodes: document.getElementById('rev-ncm-codes').value || null,
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
+        chargeableWeightOverride: window.chargeableWeightOverride,
         clientName: document.getElementById('rev-client-name').value,
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,

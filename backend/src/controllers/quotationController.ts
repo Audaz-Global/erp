@@ -394,7 +394,7 @@ export const updatePhase = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const current = await prisma.quotation.findUnique({ where: { id }, include: { client: true } });
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, freightDisplayMode, costCompositionReviewed } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, freightDisplayMode, costCompositionReviewed } = req.body;
 
     if (['AGUARDANDO_PARCEIRO', 'GERADA'].includes(status)) {
       enforceCnpjRequirement({
@@ -425,6 +425,9 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
     if (weightBreak !== undefined) {
       updateData.weightBreak = weightBreak;
+    }
+    if (chargeableWeightOverride !== undefined) {
+      updateData.chargeableWeightOverride = chargeableWeightOverride === null ? null : Number(chargeableWeightOverride) || null;
     }
 
     if (costs) {
@@ -577,17 +580,14 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const isAir = String(quotation.modal).toUpperCase() === 'AIR';
     const isExw = String(quotation.incoterm).toUpperCase() === 'EXW';
     
-    // Peso taxável
+    // Peso taxável (Chargeable Weight): sempre max(peso bruto, peso cubado),
+    // sem a faixa tarifária do agente (weightBreak) distorcer o valor — essa
+    // faixa é só informativa. Um override manual do operador, quando
+    // preenchido, vale sobre o cálculo automático.
     const bruto = quotation.totalGrossWeightKg || 0;
     const cbm = quotation.totalCbm || 0;
     const cubado = isAir ? calculateAirCubado(quotation.packages || '', quotation.totalPackages || 1) : parseFloat((cbm * 1000).toFixed(2));
-    let taxavel = Math.max(bruto, cubado) || 1; // evitar divisão por zero
-    if (isAir && quotation.weightBreak) {
-      const minWeight = parseFloat(quotation.weightBreak.replace(/[^0-9]/g, ''));
-      if (!isNaN(minWeight) && taxavel < minWeight) {
-        taxavel = minWeight;
-      }
-    }
+    const taxavel = quotation.chargeableWeightOverride || Math.max(bruto, cubado) || 1; // evitar divisão por zero
 
     // Frete
     let fVal = quotation.freightValue || 0;
