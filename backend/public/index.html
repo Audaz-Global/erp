@@ -2356,7 +2356,7 @@
           </div>
           <div class="form-group" style="margin:0;">
             <label style="font-size:11px; color:#60A5FA; font-weight:700;">Alíquota (%)</label>
-            <input type="number" id="rev-insurance-rate" step="0.01" value="0.15" placeholder="0.15" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
+            <input type="number" id="rev-insurance-rate" step="0.01" value="0.2" placeholder="0.2" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
           </div>
           <div class="form-group" style="margin:0;">
             <label style="font-size:11px; color:#60A5FA; font-weight:700;">Mínimo (USD)</label>
@@ -2856,6 +2856,11 @@
         <option value="Operadores Logísticos">Operadores Logísticos</option>
         <option value="Agentes de Carga">Agentes de Carga</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Taxa de Seguro Personalizada (%)</label>
+      <input type="number" id="client-insurance-rate-override" step="0.01" min="0" placeholder="Padrão do sistema: 0,2%">
+      <small style="display:block;margin-top:4px;color:var(--text-muted);">Deixe em branco para usar a taxa padrão de seguro (0,2% sobre mercadoria + frete). Se preenchida, essa taxa substitui o padrão em todas as cotações deste cliente.</small>
     </div>
 
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
@@ -6574,7 +6579,7 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
     } else {
       // Usar base de cálculo, alíquota e piso configurados
       const baseType = document.getElementById('rev-insurance-base') ? document.getElementById('rev-insurance-base').value : 'FOB_FREIGHT';
-      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.15) : 0.15;
+      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.2) : 0.2;
       const minUsd = document.getElementById('rev-insurance-min') ? (parseFloat(document.getElementById('rev-insurance-min').value) || 40.00) : 40.00;
 
       let baseSeguroUsd = valMercadoria;
@@ -7321,6 +7326,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     }
     document.getElementById('rev-customs-clearance').checked = Boolean(q.customsClearanceIncluded);
     document.getElementById('rev-customs-value').value = '900.00';
+    // Taxa de seguro: usa a taxa personalizada do cliente quando cadastrada,
+    // senão o padrão do sistema (0,2%).
+    document.getElementById('rev-insurance-rate').value = (q.client && q.client.insuranceRateOverride != null) ? q.client.insuranceRateOverride : 0.2;
     calculateAndInjectInsurance(false);
     initializeReviewCostEditor(q);
     updateBuyVsSellTable();
@@ -10005,6 +10013,7 @@ function openClientModal() {
   document.getElementById('client-contacts-container').innerHTML = '';
   addClientContact('', '', '', true);
   document.getElementById('client-product-segment').value = '';
+  document.getElementById('client-insurance-rate-override').value = '';
   document.getElementById('client-modal-pending-note').style.display = 'none';
   resetAtlantisLink('client-modal', null);
 }
@@ -10023,6 +10032,7 @@ function editClientById(id) {
   if (contacts.length) contacts.forEach(c => addClientContact(c.name || '', c.phone || '', c.email || '', Boolean(c.isPrimary)));
   else addClientContact('', '', '', true);
   setSelectValueWithFallback(document.getElementById('client-product-segment'), client.productSegment || '');
+  document.getElementById('client-insurance-rate-override').value = client.insuranceRateOverride ?? '';
   resetAtlantisLink('client-modal', client.atlantisId || null);
 
   const pendingNote = document.getElementById('client-modal-pending-note');
@@ -10056,6 +10066,7 @@ async function saveClient() {
     cnpj: document.getElementById('client-cnpj').value.trim() || null,
     contacts,
     productSegment: document.getElementById('client-product-segment').value || null,
+    insuranceRateOverride: document.getElementById('client-insurance-rate-override').value.trim() || null,
     ...(() => {
       const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
       return { atlantisId: state.atlantisId, needsValidation: state.needsValidation, validationNote: state.validationNote };

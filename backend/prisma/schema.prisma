@@ -56,6 +56,7 @@ model Client {
   atlantisId       String?  // ID do registro correspondente em M0130_CONTACT_GENERAL no Atlantis, quando confirmado
   needsValidation  Boolean  @default(false) // Sincronização com Atlantis encontrou múltiplos registros parecidos
   validationNote   String?  // Contexto para quem for revisar (ex: nomes/CNPJs candidatos encontrados)
+  insuranceRateOverride Float? // Taxa de seguro (%) diferenciada para este cliente — substitui o padrão do sistema (0,2%) quando preenchida
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
