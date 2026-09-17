@@ -12951,6 +12951,27 @@ async function submitQuotationWithTariffOnly() {
       throw new Error(errJson.error || 'Erro ao atualizar tarifa.');
     }
 
+    // Aplica as regras de Incoterm para puxar as taxas obrigatórias (ex: coleta na origem)
+    qData.weightBreak = selected.selectedWeightBreak;
+    try {
+      const normalizedModal = normalizeReturnRuleModal(qData);
+      const incotermToFetch = qData.route?.incoterm || qData.incoterm;
+      if (incotermToFetch) {
+        const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incotermToFetch)}&modal=${encodeURIComponent(normalizedModal)}&direction=${encodeURIComponent(qData.direction || 'IMPORT')}`);
+        if (rulesResponse.ok) {
+          const loadedRules = await rulesResponse.json();
+          const ruleList = Array.isArray(loadedRules) ? loadedRules : [];
+          const specificRules = ruleList.filter(rule => rule.modal === normalizedModal);
+          const specificNames = new Set(specificRules.map(rule => `${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
+          const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
+          returnIncotermRules = [...specificRules, ...complementaryRules];
+          applyReturnIncotermRules(qData, true);
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar regras de Incoterm no tarifário:', e);
+    }
+
     // Abre imediatamente a modal de Revisão Final da Cotação!
     await validateAndGeneratePDF(qData.id);
   } catch (err) {
