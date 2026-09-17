@@ -195,7 +195,7 @@ export const extractData = async (req: Request, res: Response) => {
       let quotation = null;
       if (quotationId) {
         try {
-          quotation = await prisma.quotation.findUnique({ where: { id: quotationId } });
+          quotation = await prisma.quotation.findUnique({ where: { id: quotationId }, include: { client: true } });
           if (quotation) {
             quotationContext = `
 - Tipo de parceiro respondendo (partner_type): ${quotation.partnerType || 'Não classificado'}
@@ -249,19 +249,17 @@ export const extractData = async (req: Request, res: Response) => {
         aiResult.costs.destination_fees = resolveFeeQuantities(aiResult.costs.destination_fees, quotation);
       }
       
-      // Regra de Negócio: Calcular Seguro Automático
+      // Regra de Negócio: Calcular Seguro Automático — padrão 0,2% sobre
+      // mercadoria (CIF) + frete (Hawb). Cliente com taxa personalizada
+      // cadastrada (Client.insuranceRateOverride) usa a taxa dele no lugar.
       if (aiResult && aiResult.costs && aiResult.costs.insurance_requested) {
         const invoiceValue = aiResult.costs.invoice_value || 0;
         const freight = aiResult.costs.freight_value || 0;
-        
-        // Sum origin fees
-        let originFeesTotal = 0;
-        if (Array.isArray(aiResult.costs.origin_fees)) {
-          originFeesTotal = aiResult.costs.origin_fees.reduce((sum: number, f: any) => sum + (parseFloat(f.totalValue ?? f.value) || 0), 0);
-        }
-        
-        const base = invoiceValue + freight + originFeesTotal;
-        const insuranceValue = Math.max(base * 0.002, 40.00);
+
+        const base = invoiceValue + freight;
+        const clientRateOverride = (quotation as any)?.client?.insuranceRateOverride;
+        const ratePercent = clientRateOverride != null ? Number(clientRateOverride) : 0.2;
+        const insuranceValue = Math.max(base * (ratePercent / 100), 40.00);
         
         if (!Array.isArray(aiResult.costs.destination_fees)) {
           aiResult.costs.destination_fees = [];
@@ -308,15 +306,50 @@ export const extractData = async (req: Request, res: Response) => {
       const registeredClient = (await findClientByCnpjMatch(prisma, aiResult.client.cnpj))
         || (await findClientByNameMatch(prisma, aiResult.client.name));
       if (registeredClient) {
-        // Nome/CNPJ canônicos do cadastro evitam variações de grafia entre e-mails do mesmo cliente.
+        const registeredContacts = await prisma.clientContact.findMany({ where: { clientId: registeredClient.id }, orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] });
+        // Cliente ainda não migrado pra lista de contatos — o contato legado
+        // do cadastro vira a única opção conhecida.
+        const knownContacts = registeredContacts.length ? registeredContacts : (registeredClient.contactName
+          ? [{ id: null, name: registeredClient.contactName, phone: registeredClient.contactPhone, email: registeredClient.contactEmail, isPrimary: true }]
+          : []);
+        const primaryContact = knownContacts.find((c: any) => c.isPrimary) || knownContacts[0] || null;
+
+        // Guarda o que a IA extraiu do e-mail ANTES de sobrepor, pra comparar
+        // com o cadastro e detectar se é uma pessoa diferente.
+        const extractedContact = {
+          name: aiResult.client.contact_name || null,
+          phone: aiResult.client.contact_phone || null,
+          email: aiResult.client.contact_email || null
+        };
+        const norm = (v: unknown) => String(v || '').trim().toLowerCase();
+
+        // Nome/CNPJ/segmento canônicos do cadastro evitam variações de grafia entre e-mails do mesmo cliente.
         aiResult.client.name = registeredClient.name;
         aiResult.client.cnpj = registeredClient.cnpj || aiResult.client.cnpj;
-        // Contato: só usa o do cadastro se este e-mail não trouxe um mais recente.
-        if (!aiResult.client.contact_name && registeredClient.contactName) aiResult.client.contact_name = registeredClient.contactName;
-        if (!aiResult.client.contact_phone && registeredClient.contactPhone) aiResult.client.contact_phone = registeredClient.contactPhone;
-        if (!aiResult.client.contact_email && registeredClient.contactEmail) aiResult.client.contact_email = registeredClient.contactEmail;
         if (registeredClient.productSegment) aiResult.client.product_segment = registeredClient.productSegment;
         aiResult.client.registered_client_id = registeredClient.id;
+        aiResult.client.registered_client_contacts = knownContacts;
+
+        // Contato: o cadastrado prevalece sempre que existir — mesmo tratamento de nome/CNPJ/segmento.
+        if (primaryContact) {
+          aiResult.client.contact_name = primaryContact.name;
+          aiResult.client.contact_phone = primaryContact.phone || null;
+          aiResult.client.contact_email = primaryContact.email || null;
+        }
+
+        // Se o e-mail trouxe um contato que não bate com NENHUM contato
+        // conhecido do cliente (por e-mail, ou por nome quando não há
+        // e-mail), sinaliza o conflito em vez de descartar silenciosamente.
+        const hasExtracted = extractedContact.name || extractedContact.email;
+        if (hasExtracted && knownContacts.length) {
+          const matchesKnown = knownContacts.some((c: any) =>
+            (extractedContact.email && norm(c.email) === norm(extractedContact.email)) ||
+            (!extractedContact.email && norm(c.name) === norm(extractedContact.name))
+          );
+          if (!matchesKnown) {
+            aiResult.client.contact_conflict = { extracted: extractedContact, registeredContacts: knownContacts };
+          }
+        }
       }
     }
     const emailExtraction = mode === 'CLIENT' ? clientExtractionAudit(aiResult, emailRecords, signatureOcr, resolvedContact) : null;

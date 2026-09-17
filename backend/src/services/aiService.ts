@@ -820,13 +820,14 @@ export const extractAgentCosts = async (
     5. **Inland de Origem (origin_inland) e Taxas Locais de Origem (origin_fees):**
        - Para CADA taxa retorne name, unitValue, currency, billingUnit, originalUnit, quantity, totalValue, quantitySource, evidence, confidence e needsReview. Mantenha value igual a totalValue por compatibilidade.
        - Para CADA taxa retorne também financialGroup, chargeNature e classificationSource=AI. A seção do documento não define sozinha o grupo financeiro.
-       - Use INTERNATIONAL_FREIGHT somente para o frete marítimo base; FREIGHT_COMPONENT para BAF, CAF, LSS, PSS, GRI e outros adicionais do armador que compõem o frete; ORIGIN_CHARGE e DESTINATION_CHARGE para despesas locais; CUSTOMS_CHARGE para despacho/desembaraço; INSURANCE para seguro; TAX_IOF para impostos/IOF; PROFIT para margem; DG_CHARGE apenas quando a taxa DG não puder ser alocada com segurança em frete/origem/destino. Sem evidência suficiente use TO_CONFIRM.
+       - Use INTERNATIONAL_FREIGHT somente para o frete marítimo base; FREIGHT_COMPONENT para BAF, CAF, LSS, PSS, GRI e outros adicionais do armador que compõem o frete; ORIGIN_CHARGE e DESTINATION_CHARGE para despesas locais; CUSTOMS_CHARGE para despacho/desembaraço e para qualquer outro imposto/tributo de importação (ex: impostos de destino, ICMS, II) que não seja o IOF; INSURANCE para seguro; TAX_IOF exclusivamente para o IOF (imposto sobre operações financeiras) — nunca use TAX_IOF para outro imposto/tributo genérico; PROFIT para margem; DG_CHARGE apenas quando a taxa DG não puder ser alocada com segurança em frete/origem/destino. Sem evidência suficiente use TO_CONFIRM.
        - chargeNature é independente do grupo: DG para carga perigosa, SECURITY para ISPS/security, FUEL para combustível, CUSTOMS, INSURANCE, TAX, PROFIT, BASE_FREIGHT, LOCAL_SERVICE ou OTHER.
        - Uma taxa encontrada em origin_fees pode ser FREIGHT_COMPONENT. Nunca a mantenha como ORIGIN_CHARGE apenas por estar na seção de origem.
        - Nunca presuma que o valor informado é por contêiner. Se unidade ou quantidade não estiver clara, use UNKNOWN ou deixe quantity ausente e needsReview=true; preserve o total explícito sem inventar multiplicador.
        - Classifique Pick Up, Pickup, Collection, Pre-carriage ou coleta da fábrica até o aeroporto/porto como origin_inland. Extraia valor, moeda, rota e prazo separadamente.
        - NÃO repita o Pick Up dentro de origin_fees.
-       - Em origin_fees, identifique apenas as demais taxas locais na origem (AWB, Handling, THC, XRAY, Customs Clearance etc.).
+       - Em origin_fees, identifique apenas as demais taxas locais na origem (AWB, Handling, THC, AMS, XRAY, Customs Clearance etc.).
+       - **THC e AMS não têm lado fixo.** THC (Terminal Handling Charge) e AMS (Automated Manifest System) podem ser cotadas tanto na origem quanto no destino, dependendo do Incoterm/trecho — o nome da taxa sozinho NUNCA decide isso. O que decide é onde o AGENTE cotou essa taxa no e-mail: se veio junto com as taxas locais de origem do e-mail, vai em origin_fees; se veio junto com as taxas locais de destino, vai em destination_fees. Não use conhecimento geral do setor (ex: "THC normalmente é destino") para reclassificar uma taxa que o agente já posicionou explicitamente de um lado.
        - Calcule o valor total de cada taxa:
          - Para taxas cotadas por remessa ("per shpt", "per shipment", "fixed", "Fixo", "per HAWB"), use o valor fixo.
          - Para taxas cotadas por peso ("per kg", "/kg"), multiplique o valor unitário pelo peso da carga (bruto ou taxável correspondente) e respeite o valor mínimo informado (ex: "Min US20.00/shpt" significa que o valor total daquela taxa deve ser no mínimo USD 20.00).
@@ -870,7 +871,9 @@ export const extractAgentCosts = async (
        - Se encontrar a companhia aérea, consulte na tabela "TABELA DE TAXAS LOCAIS DE DESTINO POR COMPANHIA AÉREA (CADASTRADAS NO BANCO)" fornecida acima.
        - Extraia todas as taxas de destino ativas cadastradas para aquela companhia aérea específica (ou taxas gerais sem companhia definida).
        - Some o valor de todas as taxas encontradas aplicadas ao processo e insira o valor final calculado (em reais BRL, convertendo taxas em USD/EUR para BRL se necessário usando câmbio de 5.0) no campo "services_brl" do JSON de resposta, a menos que o retorno do agente já contenha expressamente outras taxas locais de destino em BRL informadas no texto.
-    
+
+    Atenção (Armador e Companhia Aérea): estas duas tabelas (armador e companhia aérea) são só um FALLBACK do cadastro do sistema para preencher taxas de destino que o agente não detalhou no e-mail. Antes de somar uma taxa da tabela (ex: THC, AMS) em "services_brl", confira se o agente já cotou essa MESMA taxa explicitamente em outra parte do e-mail como taxa de ORIGEM (origin_fees) — se sim, ela já está corretamente classificada lá e NÃO deve ser duplicada nem reclassificada como destino usando a tabela.
+
     RETORNO DO AGENTE:
     ${safeSourceText}
 

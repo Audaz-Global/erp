@@ -66,6 +66,7 @@ import professionalRoutes from './routes/professional';
 import groundServiceRoutes from './routes/groundService';
 import atlantisRoutes from './routes/atlantis';
 import clientRoutes from './routes/client';
+import ticketRoutes from './routes/ticket';
 import { backfillLegacyRoadLegs } from './services/groundServiceService';
 
 app.use('/api/auth', authRoutes);
@@ -88,6 +89,7 @@ app.use('/api/professionals', professionalRoutes);
 app.use('/api/ground-services', groundServiceRoutes);
 app.use('/api/atlantis', atlantisRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 app.post('/api/log-error', (req, res) => {
   console.error('\n[FRONTEND ERROR]', req.body);

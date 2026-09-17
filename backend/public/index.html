@@ -1202,6 +1202,8 @@
       <li class="nav-section-title">CADASTROS</li>
       <li><button class="app-nav-item" id="tab-clients" onclick="switchTab('clients')"><span>🏢</span><span>Clientes</span></button></li>
       <li><button class="app-nav-item" id="tab-agents" onclick="switchTab('agents')"><span>🤝</span><span>Parceiros</span></button></li>
+      <li class="nav-section-title">SUPORTE</li>
+      <li><button class="app-nav-item" id="tab-tickets" onclick="switchTab('tickets')"><span>📋</span><span>Chamados</span></button></li>
     </ul>
     <div class="app-sidebar-footer">
       <img src="/assets/audaz-logo-dark.png" alt="Audaz Global">
@@ -1211,6 +1213,9 @@
     <header class="header">
       <button class="active-professional-btn" id="activeProfessionalButton" onclick="openProfessionalChooser()" aria-label="Escolher profissional responsável">
         <span class="active-professional-avatar" id="activeProfessionalInitials">?</span><span><small style="display:block;color:var(--text-muted);font-size:9px;text-align:left">COTANDO COMO</small><strong id="activeProfessionalName" style="font-size:11px">Escolher profissional</strong></span>
+      </button>
+      <button class="gear-btn" onclick="openTicketWidget()" aria-label="Reportar um problema ou sugerir melhoria" title="Reportar problema / sugerir melhoria">
+        <span>🐞</span><span>Reportar problema</span>
       </button>
       <button class="gear-btn" onclick="openSettings()" aria-label="Abrir configurações">
         <svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span>Configurações</span>
@@ -1271,6 +1276,7 @@
               <input type="text" id="r-client-name" class="req" placeholder="Ex: GESTAMP">
             </div>
             <div id="r-client-registered-badge"></div>
+            <div id="r-client-contact-conflict"></div>
             <div class="form-group">
               <label>CNPJ / Tax ID <span id="conf-client-cnpj"></span></label>
               <input type="text" id="r-client-cnpj" placeholder="Ex: 00.000.000/0000-00">
@@ -1877,8 +1883,8 @@
               </div>
             </div>
             <div class="form-group">
-              <label>IOF - Frete + Tx Origem (USD) <span id="conf-iof"></span></label>
-              <input type="number" id="r-iof" step="0.01" placeholder="0.00">
+              <label>IOF - Frete + Tx Origem (USD) <span id="conf-iof"></span> <small style="color:var(--text-muted);font-weight:400;">(calculado automaticamente)</small></label>
+              <input type="number" id="r-iof" step="0.01" placeholder="0.00" readonly title="Calculado automaticamente: frete + taxas de origem × taxa de IOF configurada.">
             </div>
             <div class="form-group">
               <label>Armazenagem Destino (BRL) <span id="conf-storage"></span></label>
@@ -2083,6 +2089,39 @@
         <table class="q-table" id="clientsTable">
           <thead><tr><th>Nome</th><th>CNPJ</th><th>Contato</th><th>Segmento</th><th>Status</th><th>Cotações</th><th>Ações</th></tr></thead>
           <tbody id="clientsTbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAINEL: CHAMADOS ════════════ -->
+  <div class="panel" id="panel-tickets">
+    <div class="card" style="padding: 20px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <h2 style="margin:0;"><span class="emoji">📋</span> Chamados</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="ticket-search" placeholder="Buscar por título..." style="min-width:200px;margin:0;" oninput="renderTicketsTable()">
+          <select id="ticket-filter-status" style="margin:0;" onchange="renderTicketsTable()">
+            <option value="">Todos os status</option>
+            <option value="ABERTO">Aberto</option>
+            <option value="EM_ANDAMENTO">Em andamento</option>
+            <option value="RESOLVIDO">Resolvido</option>
+            <option value="FECHADO">Fechado</option>
+          </select>
+          <select id="ticket-filter-type" style="margin:0;" onchange="renderTicketsTable()">
+            <option value="">Todos os tipos</option>
+            <option value="BUG">🐞 Erro</option>
+            <option value="MELHORIA">✨ Melhoria</option>
+            <option value="DUVIDA">❓ Dúvida</option>
+            <option value="OUTRO">Outro</option>
+          </select>
+          <button class="btn btn-primary" onclick="openNewTicketModal()">➕ Novo Chamado</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="q-table" id="ticketsTable">
+          <thead><tr><th>Título</th><th>Tipo</th><th>Prioridade</th><th>Módulo</th><th>Status</th><th>Aberto por</th><th>Data</th><th></th></tr></thead>
+          <tbody id="ticketsTbody"><tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Carregando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -2316,6 +2355,10 @@
           <label style="font-size:11px;">Conexões do Voo ou do Porto</label>
           <input type="text" id="rev-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
         </div>
+        <div class="form-group" style="margin:0;grid-column:span 2;">
+          <label style="font-size:11px;">Validade da tarifa</label>
+          <input type="date" id="rev-rate-valid-until">
+        </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
           <label style="font-size:11px;">Cia Aérea / Armador</label>
           <div style="display:flex; gap:10px; align-items:center;">
@@ -2324,7 +2367,7 @@
               <input type="checkbox" id="rev-hide-carrier"> Ocultar na proposta
             </label>
           </div>
-          <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Validade da tarifa</label><input type="date" id="rev-rate-valid-until"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
+          <div id="rev-carrier-controls" style="display:none;margin-top:12px;padding:14px;border:1px solid rgba(64,156,255,.35);border-radius:10px;background:rgba(64,156,255,.04)"><div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:10px">🚢 CONTROLES DO ARMADOR <span id="rev-carrier-profile-name"></span></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"><div class="form-group" style="margin:0"><label>Navio</label><input id="rev-vessel-name"></div><div class="form-group" style="margin:0"><label>Viagem</label><input id="rev-voyage-number"></div><div class="form-group" style="margin:0"><label>Free time (dias)</label><input type="number" id="rev-free-time-days"></div><div class="form-group" style="margin:0"><label>Contrato</label><input id="rev-contract-number"></div><div class="form-group" style="grid-column:1/-1;margin:0"><label>Transbordos estruturados</label><textarea id="rev-transshipments" rows="3"></textarea></div></div></div>
         </div>
         <div class="form-group" style="display:none;margin:0;grid-column:1/-1;margin-top:12px;">
           <label style="font-size:11px;">Taxas Locais de Origem (Itemizadas)</label>
@@ -2409,7 +2452,7 @@
           </div>
           <div class="form-group" style="margin:0;">
             <label style="font-size:11px; color:#60A5FA; font-weight:700;">Alíquota (%)</label>
-            <input type="number" id="rev-insurance-rate" step="0.01" value="0.15" placeholder="0.15" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
+            <input type="number" id="rev-insurance-rate" step="0.01" value="0.2" placeholder="0.2" style="border-color:rgba(59,130,246,0.4); font-size:12px;">
           </div>
           <div class="form-group" style="margin:0;">
             <label style="font-size:11px; color:#60A5FA; font-weight:700;">Mínimo (USD)</label>
@@ -2454,10 +2497,14 @@
             <span id="rev-calc-taxable-label" style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
               ⚖️ Peso/Medida Taxável Final
             </span>
-            <div style="display:flex; align-items:baseline; gap:4px;">
-              <span id="rev-calc-taxable-weight" style="font-size:20px; font-weight:800; color:#4cd964; font-family:monospace;">0.00</span>
+            <div style="display:flex; align-items:baseline; gap:6px;">
+              <input type="number" id="rev-calc-taxable-weight" step="0.01" min="0" oninput="onTaxableWeightManualEdit()" style="font-size:20px; font-weight:800; color:#4cd964; font-family:monospace; background:transparent; border:1px solid rgba(76,217,100,0.35); border-radius:6px; width:100px; padding:2px 6px;">
               <span id="rev-calc-taxable-unit" style="font-size:12px; font-weight:600; color:#4cd964;">kg</span>
+              <button type="button" id="rev-calc-taxable-reset" onclick="resetTaxableWeightOverride()" title="Recalcular automaticamente" style="display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:2px;">
+                <svg class="ui-icon sm" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+              </button>
             </div>
+            <small id="rev-calc-taxable-override-hint" style="display:none;color:var(--gold);font-size:10px;">Valor definido manualmente</small>
           </div>
         </div>
       </div>
@@ -2499,8 +2546,8 @@
           </label>
         </div>
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">IOF - Frete + Tx Origem (USD)</label>
-          <input type="number" id="rev-iof" step="0.01" placeholder="0.00">
+          <label style="font-size:11px;">IOF - Frete + Tx Origem (USD) <small style="color:var(--text-muted);font-weight:400;">(automático)</small></label>
+          <input type="number" id="rev-iof" step="0.01" placeholder="0.00" readonly title="Calculado automaticamente: frete + taxas de origem × taxa de IOF configurada.">
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Tempo de Trânsito (Dias)</label>
@@ -2854,19 +2901,11 @@
       <input type="text" id="client-cnpj" placeholder="Ex: 00.000.000/0000-00">
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-      <div class="form-group">
-        <label>Nome do Contato</label>
-        <input type="text" id="client-contact-name" placeholder="Ex: Maria Silva">
-      </div>
-      <div class="form-group">
-        <label>Telefone do Contato</label>
-        <input type="text" id="client-contact-phone" placeholder="Ex: +55 12 3307-1704">
-      </div>
-    </div>
     <div class="form-group">
-      <label>E-mail do Contato</label>
-      <input type="email" id="client-contact-email" placeholder="Ex: contato@empresa.com">
+      <label>Contatos *</label>
+      <small style="display:block;margin:-2px 0 8px;color:var(--text-muted);">O contato marcado como Principal é usado como padrão nas cotações e na extração por IA deste cliente.</small>
+      <div id="client-contacts-container" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button type="button" class="btn btn-secondary" style="margin-top:8px;font-size:12px;" onclick="addClientContact()">➕ Adicionar contato</button>
     </div>
     <div class="form-group">
       <label>Segmento</label>
@@ -2914,6 +2953,11 @@
         <option value="Agentes de Carga">Agentes de Carga</option>
       </select>
     </div>
+    <div class="form-group">
+      <label>Taxa de Seguro Personalizada (%)</label>
+      <input type="number" id="client-insurance-rate-override" step="0.01" min="0" placeholder="Padrão do sistema: 0,2%">
+      <small style="display:block;margin-top:4px;color:var(--text-muted);">Deixe em branco para usar a taxa padrão de seguro (0,2% sobre mercadoria + frete). Se preenchida, essa taxa substitui o padrão em todas as cotações deste cliente.</small>
+    </div>
 
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
       <button onclick="closeClientModal()" class="btn btn-secondary">Cancelar</button>
@@ -2921,6 +2965,139 @@
     </div>
   </div>
 </div>
+
+<div id="ticketModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9100; overflow-y:auto; padding:20px;">
+  <div style="max-width:600px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+    <button onclick="closeTicketModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    <h2 style="font-size:18px; margin-bottom: 6px;" id="ticketModalTitle">Novo Chamado</h2>
+    <div id="ticket-meta-line" style="display:none;font-size:11px;color:var(--text-muted);margin-bottom:16px;"></div>
+
+    <input type="hidden" id="ticket-id">
+
+    <div class="form-group">
+      <label>Título *</label>
+      <input type="text" id="ticket-title" placeholder="Ex: PDF não gera para modal aéreo">
+    </div>
+    <div class="form-group">
+      <label>Descrição *</label>
+      <textarea id="ticket-description" rows="4" placeholder="Descreva o problema/melhoria com o máximo de detalhe possível (passos, cotação afetada, etc.)"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="ticket-type">
+          <option value="BUG">🐞 Erro</option>
+          <option value="MELHORIA" selected>✨ Melhoria</option>
+          <option value="DUVIDA">❓ Dúvida</option>
+          <option value="OUTRO">Outro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Prioridade</label>
+        <select id="ticket-priority">
+          <option value="BAIXA">Baixa</option>
+          <option value="MEDIA" selected>Média</option>
+          <option value="ALTA">Alta</option>
+          <option value="URGENTE">Urgente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Módulo</label>
+        <input type="text" id="ticket-module" placeholder="Ex: PDF, Cotações...">
+      </div>
+    </div>
+
+    <div id="ticket-status-section" style="display:none;margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:8px;">
+      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:8px;">Status</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('ABERTO')">🟡 Aberto</button>
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('EM_ANDAMENTO')">🔵 Em andamento</button>
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('RESOLVIDO')">✅ Resolver</button>
+        <button type="button" class="btn btn-secondary" onclick="updateTicketStatus('FECHADO')">🔒 Fechar</button>
+      </div>
+    </div>
+
+    <div id="ticket-attachments-section" style="display:none;margin:14px 0;">
+      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:8px;">Anexos</label>
+      <div id="ticket-attachments-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+      <input type="file" id="ticket-attachment-input" multiple onchange="uploadTicketAttachments()">
+    </div>
+
+    <div id="ticket-comments-section" style="display:none;margin:14px 0;">
+      <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:8px;">Comentários</label>
+      <div id="ticket-comments-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;max-height:220px;overflow-y:auto;"></div>
+      <textarea id="ticket-new-comment" rows="2" placeholder="Escrever comentário..."></textarea>
+      <button type="button" class="btn btn-secondary" style="margin-top:8px;font-size:12px;" onclick="submitTicketComment()">💬 Comentar</button>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
+      <button onclick="closeTicketModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="saveTicket()" class="btn btn-primary" id="btnSaveTicket">Salvar Chamado</button>
+    </div>
+  </div>
+</div>
+
+<!-- Widget flutuante e arrastável pra abrir um chamado sem sair da tela atual -->
+<div id="ticketWidget" style="display:none;flex-direction:column;position:fixed;bottom:24px;right:24px;width:380px;max-height:80vh;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9500;overflow:hidden;">
+  <div id="ticketWidgetHeader" style="cursor:move;padding:10px 14px;background:rgba(245,166,35,0.08);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;user-select:none;">
+    <strong style="font-size:13px;">Reportar problema</strong>
+    <div style="display:flex;gap:12px;">
+      <button type="button" onclick="minimizeTicketWidget()" title="Minimizar" aria-label="Minimizar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0;display:flex;">
+        <svg class="ui-icon sm" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+      <button type="button" onclick="closeTicketWidget()" title="Fechar" aria-label="Fechar" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0;display:flex;">
+        <svg class="ui-icon sm" aria-hidden="true"><use href="#icon-close"></use></svg>
+      </button>
+    </div>
+  </div>
+  <div style="padding:14px;overflow-y:auto;flex:1;">
+    <div class="form-group" style="margin-bottom:10px;">
+      <label style="font-size:11px;">Título *</label>
+      <input type="text" id="tw-title" placeholder="Resuma o problema/melhoria">
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label style="font-size:11px;">Cotação relacionada</label>
+      <input type="text" id="tw-quotation-search" list="tw-quotation-list" placeholder="Buscar por referência..." oninput="onTicketWidgetQuotationInput()">
+      <datalist id="tw-quotation-list"></datalist>
+      <input type="hidden" id="tw-quotation-id">
+      <small id="tw-quotation-hint" style="color:var(--text-muted);display:block;margin-top:3px;"></small>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:11px;">Tipo</label>
+        <select id="tw-type">
+          <option value="BUG">🐞 Erro</option>
+          <option value="MELHORIA" selected>✨ Melhoria</option>
+          <option value="DUVIDA">❓ Dúvida</option>
+          <option value="OUTRO">Outro</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label style="font-size:11px;">Prioridade</label>
+        <select id="tw-priority">
+          <option value="BAIXA">Baixa</option>
+          <option value="MEDIA" selected>Média</option>
+          <option value="ALTA">Alta</option>
+          <option value="URGENTE">Urgente</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label style="font-size:11px;">Descrição *</label>
+      <textarea id="tw-description" rows="4" placeholder="Descreva o problema..."></textarea>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label style="font-size:11px;">Prints / Anexos <small style="color:var(--text-muted);font-weight:400;">(cole com Ctrl+V em qualquer lugar do widget, ou escolha um arquivo)</small></label>
+      <div id="tw-attachments-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;"></div>
+      <input type="file" id="tw-file-input" multiple accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx" onchange="onTicketWidgetFilePicked(event)">
+    </div>
+  </div>
+  <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">
+    <button type="button" class="btn btn-secondary" onclick="closeTicketWidget()">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="tw-submit-btn" onclick="submitTicketWidget()">Enviar chamado</button>
+  </div>
+</div>
+<button id="ticketWidgetMinimized" onclick="restoreTicketWidget()" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9500;background:var(--gold);color:#111;border:none;border-radius:24px;padding:10px 16px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.4);">🐞 Chamado em rascunho</button>
 
 <script>
 const API = window.location.origin + '/api';
@@ -3019,6 +3196,10 @@ function calculateAirCubadoLocal(packagesStr, defaultPackagesCount = 1) {
 }
 
 function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType, totalCbm = 0, weightBreak = 'normal') {
+  // weightBreak (a faixa tarifária informada pelo agente, ex: "+500") é só
+  // informativa — não deve inflar o Chargeable Weight calculado. O CW usado
+  // no frete e nas taxas por kg é sempre max(peso bruto, peso cubado), com
+  // override manual do operador tratado separadamente pelos chamadores.
   const isAir = String(loadType || '').toUpperCase().includes('AIR');
   const isLcl = String(loadType || '').toUpperCase().includes('LCL');
   const bruto = parseFloat(totalGrossWeight) || 0;
@@ -3026,12 +3207,6 @@ function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType,
   if (isAir) {
     const cubado = calculateAirCubadoLocal(packagesStr || '', totalPackages || 1);
     taxavel = Math.max(bruto, cubado);
-    if (weightBreak && weightBreak !== 'normal') {
-      const minWeight = parseFloat(weightBreak.replace(/[^0-9]/g, ''));
-      if (!isNaN(minWeight) && taxavel < minWeight) {
-        taxavel = minWeight;
-      }
-    }
     // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
     // (padrão IATA TACT) — aplicado aqui na fonte pra manter frete por kg,
     // taxas PER_KG do Incoterm e o painel de cubagem sempre consistentes.
@@ -3138,10 +3313,14 @@ function updateModalCalculatedWeights() {
 
   if (cbmEl) cbmEl.textContent = cbmFormatted;
   if (cubedEl) cubedEl.textContent = airCubadoFormatted;
-  if (taxEl) taxEl.textContent = taxableFormatted;
+  // Só sobrescreve o campo com o valor calculado quando não há override manual
+  // ativo — senão o que o operador digitou seria apagado a cada mudança nos
+  // campos de carga (peso/dimensões/volumes).
+  if (taxEl && window.chargeableWeightOverride == null) taxEl.value = taxableFormatted.replace(',', '.');
   if (taxUnitEl) taxUnitEl.textContent = taxableUnit;
   if (cubedLabelEl) cubedLabelEl.textContent = isAir ? 'Chargeable Weight (kg)' : 'Peso Cubado Aéreo (kg)';
   if (taxLabelEl) taxLabelEl.textContent = isAir ? '⚖️ Chargeable Weight Taxável' : '⚖️ Peso/Medida Taxável Final';
+  updateTaxableWeightOverrideUI();
 
   // Destaques baseados no modal
   const cbmContainer = document.getElementById('rev-calc-cbm-container');
@@ -3157,6 +3336,34 @@ function updateModalCalculatedWeights() {
     if (cbmContainer) cbmContainer.style.opacity = '0.4';
     if (cubedContainer) cubedContainer.style.opacity = '0.4';
   }
+}
+
+// Peso/Medida Taxável Final (Chargeable Weight) é calculado automaticamente
+// por padrão, mas o operador pode sobrescrever manualmente (divergências de
+// dimensões, volumes ou peso bruto). window.chargeableWeightOverride guarda
+// esse valor — null significa "usar o cálculo automático".
+window.chargeableWeightOverride = null;
+
+function updateTaxableWeightOverrideUI() {
+  const resetBtn = document.getElementById('rev-calc-taxable-reset');
+  const hint = document.getElementById('rev-calc-taxable-override-hint');
+  const active = window.chargeableWeightOverride != null;
+  if (resetBtn) resetBtn.style.display = active ? 'inline-flex' : 'none';
+  if (hint) hint.style.display = active ? 'block' : 'none';
+}
+
+function onTaxableWeightManualEdit() {
+  const input = document.getElementById('rev-calc-taxable-weight');
+  const val = parseFloat(input.value);
+  window.chargeableWeightOverride = (!isNaN(val) && val > 0) ? val : null;
+  updateTaxableWeightOverrideUI();
+  refreshReviewMainFreightBasis();
+}
+
+function resetTaxableWeightOverride() {
+  window.chargeableWeightOverride = null;
+  updateModalCalculatedWeights();
+  refreshReviewMainFreightBasis();
 }
 
 window.onerror = function(msg, url, lineNo, columnNo, error) {
@@ -3198,6 +3405,9 @@ function switchTab(name) {
   }
   if (name === 'clients') {
     loadClients();
+  }
+  if (name === 'tickets') {
+    loadTickets();
   }
 }
 
@@ -3728,7 +3938,7 @@ function setSelectValueWithFallback(selectEl, val) {
 }
 const FEE_UNIT_LABELS = { TOTAL_SHIPMENT:'Total do embarque', PER_DG_PRODUCT:'Produto perigoso', PER_ITEM:'Item', PER_PACKAGE:'Volume', PER_DOCUMENT:'Documento', PER_HAWB:'HAWB', PER_MAWB:'MAWB', PER_SHIPMENT:'Embarque', PER_CONTAINER:'Contêiner', PER_BL:'BL', PER_KG:'kg', PER_CHARGEABLE_WEIGHT:'Peso taxável', PER_CBM:'m³', PER_TON:'Tonelada', PER_WM:'Peso/medida (W/M)', PERCENTAGE:'Percentual', UNKNOWN:'Unidade não identificada' };
 
-const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
+const FINANCIAL_GROUP_LABELS = { INTERNATIONAL_FREIGHT:'Frete internacional', FREIGHT_COMPONENT:'Componente do frete', ORIGIN_CHARGE:'Taxa de origem', DESTINATION_CHARGE:'Taxa de destino', DG_CHARGE:'Taxa DG a alocar', CUSTOMS_CHARGE:'Impostos', INSURANCE:'Seguro', TAX_IOF:'IOF', PROFIT:'Profit', TO_CONFIRM:'Classificação pendente' };
 const CHARGE_NATURE_LABELS = { BASE_FREIGHT:'Frete base', FUEL:'Combustível', SECURITY:'Segurança / ISPS', DG:'Carga perigosa', CUSTOMS:'Aduaneira', INSURANCE:'Seguro', TAX:'Tributo', PROFIT:'Profit', LOCAL_SERVICE:'Serviço local', OTHER:'Outra' };
 
 function normalizeCostCurrency(value) {
@@ -3787,7 +3997,9 @@ function inferFeeClassification(name, scope, ispsClassification, chargedBy) {
   const dg = /\b(DG|IMO|DGR|DANGEROUS GOODS|HAZMAT)\b/.test(text);
   const isps = /\bISPS\b|SECURITY/.test(text);
   const chargeNature = dg ? 'DG' : isps ? 'SECURITY' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|FUEL|BUNKER)\b/.test(text) ? 'FUEL' : /CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text) ? 'TAX' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'BASE_FREIGHT' : /THC|HANDLING|DOCUMENT|TERMINAL|DELIVERY|PICK.?UP|COLLECTION|INLAND|STORAGE|ARMAZENAGEM/.test(text) ? 'LOCAL_SERVICE' : 'OTHER';
-  const financialGroup = /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'INTERNATIONAL_FREIGHT' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\b(IOF|TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b/.test(text) ? 'TAX_IOF' : /CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS_CHARGE' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER)\b/.test(text) ? 'FREIGHT_COMPONENT' : ispsClassification === 'ISPS_CARRIER' || (dg && /CARRIER|ARMADOR|SHIPPING LINE/.test(text)) ? 'FREIGHT_COMPONENT' : dg && (!scope || scope === 'UNKNOWN') ? 'DG_CHARGE' : scope === 'ORIGIN' ? 'ORIGIN_CHARGE' : scope === 'DESTINATION' ? 'DESTINATION_CHARGE' : 'TO_CONFIRM';
+  // TAX_IOF é exclusivo do IOF; qualquer outro imposto/tributo genérico ou
+  // taxa de desembaraço cai em CUSTOMS_CHARGE ("Impostos" na tela/PDF).
+  const financialGroup = /OCEAN FREIGHT|SEA FREIGHT|INTERNATIONAL FREIGHT|FRETE INTERNACIONAL/.test(text) ? 'INTERNATIONAL_FREIGHT' : /PROFIT|MARGIN|MARKUP|SPREAD|MARGEM/.test(text) ? 'PROFIT' : /INSURANCE|SEGURO/.test(text) ? 'INSURANCE' : /\bIOF\b/.test(text) ? 'TAX_IOF' : /\b(TAX|TAXES|IMPOSTO|TRIBUTO|DUTY)\b|CUSTOMS|CLEARANCE|BROKERAGE|DESEMBARACO|DESPACHO/.test(text) ? 'CUSTOMS_CHARGE' : /\b(BAF|CAF|LSS|ULS|PSS|EBS|ECA|GRI|BUNKER)\b/.test(text) ? 'FREIGHT_COMPONENT' : ispsClassification === 'ISPS_CARRIER' || (dg && /CARRIER|ARMADOR|SHIPPING LINE/.test(text)) ? 'FREIGHT_COMPONENT' : dg && (!scope || scope === 'UNKNOWN') ? 'DG_CHARGE' : scope === 'ORIGIN' ? 'ORIGIN_CHARGE' : scope === 'DESTINATION' ? 'DESTINATION_CHARGE' : 'TO_CONFIRM';
   return { financialGroup, chargeNature };
 }
 
@@ -3892,8 +4104,18 @@ window.reviewCostLines = { freight: [], origin: [], destination: [] };
 
 function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
-function reviewCostWithLimits(raw, line) { const minimum=reviewCostNumber(line.minValue); const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(Math.max(raw,minimum),maximum) : Math.max(raw,minimum); }
+function reviewCostWithLimits(raw, line) { const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(raw,maximum) : raw; }
 function reviewConvertCost(value, fromCurrency, toCurrency) { const from=normalizeCostCurrency(fromCurrency), to=normalizeCostCurrency(toCurrency); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
+// O Mínimo é uma trava de Venda — nunca de Compra (custo é custo real, não deve
+// ser inflado por uma regra comercial de preço mínimo). Converte pra moeda da
+// Venda antes de comparar, já que o Mínimo pode estar cadastrado numa moeda
+// diferente (ex: mínimo em USD, venda calculada em BRL).
+function reviewCostSellFloor(raw, line) {
+  const minimum = reviewCostNumber(line.minValue);
+  if (minimum <= 0) return raw;
+  const minInSellCurrency = reviewConvertCost(minimum, line.minCurrency || line.currency, line.currency);
+  return Math.max(raw, minInSellCurrency);
+}
 function reviewPercentageBase(line) {
   const configured=String(line.percentBase || '').toUpperCase();
   const targetCurrency=line.currency || 'USD';
@@ -3906,7 +4128,7 @@ function reviewPercentageBase(line) {
   if (configured === 'FREIGHT') return freight;
   const savedBase=reviewCostNumber(line.percentageBaseValue); return savedBase > 0 ? savedBase : freight;
 }
-function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostWithLimits(raw,line); }
+function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostSellFloor(reviewCostWithLimits(raw,line),line); }
 function reviewCostBuyTotal(line) { const costUnitValue=reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)); const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(costUnitValue/100) : reviewCostNumber(line.quantity,0)*costUnitValue; return reviewCostWithLimits(raw,line); }
 // Conversão aproximada só para tornar Compra e Venda comparáveis quando estão
 // em moedas diferentes (ex: compra em EUR, venda em USD) — sem isso, o lucro
@@ -3960,8 +4182,11 @@ function reviewMainFreightLine(quotation = {}) {
   const dimensions = document.getElementById('rev-dimensions')?.value || '';
   const cbm = calculateCbmLocal(dimensions, packages) || reviewCostNumber(document.getElementById('rev-calc-cbm')?.textContent);
   let quantity = 1, billingUnit = 'TOTAL_SHIPMENT';
-  if (loadType.includes('AIR')) { quantity = getLocalTaxavel(dimensions, packages, gross, loadType, cbm, document.getElementById('rev-weight-break')?.value || 'normal') || 1; billingUnit = 'PER_CHARGEABLE_WEIGHT'; }
-  else if (loadType.includes('LCL')) { quantity = cbm || 1; billingUnit = 'PER_CBM'; }
+  // Override manual do Peso/Medida Taxável Final (Chargeable Weight), quando
+  // ativo, vale sobre o cálculo automático — inclusive sobre a faixa
+  // tarifária do agente (weightBreak), que não deve mais distorcer o CW.
+  if (loadType.includes('AIR')) { quantity = window.chargeableWeightOverride || getLocalTaxavel(dimensions, packages, gross, loadType, cbm) || 1; billingUnit = 'PER_CHARGEABLE_WEIGHT'; }
+  else if (loadType.includes('LCL')) { quantity = window.chargeableWeightOverride || cbm || 1; billingUnit = 'PER_CBM'; }
   else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); quantity = containerMatch ? Number(containerMatch[1]) : 1; billingUnit = 'PER_CONTAINER'; }
   const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
   const source=quotationFreightEvidence(quotation);
@@ -3976,6 +4201,7 @@ function reviewMainFreightLine(quotation = {}) {
 
 function initializeReviewCostEditor(quotation = {}) {
   window.profitPctManuallyEdited = false;
+  recalculateRevIof();
   const origin = enrichFeeMetadata(parseFeeText(document.getElementById('rev-origin-services')?.value || ''), window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
   const destination = enrichFeeMetadata(parseFeeText(document.getElementById('rev-destination-services')?.value || ''), window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
   const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
@@ -3988,8 +4214,9 @@ function initializeReviewCostEditor(quotation = {}) {
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
     destination: cleanDestination.map(fee => decorate(fee, 'DESTINATION'))
   };
+  const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:3.5, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue:iof/0.035, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
@@ -3999,7 +4226,7 @@ function initializeReviewCostEditor(quotation = {}) {
   const storageProvenance=storageWasExtracted || /_RESPONSE$|AGENT_RESPONSE/.test(storageSource) ? `${partnerType}_EMAIL` : storageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL';
   if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:storageSource === 'MINIMUM_FALLBACK' && !storageWasExtracted ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:normalizeCostCurrency(quotation.destinationStorageCurrency || 'BRL'), financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:storageProvenance, evidence:window.lastExtractedAgentData?.costs?.field_evidence?.find(item=>item.field==='storage_brl')?.evidence || quotation.storageRequestEvidence || '' });
   const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
-  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED' });
   if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
   if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION', provenanceType:'MANUAL' });
   renderReviewCostEditor();
@@ -4013,6 +4240,7 @@ function refreshReviewMainFreightBasis() {
   current.quantity = calculated.quantity;
   current.billingUnit = calculated.billingUnit;
   current.unitValue = calculated.unitValue;
+  current.currency = calculated.currency;
   renderReviewCostEditor();
 }
 
@@ -5048,6 +5276,61 @@ function collectGroundServiceLegs() {
   return legs;
 }
 
+// Quando o contato extraído do e-mail é uma pessoa diferente da já
+// cadastrada no cliente, oferece a escolha em vez de descartar silenciosamente
+// (ver extractController.ts, aiResult.client.contact_conflict).
+window.clientContactConflict = null;
+function renderClientContactConflict(client) {
+  const box = document.getElementById('r-client-contact-conflict');
+  if (!box) return;
+  const conflict = client?.contact_conflict;
+  if (!conflict) { box.innerHTML = ''; window.clientContactConflict = null; return; }
+  window.clientContactConflict = { clientId: client.registered_client_id, extracted: conflict.extracted, registeredContacts: conflict.registeredContacts };
+  const registeredLabel = (conflict.registeredContacts || []).map(c => escapeFeeHtml(c.name) + (c.phone ? ` (${escapeFeeHtml(c.phone)})` : '')).join(', ');
+  const extractedLabel = escapeFeeHtml(conflict.extracted.name || conflict.extracted.email || 'contato deste e-mail');
+  const options = (conflict.registeredContacts || []).map((c, i) => `<option value="${i}">${escapeFeeHtml(c.name)}${c.phone ? ' — ' + escapeFeeHtml(c.phone) : ''}</option>`).join('');
+  box.innerHTML = `
+    <div style="margin:-4px 0 12px;padding:9px 11px;border:1px solid rgba(245,166,35,.38);border-radius:8px;background:rgba(245,166,35,.08);color:#f5c36a;font-size:12px;">
+      ⚠️ O contato deste e-mail (<strong>${extractedLabel}</strong>) é diferente do(s) cadastrado(s) para este cliente (${registeredLabel}).
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+        <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="useExtractedContactAsNew()">➕ Usar e adicionar como novo contato</button>
+        <select id="r-client-conflict-select" style="font-size:11px;padding:6px;">${options}</select>
+        <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="selectRegisteredClientContact()">🔁 Usar este contato cadastrado</button>
+      </div>
+    </div>`;
+}
+
+async function useExtractedContactAsNew() {
+  const conflict = window.clientContactConflict;
+  if (!conflict) return;
+  const { name, phone, email } = conflict.extracted;
+  document.getElementById('r-client-contact').value = name || '';
+  document.getElementById('r-client-phone').value = phone || '';
+  if (conflict.clientId) {
+    try {
+      const res = await fetch(API + '/clients/' + conflict.clientId + '/contacts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, email, isPrimary: false })
+      });
+      if (res.ok) toast('✅ Contato adicionado ao cadastro do cliente.');
+    } catch (e) { /* segue mesmo se a gravação do contato falhar — a cotação usa o valor informado de qualquer forma */ }
+  }
+  document.getElementById('r-client-contact-conflict').innerHTML = '';
+  window.clientContactConflict = null;
+}
+
+function selectRegisteredClientContact() {
+  const conflict = window.clientContactConflict;
+  const select = document.getElementById('r-client-conflict-select');
+  if (!conflict || !select) return;
+  const chosen = conflict.registeredContacts[Number(select.value)];
+  if (!chosen) return;
+  document.getElementById('r-client-contact').value = chosen.name || '';
+  document.getElementById('r-client-phone').value = chosen.phone || '';
+  document.getElementById('r-client-contact-conflict').innerHTML = '';
+  window.clientContactConflict = null;
+}
+
 function fillReviewForm(d, mode) {
   if (mode === 'CLIENT') {
     // Garante que os dropdowns de transportadora/DTA já estejam com as opções
@@ -5102,7 +5385,8 @@ function fillReviewForm(d, mode) {
       if (d.client.product_segment) setSelectValueWithFallback(document.getElementById('r-product-segment'), d.client.product_segment);
       const registeredBadge = document.getElementById('r-client-registered-badge');
       if (registeredBadge) registeredBadge.innerHTML = d.client.registered_client_id
-        ? '<small style="display:block;margin:-8px 0 12px;color:var(--success);">✓ Cliente já cadastrado — nome e segmento preenchidos com o registro existente.</small>' : '';
+        ? '<small style="display:block;margin:-8px 0 12px;color:var(--success);">✓ Cliente já cadastrado — nome, segmento e contato preenchidos com o registro existente.</small>' : '';
+      renderClientContactConflict(d.client);
     }
     if(d.route) {
       document.getElementById('r-incoterm').value = d.route.incoterm || '';
@@ -5281,11 +5565,10 @@ function fillReviewForm(d, mode) {
 
       freightInput.dispatchEvent(new Event('input'));
       renderRateOptionsPicker(d.costs.rate_options);
-      
-      if (d.costs.iof_usd && parseFloat(d.costs.iof_usd) > 0) {
-        document.getElementById('r-iof').value = d.costs.iof_usd;
-      }
-      document.getElementById('conf-iof').innerHTML = renderConf(d.costs.iof_usd, d.costs.confidence);
+
+      // IOF é sempre calculado pelo sistema (ver listener de r-freight acima) —
+      // nunca aceita o valor citado pelo agente/IA, que não tem como saber
+      // calcular um imposto brasileiro corretamente.
 
       document.getElementById('r-storage').value = d.costs.storage_brl ?? '';
       if ((d.costs.present_fields || []).includes('storage_brl')) document.getElementById('r-storage').dataset.source = `${String(d.costs.partner_type || currentPartnerType || 'AGENTE').toUpperCase()}_RESPONSE`;
@@ -5597,12 +5880,11 @@ document.getElementById('r-freight').addEventListener('input', function() {
   const iofField = document.getElementById('r-iof');
   const currency = document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : 'USD';
   const originFeesUsd = parseFloat(document.getElementById('r-agent-origin-services-total')?.value) || 0;
-  if (!returnIncotermRules.length && freight > 0 && (!iofField.value || parseFloat(iofField.value) === 0)) {
-    iofField.value = calculateIOFValue(freight, originFeesUsd, currency);
-  }
-  
   const qId = document.getElementById('pending-quotations').value;
   const q = allQuotations.find(x => x.id === qId);
+  if (q && returnIncotermRules.length) applyReturnIncotermRules(q, true);
+  else iofField.value = calculateIOFValue(freight, originFeesUsd, currency);
+
   let taxavel = 1;
   let loadType = 'AIR_GENERAL';
   const wBreak = document.getElementById('r-weight-break').value;
@@ -6290,8 +6572,59 @@ function calculateIOFValue(freightVal, originFeesUsd = 0, currency = 'USD') {
   else if (currency === 'BRL') freightUsd = freightUsd / usdRate;
 
   const totalBase = freightUsd + (parseFloat(originFeesUsd) || 0);
-  const rate = (window.settingsData && window.settingsData.iofRate) ? (parseFloat(window.settingsData.iofRate) / 100) : 0.035;
+  const rate = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? (parseFloat(window.pricingSettingsCache.iofRate) / 100) : 0.035;
   return (totalBase * rate).toFixed(2);
+}
+
+// Soma as taxas de origem (rev-origin-services) convertidas para USD — usada
+// como base do cálculo automático de IOF na Revisão Final.
+function getRevOriginFeesUsd() {
+  const usdRate = 5.05;
+  let sum = 0;
+  const raw = document.getElementById('rev-origin-services')?.value || '';
+  if (raw.trim()) {
+    parseFeeText(raw).forEach(fee => {
+      const val = fee.totalValue || 0;
+      const curr = fee.currency;
+      if (curr === 'EUR') sum += val * 1.08;
+      else if (curr === 'BRL') sum += val / usdRate;
+      else sum += val;
+    });
+  }
+  return sum;
+}
+
+// IOF é sempre calculado pelo sistema (frete + taxas de origem × taxa
+// configurada) — o campo rev-iof é somente leitura, nunca editado manualmente
+// nem sobrescrito por valores extraídos do e-mail do agente.
+function recalculateRevIof() {
+  const iofField = document.getElementById('rev-iof');
+  if (!iofField) return;
+  const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
+
+  if (window.reviewCostEditorReady && window.reviewCostLines?.freight) {
+    // reviewPercentageBase() (base do IOF, FREIGHT_PLUS_ORIGIN) recalcula a
+    // partir da linha MAIN_FREIGHT guardada no editor de custos — não a
+    // partir do campo rev-freight diretamente. Atualiza essa linha primeiro
+    // pra não calcular o IOF em cima de um frete desatualizado.
+    refreshReviewMainFreightBasis();
+    let iofLine = window.reviewCostLines.freight.find(line => line.special === 'IOF');
+    if (!iofLine) {
+      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' };
+      window.reviewCostLines.freight.push(iofLine);
+    }
+    iofLine.unitValue = iofRatePct;
+    const total = reviewCostTotal(iofLine);
+    iofField.value = total.toFixed(2);
+    if (total <= 0) window.reviewCostLines.freight = window.reviewCostLines.freight.filter(line => line.special !== 'IOF');
+    renderReviewCostEditor();
+  } else {
+    // Editor de custos ainda não inicializado — calcula direto a partir dos
+    // campos da tela (ex: primeiro cálculo ao abrir a Revisão Final).
+    const freight = parseFloat(document.getElementById('rev-freight')?.value) || 0;
+    const currency = document.getElementById('rev-freight-currency')?.value || 'USD';
+    iofField.value = calculateIOFValue(freight, getRevOriginFeesUsd(), currency);
+  }
 }
 
 function calculateAndInjectInsurance(isUserManualInsurance = false) {
@@ -6344,7 +6677,7 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
     } else {
       // Usar base de cálculo, alíquota e piso configurados
       const baseType = document.getElementById('rev-insurance-base') ? document.getElementById('rev-insurance-base').value : 'FOB_FREIGHT';
-      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.15) : 0.15;
+      const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.2) : 0.2;
       const minUsd = document.getElementById('rev-insurance-min') ? (parseFloat(document.getElementById('rev-insurance-min').value) || 40.00) : 40.00;
 
       let baseSeguroUsd = valMercadoria;
@@ -6400,17 +6733,22 @@ function updateBuyVsSellTable() {
 
   // 3. TAXAS ORIGEM
   let sellOriginFeesUsd = 0;
+  let sellOriginFeesExSpreadUsd = 0;
   const originServicesRaw = document.getElementById('rev-origin-services').value || '';
   if (originServicesRaw.trim()) {
     parseFeeText(originServicesRaw).forEach(fee => {
         const val = fee.totalValue || 0;
         const curr = fee.currency;
-        if (curr === 'USD') sellOriginFeesUsd += val;
-        else if (curr === 'EUR') sellOriginFeesUsd += val * 1.08;
-        else if (curr === 'BRL') sellOriginFeesUsd += val / usdRate;
+        let usd = val;
+        if (curr === 'EUR') usd = val * 1.08;
+        else if (curr === 'BRL') usd = val / usdRate;
+        sellOriginFeesUsd += usd;
+        // "Spread / Profit" é markup nosso, não cobrança do agente — não pode
+        // inflar o Custo (Compra) quando o profit é aplicado/ajustado.
+        if (!/spread\s*\/\s*profit/i.test(fee.name || '')) sellOriginFeesExSpreadUsd += usd;
     });
   }
-  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesUsd;
+  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesExSpreadUsd;
 
   // 4. SEGURO INTERNACIONAL
   const requiresIns = document.getElementById('rev-insurance').value === 'true';
@@ -6421,22 +6759,27 @@ function updateBuyVsSellTable() {
   const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
   const servicesBrl = parseFloat(document.getElementById('rev-services').value) || 0;
   const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  let sellDestFeesUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
+  const destBaseUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
+  let sellDestFeesUsd = destBaseUsd;
+  let sellDestFeesExSpreadUsd = destBaseUsd;
 
-  // Somar também linhas avulsas de destino (exceto Seguro e Spread)
+  // Somar também linhas avulsas de destino (exceto Seguro). "Spread / Profit"
+  // entra na Venda normalmente, mas fica de fora do custo do agente (abaixo).
   const destText = document.getElementById('rev-destination-services').value || '';
   parseFeeText(destText).forEach(fee => {
-    const l = fee.name.toLowerCase();
-    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional') && !l.includes('spread / profit')) {
+    const l = (fee.name || '').toLowerCase();
+    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
         const val = fee.totalValue || 0;
         const curr = fee.currency;
-        if (curr === 'USD') sellDestFeesUsd += val;
-        else if (curr === 'EUR') sellDestFeesUsd += val * 1.08;
-        else if (curr === 'BRL') sellDestFeesUsd += val / usdRate;
+        let usd = val;
+        if (curr === 'EUR') usd = val * 1.08;
+        else if (curr === 'BRL') usd = val / usdRate;
+        sellDestFeesUsd += usd;
+        if (!l.includes('spread / profit')) sellDestFeesExSpreadUsd += usd;
     }
   });
 
-  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesUsd;
+  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesExSpreadUsd;
 
   // 6. DESEMBARAÇO ADUANEIRO
   const customsIncluded = document.getElementById('rev-customs-clearance').checked;
@@ -6562,7 +6905,7 @@ function applySmartProfit() {
   }
 
   const profitValUsd = parseFloat(profitStr);
-  if (isNaN(profitValUsd) || profitValUsd <= 0) return;
+  if (isNaN(profitValUsd) || profitValUsd < 0) return;
 
   const targets = getProfitTargets().filter(t => t.checked);
   if (targets.length === 0) {
@@ -6582,7 +6925,6 @@ function applySmartProfit() {
 
   targets.forEach(t => {
     const shareUsd = profitValUsd * (t.pct / 100);
-    if (shareUsd <= 0) return;
 
     if (t.key === 'freight') {
       let freightVal = parseFloat(document.getElementById('rev-freight').value) || 0;
@@ -6593,18 +6935,32 @@ function applySmartProfit() {
       if (freightCurrency === 'EUR') profitConverted = shareUsd * (usdRate / eurRate);
       else if (freightCurrency === 'BRL') profitConverted = shareUsd * usdRate;
 
-      document.getElementById('rev-freight').value = (freightVal + profitConverted).toFixed(2);
+      // Remove o profit aplicado da última vez (se houver) antes de somar o
+      // novo, para SOBRESCREVER em vez de ACUMULAR a cada clique. Profit 0
+      // simplesmente remove o acréscimo anterior, voltando ao frete-base.
+      const prevAppliedConverted = window.lastAppliedFreightProfitConverted || 0;
+      const baseFreightVal = freightVal - prevAppliedConverted;
+      const newFreightVal = baseFreightVal + profitConverted;
+
+      document.getElementById('rev-freight').value = newFreightVal.toFixed(2);
+      window.lastAppliedFreightProfitConverted = profitConverted;
       const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
-      if (mainFreight) mainFreight.unitValue = (freightVal + profitConverted) / (reviewCostNumber(mainFreight.quantity, 1) || 1);
+      if (mainFreight) mainFreight.unitValue = newFreightVal / (reviewCostNumber(mainFreight.quantity, 1) || 1);
     } else {
       const textareaId = t.key === 'origin' ? 'rev-origin-services' : 'rev-destination-services';
       const feesTextarea = document.getElementById(textareaId);
-      const lines = (feesTextarea.value || '').split('\n').filter(line => !line.toLowerCase().includes('spread / profit'));
-      lines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: shareUsd, value: shareUsd, currency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: shareUsd }));
+      const lines = (feesTextarea.value || '').split('\n').filter(line => !/spread\s*\/\s*profit/i.test(line));
+      if (shareUsd > 0.005) {
+        lines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: shareUsd, value: shareUsd, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: shareUsd }));
+      }
       feesTextarea.value = lines.join('\n');
 
+      // Custo do agente nunca muda por causa do profit: a linha Spread/Profit
+      // é markup nosso, então costUnitValue fica travado em 0.
       window.reviewCostLines[t.key] = (window.reviewCostLines[t.key] || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
-      window.reviewCostLines[t.key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: shareUsd, currency: 'USD', applicationScope: t.key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+      if (shareUsd > 0.005) {
+        window.reviewCostLines[t.key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: shareUsd, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', applicationScope: t.key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+      }
     }
 
     appliedParts.push(`${AREA_LABELS[t.key]}: USD ${shareUsd.toFixed(2)}`);
@@ -6613,7 +6969,7 @@ function applySmartProfit() {
   renderReviewCostEditor();
   recalculateModalDestinationServicesTotal();
   updateBuyVsSellTable();
-  alert(`Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}`);
+  alert(profitValUsd > 0 ? `Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}` : 'Profit zerado nas áreas selecionadas.');
 }
 
 // Edição direta do preço de Venda na tabela Compra vs. Venda. Frete/Inland/
@@ -6633,6 +6989,10 @@ function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
     if (currency === 'EUR') converted = newSellUsd * (usdRate / eurRate);
     else if (currency === 'BRL') converted = newSellUsd * usdRate;
     document.getElementById('rev-freight').value = converted.toFixed(2);
+    // Edição manual do valor de Venda vira o novo "base" do frete — zera o
+    // rastreamento do Aplicar Profit pra não subtrair um acréscimo antigo
+    // que já não existe mais neste valor.
+    window.lastAppliedFreightProfitConverted = 0;
     const mainFreight = window.reviewCostLines.freight?.find(line => line.special === 'MAIN_FREIGHT');
     if (mainFreight) mainFreight.unitValue = converted / (reviewCostNumber(mainFreight.quantity, 1) || 1);
   } else if (key === 'inland') {
@@ -6655,13 +7015,13 @@ function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
     const newSpreadValue = existingSpread + deltaUsd;
     const otherLines = lines.filter((_, i) => i !== spreadLineIdx);
     if (Math.abs(newSpreadValue) > 0.005) {
-      otherLines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: newSpreadValue, value: newSpreadValue, currency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: newSpreadValue }));
+      otherLines.push(formatFeeLine({ name: 'Spread / Profit', unitValue: newSpreadValue, value: newSpreadValue, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', billingUnit: 'PER_SHIPMENT', quantity: 1, totalValue: newSpreadValue }));
     }
     feesTextarea.value = otherLines.filter(Boolean).join('\n');
 
     window.reviewCostLines[key] = (window.reviewCostLines[key] || []).filter(line => !/spread\s*\/\s*profit/i.test(line.name || ''));
     if (Math.abs(newSpreadValue) > 0.005) {
-      window.reviewCostLines[key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: newSpreadValue, currency: 'USD', applicationScope: key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
+      window.reviewCostLines[key].push({ id: reviewCostId(), name: 'Spread / Profit', quantity: 1, billingUnit: 'PER_SHIPMENT', unitValue: newSpreadValue, currency: 'USD', costUnitValue: 0, costCurrency: 'USD', applicationScope: key.toUpperCase(), financialGroup: 'PROFIT', chargeNature: 'PROFIT', classificationSource: 'MANUAL', provenanceType: 'MANUAL', quantitySource: 'MANUAL' });
     }
   }
 
@@ -6755,7 +7115,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = q.freightCurrency || 'USD';
       }
-      document.getElementById('rev-iof').value = q.iofUsd || '';
       document.getElementById('rev-storage').value = q.destinationStorage || '';
       document.getElementById('rev-services').value = q.destinationServicesTotal || '';
       document.getElementById('rev-taxes').value = q.destinationTaxes || '';
@@ -6796,7 +7155,6 @@ async function validateAndGeneratePDF(qIdParam = null) {
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = (document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : '') || q.freightCurrency || 'USD';
       }
-      document.getElementById('rev-iof').value = document.getElementById('r-iof').value || q.iofUsd || '';
       document.getElementById('rev-storage').value = document.getElementById('r-storage').value || q.destinationStorage || '';
       document.getElementById('rev-services').value = document.getElementById('r-services').value || q.destinationServicesTotal || '';
       document.getElementById('rev-taxes').value = document.getElementById('r-taxes').value || q.destinationTaxes || '';
@@ -6876,7 +7234,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       } else {
         document.getElementById('rev-freight-unit').value = freight.toFixed(2);
       }
-      document.getElementById('rev-iof').value = (freight * 0.035).toFixed(2);
+      recalculateRevIof();
     };
 
     const recalculateModalUnit = function() {
@@ -6899,7 +7257,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
         tot = unit;
       }
       document.getElementById('rev-freight').value = tot.toFixed(2);
-      document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
+      recalculateRevIof();
     };
 
     const handleModalWeightBreakChange = function() {
@@ -6921,7 +7279,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
         tot = unit;
       }
       document.getElementById('rev-freight').value = tot.toFixed(2);
-      document.getElementById('rev-iof').value = (tot * 0.035).toFixed(2);
+      recalculateRevIof();
       updateModalCalculatedWeights();
       refreshReviewMainFreightBasis();
     };
@@ -6954,6 +7312,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
 
     document.getElementById('rev-load-type').removeEventListener('change', onCargoFieldsChange);
     document.getElementById('rev-load-type').addEventListener('change', onCargoFieldsChange);
+
+    // Restaura o override manual do peso/medida taxável (Chargeable Weight)
+    // salvo nesta cotação, se houver, antes de calcular os pesos.
+    window.chargeableWeightOverride = q.chargeableWeightOverride != null ? Number(q.chargeableWeightOverride) : null;
+    if (window.chargeableWeightOverride != null) {
+      document.getElementById('rev-calc-taxable-weight').value = window.chargeableWeightOverride;
+    }
 
     // Calcular e atualizar os pesos e volumes calculados inicialmente
     updateModalCalculatedWeights();
@@ -6994,6 +7359,13 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-freight').addEventListener('input', onInsuranceTriggerFieldsChange);
 
     if (document.getElementById('rev-freight-currency')) {
+      // recalculateRevIof precisa rodar ANTES de onInsuranceTriggerFieldsChange:
+      // esse último acaba ressincronizando rev-freight-currency a partir da
+      // linha de frete guardada no editor de custos (window.reviewCostLines),
+      // que só fica com a moeda nova depois que refreshReviewMainFreightBasis()
+      // (chamado dentro de recalculateRevIof) rodar.
+      document.getElementById('rev-freight-currency').removeEventListener('change', recalculateRevIof);
+      document.getElementById('rev-freight-currency').addEventListener('change', recalculateRevIof);
       document.getElementById('rev-freight-currency').removeEventListener('change', onInsuranceTriggerFieldsChange);
       document.getElementById('rev-freight-currency').addEventListener('change', onInsuranceTriggerFieldsChange);
     }
@@ -7052,6 +7424,9 @@ async function validateAndGeneratePDF(qIdParam = null) {
     }
     document.getElementById('rev-customs-clearance').checked = Boolean(q.customsClearanceIncluded);
     document.getElementById('rev-customs-value').value = '900.00';
+    // Taxa de seguro: usa a taxa personalizada do cliente quando cadastrada,
+    // senão o padrão do sistema (0,2%).
+    document.getElementById('rev-insurance-rate').value = (q.client && q.client.insuranceRateOverride != null) ? q.client.insuranceRateOverride : 0.2;
     calculateAndInjectInsurance(false);
     initializeReviewCostEditor(q);
     updateBuyVsSellTable();
@@ -7079,24 +7454,37 @@ async function confirmAndGeneratePDF() {
   if (!qId) return;
   syncReviewCostEditor();
 
-  const incotermAlerts = await fetchIncotermApplicabilityAlerts('rev');
-  const missingRequired = incotermAlerts.filter(a => a.code === 'INCOTERM_REQUIRED_MISSING');
-  if (missingRequired.length) {
-    const incotermValue = document.getElementById('rev-incoterm').value;
-    const feeList = missingRequired.map(a => (a.feeNames || []).join(', ') || a.message).join('\n• ');
-    if (!window.confirm(`Taxas obrigatórias para o Incoterm ${incotermValue} estão ausentes:\n• ${feeList}\n\nConfirma que deseja gerar o PDF mesmo assim?`)) return;
-  }
+  // Essas duas checagens são específicas de gerar a proposta em PDF — não fazem
+  // sentido pra "Salvar Alterações" (editar uma cotação já existente sem gerar
+  // um PDF novo), então só rodam fora do modo de edição.
+  if (!isOnlyEditMode) {
+    const incotermAlerts = await fetchIncotermApplicabilityAlerts('rev');
+    const missingRequired = incotermAlerts.filter(a => a.code === 'INCOTERM_REQUIRED_MISSING');
+    if (missingRequired.length) {
+      const incotermValue = document.getElementById('rev-incoterm').value;
+      const feeList = missingRequired.map(a => (a.feeNames || []).join(', ') || a.message).join('\n• ');
+      if (!window.confirm(`Taxas obrigatórias para o Incoterm ${incotermValue} estão ausentes:\n• ${feeList}\n\nConfirma que deseja gerar o PDF mesmo assim?`)) return;
+    }
 
-  const validityInput = document.getElementById('rev-rate-valid-until');
-  if (!validityInput.value) {
-    alert('Informe a validade da tarifa antes de gerar o PDF.');
-    validityInput.focus();
-    return;
+    const validityInput = document.getElementById('rev-rate-valid-until');
+    if (!validityInput.value) {
+      // O próprio sistema já trata "sem data" como contingência de 15 dias
+      // (setRateValidityStatus) — em vez de travar sem saída, oferece essa
+      // mesma saída aqui.
+      if (!window.confirm('Nenhuma validade de tarifa informada — a cotação seguirá como contingência de 15 dias, precisando de revisão depois. Confirma?')) {
+        validityInput.focus();
+        return;
+      }
+      setRateValidityStatus('rev', { source: 'CONTINGENCY', needsReview: true, evidence: 'Confirmado sem data pelo operador ao gerar o PDF.' });
+    } else if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   }
-  if (validityInput.dataset.validityNeedsReview === 'true' && !window.confirm('A validade está em contingência ou possui baixa confiança. Confirma a data informada antes de gerar o PDF?')) return;
   const storageInput = document.getElementById('rev-storage');
-  if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
-  if (!document.getElementById('rev-transit-time').value.trim() && !window.confirm('O tempo de trânsito não foi informado. Deseja continuar e gerar o PDF mesmo assim?')) return;
+  // Essas duas também são sobre o que vai aparecer no PDF, não sobre
+  // integridade do dado salvo — mesmo raciocínio das checagens acima.
+  if (!isOnlyEditMode) {
+    if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
+    if (!document.getElementById('rev-transit-time').value.trim() && !window.confirm('O tempo de trânsito não foi informado. Deseja continuar e gerar o PDF mesmo assim?')) return;
+  }
   const revCnpjField = document.getElementById('rev-client-cnpj');
   if (cnpjIsRequiredForQuotation(document.getElementById('rev-load-type').value, storageInput.dataset.requested === 'true') && !revCnpjField.value.trim()) {
     alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
@@ -7224,6 +7612,7 @@ async function confirmAndGeneratePDF() {
       transitTimeDays: parseInt(document.getElementById('rev-transit-time').value) || null,
       frequency: frequencyValue,
       weightBreak: weightBreakValue,
+      chargeableWeightOverride: window.chargeableWeightOverride,
       // Atualizar também os dados da cotação com os valores revisados
       originCity: document.getElementById('rev-origin-city').value,
       originCountry: document.getElementById('rev-origin-country').value,
@@ -7302,6 +7691,7 @@ async function confirmAndGeneratePDF() {
         ncmCodes: document.getElementById('rev-ncm-codes').value || null,
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
+        chargeableWeightOverride: window.chargeableWeightOverride,
         clientName: document.getElementById('rev-client-name').value,
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,
@@ -8417,14 +8807,11 @@ function switchSettingsTab(tab) {
         <div class="settings-section">
           <h3>Taxas de Importação</h3>
           <div class="sg-row">
-            <div class="form-group"><label>IOF Padrão (%)</label>
-              <input type="number" id="s-iof-rate" step="0.1" value="${settingsData.iofRate || 3.5}" placeholder="3.5">
-            </div>
             <div class="form-group"><label>Validade Padrão da Cotação (dias)</label>
               <input type="number" id="s-validity-days" value="${settingsData.validityDays || 15}" placeholder="15">
             </div>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin-top:-4px;">Câmbio (PTAX) e Armazenagem Mínima LCL agora ficam em Configurações → "Câmbio & Armazenagem".</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:-4px;">Câmbio (PTAX), Armazenagem Mínima LCL e Taxa de IOF agora ficam em Configurações → "Câmbio & Armazenagem".</p>
         </div>
         <button class="btn btn-primary" onclick="saveTaxSettings()">💾 Salvar Taxas</button>`;
       break;
@@ -8458,13 +8845,22 @@ function switchSettingsTab(tab) {
           <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Taxa PTAX vigente agora: <strong id="ps-current-ptax" style="color:var(--gold);">Carregando...</strong></p>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section" style="margin-bottom: 24px;">
           <h3 style="margin:0 0 14px;">Armazenagem Mínima LCL</h3>
           <div class="form-group" style="max-width:260px;">
             <label>Valor Mínimo (BRL)</label>
             <input type="number" id="ps-min-lcl-storage" step="0.01" placeholder="Ex: 5700.00">
           </div>
           <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Aplicado automaticamente como piso quando a armazenagem informada (manual ou extraída pela IA) para uma cotação Marítima LCL vier abaixo deste valor.</p>
+        </div>
+
+        <div class="settings-section">
+          <h3 style="margin:0 0 14px;">IOF</h3>
+          <div class="form-group" style="max-width:260px;">
+            <label>Taxa Padrão de IOF (%)</label>
+            <input type="number" id="ps-iof-rate" step="0.1" placeholder="Ex: 3.5">
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Usada para calcular o IOF automaticamente (frete + taxas de origem × esta taxa) quando não há uma regra de Incoterm específica para a rota. O campo de IOF na cotação é sempre calculado pelo sistema — não é editável manualmente.</p>
         </div>
 
         <button class="btn btn-primary" onclick="savePricingSettings()" style="margin-top:20px;">💾 Salvar Configurações</button>
@@ -8690,7 +9086,7 @@ function atlantisFieldGroups() {
     'r-client': { nameId:'r-client-name', cnpjId:'r-client-cnpj', contactNameId:'r-client-contact', contactPhoneId:'r-client-phone', boxId:'r-client-atlantis-box', role:'CUSTOMER' },
     'rev-client': { nameId:'rev-client-name', cnpjId:'rev-client-cnpj', contactNameId:'rev-client-contact', contactPhoneId:'rev-client-phone', boxId:'rev-client-atlantis-box', role:'CUSTOMER' },
     'agent': { nameId:'agent-name', cnpjId:null, phoneId:'agent-phone', websiteId:'agent-website', addressId:'agent-address', boxId:'agent-atlantis-box', role:'AGENT' },
-    'client-modal': { nameId:'client-name', cnpjId:'client-cnpj', contactNameId:'client-contact-name', contactPhoneId:'client-contact-phone', boxId:'client-modal-atlantis-box', role:'CUSTOMER' }
+    'client-modal': { nameId:'client-name', cnpjId:'client-cnpj', boxId:'client-modal-atlantis-box', role:'CUSTOMER' }
   };
 }
 
@@ -8781,6 +9177,14 @@ function acceptAtlantisCandidate(groupKey, index) {
   if (group.cnpjId && candidate.cnpj) document.getElementById(group.cnpjId).value = candidate.cnpj;
   if (group.contactNameId && candidate.contactName) document.getElementById(group.contactNameId).value = candidate.contactName;
   if (group.contactPhoneId && candidate.contactPhone) document.getElementById(group.contactPhoneId).value = candidate.contactPhone;
+  if (groupKey === 'client-modal' && (candidate.contactName || candidate.contactPhone)) {
+    // Cliente usa lista de contatos, não campos únicos — preenche o primeiro
+    // contato (cria um se a lista ainda estiver vazia).
+    if (!document.querySelector('.client-contact-row')) addClientContact();
+    const firstRow = document.querySelector('.client-contact-row');
+    if (candidate.contactName) firstRow.querySelector('.contact-name').value = candidate.contactName;
+    if (candidate.contactPhone) firstRow.querySelector('.contact-phone').value = candidate.contactPhone;
+  }
   if (group.phoneId && candidate.phone) document.getElementById(group.phoneId).value = candidate.phone;
   if (group.websiteId && candidate.website) document.getElementById(group.websiteId).value = candidate.website;
   if (group.addressId && candidate.address) document.getElementById(group.addressId).value = candidate.address;
@@ -9081,7 +9485,6 @@ function saveCompanySettings() {
 // Salvar taxas (localStorage)
 function saveTaxSettings() {
   const data = JSON.parse(localStorage.getItem('audaz_settings') || '{}');
-  data.iofRate = parseFloat(document.getElementById('s-iof-rate').value) || 3.5;
   data.validityDays = parseInt(document.getElementById('s-validity-days').value) || 15;
   localStorage.setItem('audaz_settings', JSON.stringify(data));
   toast('✅ Taxas padrão salvas com sucesso!');
@@ -9677,16 +10080,38 @@ function closeClientModal() {
   document.getElementById('clientModal').style.display = 'none';
 }
 
+function addClientContact(name = '', phone = '', email = '', isPrimary = false) {
+  const container = document.getElementById('client-contacts-container');
+  const div = document.createElement('div');
+  div.className = 'client-contact-row';
+  div.style.display = 'grid';
+  div.style.gridTemplateColumns = 'auto 1.2fr 1fr 1.5fr auto';
+  div.style.gap = '8px';
+  div.style.alignItems = 'center';
+
+  const isFirst = !document.querySelector('.client-contact-row');
+  div.innerHTML = `
+    <label style="display:flex;align-items:center;gap:5px;margin:0;font-size:11px;color:var(--text-muted);white-space:nowrap;" title="Contato principal">
+      <input type="radio" name="client-contact-principal" class="contact-principal" style="width:15px;height:15px;flex-shrink:0;" ${isPrimary || isFirst ? 'checked' : ''}> Principal
+    </label>
+    <input type="text" class="form-input contact-name" placeholder="Nome" value="${escapeFeeHtml(name)}">
+    <input type="text" class="form-input contact-phone" placeholder="Telefone" value="${escapeFeeHtml(phone)}">
+    <input type="email" class="form-input contact-email" placeholder="E-mail" value="${escapeFeeHtml(email)}">
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.8;" title="Remover contato">🗑️</button>
+  `;
+  container.appendChild(div);
+}
+
 function openClientModal() {
   document.getElementById('clientModal').style.display = 'block';
   document.getElementById('clientModalTitle').innerText = 'Novo Cliente';
   document.getElementById('client-id').value = '';
   document.getElementById('client-name').value = '';
   document.getElementById('client-cnpj').value = '';
-  document.getElementById('client-contact-name').value = '';
-  document.getElementById('client-contact-email').value = '';
-  document.getElementById('client-contact-phone').value = '';
+  document.getElementById('client-contacts-container').innerHTML = '';
+  addClientContact('', '', '', true);
   document.getElementById('client-product-segment').value = '';
+  document.getElementById('client-insurance-rate-override').value = '';
   document.getElementById('client-modal-pending-note').style.display = 'none';
   resetAtlantisLink('client-modal', null);
 }
@@ -9699,10 +10124,13 @@ function editClientById(id) {
   document.getElementById('client-id').value = client.id;
   document.getElementById('client-name').value = client.name || '';
   document.getElementById('client-cnpj').value = client.cnpj || '';
-  document.getElementById('client-contact-name').value = client.contactName || '';
-  document.getElementById('client-contact-email').value = client.contactEmail || '';
-  document.getElementById('client-contact-phone').value = client.contactPhone || '';
+  document.getElementById('client-contacts-container').innerHTML = '';
+  const contacts = (client.contacts && client.contacts.length) ? client.contacts
+    : (client.contactName ? [{ name: client.contactName, phone: client.contactPhone, email: client.contactEmail, isPrimary: true }] : []);
+  if (contacts.length) contacts.forEach(c => addClientContact(c.name || '', c.phone || '', c.email || '', Boolean(c.isPrimary)));
+  else addClientContact('', '', '', true);
   setSelectValueWithFallback(document.getElementById('client-product-segment'), client.productSegment || '');
+  document.getElementById('client-insurance-rate-override').value = client.insuranceRateOverride ?? '';
   resetAtlantisLink('client-modal', client.atlantisId || null);
 
   const pendingNote = document.getElementById('client-modal-pending-note');
@@ -9721,13 +10149,22 @@ async function saveClient() {
   const name = document.getElementById('client-name').value.trim();
   if (!name) { toast('⚠️ Nome do cliente é obrigatório.'); return; }
 
+  const contactRows = Array.from(document.querySelectorAll('.client-contact-row'));
+  const contacts = contactRows.map(row => ({
+    name: row.querySelector('.contact-name').value.trim(),
+    phone: row.querySelector('.contact-phone').value.trim() || null,
+    email: row.querySelector('.contact-email').value.trim() || null,
+    isPrimary: row.querySelector('.contact-principal').checked
+  })).filter(c => c.name);
+  if (!contacts.length) { toast('⚠️ Cadastre pelo menos 1 contato.'); return; }
+  if (!contacts.some(c => c.isPrimary)) contacts[0].isPrimary = true;
+
   const payload = {
     name,
     cnpj: document.getElementById('client-cnpj').value.trim() || null,
-    contactName: document.getElementById('client-contact-name').value.trim() || null,
-    contactEmail: document.getElementById('client-contact-email').value.trim() || null,
-    contactPhone: document.getElementById('client-contact-phone').value.trim() || null,
+    contacts,
     productSegment: document.getElementById('client-product-segment').value || null,
+    insuranceRateOverride: document.getElementById('client-insurance-rate-override').value.trim() || null,
     ...(() => {
       const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
       return { atlantisId: state.atlantisId, needsValidation: state.needsValidation, validationNote: state.validationNote };
@@ -9751,6 +10188,411 @@ async function saveClient() {
     btn.innerText = 'Salvar Cliente';
   }
 }
+
+// ════════════ CHAMADOS ════════════
+const TICKET_STATUS_MAP = {
+  'ABERTO': { label: 'Aberto', cls: 'review', icon: '🟡' },
+  'EM_ANDAMENTO': { label: 'Em andamento', cls: 'sent', icon: '🔵' },
+  'RESOLVIDO': { label: 'Resolvido', cls: 'approved', icon: '✅' },
+  'FECHADO': { label: 'Fechado', cls: 'draft', icon: '🔒' }
+};
+const TICKET_TYPE_LABELS = { BUG: '🐞 Erro', MELHORIA: '✨ Melhoria', DUVIDA: '❓ Dúvida', OUTRO: 'Outro' };
+const TICKET_PRIORITY_LABELS = { BAIXA: 'Baixa', MEDIA: 'Média', ALTA: 'Alta', URGENTE: 'Urgente' };
+window.allTicketsList = [];
+window.currentTicketDetail = null;
+
+async function loadTickets() {
+  try {
+    const res = await fetch(API + '/tickets');
+    window.allTicketsList = await res.json();
+    renderTicketsTable();
+  } catch (e) {
+    console.error('Erro ao carregar chamados', e);
+  }
+}
+
+function renderTicketsTable() {
+  const tbody = document.getElementById('ticketsTbody');
+  if (!tbody) return;
+  const search = (document.getElementById('ticket-search')?.value || '').toLowerCase();
+  const statusFilter = document.getElementById('ticket-filter-status')?.value || '';
+  const typeFilter = document.getElementById('ticket-filter-type')?.value || '';
+  const filtered = (window.allTicketsList || []).filter(t =>
+    (!search || t.title.toLowerCase().includes(search)) &&
+    (!statusFilter || t.status === statusFilter) &&
+    (!typeFilter || t.type === typeFilter)
+  );
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Nenhum chamado encontrado.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(t => {
+    const st = TICKET_STATUS_MAP[t.status] || { label: t.status, cls: 'draft', icon: '❓' };
+    const counts = [t._count?.comments ? `💬 ${t._count.comments}` : '', t._count?.documents ? `📎 ${t._count.documents}` : ''].filter(Boolean).join(' ');
+    return `
+    <tr style="cursor:pointer;" onclick="openTicketDetail('${t.id}')">
+      <td style="font-weight:600;">${ifrEscape(t.title)} ${counts ? `<span style="color:var(--text-muted);font-size:11px;">${counts}</span>` : ''}${t.quotation ? `<br><span style="color:var(--gold);font-size:11px;font-weight:400;">🔗 ${ifrEscape(t.quotation.reference || '')}</span>` : ''}</td>
+      <td>${TICKET_TYPE_LABELS[t.type] || t.type}</td>
+      <td style="color:var(--text-muted);">${TICKET_PRIORITY_LABELS[t.priority] || t.priority}</td>
+      <td style="color:var(--text-muted);">${ifrEscape(t.module || '-')}</td>
+      <td><span class="status-badge ${st.cls}">${st.icon} ${st.label}</span></td>
+      <td style="color:var(--text-muted);">${ifrEscape(t.createdBy?.name || '-')}</td>
+      <td style="color:var(--text-muted);">${new Date(t.createdAt).toLocaleDateString('pt-BR')}</td>
+      <td><div class="action-btns"><button class="action-btn" onclick="event.stopPropagation();openTicketDetail('${t.id}')" title="Abrir">👁️</button></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function closeTicketModal() {
+  document.getElementById('ticketModal').style.display = 'none';
+  window.currentTicketDetail = null;
+}
+
+function resetTicketModalSections() {
+  document.getElementById('ticket-status-section').style.display = 'none';
+  document.getElementById('ticket-attachments-section').style.display = 'none';
+  document.getElementById('ticket-comments-section').style.display = 'none';
+  document.getElementById('ticket-meta-line').style.display = 'none';
+}
+
+function openNewTicketModal() {
+  document.getElementById('ticketModal').style.display = 'block';
+  document.getElementById('ticketModalTitle').innerText = 'Novo Chamado';
+  document.getElementById('ticket-id').value = '';
+  document.getElementById('ticket-title').value = '';
+  document.getElementById('ticket-description').value = '';
+  document.getElementById('ticket-type').value = 'MELHORIA';
+  document.getElementById('ticket-priority').value = 'MEDIA';
+  document.getElementById('ticket-module').value = '';
+  document.getElementById('btnSaveTicket').style.display = '';
+  resetTicketModalSections();
+  window.currentTicketDetail = null;
+}
+
+async function openTicketDetail(id) {
+  try {
+    const res = await fetch(API + '/tickets/' + id);
+    const ticket = await res.json();
+    if (!res.ok) throw new Error(ticket.error || 'Chamado não encontrado.');
+    window.currentTicketDetail = ticket;
+    document.getElementById('ticketModal').style.display = 'block';
+    document.getElementById('ticketModalTitle').innerText = 'Chamado';
+    document.getElementById('ticket-id').value = ticket.id;
+    document.getElementById('ticket-title').value = ticket.title || '';
+    document.getElementById('ticket-description').value = ticket.description || '';
+    document.getElementById('ticket-type').value = ticket.type || 'MELHORIA';
+    document.getElementById('ticket-priority').value = ticket.priority || 'MEDIA';
+    document.getElementById('ticket-module').value = ticket.module || '';
+    document.getElementById('btnSaveTicket').style.display = '';
+
+    const metaLine = document.getElementById('ticket-meta-line');
+    metaLine.style.display = 'block';
+    metaLine.textContent = `Aberto por ${ticket.createdBy?.name || '-'} em ${new Date(ticket.createdAt).toLocaleString('pt-BR')}${ticket.assignedTo ? ` · Atribuído a ${ticket.assignedTo.name}` : ''}${ticket.quotation ? ` · Cotação: ${ticket.quotation.reference}` : ''}`;
+
+    document.getElementById('ticket-status-section').style.display = 'block';
+    document.getElementById('ticket-attachments-section').style.display = 'block';
+    document.getElementById('ticket-comments-section').style.display = 'block';
+    renderTicketAttachments(ticket.documents || []);
+    renderTicketComments(ticket.comments || []);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+function renderTicketAttachments(documents) {
+  const list = document.getElementById('ticket-attachments-list');
+  const ticketId = document.getElementById('ticket-id').value;
+  if (!documents.length) { list.innerHTML = `<div style="color:var(--text-muted);font-size:12px;">Nenhum anexo.</div>`; return; }
+  list.innerHTML = documents.map(d => `
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+      <a href="${API}/tickets/${ticketId}/documents/${d.id}" target="_blank" style="color:var(--gold);">📎 ${ifrEscape(d.originalName)}</a>
+      <span style="color:var(--text-muted);">${((d.blob?.size || 0) / 1024).toFixed(0)} KB</span>
+    </div>
+  `).join('');
+}
+
+function renderTicketComments(comments) {
+  const list = document.getElementById('ticket-comments-list');
+  if (!comments.length) { list.innerHTML = `<div style="color:var(--text-muted);font-size:12px;">Nenhum comentário ainda.</div>`; return; }
+  list.innerHTML = comments.map(c => `
+    <div style="border-left:2px solid var(--border);padding-left:8px;">
+      <div style="font-size:11px;color:var(--text-muted);">${new Date(c.createdAt).toLocaleString('pt-BR')}</div>
+      <div style="font-size:13px;white-space:pre-wrap;">${ifrEscape(c.body)}</div>
+    </div>
+  `).join('');
+}
+
+async function saveTicket() {
+  const id = document.getElementById('ticket-id').value;
+  const btn = document.getElementById('btnSaveTicket');
+  const title = document.getElementById('ticket-title').value.trim();
+  if (!title) { toast('⚠️ Informe um título.'); return; }
+  const description = document.getElementById('ticket-description').value.trim();
+  if (!description) { toast('⚠️ Descreva o chamado.'); return; }
+
+  const payload = {
+    title, description,
+    type: document.getElementById('ticket-type').value,
+    priority: document.getElementById('ticket-priority').value,
+    module: document.getElementById('ticket-module').value.trim() || null
+  };
+
+  btn.disabled = true;
+  btn.innerText = 'Salvando...';
+  try {
+    const url = id ? API + '/tickets/' + id : API + '/tickets';
+    const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao salvar chamado.');
+    toast(id ? '✅ Chamado atualizado.' : '✅ Chamado aberto com sucesso.');
+    if (!id) { closeTicketModal(); } else { openTicketDetail(id); }
+    loadTickets();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Salvar Chamado';
+  }
+}
+
+async function updateTicketStatus(status) {
+  const id = document.getElementById('ticket-id').value;
+  if (!id) return;
+  try {
+    const res = await fetch(API + '/tickets/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao mudar status.');
+    toast('✅ Status atualizado: ' + (TICKET_STATUS_MAP[status]?.label || status));
+    openTicketDetail(id);
+    loadTickets();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+async function submitTicketComment() {
+  const id = document.getElementById('ticket-id').value;
+  const textarea = document.getElementById('ticket-new-comment');
+  const body = textarea.value.trim();
+  if (!id || !body) return;
+  try {
+    const res = await fetch(API + '/tickets/' + id + '/comments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao comentar.');
+    textarea.value = '';
+    openTicketDetail(id);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+async function uploadTicketAttachments() {
+  const id = document.getElementById('ticket-id').value;
+  const input = document.getElementById('ticket-attachment-input');
+  if (!id || !input.files || !input.files.length) return;
+  const form = new FormData();
+  Array.from(input.files).forEach(file => form.append('files', file));
+  try {
+    const res = await fetch(API + '/tickets/' + id + '/documents', { method: 'POST', body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao anexar arquivo.');
+    toast('✅ Anexo(s) salvo(s).');
+    input.value = '';
+    openTicketDetail(id);
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+// ════════════ WIDGET FLUTUANTE DE "REPORTAR PROBLEMA" ════════════
+// Fica montado por cima da tela atual (sem bloquear o resto), permitindo
+// digitar/colar prints enquanto a pessoa continua numa cotação. Nada é salvo
+// no banco até "Enviar chamado" — até lá é só estado local (rascunho).
+window.ticketWidgetAttachments = [];
+window.ticketWidgetInitialized = false;
+window.ticketWidgetQuotationOptions = [];
+
+function openTicketWidget() {
+  document.getElementById('ticketWidgetMinimized').style.display = 'none';
+  document.getElementById('ticketWidget').style.display = 'flex';
+  if (!window.ticketWidgetInitialized) {
+    document.getElementById('tw-title').value = '';
+    document.getElementById('tw-description').value = '';
+    document.getElementById('tw-type').value = 'MELHORIA';
+    document.getElementById('tw-priority').value = 'MEDIA';
+    document.getElementById('tw-quotation-id').value = '';
+    document.getElementById('tw-quotation-search').value = '';
+    document.getElementById('tw-quotation-hint').textContent = '';
+    window.ticketWidgetAttachments = [];
+    renderTicketWidgetAttachments();
+    populateTicketWidgetQuotationOptions().then(prefillTicketWidgetQuotation);
+    window.ticketWidgetInitialized = true;
+  }
+}
+
+function prefillTicketWidgetQuotation() {
+  if (!currentQuotationId) return;
+  const q = (window.ticketWidgetQuotationOptions || []).find(item => item.id === currentQuotationId);
+  if (!q) return;
+  document.getElementById('tw-quotation-id').value = q.id;
+  document.getElementById('tw-quotation-search').value = q.reference || '';
+  document.getElementById('tw-quotation-hint').textContent = `Vinculado automaticamente à cotação aberta: ${q.reference}`;
+}
+
+async function populateTicketWidgetQuotationOptions() {
+  let list = allQuotations;
+  if (!list || !list.length) {
+    try { const res = await fetch(API + '/quotations'); list = await res.json(); } catch { list = []; }
+  }
+  window.ticketWidgetQuotationOptions = list || [];
+  document.getElementById('tw-quotation-list').innerHTML = (list || []).slice(0, 300)
+    .map(q => `<option value="${escapeFeeHtml(q.reference || '')}">`).join('');
+}
+
+function onTicketWidgetQuotationInput() {
+  const value = document.getElementById('tw-quotation-search').value.trim();
+  const match = (window.ticketWidgetQuotationOptions || []).find(q => q.reference === value);
+  document.getElementById('tw-quotation-id').value = match ? match.id : '';
+  document.getElementById('tw-quotation-hint').textContent = match ? `Vinculado à cotação: ${match.reference}` : (value ? 'Nenhuma cotação encontrada com essa referência.' : '');
+}
+
+function minimizeTicketWidget() {
+  document.getElementById('ticketWidget').style.display = 'none';
+  document.getElementById('ticketWidgetMinimized').style.display = 'block';
+}
+
+function restoreTicketWidget() {
+  document.getElementById('ticketWidgetMinimized').style.display = 'none';
+  document.getElementById('ticketWidget').style.display = 'flex';
+}
+
+function closeTicketWidget() {
+  const hasDraft = window.ticketWidgetAttachments.length || document.getElementById('tw-title').value.trim() || document.getElementById('tw-description').value.trim();
+  if (hasDraft && !confirm('Descartar o chamado em rascunho e os prints anexados?')) return;
+  document.getElementById('ticketWidget').style.display = 'none';
+  document.getElementById('ticketWidgetMinimized').style.display = 'none';
+  window.ticketWidgetAttachments.forEach(a => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+  window.ticketWidgetAttachments = [];
+  window.ticketWidgetInitialized = false;
+  renderTicketWidgetAttachments();
+}
+
+function addTicketWidgetFile(file) {
+  const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+  window.ticketWidgetAttachments.push({ file, previewUrl, name: file.name });
+  renderTicketWidgetAttachments();
+}
+
+function onTicketWidgetFilePicked(event) {
+  Array.from(event.target.files || []).forEach(addTicketWidgetFile);
+  event.target.value = '';
+}
+
+function removeTicketWidgetAttachment(idx) {
+  const [removed] = window.ticketWidgetAttachments.splice(idx, 1);
+  if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+  renderTicketWidgetAttachments();
+}
+
+function renderTicketWidgetAttachments() {
+  const container = document.getElementById('tw-attachments-preview');
+  if (!container) return;
+  if (!window.ticketWidgetAttachments.length) { container.innerHTML = ''; return; }
+  container.innerHTML = window.ticketWidgetAttachments.map((a, idx) => `
+    <div style="position:relative;width:64px;height:64px;border:1px solid var(--border);border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);">
+      ${a.previewUrl ? `<img src="${a.previewUrl}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:9px;text-align:center;padding:2px;word-break:break-all;">${ifrEscape(a.name)}</span>`}
+      <button type="button" onclick="removeTicketWidgetAttachment(${idx})" title="Remover" aria-label="Remover anexo" style="position:absolute;top:1px;right:1px;background:rgba(0,0,0,0.7);color:#fff;border:none;border-radius:50%;width:16px;height:16px;line-height:1;cursor:pointer;padding:2px;display:flex;align-items:center;justify-content:center;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  `).join('');
+}
+
+async function submitTicketWidget() {
+  const title = document.getElementById('tw-title').value.trim();
+  if (!title) { toast('⚠️ Informe um título.'); return; }
+  const description = document.getElementById('tw-description').value.trim();
+  if (!description) { toast('⚠️ Descreva o chamado.'); return; }
+  const btn = document.getElementById('tw-submit-btn');
+  btn.disabled = true; btn.innerText = 'Enviando...';
+  try {
+    const payload = {
+      title, description,
+      type: document.getElementById('tw-type').value,
+      priority: document.getElementById('tw-priority').value,
+      quotationId: document.getElementById('tw-quotation-id').value || null
+    };
+    const res = await fetch(API + '/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao abrir chamado.');
+    if (window.ticketWidgetAttachments.length) {
+      const form = new FormData();
+      window.ticketWidgetAttachments.forEach(a => form.append('files', a.file, a.name));
+      const uploadRes = await fetch(API + '/tickets/' + data.id + '/documents', { method: 'POST', body: form });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        toast('⚠️ Chamado criado, mas houve falha ao anexar prints: ' + (err.error || ''));
+      }
+    }
+    toast('✅ Chamado aberto com sucesso.');
+    window.ticketWidgetAttachments.forEach(a => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+    window.ticketWidgetAttachments = [];
+    window.ticketWidgetInitialized = false;
+    document.getElementById('ticketWidget').style.display = 'none';
+    document.getElementById('ticketWidgetMinimized').style.display = 'none';
+    if (document.getElementById('panel-tickets')?.classList.contains('active')) loadTickets();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  } finally {
+    btn.disabled = false; btn.innerText = 'Enviar chamado';
+  }
+}
+
+// Colar print (Ctrl+V) enquanto o widget estiver aberto anexa a imagem direto
+document.addEventListener('paste', (event) => {
+  const widget = document.getElementById('ticketWidget');
+  if (!widget || widget.style.display === 'none') return;
+  const items = event.clipboardData?.items || [];
+  let handled = false;
+  for (const item of items) {
+    if (item.type && item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) {
+        addTicketWidgetFile(new File([file], `print-${Date.now()}.png`, { type: file.type }));
+        handled = true;
+      }
+    }
+  }
+  if (handled) event.preventDefault();
+});
+
+// Arrastar o widget pela barra de título
+document.addEventListener('DOMContentLoaded', () => {
+  const header = document.getElementById('ticketWidgetHeader');
+  const widget = document.getElementById('ticketWidget');
+  if (!header || !widget) return;
+  let dragging = false, offsetX = 0, offsetY = 0;
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.tagName === 'BUTTON') return;
+    dragging = true;
+    const rect = widget.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    widget.style.right = 'auto';
+    widget.style.bottom = 'auto';
+    widget.style.left = rect.left + 'px';
+    widget.style.top = rect.top + 'px';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const maxLeft = window.innerWidth - widget.offsetWidth;
+    const maxTop = window.innerHeight - widget.offsetHeight;
+    widget.style.left = Math.max(0, Math.min(maxLeft, e.clientX - offsetX)) + 'px';
+    widget.style.top = Math.max(0, Math.min(maxTop, e.clientY - offsetY)) + 'px';
+  });
+  document.addEventListener('mouseup', () => { dragging = false; });
+});
 
 async function loadAgents() {
   try {
@@ -10327,9 +11169,15 @@ async function loadPricingSettings() {
   try {
     const res = await fetch(API + '/pricing-settings');
     const data = await res.json();
-    document.getElementById('ps-ptax-mode').value = data.ptaxMode || 'D1_CLOSE';
-    document.getElementById('ps-min-lcl-storage').value = data.minLclStorageBrl ?? '';
-    document.getElementById('ps-current-ptax').innerText = data.currentPtaxRate ? `R$ ${Number(data.currentPtaxRate).toFixed(4)}` : 'Indisponível';
+    window.pricingSettingsCache = data;
+    const ptaxEl = document.getElementById('ps-ptax-mode');
+    const storageEl = document.getElementById('ps-min-lcl-storage');
+    const iofEl = document.getElementById('ps-iof-rate');
+    const currentPtaxEl = document.getElementById('ps-current-ptax');
+    if (ptaxEl) ptaxEl.value = data.ptaxMode || 'D1_CLOSE';
+    if (storageEl) storageEl.value = data.minLclStorageBrl ?? '';
+    if (iofEl) iofEl.value = data.iofRate ?? '';
+    if (currentPtaxEl) currentPtaxEl.innerText = data.currentPtaxRate ? `R$ ${Number(data.currentPtaxRate).toFixed(4)}` : 'Indisponível';
   } catch (e) {
     toast('❌ Erro ao carregar configurações de câmbio/armazenagem.');
   }
@@ -10338,10 +11186,11 @@ async function loadPricingSettings() {
 async function savePricingSettings() {
   const ptaxMode = document.getElementById('ps-ptax-mode').value;
   const minLclStorageBrl = parseFloat(document.getElementById('ps-min-lcl-storage').value) || 0;
+  const iofRate = parseFloat(document.getElementById('ps-iof-rate').value) || 3.5;
   try {
     const res = await fetch(API + '/pricing-settings', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ptaxMode, minLclStorageBrl })
+      body: JSON.stringify({ ptaxMode, minLclStorageBrl, iofRate })
     });
     if (!res.ok) throw new Error('Falha ao salvar.');
     toast('✅ Configurações salvas!');
@@ -11412,9 +12261,10 @@ function modernizeLegacyUI(root = document.body) {
 document.addEventListener('DOMContentLoaded', function() {
   modernizeLegacyUI(document.body);
   loadProfessionals(true);
+  loadPricingSettings();
   ['rev-origin-services', 'rev-destination-services'].forEach(id => {
     const field = document.getElementById(id);
-    if (field) field.addEventListener('input', () => { renderDangerousGoodsAlerts('rev'); renderFeeCalculationPreview(); });
+    if (field) field.addEventListener('input', () => { renderDangerousGoodsAlerts('rev'); renderFeeCalculationPreview(); recalculateRevIof(); });
   });
   renderDangerousGoodsAlerts('r');
   ['r', 'rev'].forEach(prefix => {
@@ -11546,7 +12396,13 @@ function renderTreeFees(type, containerId) {
           <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
           <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
         </select>
-        <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+        <div style="display:flex;gap:4px;margin-top:4px;align-items:center;">
+          <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+          <select style="width: 66px;" title="Moeda do Mínimo" onchange="updateTreeFee('${type}', ${index}, 'minCurrency', this.value)">
+            <option value="USD" ${(fee.minCurrency || fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${(fee.minCurrency || fee.currency) === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
+        </div>
         ` : isOnRequest ? `
         <select style="width: 80px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
           <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
@@ -11559,17 +12415,27 @@ function renderTreeFees(type, containerId) {
             <span style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;">Compra</span>
             <input type="number" step="0.01" value="${fee.costValue ?? ''}" style="width: 80px;" title="Custo padrão" onchange="updateTreeFeeCost('${type}', ${index}, this.value); renderTreeFees('${type}', '${containerId}')">
           </div>
+          <select style="width: 62px;margin-bottom:1px;" title="Moeda da Compra" onchange="updateTreeFee('${type}', ${index}, 'costCurrency', this.value)">
+            <option value="USD" ${(fee.costCurrency || fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${(fee.costCurrency || fee.currency) === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
           <span style="font-size:10px;color:var(--text-muted);margin-bottom:8px;">→</span>
           <div style="display:flex;flex-direction:column;gap:2px;">
             <span style="font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.03em;">Venda</span>
             <input type="number" step="0.01" value="${fee.value ?? ''}" style="width: 80px;" title="Venda sugerida" onchange="updateTreeFee('${type}', ${index}, 'value', this.value)">
           </div>
-          <select style="width: 70px;margin-bottom:1px;" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
+          <select style="width: 70px;margin-bottom:1px;" title="Moeda da Venda" onchange="updateTreeFee('${type}', ${index}, 'currency', this.value)">
             <option value="USD" ${(fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
             <option value="BRL" ${fee.currency === 'BRL' ? 'selected' : ''}>BRL</option>
           </select>
         </div>
-        <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;margin-top:4px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+        <div style="display:flex;gap:4px;margin-top:4px;align-items:center;">
+          <input type="number" step="0.01" value="${fee.minValue ?? ''}" style="width: 90px;" placeholder="Mín. opcional" onchange="updateTreeFee('${type}', ${index}, 'minValue', this.value)">
+          <select style="width: 66px;" title="Moeda do Mínimo — trava a Venda, nunca a Compra" onchange="updateTreeFee('${type}', ${index}, 'minCurrency', this.value)">
+            <option value="USD" ${(fee.minCurrency || fee.currency || 'USD') === 'USD' ? 'selected' : ''}>USD</option>
+            <option value="BRL" ${(fee.minCurrency || fee.currency) === 'BRL' ? 'selected' : ''}>BRL</option>
+          </select>
+        </div>
         `}
         ${fee.chargeType !== 'PERCENTAGE' ? `
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;">
@@ -11620,7 +12486,7 @@ function updateTreeFeeCost(type, index, value) {
 }
 
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', minValue: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
+  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', costCurrency: null, minValue: null, minCurrency: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
   getTreeFeeList(type).push(newFee);
   renderTreeFees(type, TREE_FEE_CONTAINER_ID[type]);
 }

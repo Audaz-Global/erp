@@ -473,7 +473,7 @@ export const updatePhase = async (req: Request, res: Response) => {
       current = localQuotationsStore.get(id);
     }
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, freightDisplayMode, costCompositionReviewed } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, freightDisplayMode, costCompositionReviewed } = req.body;
 
     if (['AGUARDANDO_PARCEIRO', 'GERADA'].includes(status)) {
       enforceCnpjRequirement({
@@ -504,6 +504,9 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
     if (weightBreak !== undefined) {
       updateData.weightBreak = weightBreak;
+    }
+    if (chargeableWeightOverride !== undefined) {
+      updateData.chargeableWeightOverride = chargeableWeightOverride === null ? null : Number(chargeableWeightOverride) || null;
     }
 
     if (costs) {
@@ -651,17 +654,14 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     const isAir = String(quotation.modal).toUpperCase() === 'AIR';
     const isExw = String(quotation.incoterm).toUpperCase() === 'EXW';
     
-    // Peso taxável
+    // Peso taxável (Chargeable Weight): sempre max(peso bruto, peso cubado),
+    // sem a faixa tarifária do agente (weightBreak) distorcer o valor — essa
+    // faixa é só informativa. Um override manual do operador, quando
+    // preenchido, vale sobre o cálculo automático.
     const bruto = quotation.totalGrossWeightKg || 0;
     const cbm = quotation.totalCbm || 0;
     const cubado = isAir ? calculateAirCubado(quotation.packages || '', quotation.totalPackages || 1) : parseFloat((cbm * 1000).toFixed(2));
-    let taxavel = Math.max(bruto, cubado) || 1; // evitar divisão por zero
-    if (isAir && quotation.weightBreak) {
-      const minWeight = parseFloat(quotation.weightBreak.replace(/[^0-9]/g, ''));
-      if (!isNaN(minWeight) && taxavel < minWeight) {
-        taxavel = minWeight;
-      }
-    }
+    const taxavel = quotation.chargeableWeightOverride || Math.max(bruto, cubado) || 1; // evitar divisão por zero
 
     // Frete
     let fVal = quotation.freightValue || 0;
@@ -827,7 +827,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
 
     const detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => f.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
-    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Taxa aduaneira', INSURANCE:'Seguro', TAX_IOF:'Impostos / IOF', PROFIT:'Profit' };
+    const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', INSURANCE:'Seguro', TAX_IOF:'IOF', PROFIT:'Profit' };
     const detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => additionalGroups.has(f.financialGroup)).map(f => ({ ...f, financialGroupLabel: additionalLabels[f.financialGroup] || f.financialGroup }));
     detailedFeesOrigem = detailedFeesOrigem.filter(f => f.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(f.financialGroup));
     detailedFeesDestino = detailedFeesDestino.filter(f => f.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(f.financialGroup));
@@ -875,6 +875,12 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       color: var(--gold); text-align: center; font-weight: 700; font-size: 13px;
       animation: stackable-blink 1.2s ease-in-out infinite;
     }
+    .stackable-note {
+      margin-top: 20px; padding: 12px; border: 1px solid;
+      border-radius: 8px; text-align: center; font-weight: 600; font-size: 13px;
+    }
+    .stackable-note.yes { border-color: #37c98b; background: rgba(55, 201, 139, 0.12); color: #37c98b; }
+    .stackable-note.no { border-color: #98a3b8; background: rgba(152, 163, 184, 0.12); color: #cbd3e0; }
     body {
       font-family: 'Outfit', sans-serif;
       background: var(--bg);
@@ -1152,10 +1158,17 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           <td class="t-right">R$ ${subtotalDestinoBrl.toFixed(2)}</td>
         </tr>
 
-        ${detailedFeesAdditionalGroups.length ? `
-        <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro, impostos e profit</td></tr>
-        ${detailedFeesAdditionalGroups.map(fee => `<tr><td>${fee.financialGroupLabel}: ${fee.name}</td><td>${fee.chargeNature || 'Outra'}</td><td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td></tr>`).join('')}
-        <tr class="total-row"><td>Subtotal de outras classificações</td><td></td><td></td><td class="t-right">R$ ${subtotalAdditionalBrl.toFixed(2)}</td></tr>` : ''}
+        ${(() => {
+          // Profit/spread do agente é informação interna: não aparece como
+          // linha nem rótulo aqui, mas seu valor continua contando no
+          // subtotal (subtotalAdditionalBrl já inclui o profit, sem exibi-lo).
+          const visibleAdditionalFees = detailedFeesAdditionalGroups.filter(fee => fee.financialGroup !== 'PROFIT');
+          if (!visibleAdditionalFees.length) return '';
+          return `
+        <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro e impostos</td></tr>
+        ${visibleAdditionalFees.map(fee => `<tr><td>${fee.financialGroupLabel}: ${fee.name}</td><td>${fee.chargeNature || 'Outra'}</td><td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td></tr>`).join('')}
+        <tr class="total-row"><td>Subtotal de outras classificações</td><td></td><td></td><td class="t-right">R$ ${subtotalAdditionalBrl.toFixed(2)}</td></tr>`;
+        })()}
 
         <!-- Total Geral -->
         <tr class="total-row grand-total">
@@ -1170,6 +1183,12 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     ${quotation.stackableStatus === 'TO_CONFIRM' ? `
     <div class="stackable-disclaimer">
       ⚠️ Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+    </div>` : quotation.stackableStatus === 'STACKABLE' ? `
+    <div class="stackable-note yes">
+      ✅ Carga considerada empilhável, conforme informado.
+    </div>` : quotation.stackableStatus === 'NOT_STACKABLE' ? `
+    <div class="stackable-note no">
+      📦 Carga considerada NÃO empilhável, conforme informado.
     </div>` : ''}
 
     <div class="footer">

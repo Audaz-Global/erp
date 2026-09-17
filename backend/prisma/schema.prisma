@@ -21,7 +21,9 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  quotations Quotation[]
+  quotations      Quotation[]
+  ticketsCreated  Ticket[] @relation("TicketCreatedBy")
+  ticketsAssigned Ticket[] @relation("TicketAssignedTo")
 }
 
 model ProfessionalProfile {
@@ -54,10 +56,26 @@ model Client {
   atlantisId       String?  // ID do registro correspondente em M0130_CONTACT_GENERAL no Atlantis, quando confirmado
   needsValidation  Boolean  @default(false) // Sincronização com Atlantis encontrou múltiplos registros parecidos
   validationNote   String?  // Contexto para quem for revisar (ex: nomes/CNPJs candidatos encontrados)
+  insuranceRateOverride Float? // Taxa de seguro (%) diferenciada para este cliente — substitui o padrão do sistema (0,2%) quando preenchida
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   quotations Quotation[]
+  contacts   ClientContact[]
+}
+
+model ClientContact {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String?
+  email     String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 model Quotation {
@@ -181,6 +199,10 @@ model Quotation {
   totalUsd    Float?
   frequency   String?
   weightBreak String?
+  // Override manual do peso taxável (Chargeable Weight). Quando preenchido,
+  // vale sobre o cálculo automático (max(peso bruto, peso cubado)) em todo
+  // lugar que usa o CW como base — frete e taxas por kg/peso taxável.
+  chargeableWeightOverride Float?
 
   // Gestão de Profit
   costsData       String? // JSON string
@@ -226,6 +248,7 @@ model Quotation {
   events          QuotationEvent[]
   requestCycles   QuotationRequestCycle[]
   groundServiceLegs GroundServiceLeg[]
+  tickets         Ticket[]
 
   @@index([carrierProfileId])
 }
@@ -238,7 +261,8 @@ model DocumentBlob {
   content   Bytes
   createdAt DateTime @default(now())
 
-  documents QuotationDocument[]
+  documents       QuotationDocument[]
+  ticketDocuments TicketDocument[]
 }
 
 model QuotationDocument {
@@ -636,7 +660,9 @@ model StandardFee {
   costValue     Float? // Taxa de compra (custo padrão) — value continua sendo a venda/sugestão
   pricingStatus String   @default("PRICED") // PRICED, ON_REQUEST
   minValue      Float?
-  currency      String
+  currency      String // Moeda da Venda (value)
+  costCurrency  String? // Moeda da Compra (costValue) — pode divergir da Venda
+  minCurrency   String? // Moeda do Mínimo (minValue) — pode divergir da Venda
   percentBase   String? // FREIGHT, FREIGHT_PLUS_ORIGIN
   description   String?
   modalScope    String   @default("ALL") // ALL ou lista CSV: AIR,SEA_FCL,SEA_LCL
@@ -656,7 +682,7 @@ model IncotermRule {
   destinationScope String? // Porto/cidade/país de destino; nulo = qualquer destino
   required         Boolean  @default(false)
   applicability    String   @default("APPLICABLE") // REQUIRED, APPLICABLE, CONDITIONAL, NOT_APPLICABLE, TO_CONFIRM
-  financialGroup   String? // Casamento principal com taxas extraídas/manuais: ORIGIN_CHARGE, DESTINATION_CHARGE, INSURANCE, CUSTOMS_CHARGE, DG_CHARGE, TAX_IOF, FREIGHT_COMPONENT, INTERNATIONAL_FREIGHT
+  financialGroup   String? // Casamento principal com taxas extraídas/manuais: ORIGIN_CHARGE, DESTINATION_CHARGE, INSURANCE, CUSTOMS_CHARGE (desembaraço + impostos de importação em geral), DG_CHARGE, TAX_IOF (exclusivo do IOF), FREIGHT_COMPONENT, INTERNATIONAL_FREIGHT
   condition        String? // JSON: {"type":"DG_ONLY"|"INSURANCE_REQUESTED"|"CUSTOMS_CLEARANCE_CONTRACTED"|...}
   reason           String? // Justificativa da regra, exibida em alertas e na tela administrativa
   feeType          String // ORIGIN, DESTINATION
@@ -665,8 +691,10 @@ model IncotermRule {
   value            Float // Valor unitário ou percentual (venda/sugestão)
   costValue        Float? // Taxa de compra (custo padrão) — mesma unidade/base do value
   pricingStatus    String   @default("PRICED") // snapshot da taxa: PRICED, ON_REQUEST
-  minValue         Float? // Valor mínimo (ex: Airport Fee mín USD 45)
-  currency         String   @default("USD")
+  minValue         Float? // Valor mínimo (ex: Airport Fee mín USD 45) — trava a Venda, nunca a Compra
+  currency         String   @default("USD") // Moeda da Venda (value)
+  costCurrency     String? // Moeda da Compra (costValue) — pode divergir da Venda
+  minCurrency      String? // Moeda do Mínimo (minValue) — pode divergir da Venda
   percentBase      String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
   description      String? // Descrição informativa para o operador
   sortOrder        Int      @default(0)
@@ -723,6 +751,7 @@ model PricingSettings {
   id               String   @id @default(uuid())
   ptaxMode         String   @default("D1_CLOSE") // D1_CLOSE (fechamento anterior) | D0_OPEN (abertura do dia)
   minLclStorageBrl Float    @default(5700)
+  iofRate          Float    @default(3.5) // Percentual de IOF aplicado sobre frete + taxas de origem
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -800,3 +829,55 @@ model AirExportTariffRate {
   @@index([airlineCode])
   @@index([commodity])
 }
+
+model Ticket {
+  id           String    @id @default(uuid())
+  title        String
+  description  String
+  type         String    @default("MELHORIA") // BUG, MELHORIA, DUVIDA, OUTRO
+  priority     String    @default("MEDIA") // BAIXA, MEDIA, ALTA, URGENTE
+  status       String    @default("ABERTO") // ABERTO, EM_ANDAMENTO, RESOLVIDO, FECHADO
+  module       String?
+  quotationId  String?
+  quotation    Quotation? @relation(fields: [quotationId], references: [id])
+  createdById  String
+  createdBy    User      @relation("TicketCreatedBy", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo   User?     @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  resolvedAt   DateTime?
+
+  comments  TicketComment[]
+  documents TicketDocument[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([quotationId])
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+model TicketDocument {
+  id           String       @id @default(uuid())
+  ticketId     String
+  ticket       Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  blobId       String
+  blob         DocumentBlob @relation(fields: [blobId], references: [id], onDelete: Restrict)
+  originalName String
+  createdById  String?
+  createdAt    DateTime     @default(now())
+
+  @@index([ticketId])
+}
+
