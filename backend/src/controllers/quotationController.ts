@@ -21,6 +21,19 @@ import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } f
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
 import { searchAirExportRates, importTariffFromBuffer } from '../services/airExportTariffService';
 
+export const uploadAirExportTariff = async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    }
+
+    const result = await importTariffFromBuffer(req.file.buffer);
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    console.error('Erro ao importar tarifário:', error);
+    res.status(500).json({ error: error.message || 'Erro ao importar tarifário' });
+  }
+};
 
 const PRICING_SETTINGS_ID = 'default';
 
