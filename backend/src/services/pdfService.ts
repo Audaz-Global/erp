@@ -539,6 +539,16 @@ const defaultTemplate = `
       ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
     </div>
   {{/if}}
+  {{#if stackableConfirmedYes}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #37c98b; background-color: #EAFBF3; border-radius: 4px; font-size: 10px; color: #14532d; text-align: center; font-weight: 600;">
+      ✅ Carga considerada empilhável, conforme informado.
+    </div>
+  {{/if}}
+  {{#if stackableConfirmedNo}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #94a3b8; background-color: #F1F5F9; border-radius: 4px; font-size: 10px; color: #334155; text-align: center; font-weight: 600;">
+      📦 Carga considerada NÃO empilhável, conforme informado.
+    </div>
+  {{/if}}
 
   {{#if publicWebViewUrl}}
     <div style="margin-top: 15px; padding: 10px; border: 1.5px solid #1B2B6B; background-color: #f7f9ff; border-radius: 4px; font-size: 9px; color: #1B2B6B; text-align: center;">
@@ -1017,6 +1027,16 @@ const defaultAirTemplate = `
       ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
     </div>
   {{/if}}
+  {{#if stackableConfirmedYes}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #37c98b; background-color: #EAFBF3; border-radius: 4px; font-size: 10px; color: #14532d; text-align: center; font-weight: 600;">
+      ✅ Carga considerada empilhável, conforme informado.
+    </div>
+  {{/if}}
+  {{#if stackableConfirmedNo}}
+    <div style="margin-top: 15px; padding: 10px; border: 1px solid #94a3b8; background-color: #F1F5F9; border-radius: 4px; font-size: 10px; color: #334155; text-align: center; font-weight: 600;">
+      📦 Carga considerada NÃO empilhável, conforme informado.
+    </div>
+  {{/if}}
 
   {{#if publicWebViewUrl}}
     <div style="margin-top: 15px; padding: 10px; border: 1.5px solid #1B2B6B; background-color: #f7f9ff; border-radius: 4px; font-size: 9px; color: #1B2B6B; text-align: center;">
@@ -1155,14 +1175,11 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     totalGrossWeightKg = rawBruto;
     
     pesoCubadoRich = calculateAirCubado(quotationData.packages || '', quotationData.totalPackages || 1);
-    
-    chargableWeight = Math.max(totalGrossWeightKg, pesoCubadoRich);
-    if (quotationData.weightBreak) {
-      const minWeight = parseFloat(quotationData.weightBreak.replace(/[^0-9]/g, ''));
-      if (!isNaN(minWeight) && chargableWeight < minWeight) {
-        chargableWeight = minWeight;
-      }
-    }
+
+    // Chargeable Weight: max(bruto, cubado), sem a faixa tarifária do agente
+    // (weightBreak) distorcer o valor — só informativa. Override manual do
+    // operador, quando preenchido, vale sobre o cálculo automático.
+    chargableWeight = parseFloat(quotationData.chargeableWeightOverride) || Math.max(totalGrossWeightKg, pesoCubadoRich);
 
     if (quotationData.originPort) {
       originPortRich = String(quotationData.originPort).trim();
@@ -1537,6 +1554,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     hideCarrierName: Boolean(quotationData.hideCarrierName),
     dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
     stackableDisclaimer: quotationData.stackableStatus === 'TO_CONFIRM',
+    stackableConfirmedYes: quotationData.stackableStatus === 'STACKABLE',
+    stackableConfirmedNo: quotationData.stackableStatus === 'NOT_STACKABLE',
     client: quotationData.client || { name: '—' },
     referenceNumber,
     referenceRich,
@@ -2043,17 +2062,12 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       const bruto = parseFloat(quotationData.totalGrossWeightKg) || 0;
       const totalPackages = parseInt(quotationData.totalPackages || 1);
       const packagesStr = quotationData.packages || '';
-      const wBreak = quotationData.weightBreak || 'normal';
-      
+
+      // Chargeable Weight: max(bruto, cubado), sem a faixa tarifária do
+      // agente (weightBreak) distorcer o valor — só informativa. Override
+      // manual do operador, quando preenchido, vale sobre o cálculo automático.
       let cubado = calculateAirCubado(packagesStr, totalPackages);
-      let taxavel = Math.max(bruto, cubado);
-      
-      if (wBreak && wBreak !== 'normal') {
-        const minWeight = parseFloat(wBreak.replace(/[^0-9]/g, ''));
-        if (!isNaN(minWeight) && taxavel < minWeight) {
-          taxavel = minWeight;
-        }
-      }
+      let taxavel = parseFloat(quotationData.chargeableWeightOverride) || Math.max(bruto, cubado);
       if (taxavel <= 0) taxavel = 1;
       
       freightQtyRich = safeToFixed(taxavel, 2).replace('.', ',') + ' kg';
@@ -2114,6 +2128,8 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
       dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
       stackableDisclaimer: quotationData.stackableStatus === 'TO_CONFIRM',
+      stackableConfirmedYes: quotationData.stackableStatus === 'STACKABLE',
+      stackableConfirmedNo: quotationData.stackableStatus === 'NOT_STACKABLE',
       logoBase64,
       hasOversizedAlert: hasOversizedCargo(quotationData.packages || ''),
       modalLabel,
