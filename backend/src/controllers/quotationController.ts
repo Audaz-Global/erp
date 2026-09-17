@@ -394,7 +394,7 @@ export const updatePhase = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const current = await prisma.quotation.findUnique({ where: { id }, include: { client: true } });
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, freightDisplayMode, costCompositionReviewed } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, iofVisibleOnDocument, destinationTaxesVisibleOnDocument, freightDisplayMode, costCompositionReviewed } = req.body;
 
     if (['AGUARDANDO_PARCEIRO', 'GERADA'].includes(status)) {
       enforceCnpjRequirement({
@@ -428,6 +428,12 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
     if (chargeableWeightOverride !== undefined) {
       updateData.chargeableWeightOverride = chargeableWeightOverride === null ? null : Number(chargeableWeightOverride) || null;
+    }
+    if (iofVisibleOnDocument !== undefined) {
+      updateData.iofVisibleOnDocument = Boolean(iofVisibleOnDocument);
+    }
+    if (destinationTaxesVisibleOnDocument !== undefined) {
+      updateData.destinationTaxesVisibleOnDocument = Boolean(destinationTaxesVisibleOnDocument);
     }
 
     if (costs) {
@@ -611,7 +617,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
               currency: curr,
               brl: getBrlValue(val, curr),
               financialGroup: normalizeFee({ ...f, applicationScope:'ORIGIN' }).financialGroup,
-              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature
+              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature,
+              showOnDocument: f.showOnDocument !== false
             };
           });
         }
@@ -638,7 +645,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
               currency: curr,
               brl: getBrlValue(val, curr),
               financialGroup: normalizeFee({ ...f, applicationScope:'DESTINATION' }).financialGroup,
-              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature
+              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature,
+              showOnDocument: f.showOnDocument !== false
             };
           });
         }
@@ -1034,7 +1042,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           <td class="t-right">${fCurr} ${(fVal / taxavel).toFixed(2)} / kg</td>
           <td class="t-right">R$ ${(fTotalBrl / taxavel).toFixed(2)} / kg</td>
         </tr>
-        ${detailedFeesFreightComponents.map(fee => `
+        ${detailedFeesFreightComponents.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
           <td>${fee.name}</td><td>Componente do frete${fee.chargeNature ? ` · ${fee.chargeNature}` : ''}</td>
           <td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td>
@@ -1050,7 +1058,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <tr>
           <td colspan="4" class="section-title">Origem</td>
         </tr>
-        ${detailedFeesOrigem.map(fee => `
+        ${detailedFeesOrigem.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
           <td>${fee.name}</td>
           <td>Fixo / Unitário</td>
@@ -1069,7 +1077,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <tr>
           <td colspan="4" class="section-title">Destino (Local)</td>
         </tr>
-        ${detailedFeesDestino.map(fee => `
+        ${detailedFeesDestino.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
           <td>${fee.name}</td>
           <td>Fixo / Variável</td>
@@ -1088,7 +1096,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           // Profit/spread do agente é informação interna: não aparece como
           // linha nem rótulo aqui, mas seu valor continua contando no
           // subtotal (subtotalAdditionalBrl já inclui o profit, sem exibi-lo).
-          const visibleAdditionalFees = detailedFeesAdditionalGroups.filter(fee => fee.financialGroup !== 'PROFIT');
+          const visibleAdditionalFees = detailedFeesAdditionalGroups.filter(fee => fee.financialGroup !== 'PROFIT' && fee.showOnDocument !== false);
           if (!visibleAdditionalFees.length) return '';
           return `
         <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro e impostos</td></tr>

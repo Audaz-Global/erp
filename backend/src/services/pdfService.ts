@@ -458,6 +458,7 @@ const defaultTemplate = `
           </tr>
         {{/each}}
       {{else}}
+        {{#if iofVisibleOnDocument}}
         <tr>
           <td>IOF - 3,5% SOBRE O FRETE INTERNACIONAL</td>
           <td class="t-center">-</td>
@@ -467,6 +468,7 @@ const defaultTemplate = `
           <td class="t-right">0,00</td>
           <td class="t-right">{{freightCurrency}} {{iofUsd}}</td>
         </tr>
+        {{/if}}
         <tr>
           <td>Estimativa de Armazenagem</td>
           <td class="t-center">1</td>
@@ -485,6 +487,7 @@ const defaultTemplate = `
           <td class="t-right">0,00</td>
           <td class="t-right">{{destinationServicesTotal}}</td>
         </tr>
+        {{#if destinationTaxesVisibleOnDocument}}
         <tr>
           <td>Impostos</td>
           <td class="t-center">1</td>
@@ -494,6 +497,7 @@ const defaultTemplate = `
           <td class="t-right">0,00</td>
           <td class="t-right">{{destinationTaxes}}</td>
         </tr>
+        {{/if}}
       {{/if}}
       {{#if subtotalDestino}}
       <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
@@ -1292,7 +1296,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               currency: curr,
               total: `${curr} ${val.toFixed(2)}`,
               financialGroup: normalizeFee({ ...f, applicationScope:'ORIGIN' }).financialGroup,
-              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature
+              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature,
+              showOnDocument: f.showOnDocument !== false
             };
           });
         }
@@ -1384,7 +1389,8 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
               currency: curr,
               total: `${curr} ${val.toFixed(2)}`,
               financialGroup: normalizeFee({ ...f, applicationScope:'DESTINATION' }).financialGroup,
-              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature
+              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature,
+              showOnDocument: f.showOnDocument !== false
             };
           });
         }
@@ -1580,12 +1586,15 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     chargableWeight: chargableWeight.toFixed(2),
     freightUnitValue,
     freightTotalValue,
-    detailedFeesOrigem,
-    detailedFeesDestino,
-    detailedFeesFreightComponents,
+    // "Exibir no Documento" desmarcado: a linha some da proposta impressa,
+    // mas os subtotais abaixo usam os arrays completos (sem esse filtro) e
+    // continuam contando o valor.
+    detailedFeesOrigem: detailedFeesOrigem.filter((f: any) => f.showOnDocument !== false),
+    detailedFeesDestino: detailedFeesDestino.filter((f: any) => f.showOnDocument !== false),
+    detailedFeesFreightComponents: detailedFeesFreightComponents.filter((f: any) => f.showOnDocument !== false),
     // Profit/spread do agente é informação interna: some da listagem visível
     // ao cliente, mas o valor continua contando no subtotal abaixo.
-    detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT'),
+    detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT' && f.showOnDocument !== false),
     subtotalFrete: formatSubtotals([{ total: freightTotalValue }, ...detailedFeesFreightComponents]),
     subtotalOrigem: formatSubtotals(detailedFeesOrigem),
     subtotalDestino: formatSubtotals(detailedFeesDestino),
@@ -1758,32 +1767,38 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
             if (detailedFees.length > 0) {
               hasDetailedFees = true;
-              
-              // Adicionar o IOF se houver
+
+              // Adicionar o IOF se houver. O valor sempre entra no total; a
+              // flag só controla se a linha aparece impressa na proposta.
               if (iV > 0) {
-                detailedFees.push({
-                  name: 'IOF - 3,5% SOBRE O FRETE INTERNACIONAL',
-                  qty: '-',
-                  unit: '% sobre Frete Internacional',
-                  valueUnit: '3.50 %',
-                  currency: 'USD',
-                  total: `USD ${iV.toFixed(2)}`, financialGroup:'TAX_IOF', chargeNature:'TAX'
-                });
                 calculatedUsdTotal += iV;
+                if (quotationData.iofVisibleOnDocument !== false) {
+                  detailedFees.push({
+                    name: 'IOF - 3,5% SOBRE O FRETE INTERNACIONAL',
+                    qty: '-',
+                    unit: '% sobre Frete Internacional',
+                    valueUnit: '3.50 %',
+                    currency: 'USD',
+                    total: `USD ${iV.toFixed(2)}`, financialGroup:'TAX_IOF', chargeNature:'TAX'
+                  });
+                }
               }
 
-              // Adicionar impostos se houver
+              // Adicionar impostos se houver (mesma regra: total sempre soma,
+              // a linha some da proposta se a flag estiver desmarcada).
               const taxes = parseFloat(quotationData.destinationTaxes) || 0;
               if (taxes > 0) {
-                detailedFees.push({
-                  name: 'Impostos',
-                  qty: 1,
-                  unit: 'Fixo',
-                  valueUnit: taxes.toFixed(2),
-                  currency: 'BRL',
-                  total: `BRL ${taxes.toFixed(2)}`, financialGroup:'TAX_IOF', chargeNature:'TAX'
-                });
                 calculatedBrlTotal += taxes;
+                if (quotationData.destinationTaxesVisibleOnDocument !== false) {
+                  detailedFees.push({
+                    name: 'Impostos',
+                    qty: 1,
+                    unit: 'Fixo',
+                    valueUnit: taxes.toFixed(2),
+                    currency: 'BRL',
+                    total: `BRL ${taxes.toFixed(2)}`, financialGroup:'TAX_IOF', chargeNature:'TAX'
+                  });
+                }
               }
             }
           }
@@ -2152,12 +2167,15 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       originInlandCurrency: quotationData.originInlandCurrency || 'USD',
       originInlandRoute: quotationData.originInlandRoute || '',
       originInlandTransitTime: quotationData.originInlandTransitTime || 'Por coleta',
-      detailedFees,
-      originServiceRows,
-      freightAccessories,
+      // "Exibir no Documento" desmarcado: a linha some da proposta impressa,
+      // mas os subtotais abaixo usam os arrays completos (sem esse filtro) e
+      // continuam contando o valor.
+      detailedFees: detailedFees.filter((f: any) => f.showOnDocument !== false),
+      originServiceRows: originServiceRows.filter((f: any) => f.showOnDocument !== false),
+      freightAccessories: freightAccessories.filter((f: any) => f.showOnDocument !== false),
       // Profit/spread do agente é informação interna: some da listagem
       // visível ao cliente, mas o valor continua contando no subtotal abaixo.
-      detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT'),
+      detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT' && f.showOnDocument !== false),
       subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups),
       subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }, ...freightAccessories]),
       subtotalDestino: formatSubtotals(detailedFees),

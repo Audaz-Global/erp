@@ -241,7 +241,7 @@
   .cost-base-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); }
   .cost-base-title { font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
   .cost-base-subtotal { font-size:11px; color:var(--text-muted); text-align:right; }
-  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 38px; gap:8px; min-width:1050px; }
+  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 60px 38px; gap:8px; min-width:1110px; }
   .cost-columns-head { padding:8px 12px; background:rgba(255,255,255,.025); border-bottom:1px solid rgba(255,255,255,.07); color:var(--text-muted); font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
   .cost-lines { display:flex; flex-direction:column; min-height:58px; }
   .cost-line { align-items:start; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.065); background:transparent; transition:background .15s ease; }
@@ -467,7 +467,7 @@
     .cost-bases-grid { grid-template-columns:1fr; }
     .cost-base-card { overflow-x:auto; }
     .cost-lines { overflow:visible; }
-    .cost-columns-head,.cost-line { min-width:1050px; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 38px; }
+    .cost-columns-head,.cost-line { min-width:1110px; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 60px 38px; }
     .cost-add-line { min-width:960px; }
     .summary-cards { grid-template-columns: repeat(2, 1fr); }
     .detail-content { grid-template-columns: 1fr; }
@@ -2421,9 +2421,9 @@
         <div style="font-size:10px;color:var(--text-muted);text-align:right;">Valor total = quantidade × valor unitário</div>
       </div>
       <div id="review-cost-editor" class="cost-bases-grid">
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
       </div>
       <div class="cost-grand-total"><div><strong>Total da proposta por moeda</strong><div style="font-size:10px;color:var(--text-muted);margin-top:3px;">Sem conversão silenciosa entre moedas</div></div><div id="cost-grand-values" class="cost-grand-values">—</div></div>
       <details style="margin-top:14px;">
@@ -3248,6 +3248,14 @@ function updateModalCalculatedWeights() {
 // esse valor — null significa "usar o cálculo automático".
 window.chargeableWeightOverride = null;
 
+// Visibilidade das linhas de IOF e Impostos de destino na proposta impressa.
+// Essas linhas são especiais (recriadas do zero a cada recálculo, fora do
+// JSON de origin/destinationServices), então o estado do checkbox precisa
+// ficar guardado aqui para sobreviver aos re-renders — o valor sempre soma
+// no total, só a exibição da linha muda.
+window.iofVisibleOnDocument = true;
+window.destinationTaxesVisibleOnDocument = true;
+
 function updateTaxableWeightOverrideUI() {
   const resetBtn = document.getElementById('rev-calc-taxable-reset');
   const hint = document.getElementById('rev-calc-taxable-override-hint');
@@ -3941,6 +3949,7 @@ function parseFeeLine(line) {
   const baseValueSegment = segments.find(value => /^BASEVALUE\s+/i.test(value));
   const costSegment = segments.find(value => /^COST\s+/i.test(value));
   const costCurrencySegment = segments.find(value => /^COSTCURRENCY\s+/i.test(value));
+  const visibleSegment = segments.find(value => /^VISIBLE\s+/i.test(value));
   let ispsClassification = ispsSegment ? ispsSegment.replace(/^ISPS\s+/i, '').trim().toUpperCase() : null;
   if (isIsps && !['ISPS_CARRIER','ISPS_TERMINAL'].includes(ispsClassification)) {
     const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(name);
@@ -3961,12 +3970,13 @@ function parseFeeLine(line) {
   const percentageBaseValue = baseValueSegment ? parseFloat(baseValueSegment.replace(/^BASEVALUE\s+/i, '').trim().replace(',','.')) : null;
   const costUnitValue = costSegment ? parseFloat(costSegment.replace(/^COST\s+/i, '').trim().replace(',','.')) : null;
   const costCurrency = costCurrencySegment ? normalizeCostCurrency(costCurrencySegment.replace(/^COSTCURRENCY\s+/i, '').trim()) : null;
+  const showOnDocument = visibleSegment ? visibleSegment.replace(/^VISIBLE\s+/i, '').trim().toLowerCase() !== 'false' : true;
   const ispsUnclassified = isIsps && ispsClassification === 'ISPS_UNCLASSIFIED';
   const ispsInclusionPending = isIsps && includedInFreight !== 'NOT_INCLUDED';
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons, pending: isPending || undefined };
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, showOnDocument, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons, pending: isPending || undefined };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -3998,7 +4008,8 @@ function formatFeeLine(fee) {
   const currency = normalizeCostCurrency(fee.currency);
   const costCurrency = fee.costCurrency ? normalizeCostCurrency(fee.costCurrency) : currency;
   const costDetails = fee.costUnitValue != null && Number.isFinite(Number(fee.costUnitValue)) ? ` | COST ${Number(fee.costUnitValue).toFixed(2)}${costCurrency !== currency ? ` | COSTCURRENCY ${costCurrency}` : ''}` : '';
-  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${costDetails}${ispsDetails}`;
+  const visibleDetails = fee.showOnDocument === false ? ` | VISIBLE false` : '';
+  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${costDetails}${visibleDetails}${ispsDetails}`;
 }
 
 const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
@@ -4118,7 +4129,7 @@ function initializeReviewCostEditor(quotation = {}) {
   };
   const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
@@ -4128,7 +4139,7 @@ function initializeReviewCostEditor(quotation = {}) {
   const storageProvenance=storageWasExtracted || /_RESPONSE$|AGENT_RESPONSE/.test(storageSource) ? `${partnerType}_EMAIL` : storageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL';
   if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:storageSource === 'MINIMUM_FALLBACK' && !storageWasExtracted ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:normalizeCostCurrency(quotation.destinationStorageCurrency || 'BRL'), financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:storageProvenance, evidence:window.lastExtractedAgentData?.costs?.field_evidence?.find(item=>item.field==='storage_brl')?.evidence || quotation.storageRequestEvidence || '' });
   const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
-  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.destinationTaxesVisibleOnDocument !== false });
   if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
   if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION', provenanceType:'MANUAL' });
   renderReviewCostEditor();
@@ -4164,6 +4175,7 @@ function renderReviewCostEditor() {
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
       <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div>${reviewCostProfitLabel(line)}</div>
+      <div><label>Exibir</label>${(line.special && line.special !== 'IOF' && line.special !== 'DESTINATION_TAXES') ? '<div class="cost-line-static">—</div>' : `<input type="checkbox" style="width:18px;height:18px;" ${line.showOnDocument === false ? '' : 'checked'} onchange="updateReviewCostLine('${group}','${line.id}','showOnDocument',this.checked)" title="Marcado: aparece na proposta/PDF do cliente. Desmarcado: fica só para controle interno (o valor continua no total).">`}</div>
       <div><label>Ação</label>${line.locked ? '<div style="height:34px"></div>' : `<button type="button" title="Excluir linha" class="cost-line-remove" onclick="removeReviewCostLine('${group}','${line.id}')">×</button>`}</div>
     </div>`; }).join('') : '<div style="padding:16px 8px;text-align:center;color:var(--text-muted);font-size:11px;">Nenhuma linha nesta base.</div>';
   });
@@ -4175,6 +4187,8 @@ function updateReviewCostLine(group, id, field, value) {
   line[field] = ['quantity','unitValue','costUnitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : ['currency','costCurrency'].includes(field) ? normalizeCostCurrency(value) : value;
   if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
+  if (field === 'showOnDocument' && line.special === 'IOF') window.iofVisibleOnDocument = value;
+  if (field === 'showOnDocument' && line.special === 'DESTINATION_TAXES') window.destinationTaxesVisibleOnDocument = value;
   const row = document.querySelector(`[data-cost-id="${id}"]`);
   const total = row?.querySelector('.cost-line-total');
   if (total) {
@@ -4189,7 +4203,7 @@ function updateReviewCostLine(group, id, field, value) {
 
 function addReviewCostLine(group) {
   const defaults = { freight:{name:'Novo componente de frete',scope:'FREIGHT',financialGroup:'FREIGHT_COMPONENT'}, origin:{name:'Nova taxa de origem',scope:'ORIGIN',financialGroup:'ORIGIN_CHARGE'}, destination:{name:'Nova taxa de destino',scope:'DESTINATION',financialGroup:'DESTINATION_CHARGE'} }[group];
-  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, costUnitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL' });
+  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, costUnitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL', showOnDocument:true });
   renderReviewCostEditor();
   setTimeout(() => document.querySelector(`#cost-lines-${group} .cost-line:last-child input`)?.focus(), 0);
 }
@@ -6512,7 +6526,7 @@ function recalculateRevIof() {
     refreshReviewMainFreightBasis();
     let iofLine = window.reviewCostLines.freight.find(line => line.special === 'IOF');
     if (!iofLine) {
-      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' };
+      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false };
       window.reviewCostLines.freight.push(iofLine);
     }
     iofLine.unitValue = iofRatePct;
@@ -7222,6 +7236,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-calc-taxable-weight').value = window.chargeableWeightOverride;
     }
 
+    // Restaura a visibilidade salva das linhas de IOF e Impostos de destino
+    // na proposta (padrão: visível, se a cotação nunca teve a flag definida).
+    window.iofVisibleOnDocument = q.iofVisibleOnDocument !== false;
+    window.destinationTaxesVisibleOnDocument = q.destinationTaxesVisibleOnDocument !== false;
+
     // Calcular e atualizar os pesos e volumes calculados inicialmente
     updateModalCalculatedWeights();
 
@@ -7515,6 +7534,8 @@ async function confirmAndGeneratePDF() {
       frequency: frequencyValue,
       weightBreak: weightBreakValue,
       chargeableWeightOverride: window.chargeableWeightOverride,
+      iofVisibleOnDocument: window.iofVisibleOnDocument !== false,
+      destinationTaxesVisibleOnDocument: window.destinationTaxesVisibleOnDocument !== false,
       // Atualizar também os dados da cotação com os valores revisados
       originCity: document.getElementById('rev-origin-city').value,
       originCountry: document.getElementById('rev-origin-country').value,
@@ -7594,6 +7615,8 @@ async function confirmAndGeneratePDF() {
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
         chargeableWeightOverride: window.chargeableWeightOverride,
+        iofVisibleOnDocument: window.iofVisibleOnDocument !== false,
+        destinationTaxesVisibleOnDocument: window.destinationTaxesVisibleOnDocument !== false,
         clientName: document.getElementById('rev-client-name').value,
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,
