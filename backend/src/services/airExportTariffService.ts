@@ -238,13 +238,8 @@ export function readTariffsFromExcelFileDirectly(
 /**
  * Lê o arquivo Excel do Tarifário ACG e carrega todos os registros na tabela AirExportTariffRate no banco de dados.
  */
-export async function syncAirExportTariffsFromExcel(): Promise<{ totalRows: number; importedRows: number }> {
-  const filePath = getTariffExcelPath();
-  if (!filePath) {
-    throw new Error('Arquivo de tarifário não encontrado em: ' + DEFAULT_TARIFF_PATH);
-  }
-
-  const workbook = XLSX.readFile(filePath);
+export async function importTariffFromBuffer(buffer: Buffer): Promise<{ totalRows: number; importedRows: number }> {
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheet = workbook.Sheets['Airline Rates'] || workbook.Sheets[workbook.SheetNames[0]!];
   if (!sheet) {
     throw new Error('Aba Airline Rates não encontrada no arquivo Excel.');
@@ -343,11 +338,104 @@ export async function searchAirExportRates(
   chargableWeightKg: number,
   commodity?: string
 ): Promise<AirTariffSearchResult[]> {
-  const originClean = String(origin || '').trim();
-  const destClean = String(destination || '').trim();
+  const originClean = String(origin || '').trim().toUpperCase();
+  const destClean = String(destination || '').trim().toUpperCase();
 
   try {
-    return readTariffsFromExcelFileDirectly(originClean, destClean, chargableWeightKg);
+    // Busca todas as taxas ativas (sem filtro de rota no DB para manter o fuzzy search matchesAirportOrCity)
+    const allRates = await prisma.airExportTariffRate.findMany({
+      where: { active: true }
+    });
+
+    const results: AirTariffSearchResult[] = [];
+
+    for (const rate of allRates) {
+      if (originClean && !matchesAirportOrCity(rate.originPort, originClean)) continue;
+      if (destClean && !matchesAirportOrCity(rate.destinationPort, destClean)) continue;
+
+      const effectiveWeight = chargableWeightKg > 0 ? chargableWeightKg : 100;
+
+      let selectedBreak = 'M';
+      let unitRate: number | null = rate.minRate;
+
+      if (effectiveWeight >= 3000 && rate.rate3000k !== null) {
+        selectedBreak = '+3000-KG';
+        unitRate = rate.rate3000k;
+      } else if (effectiveWeight >= 1000 && rate.rate1000k !== null) {
+        selectedBreak = '+1000-KG';
+        unitRate = rate.rate1000k;
+      } else if (effectiveWeight >= 500 && rate.rate500k !== null) {
+        selectedBreak = '+500-KG';
+        unitRate = rate.rate500k;
+      } else if (effectiveWeight >= 300 && rate.rate300k !== null) {
+        selectedBreak = '+300-KG';
+        unitRate = rate.rate300k;
+      } else if (effectiveWeight >= 100 && rate.rate100k !== null) {
+        selectedBreak = '+100-KG';
+        unitRate = rate.rate100k;
+      } else if (effectiveWeight >= 45 && rate.rate45k !== null) {
+        selectedBreak = '+45-KG';
+        unitRate = rate.rate45k;
+      } else if (rate.normalRate !== null) {
+        selectedBreak = 'N (<45KG)';
+        unitRate = rate.normalRate;
+      } else if (rate.minRate !== null) {
+        selectedBreak = 'Mínimo';
+        unitRate = rate.minRate;
+      }
+
+      if (unitRate === null || unitRate <= 0) {
+        const availableRate = rate.rate100k ?? rate.rate45k ?? rate.rate300k ?? rate.rate500k ?? rate.normalRate ?? rate.minRate;
+        if (availableRate !== null && availableRate > 0) {
+          unitRate = availableRate;
+          selectedBreak = '+100-KG';
+        } else {
+          continue;
+        }
+      }
+
+      let calculatedFreight = 0;
+      if (chargableWeightKg <= 0) {
+        calculatedFreight = unitRate;
+      } else if (selectedBreak === 'Mínimo' || selectedBreak === 'M') {
+        calculatedFreight = unitRate;
+      } else {
+        calculatedFreight = unitRate * chargableWeightKg;
+        if (rate.minRate && calculatedFreight < rate.minRate) {
+          calculatedFreight = rate.minRate;
+        }
+      }
+
+      results.push({
+        id: rate.id,
+        airlineCode: rate.airlineCode,
+        airlineName: rate.airlineName,
+        originPort: rate.originPort,
+        destinationPort: rate.destinationPort,
+        commodity: rate.commodity || 'General Cargo',
+        prodCode: rate.prodCode || 'STANDARD',
+        rateType: rate.rateType || 'Market',
+        currency: rate.currency || 'USD',
+        aircraftTypes: rate.aircraftTypes || 'ALL',
+        shcs: rate.shcs || undefined,
+        day: rate.day || undefined,
+        flightNo: rate.flightNo || undefined,
+        minRate: rate.minRate,
+        normalRate: rate.normalRate,
+        rate45k: rate.rate45k,
+        rate100k: rate.rate100k,
+        rate300k: rate.rate300k,
+        rate500k: rate.rate500k,
+        rate1000k: rate.rate1000k,
+        rate3000k: rate.rate3000k,
+        selectedWeightBreak: selectedBreak,
+        unitRatePerKg: parseFloat((unitRate || 0).toFixed(2)),
+        totalFreight: parseFloat((calculatedFreight || 0).toFixed(2)),
+        fromTariffExcel: false
+      });
+    }
+
+    return results.sort((a, b) => a.totalFreight - b.totalFreight);
   } catch (err) {
     console.error('Erro na consulta do tarifário:', err);
     return [];

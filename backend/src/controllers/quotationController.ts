@@ -19,7 +19,7 @@ import { normalizeCurrency, normalizeFee } from '../services/feeCalculationServi
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
-import { searchAirExportRates } from '../services/airExportTariffService';
+import { searchAirExportRates, importTariffFromBuffer } from '../services/airExportTariffService';
 
 
 const PRICING_SETTINGS_ID = 'default';

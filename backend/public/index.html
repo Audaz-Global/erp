@@ -8863,6 +8863,16 @@ function switchSettingsTab(tab) {
           <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Usada para calcular o IOF automaticamente (frete + taxas de origem × esta taxa) quando não há uma regra de Incoterm específica para a rota. O campo de IOF na cotação é sempre calculado pelo sistema — não é editável manualmente.</p>
         </div>
 
+        <div class="settings-section">
+          <h3 style="margin:0 0 14px;">Tarifário Aéreo</h3>
+          <div class="form-group" style="max-width:400px;">
+            <label>Upload de Planilha Excel (.xlsx, .xls)</label>
+            <input type="file" id="ps-tariff-upload" accept=".xlsx, .xls" style="padding: 6px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
+          </div>
+          <button class="btn btn-secondary" onclick="uploadAirExportTariffJS(event)" style="margin-top:10px; font-size:12px;">📤 Importar Tarifário</button>
+          <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">O upload de uma nova planilha substituirá todas as tarifas aéreas cadastradas no sistema. Utilize o modelo padrão "Tarifário Exportação Aérea_Modelo ACG.xlsx".</p>
+        </div>
+
         <button class="btn btn-primary" onclick="savePricingSettings()" style="margin-top:20px;">💾 Salvar Configurações</button>
       `;
       loadPricingSettings();
@@ -11198,7 +11208,49 @@ async function savePricingSettings() {
   } catch (e) {
     toast('❌ ' + e.message);
   }
+
+
+
+async function uploadAirExportTariffJS(event) {
+  event.preventDefault();
+  const fileInput = document.getElementById('ps-tariff-upload');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    toast('⚠️ Selecione um arquivo Excel primeiro.');
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const btn = event.target;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '⏳ Importando...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(API + '/quotations/air-export-tariffs/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+      body: formData
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Erro no upload');
+    }
+    
+    const result = await res.json();
+    toast(`✅ Tarifário importado com sucesso! ${result.importedRows} registros inseridos.`);
+    fileInput.value = ''; // limpa o input
+  } catch (error) {
+    toast('❌ ' + error.message);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
 }
+
 
 async function loadDeconsolidatorsTable() {
   try {

@@ -16,7 +16,8 @@ import {
   getPublicWebView,
   previewIncotermApplicability,
   previewGeographicComparison,
-  getAirExportTariffs
+  getAirExportTariffs,
+  uploadAirExportTariff
 } from '../controllers/quotationController';
 
 const router = Router();
@@ -29,6 +30,7 @@ router.get('/:id/view', getPublicWebView);
 router.use(authenticate);
 
 router.get('/air-export-tariffs', getAirExportTariffs);
+router.post('/air-export-tariffs/upload', documentUpload.single('file'), uploadAirExportTariff);
 router.post('/', createQuotation);
 
 router.get('/', getQuotations);
