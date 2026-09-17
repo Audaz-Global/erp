@@ -6291,6 +6291,12 @@ async function saveAsAwaitingAgent() {
     // referência da cotação no assunto do e-mail (Camada 1 do matching), não
     // depende deste campo estar preenchido.
     const agentEmail = selectedPartnerRecipients.map(item => item.email).join('; ');
+    const operatorInitialsField = document.getElementById('r-operator-initials');
+    if (!operatorInitialsField.value.trim()) {
+      alert('Selecione "Cotando como" (suas iniciais) antes de marcar a cotação como Aguardando Parceiro — elas são usadas na referência da cotação e no assunto do e-mail ao agente.');
+      btn.disabled = false; btn.innerHTML = originalHtml;
+      return;
+    }
     const cnpjField = document.getElementById('r-client-cnpj');
     if (cnpjIsRequiredForQuotation(document.getElementById('r-type').value, document.getElementById('r-storage-request').checked) && !cnpjField.value.trim()) {
       alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
@@ -6391,12 +6397,14 @@ async function saveAsAwaitingAgent() {
       });
       const resPhase = await fetch(API + `/quotations/${currentQuotationId}/phase`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO', agentEmail })
+        body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO', agentEmail, operatorInitials: operatorInitialsField.value.trim() })
       });
       if (!resPhase.ok) {
         const errData = await resPhase.json().catch(() => ({}));
         throw new Error(errData.error || 'Falha ao marcar cotação como Aguardando Parceiro');
       }
+      const phaseData = await resPhase.json().catch(() => null);
+      if (phaseData?.reference) document.getElementById('r-reference').value = phaseData.reference;
     }
 
     toast('✅ Enviado para Aguardando Parceiro!');

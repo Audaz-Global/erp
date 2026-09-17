@@ -3,7 +3,7 @@ import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../
 import { extractClientData, extractAgentCosts, extractSignatureOcr, generateAgentDraft, generateDtaDraft, generateTruckerDraft } from '../services/aiService';
 import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
-import { renderDraftBody, renderDraftSubject } from '../utils/emailTemplate';
+import { renderDraftBody } from '../utils/emailTemplate';
 import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService';
 import { findAgentDraftEmailTemplate } from '../services/agentDraftEmailTemplateService';
 import { applyRateValidityPolicy } from '../services/rateValidityService';
@@ -14,9 +14,8 @@ import { applyHybridModalPolicy } from '../services/hybridModalService';
 import { tagPartnerCosts, applyStackableReviewPolicy } from '../services/agentResponseService';
 import { resolveFirstResponseContact } from '../services/contactResolutionService';
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
+import { generateQuotationReference, isValidOperatorInitials, buildAgentEmailSubject } from '../services/quotationReferenceService';
 
-const SINGLETON_ID = 'default';
-const DEFAULT_SUBJECT_TEMPLATE = '{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} | {clientReference}';
 
 function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any[] = [], resolvedContact: any = null) {
   const contact = resolvedContact || emailRecords.map(item => item.extractedContact).find(item => item && (item.name || item.phone || item.email));
@@ -68,15 +67,6 @@ function clientExtractionAudit(data: any, emailRecords: any[], signatureOcr: any
   entries.push({ field: 'Nome do contato', value: contact?.name || data?.client?.contact_name || '', source: contact?.source || (data?.client?.contact_name ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND'), confidence: contact?.name ? contact.confidence : numericConfidence(data?.client?.confidence) || 0, evidence: contact?.evidence || '' });
   entries.push({ field: 'Telefone do contato', value: contact?.phone || data?.client?.contact_phone || '', source: contact?.source || (data?.client?.contact_phone ? 'EMAIL_BODY_OR_DOCUMENT' : 'NOT_FOUND'), confidence: contact?.phone ? contact.confidence : numericConfidence(data?.client?.confidence) || 0, evidence: contact?.evidence || '' });
   return { version: 2, processedAt: new Date().toISOString(), emails: emailRecords, fields: entries, signatureOcr, resolvedContact };
-}
-
-function buildQuotationCode(initials: string): string {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-  }).formatToParts(new Date()).reduce<Record<string, string>>((acc, part) => ({ ...acc, [part.type]: part.value }), {});
-  const datePart = `${parts.day || '01'}${parts.month || '01'}${(parts.year || '2000').slice(-2)}`;
-  const timePart = `${parts.hour || '00'}${parts.minute || '00'}`;
-  return `${initials.toUpperCase()}-${datePart}-${timePart}`;
 }
 
 export const extractData = async (req: Request, res: Response) => {
@@ -370,11 +360,10 @@ export const generateDraft = async (req: Request, res: Response) => {
     // Gera o Código da Cotação (iniciais do operador + data + hora) uma única vez
     let agentEmailCode = quotation.agentEmailCode;
     if (!agentEmailCode) {
-      const initials = String(operatorInitials || '').trim();
-      if (!/^[A-Za-z]{2,4}$/.test(initials)) {
+      if (!isValidOperatorInitials(operatorInitials)) {
         return res.status(400).json({ error: 'Informe as iniciais do operador (2 a 4 letras) para gerar o Código da Cotação.' });
       }
-      agentEmailCode = buildQuotationCode(initials);
+      agentEmailCode = await generateQuotationReference(String(operatorInitials).trim());
     }
 
     // Buscar regras de conhecimento ativas do banco de dados
@@ -417,22 +406,7 @@ export const generateDraft = async (req: Request, res: Response) => {
     const generatedDraftText = selectedTemplate ? renderDraftBody(selectedTemplate.bodyTemplate, bodyTokens) : await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
     const draftText = ensureStorageEstimateRequest(generatedDraftText, payload.requiresStorageEstimate);
 
-    const emailSettings = await prisma.agentDraftEmailSettings.upsert({
-      where: { id: SINGLETON_ID },
-      update: {},
-      create: { id: SINGLETON_ID, subjectTemplate: DEFAULT_SUBJECT_TEMPLATE }
-    });
-    const draftSubject = renderDraftSubject(selectedTemplate?.subjectTemplate || emailSettings.subjectTemplate, {
-      quotationCode: agentEmailCode,
-      direction: quotation.direction === 'EXPORT' ? 'EXP' : 'IMP',
-      modal: payload.modal || '',
-      incoterm: payload.incoterm || '',
-      origin: payload.originPort || payload.originCity || '',
-      destination: payload.destinationPort || payload.destinationCity || '',
-      client: payload.clientName || '',
-      clientCnpj: payload.clientCnpj || '',
-      clientReference: payload.clientReferenceNumber || ''
-    });
+    const draftSubject = await buildAgentEmailSubject(quotation, agentEmailCode, selectedTemplate);
 
     let truckerDraftText = null;
     const groundServiceDrafts: Record<string,string> = {};

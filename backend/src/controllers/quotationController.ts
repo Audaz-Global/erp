@@ -19,6 +19,7 @@ import { normalizeCurrency, normalizeFee } from '../services/feeCalculationServi
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
+import { generateQuotationReference, isValidOperatorInitials, buildAgentEmailSubject } from '../services/quotationReferenceService';
 
 const PRICING_SETTINGS_ID = 'default';
 
@@ -58,7 +59,11 @@ export const createQuotation = async (req: Request, res: Response) => {
       enforceHybridModalAcknowledgement({ hybridModalDetected: quotationData.hybridModalDetected, hybridModalAcknowledged: quotationData.hybridModalAcknowledged });
     }
 
-    // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided
+    // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided. As
+    // iniciais do operador são obrigatórias aqui — sem elas, a referência
+    // caía silenciosamente para o prefixo genérico 'ADZ' e nunca mais era
+    // corrigida (bug reportado: cotação "Aguardando Parceiro" sem as
+    // iniciais de quem realmente está cotando).
     let reference = quotationData.reference;
     if (reference) {
       const existing = await prisma.quotation.findUnique({ where: { reference } });
@@ -66,7 +71,10 @@ export const createQuotation = async (req: Request, res: Response) => {
         reference = `${reference}-${Math.floor(Math.random() * 1000)}`;
       }
     } else {
-      reference = await generateReference(operatorInitials || 'ADZ');
+      if (!isValidOperatorInitials(operatorInitials)) {
+        return res.status(400).json({ error: 'Informe as iniciais do operador (2 a 4 letras) para gerar a referência da cotação.' });
+      }
+      reference = await generateQuotationReference(String(operatorInitials).trim());
     }
 
     // Handle Client
@@ -119,7 +127,7 @@ export const createQuotation = async (req: Request, res: Response) => {
       totalCbm = calculateCbmFromDimensions(quotationData.packages, quotationData.totalPackages || 1);
     }
 
-    const data = {
+    const data: any = {
       ...quotationData,
       totalCbm,
       iofUsd,
@@ -127,6 +135,15 @@ export const createQuotation = async (req: Request, res: Response) => {
       createdById: userId,
       ...(clientId ? { clientId } : {})
     };
+
+    // Cotação já criada direto como "Aguardando Parceiro" (fluxo "Só Marcar
+    // Aguardando" sem passar por "Gerar Rascunho"): grava também o código e o
+    // assunto do e-mail ao agente, senão eles ficam vazios pra sempre — só
+    // "Gerar Rascunho" os preenchia antes.
+    if (data.status === 'AGUARDANDO_PARCEIRO') {
+      data.agentEmailCode = reference;
+      data.draftEmailSubject = await buildAgentEmailSubject({ ...data, client: { name: clientName || null, cnpj: clientCnpj || null } }, reference);
+    }
 
     const quotation = await prisma.quotation.create({ data });
     await syncGroundServiceLegs(quotation.id, groundServiceLegs, quotationData);
@@ -208,8 +225,8 @@ export const updateQuotation = async (req: Request, res: Response) => {
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
     if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
     if (!quotationData.reference) delete quotationData.reference;
-    if (!current.reference && !quotationData.reference && operatorInitials) {
-      quotationData.reference = await generateReference(operatorInitials);
+    if (!current.reference && !quotationData.reference && isValidOperatorInitials(operatorInitials)) {
+      quotationData.reference = await generateQuotationReference(String(operatorInitials).trim());
     }
 
     if (ruleStage) {
@@ -307,27 +324,6 @@ export const deleteQuotation = async (req: Request, res: Response) => {
   }
 };
 
-// Helper: Auto-generate Reference "INITIALS-DDMMYY-HHMM" format. A minute
-// only has one "slot" per prefix, so two quotations created in the same
-// minute (common — same operator, back-to-back) would collide on the
-// @unique constraint; append -1, -2... until a free reference is found.
-const generateReference = async (initials: string = 'ADZ') => {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-  }).formatToParts(new Date()).reduce<Record<string, string>>((acc, part) => ({ ...acc, [part.type]: part.value }), {});
-  const datePart = `${parts.day || '01'}${parts.month || '01'}${(parts.year || '2000').slice(-2)}`;
-  const timePart = `${parts.hour || '00'}${parts.minute || '00'}`;
-  const prefix = (initials || 'ADZ').trim().toUpperCase();
-  const base = `${prefix}-${datePart}-${timePart}`;
-  let candidate = base;
-  let suffix = 1;
-  while (await prisma.quotation.findUnique({ where: { reference: candidate } })) {
-    candidate = `${base}-${suffix}`;
-    suffix += 1;
-  }
-  return candidate;
-};
-
 // 6. Generate PDF for Quotation
 export const generateQuotationPdf = async (req: Request, res: Response) => {
   try {
@@ -394,7 +390,7 @@ export const updatePhase = async (req: Request, res: Response) => {
     const id = String(req.params.id);
     const current = await prisma.quotation.findUnique({ where: { id }, include: { client: true } });
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, iofVisibleOnDocument, destinationTaxesVisibleOnDocument, freightDisplayMode, costCompositionReviewed } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, iofVisibleOnDocument, destinationTaxesVisibleOnDocument, freightDisplayMode, costCompositionReviewed, operatorInitials } = req.body;
 
     if (['AGUARDANDO_PARCEIRO', 'GERADA'].includes(status)) {
       enforceCnpjRequirement({
@@ -434,6 +430,25 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
     if (destinationTaxesVisibleOnDocument !== undefined) {
       updateData.destinationTaxesVisibleOnDocument = Boolean(destinationTaxesVisibleOnDocument);
+    }
+
+    // Cotação indo para "Aguardando Parceiro" sem nunca ter passado por
+    // "Gerar Rascunho": grava o código/referência e o assunto do e-mail ao
+    // agente aqui, com as iniciais do operador logado — sem isso ficavam
+    // vazios/desatualizados (bug reportado) até alguém clicar "Gerar
+    // Rascunho" manualmente. Não mexe em nada se já estiverem preenchidos
+    // (evita sobrescrever um rascunho já gerado/editado).
+    if (status === 'AGUARDANDO_PARCEIRO' && (!current.agentEmailCode || !current.draftEmailSubject)) {
+      let agentEmailCode = current.agentEmailCode || current.reference;
+      if (!agentEmailCode) {
+        if (!isValidOperatorInitials(operatorInitials)) {
+          return res.status(400).json({ error: 'Informe as iniciais do operador (2 a 4 letras) para marcar como Aguardando Parceiro.' });
+        }
+        agentEmailCode = await generateQuotationReference(String(operatorInitials).trim());
+      }
+      updateData.reference = agentEmailCode;
+      updateData.agentEmailCode = agentEmailCode;
+      updateData.draftEmailSubject = await buildAgentEmailSubject(current, agentEmailCode);
     }
 
     if (costs) {
