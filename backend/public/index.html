@@ -3890,6 +3890,7 @@ function clearExtract() {
   document.getElementById('emailText').value=''; 
   document.getElementById('emailTextAgent').value=''; 
   currentQuotationId = null;
+  window.agentReferenceTariff = null;
   quotationDocuments = [];
   sourceDocumentsUploadedForQuotation = null;
   window.lastExtractedRawText = null;
@@ -6115,6 +6116,13 @@ async function saveQuotationRecord() {
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
+    // Só vale se a tarifa de referência ainda é a selecionada na tabela.
+    const referenceTariff = window.agentReferenceTariff;
+    if (referenceTariff && referenceTariff === window.selectedAirExportTariffRate && referenceTariff.totalFreight != null) {
+      body.freightValue = Number(referenceTariff.totalFreight);
+      body.freightCurrency = referenceTariff.currency || 'USD';
+      if (referenceTariff.selectedWeightBreak) body.weightBreak = referenceTariff.selectedWeightBreak;
+    }
     let resCreate;
     if (currentQuotationId) {
       // Atualizar cotação existente
@@ -8103,6 +8111,14 @@ async function loadPendingQuotationData() {
   document.getElementById('r-transshipments').value = formatTransshipments(q.transshipments);
   applyCarrierProfile('r', q.carrier, 'RETURN', q.modal, q.loadType);
   document.getElementById('r-agent-origin-inland-transit').value = q.originInlandTransitTime || '';
+  // Frete já gravado (ex.: tarifa escolhida no "Cotar com Agente"); a extração
+  // do retorno só o substitui se o agente informar um frete.
+  if (q.freightValue != null) {
+    document.getElementById('r-freight').value = q.freightValue;
+    document.getElementById('r-freight-currency').value = normalizeCostCurrency(q.freightCurrency || 'USD');
+    if (q.weightBreak) document.getElementById('r-weight-break').value = q.weightBreak;
+    document.getElementById('r-freight').dispatchEvent(new Event('input'));
+  }
   try {
     const modal = normalizeReturnRuleModal(q);
     const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&direction=${encodeURIComponent(q.direction || 'IMPORT')}`);
@@ -13100,6 +13116,8 @@ function selectTariffForAgentDraft() {
     alert('Selecione uma tarifa do tarifário antes de prosseguir.');
     return;
   }
+  // Guardada para ser gravada na cotação (saveQuotationRecord) e reaparecer no retorno do agente.
+  window.agentReferenceTariff = selected;
   const totalFmt = Number(selected.totalFreight || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   alert(`Tarifa da ${selected.airlineName} (USD ${totalFmt}) selecionada como referência. Selecione os contatos do agente abaixo para enviar a solicitação.`);
   document.getElementById('partner-list-search')?.focus();
