@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
+import { findClientByCnpjMatch, findClientByNameMatch, findSimilarClients } from '../services/clientMatchService';
 
 const contactsOrder = [{ isPrimary: 'desc' as const }, { name: 'asc' as const }];
 
@@ -122,10 +122,18 @@ function clientData(body: any) {
 export const createClient = async (req: Request, res: Response) => {
   try {
     const data = clientData(req.body);
-    // Sem CNPJ informado não há como confirmar que são empresas distintas
-    // (ex: filiais), então aqui também barramos por nome parecido.
-    const existing = (await findClientByCnpjMatch(prisma, data.cnpj)) || (!data.cnpj ? await findClientByNameMatch(prisma, data.name) : null);
-    if (existing) return res.status(409).json({ error: `Já existe um cliente cadastrado parecido: ${existing.name}.` });
+
+    // Confirmação de duplicidade: na primeira tentativa (sem confirmedNew),
+    // devolve os candidatos parecidos pro operador escolher em vez de criar
+    // direto. Só cria de fato quando o front reenviar com confirmedNew:true
+    // (usuário confirmou que é mesmo um cliente novo).
+    if (!req.body?.confirmedNew) {
+      const candidates = await findSimilarClients(prisma, { name: data.name, cnpj: data.cnpj });
+      if (candidates.length) {
+        return res.status(409).json({ needsConfirmation: true, candidates });
+      }
+    }
+
     let client = await prisma.client.create({ data });
     if (Array.isArray(req.body?.contacts)) {
       await syncClientContacts(client.id, req.body.contacts);
@@ -152,5 +160,22 @@ export const updateClient = async (req: Request, res: Response) => {
   } catch (error: any) {
     if (error.code === 'P2002') return res.status(409).json({ error: 'Já existe um cliente cadastrado com este CNPJ.' });
     res.status(400).json({ error: error.message || 'Erro ao atualizar cliente.' });
+  }
+};
+
+// Bloqueia a exclusão de cliente com cotações vinculadas — evita que
+// cotações históricas fiquem órfãs (sem cliente) por causa do onDelete
+// implícito da FK. O operador precisa resolver/realocar as cotações antes.
+export const deleteClient = async (req: Request, res: Response) => {
+  try {
+    const client = await prisma.client.findUnique({ where: { id: req.params.id }, include: { _count: { select: { quotations: true } } } });
+    if (!client) return res.status(404).json({ error: 'Cliente não encontrado.' });
+    if (client._count.quotations > 0) {
+      return res.status(409).json({ error: `Este cliente tem ${client._count.quotations} cotação(ões) vinculada(s) e não pode ser excluído.` });
+    }
+    await prisma.client.delete({ where: { id: req.params.id } });
+    res.status(204).send();
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Erro ao excluir cliente.' });
   }
 };

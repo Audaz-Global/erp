@@ -2966,6 +2966,19 @@
   </div>
 </div>
 
+<div id="clientDuplicateModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9200; overflow-y:auto; padding:20px;">
+  <div style="max-width:560px; margin:60px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+    <button onclick="closeClientDuplicateModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    <h2 style="font-size:18px; margin-bottom:6px;">⚠️ Já existe cliente parecido</h2>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Encontramos cadastro(s) parecido(s) com o que você está criando. Confira antes de criar um novo, pra não duplicar o cliente.</p>
+    <div id="client-duplicate-list" style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;margin-bottom:20px;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:12px;">
+      <button onclick="closeClientDuplicateModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="confirmCreateClientAnyway()" class="btn btn-primary">Criar mesmo assim</button>
+    </div>
+  </div>
+</div>
+
 <div id="ticketModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9100; overflow-y:auto; padding:20px;">
   <div style="max-width:600px; margin:40px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
     <button onclick="closeTicketModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
@@ -10112,9 +10125,30 @@ function renderClientsTable() {
       <td style="color:var(--text-muted);">${ifrEscape(c.productSegment || '-')}</td>
       <td>${c.needsValidation ? '<span class="status-badge review" title="' + ifrEscape(c.validationNote || '') + '">Pendente (Atlantis)</span>' : (c.atlantisId ? '<span class="status-badge approved">Vinculado</span>' : '<span class="status-badge draft">—</span>')}</td>
       <td style="color:var(--text-muted);">${c._count?.quotations ?? 0}</td>
-      <td><div class="action-btns"><button class="action-btn" onclick="editClientById('${c.id}')" title="Editar">✏️</button></div></td>
+      <td><div class="action-btns"><button class="action-btn" onclick="editClientById('${c.id}')" title="Editar">✏️</button><button class="action-btn danger" onclick="deleteClientById('${c.id}')" title="Excluir">🗑️</button></div></td>
     </tr>
   `).join('');
+}
+
+async function deleteClientById(id) {
+  const client = (window.allClientsList || []).find(item => item.id === id);
+  const quotationsCount = client?._count?.quotations ?? 0;
+  if (quotationsCount > 0) {
+    toast(`❌ Este cliente tem ${quotationsCount} cotação(ões) vinculada(s) e não pode ser excluído.`);
+    return;
+  }
+  if (!confirm(`Tem certeza que deseja excluir o cliente "${client?.name || ''}" permanentemente?`)) return;
+  try {
+    const response = await fetch(API + '/clients/' + id, { method: 'DELETE' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Não foi possível excluir o cliente.');
+    }
+    toast('🗑️ Cliente excluído.');
+    loadClients();
+  } catch (e) {
+    toast('❌ ' + e.message);
+  }
 }
 
 function closeClientModal() {
@@ -10184,7 +10218,7 @@ function editClientById(id) {
   }
 }
 
-async function saveClient() {
+async function saveClient(confirmedNew = false) {
   const id = document.getElementById('client-id').value;
   const btn = document.getElementById('btnSaveClient');
   const name = document.getElementById('client-name').value.trim();
@@ -10206,6 +10240,7 @@ async function saveClient() {
     contacts,
     productSegment: document.getElementById('client-product-segment').value || null,
     insuranceRateOverride: document.getElementById('client-insurance-rate-override').value.trim() || null,
+    ...(id ? {} : { confirmedNew }),
     ...(() => {
       const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
       return { atlantisId: state.atlantisId, needsValidation: state.needsValidation, validationNote: state.validationNote };
@@ -10218,7 +10253,13 @@ async function saveClient() {
     const url = id ? API + '/clients/' + id : API + '/clients';
     const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Falha ao salvar cliente.');
+    if (!res.ok) {
+      if (!id && data.needsConfirmation) {
+        showClientDuplicateConfirm(data.candidates || []);
+        return;
+      }
+      throw new Error(data.error || 'Falha ao salvar cliente.');
+    }
     toast('✅ Cliente salvo com sucesso.');
     closeClientModal();
     loadClients();
@@ -10228,6 +10269,37 @@ async function saveClient() {
     btn.disabled = false;
     btn.innerText = 'Salvar Cliente';
   }
+}
+
+function showClientDuplicateConfirm(candidates) {
+  const list = document.getElementById('client-duplicate-list');
+  list.innerHTML = candidates.map(c => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div>
+        <div style="font-weight:600;">${ifrEscape(c.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${ifrEscape(c.cnpj || 'sem CNPJ')} · ${ifrEscape(c.contactName || 'sem contato')} · ${c.quotationsCount} cotação(ões)</div>
+        <div style="font-size:11px;color:var(--gold);">${ifrEscape(c.matchReason)}</div>
+      </div>
+      <button type="button" class="btn btn-secondary" style="white-space:nowrap;" onclick="useExistingClientInstead('${c.id}')">Usar este</button>
+    </div>
+  `).join('');
+  document.getElementById('clientDuplicateModal').style.display = 'block';
+}
+
+function closeClientDuplicateModal() {
+  document.getElementById('clientDuplicateModal').style.display = 'none';
+}
+
+function confirmCreateClientAnyway() {
+  closeClientDuplicateModal();
+  saveClient(true);
+}
+
+async function useExistingClientInstead(id) {
+  closeClientDuplicateModal();
+  closeClientModal();
+  await loadClients();
+  editClientById(id);
 }
 
 // ════════════ CHAMADOS ════════════
