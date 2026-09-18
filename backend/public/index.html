@@ -5554,16 +5554,19 @@ function fillReviewForm(d, mode) {
   } else if (mode === 'AGENT') {
     if(d.costs) {
       const freightInput = document.getElementById('r-freight');
-      const origValue = d.costs.freight_value !== undefined ? d.costs.freight_value : d.costs.freight_usd;
+      // Campo ausente na extração = parceiro não informou; mantém o que já está na tela.
+      const origValue = d.costs.freight_value != null ? d.costs.freight_value : d.costs.freight_usd;
+      const hasExtractedFreight = origValue != null;
       const origCurrency = normalizeCostCurrency(d.costs.freight_currency || 'USD');
       
-      freightInput.value = origValue || '';
-      if (document.getElementById('r-freight-currency')) {
-        document.getElementById('r-freight-currency').value = origCurrency;
+      if (hasExtractedFreight) {
+        freightInput.value = origValue;
+        if (document.getElementById('r-freight-currency')) {
+          document.getElementById('r-freight-currency').value = origCurrency;
+        }
+        document.getElementById('conf-freight').innerHTML = renderConf(origValue, d.costs.confidence);
+        freightInput.dispatchEvent(new Event('input'));
       }
-      document.getElementById('conf-freight').innerHTML = renderConf(origValue, d.costs.confidence);
-
-      freightInput.dispatchEvent(new Event('input'));
       renderRateOptionsPicker(d.costs.rate_options);
 
       // IOF é sempre calculado pelo sistema (ver listener de r-freight acima) —
@@ -5574,14 +5577,11 @@ function fillReviewForm(d, mode) {
       if ((d.costs.present_fields || []).includes('storage_brl')) document.getElementById('r-storage').dataset.source = `${String(d.costs.partner_type || currentPartnerType || 'AGENTE').toUpperCase()}_RESPONSE`;
       document.getElementById('conf-storage').innerHTML = renderConf(d.costs.storage_brl, d.costs.confidence);
 
-      document.getElementById('r-services').value = d.costs.services_brl || '';
-      document.getElementById('conf-services').innerHTML = renderConf(d.costs.services_brl, d.costs.confidence);
-
-      document.getElementById('r-taxes').value = d.costs.taxes_brl || '';
-      document.getElementById('conf-taxes').innerHTML = renderConf(d.costs.taxes_brl, d.costs.confidence);
-
-      document.getElementById('r-total').value = d.costs.total_brl || '';
-      document.getElementById('conf-total').innerHTML = renderConf(d.costs.total_brl, d.costs.confidence);
+      [['services_brl', 'services'], ['taxes_brl', 'taxes'], ['total_brl', 'total']].forEach(([field, id]) => {
+        if (d.costs[field] == null) return;
+        document.getElementById(`r-${id}`).value = d.costs[field] || '';
+        document.getElementById(`conf-${id}`).innerHTML = renderConf(d.costs[field], d.costs.confidence);
+      });
 
       document.getElementById('r-transit-time').value = d.costs.transit_time_days || '';
       document.getElementById('conf-transit-time').innerHTML = renderConf(d.costs.transit_time_days, d.costs.confidence);
@@ -5650,14 +5650,14 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-weight-break').value = wBreak;
         taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm, wBreak);
       }
-      const freightVal = parseFloat(d.costs.freight_usd) || 0;
+      const freightVal = parseFloat(d.costs.freight_usd ?? freightInput.value) || 0;
       const isAir = loadType.toUpperCase().includes('AIR');
       const isLcl = loadType.toUpperCase().includes('LCL');
       const unitVal = isAir || isLcl ? (freightVal / taxavel) : freightVal;
 
       document.getElementById('r-frequency').value = d.costs.frequency || '';
       document.getElementById('conf-frequency').innerHTML = renderConf(d.costs.frequency, d.costs.confidence);
-      document.getElementById('r-freight-unit').value = origValue ? unitVal.toFixed(2) : '';
+      if (hasExtractedFreight) document.getElementById('r-freight-unit').value = origValue ? unitVal.toFixed(2) : '';
 
       // As regras conhecidas do Incoterm prevalecem e as taxas novas do agente
       // são apenas complementadas, sem apagar ou duplicar os valores prefixados.
@@ -6759,14 +6759,16 @@ function updateBuyVsSellTable() {
   const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
   const servicesBrl = parseFloat(document.getElementById('rev-services').value) || 0;
   const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  const destBaseUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
-  let sellDestFeesUsd = destBaseUsd;
-  let sellDestFeesExSpreadUsd = destBaseUsd;
-
   // Somar também linhas avulsas de destino (exceto Seguro). "Spread / Profit"
   // entra na Venda normalmente, mas fica de fora do custo do agente (abaixo).
   const destText = document.getElementById('rev-destination-services').value || '';
-  parseFeeText(destText).forEach(fee => {
+  const destFeeLines = parseFeeText(destText);
+  // rev-services já é a soma dessas linhas quando elas existem; somar os dois duplica o destino.
+  const destBaseUsd = (storageBrl + (destFeeLines.length ? 0 : servicesBrl) + taxesBrl) / usdRate;
+  let sellDestFeesUsd = destBaseUsd;
+  let sellDestFeesExSpreadUsd = destBaseUsd;
+
+  destFeeLines.forEach(fee => {
     const l = (fee.name || '').toLowerCase();
     if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
         const val = fee.totalValue || 0;
