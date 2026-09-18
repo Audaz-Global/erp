@@ -7091,6 +7091,10 @@ async function validateAndGeneratePDF(qIdParam = null) {
   if (window.pdfReviewPreviousQuotationId === undefined) window.pdfReviewPreviousQuotationId = currentQuotationId;
   currentQuotationId = qId;
 
+  // Taxas do Incoterm calculadas pelo "Aplicar Tarifa & Gerar PDF" — uso único.
+  const tariffPresetFees = window.tariffReviewPresetFees?.quotationId === qId ? window.tariffReviewPresetFees : null;
+  window.tariffReviewPresetFees = null;
+
   // Buscar dados atuais da cotação para pré-preencher o modal de revisão
   try {
     await loadQuotationDocuments();
@@ -7186,7 +7190,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
           console.error(e);
         }
       }
-      document.getElementById('rev-origin-services').value = originFeesText;
+      document.getElementById('rev-origin-services').value = originFeesText || tariffPresetFees?.origin || '';
 
       let destFeesText = '';
       if (q.destinationServices) {
@@ -7200,7 +7204,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
           console.error(e);
         }
       }
-      document.getElementById('rev-destination-services').value = destFeesText;
+      document.getElementById('rev-destination-services').value = destFeesText || tariffPresetFees?.destination || '';
     } else {
       document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
       if (document.getElementById('rev-freight-currency')) {
@@ -13185,6 +13189,26 @@ async function submitQuotationWithTariffOnly() {
           const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
           returnIncotermRules = [...specificRules, ...complementaryRules];
           applyReturnIncotermRules(qData, true);
+
+          // Mesmas taxas que a tela de Retorno montaria para esta cotação, calculadas
+          // com o frete da tarifa (sem herdar campos de outra cotação aberta no Retorno).
+          const freightInput = document.getElementById('r-freight');
+          const breakInput = document.getElementById('r-weight-break');
+          const previousFreight = freightInput.value, previousBreak = breakInput.value;
+          let calculated = [];
+          try {
+            freightInput.value = selected.totalFreight;
+            breakInput.value = '';
+            calculated = calculateReturnRuleFees(qData);
+          } finally {
+            freightInput.value = previousFreight;
+            breakInput.value = previousBreak;
+          }
+          window.tariffReviewPresetFees = {
+            quotationId: qData.id,
+            origin: formatReturnFees(mergeReturnFees([], calculated.filter(f => f.feeType === 'ORIGIN'))),
+            destination: formatReturnFees(mergeReturnFees([], calculated.filter(f => f.feeType === 'DESTINATION')))
+          };
         }
       }
     } catch (e) {
