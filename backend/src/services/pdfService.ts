@@ -1325,6 +1325,28 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para origem (PDF):', err);
       }
+    } else if (shouldHydrateAutomaticCosts(quotationData)) {
+      try {
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, chargableWeight, fVal, fCurr, quotationData.direction, feeContext);
+        const existingNames = new Set(detailedFeesOrigem.map(f => f.name.toLowerCase()));
+        for (const ruleFee of originFees) {
+          if (!existingNames.has(ruleFee.name.toLowerCase())) {
+            detailedFeesOrigem.push({
+              ...normalizeFee({ name:ruleFee.name, currency:ruleFee.currency, applicationScope:'ORIGIN' }),
+              name: ruleFee.name,
+              qty: ruleFee.qty,
+              unit: ruleFee.unit,
+              valueUnit: ruleFee.valueUnit,
+              min: ruleFee.min,
+              max: '0,00',
+              currency: ruleFee.currency,
+              total: ruleFee.total
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao complementar regras de Incoterm para origem (PDF):', err);
+      }
     }
 
     if (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) {

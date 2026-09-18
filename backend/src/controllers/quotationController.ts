@@ -761,6 +761,24 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       } catch (err) {
         console.error('Erro ao buscar regras de Incoterm para origem:', err);
       }
+    } else if (shouldHydrateAutomaticCosts(quotation)) {
+      try {
+        const { originFees } = await getFeesForIncoterm(incotermStr, modalForRules, taxavel, fVal, fCurr, quotation.direction, feeContext);
+        const existingNames = new Set(detailedFeesOrigem.map(f => f.name.toLowerCase()));
+        for (const ruleFee of originFees) {
+          if (!existingNames.has(ruleFee.name.toLowerCase())) {
+            detailedFeesOrigem.push({
+              ...normalizeFee({ name:ruleFee.name, currency:ruleFee.currency, applicationScope:'ORIGIN' }),
+              name: ruleFee.name,
+              val: ruleFee.value,
+              currency: ruleFee.currency,
+              brl: getBrlValue(ruleFee.value, ruleFee.currency)
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao complementar regras de Incoterm para origem:', err);
+      }
     }
 
     if (quotation.originInlandValue !== null && quotation.originInlandValue !== undefined) {
