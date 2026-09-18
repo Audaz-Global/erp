@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
-import { extractClientData, extractAgentCosts, extractSignatureOcr, generateAgentDraft, generateDtaDraft, generateTruckerDraft } from '../services/aiService';
+import { extractClientData, extractAgentCosts, dropUnconfirmedZeroCosts, extractSignatureOcr, generateAgentDraft, generateDtaDraft, generateTruckerDraft } from '../services/aiService';
 import { prisma } from '../prisma';
 import { buildDraftPayload } from '../utils/draftPayload';
 import { renderDraftBody } from '../utils/emailTemplate';
@@ -230,6 +230,7 @@ export const extractData = async (req: Request, res: Response) => {
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
       if (aiResult?.costs) {
+        dropUnconfirmedZeroCosts(aiResult.costs);
         tagPartnerCosts(aiResult.costs, (quotation as any)?.partnerType);
         applyRateValidityPolicy(aiResult.costs);
         applyStackableReviewPolicy(aiResult.costs, quotation);

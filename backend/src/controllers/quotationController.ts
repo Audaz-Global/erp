@@ -571,8 +571,7 @@ export const updatePhase = async (req: Request, res: Response) => {
         : storageUnchanged
         ? current.destinationStorageSource
         : (informedStorage > 0 ? 'MANUAL' : (!costCompositionReviewed && quotationForStorage?.modal === 'SEA' && quotationForStorage?.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null));
-      // Evita duplicação no Smart Profit do frontend: se temos taxas detalhadas, o total global fica 0
-      updateData.destinationServicesTotal = (Array.isArray(costs.destination_fees) && costs.destination_fees.length > 0) ? 0 : costs.services_brl;
+      updateData.destinationServicesTotal = costs.services_brl;
       updateData.destinationTaxes = costs.taxes_brl;
       updateData.totalBrl = costs.total_brl;
       if (costs.frequency !== undefined) {
