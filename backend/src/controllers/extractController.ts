@@ -302,16 +302,24 @@ export const extractData = async (req: Request, res: Response) => {
         const knownContacts = registeredContacts.length ? registeredContacts : (registeredClient.contactName
           ? [{ id: null, name: registeredClient.contactName, phone: registeredClient.contactPhone, email: registeredClient.contactEmail, isPrimary: true }]
           : []);
-        const primaryContact = knownContacts.find((c: any) => c.isPrimary) || knownContacts[0] || null;
 
-        // Guarda o que a IA extraiu do e-mail ANTES de sobrepor, pra comparar
-        // com o cadastro e detectar se é uma pessoa diferente.
+        // Guarda o que a IA extraiu do e-mail ANTES de sobrepor, pra casar
+        // com o cadastro pelo nome/e-mail e detectar se é uma pessoa diferente.
         const extractedContact = {
           name: aiResult.client.contact_name || null,
           phone: aiResult.client.contact_phone || null,
           email: aiResult.client.contact_email || null
         };
         const norm = (v: unknown) => String(v || '').trim().toLowerCase();
+
+        // Prioriza o contato cujo nome/e-mail bate com o que veio no e-mail —
+        // só cai pro contato primário/primeiro quando não há correspondência,
+        // pra não trazer o telefone de outra pessoa cadastrada no cliente.
+        const nameOrEmailMatch = knownContacts.find((c: any) =>
+          (extractedContact.email && norm(c.email) === norm(extractedContact.email)) ||
+          (extractedContact.name && norm(c.name) === norm(extractedContact.name))
+        ) || null;
+        const primaryContact = nameOrEmailMatch || knownContacts.find((c: any) => c.isPrimary) || knownContacts[0] || null;
 
         // Nome/CNPJ/segmento canônicos do cadastro evitam variações de grafia entre e-mails do mesmo cliente.
         aiResult.client.name = registeredClient.name;
@@ -323,22 +331,25 @@ export const extractData = async (req: Request, res: Response) => {
         // Contato: o cadastrado prevalece sempre que existir — mesmo tratamento de nome/CNPJ/segmento.
         if (primaryContact) {
           aiResult.client.contact_name = primaryContact.name;
-          aiResult.client.contact_phone = primaryContact.phone || null;
+          // Não zera o telefone extraído do e-mail se o contato cadastrado não tiver telefone salvo.
+          aiResult.client.contact_phone = primaryContact.phone || extractedContact.phone || null;
           aiResult.client.contact_email = primaryContact.email || null;
+        }
+
+        // Nome/e-mail batendo com um contato já cadastrado é confirmação
+        // mais forte que a extração bruta do e-mail — some com o "REVISAR".
+        if (nameOrEmailMatch) {
+          aiResult.client.contact_confidence = 1;
+          aiResult.client.contact_needs_review = false;
+          aiResult.client.contact_validation = 'REGISTERED_CONTACT_MATCH';
         }
 
         // Se o e-mail trouxe um contato que não bate com NENHUM contato
         // conhecido do cliente (por e-mail, ou por nome quando não há
         // e-mail), sinaliza o conflito em vez de descartar silenciosamente.
         const hasExtracted = extractedContact.name || extractedContact.email;
-        if (hasExtracted && knownContacts.length) {
-          const matchesKnown = knownContacts.some((c: any) =>
-            (extractedContact.email && norm(c.email) === norm(extractedContact.email)) ||
-            (!extractedContact.email && norm(c.name) === norm(extractedContact.name))
-          );
-          if (!matchesKnown) {
-            aiResult.client.contact_conflict = { extracted: extractedContact, registeredContacts: knownContacts };
-          }
+        if (hasExtracted && knownContacts.length && !nameOrEmailMatch) {
+          aiResult.client.contact_conflict = { extracted: extractedContact, registeredContacts: knownContacts };
         }
       }
     }
