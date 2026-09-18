@@ -9,14 +9,19 @@ import { companyNamesLikelyMatch } from '../utils/companyNameUtils';
 export async function findClientByCnpjMatch(prisma: PrismaClient, clientCnpj?: string | null) {
   if (!clientCnpj) return null;
 
-  const exact = await prisma.client.findFirst({ where: { cnpj: clientCnpj } });
-  if (exact) return exact;
+  try {
+    const exact = await prisma.client.findFirst({ where: { cnpj: clientCnpj } });
+    if (exact) return exact;
 
-  const key = cnpjMatchKey(clientCnpj);
-  if (!key) return null;
+    const key = cnpjMatchKey(clientCnpj);
+    if (!key) return null;
 
-  const candidates = await prisma.client.findMany({ where: { cnpj: { not: null } } });
-  return candidates.find(c => cnpjMatchKey(c.cnpj) === key) || null;
+    const candidates = await prisma.client.findMany({ where: { cnpj: { not: null } } });
+    return candidates.find(c => cnpjMatchKey(c.cnpj) === key) || null;
+  } catch (error) {
+    console.warn('DB offline ou inacessível em findClientByCnpjMatch:', (error as any)?.message || error);
+    return null;
+  }
 }
 
 // Busca um cliente pelo nome: primeiro por igualdade exata, depois por
@@ -25,9 +30,14 @@ export async function findClientByCnpjMatch(prisma: PrismaClient, clientCnpj?: s
 export async function findClientByNameMatch(prisma: PrismaClient, clientName?: string | null) {
   if (!clientName) return null;
 
-  const exact = await prisma.client.findFirst({ where: { name: clientName } });
-  if (exact) return exact;
+  try {
+    const exact = await prisma.client.findFirst({ where: { name: clientName } });
+    if (exact) return exact;
 
-  const candidates = await prisma.client.findMany();
-  return candidates.find(c => companyNamesLikelyMatch(c.name, clientName)) || null;
+    const candidates = await prisma.client.findMany();
+    return candidates.find(c => companyNamesLikelyMatch(c.name, clientName)) || null;
+  } catch (error) {
+    console.warn('DB offline ou inacessível em findClientByNameMatch:', (error as any)?.message || error);
+    return null;
+  }
 }

@@ -1508,6 +1508,102 @@
 
       <!-- PASSO 5: PARCEIRO -->
       <div class="wizard-content" id="wizard-step-5">
+        <!-- PAINEL COMPACTO & ESTRATÉGICO DO TARIFÁRIO DE EXPORTAÇÃO AÉREA -->
+        <div id="air-export-tariff-panel" style="display:none; background: rgba(26,35,64,0.65); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+          <!-- CABEÇALHO -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <h3 style="margin:0; color: var(--gold); font-size: 15px; font-weight:800; display:flex; align-items:center; gap:8px;">
+                ✈️ Tarifário Aéreo ACG
+              </h3>
+              <span id="air-export-tariff-summary-badge" style="font-size: 11px; background: rgba(245,166,35,0.18); color: var(--gold); padding: 4px 10px; border-radius: 12px; font-weight: 700; border: 1px solid rgba(245,166,35,0.3);">0 opções</span>
+            </div>
+            <div id="air-export-tariff-subtitle" style="font-size:12px; color:var(--text); font-weight:500;">
+              <!-- Rota e Peso -->
+            </div>
+          </div>
+
+          <!-- BARRA DE FILTROS E ORDENAÇÃO PROMINENTE -->
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; background: rgba(15,22,41,0.7); border: 1px solid rgba(245,166,35,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--gold);">
+              <span>🔍 FILTROS E ORDENAÇÃO</span>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+              <!-- FILTRO: ORDENAR POR -->
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label for="tariff-sort-select" style="font-size:12px; font-weight:600; color:var(--text-muted); white-space:nowrap;">
+                  ↕️ Ordenar por:
+                </label>
+                <select id="tariff-sort-select" onchange="applyTariffFiltersAndSort()" style="padding:6px 12px; font-size:12px; font-weight:600; background:#1a2340; border:1px solid var(--border); color:var(--text); border-radius:8px; cursor:pointer; min-width:160px; outline:none;">
+                  <option value="ASC">🟢 Menor Valor</option>
+                  <option value="DESC">🔴 Maior Valor</option>
+                  <option value="AZ">🔤 Cia Aérea A–Z</option>
+                </select>
+              </div>
+
+              <!-- FILTRO MULTI-SELEÇÃO: COMPANHIA AÉREA -->
+              <div style="position:relative; display:flex; align-items:center; gap:8px;">
+                <label style="font-size:12px; font-weight:600; color:var(--text-muted); white-space:nowrap;">
+                  ✈️ Cias Aéreas:
+                </label>
+                <button type="button" id="tariff-airline-toggle-btn" onclick="toggleAirlineDropdownPopover(event)" style="padding:6px 12px; font-size:12px; font-weight:600; background:#1a2340; border:1px solid var(--border); color:var(--text); border-radius:8px; cursor:pointer; min-width:210px; text-align:left; display:flex; justify-content:space-between; align-items:center; outline:none;">
+                  <span id="tariff-airline-toggle-text">Todas as Cias Aéreas</span>
+                  <span style="font-size:10px; color:var(--text-muted); margin-left:8px;">▼</span>
+                </button>
+
+                <!-- POPOVER DE CHECKBOXES PARA SELEÇÃO MÚLTIPLA -->
+                <div id="tariff-airline-popover" style="display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:9500; background:#1a2340; border:1px solid var(--gold); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); min-width:240px; max-height:220px; overflow-y:auto; padding:4px 0;">
+                  <div id="tariff-airline-checkboxes-list">
+                    <!-- Checkboxes inseridos via JS -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="air-export-tariff-loading" style="display:none; text-align:center; padding:12px; color:var(--text-muted); font-size:12px;">
+            <span>⏳ Buscando opções no tarifário...</span>
+          </div>
+
+          <!-- TABELA ULTRA COMPACTA -->
+          <div id="air-export-tariff-table-container" style="overflow-x:auto; margin-bottom:10px; border:1px solid var(--border); border-radius:8px; background:rgba(15,22,41,0.5);">
+            <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">
+                  <th style="padding:6px 10px; width:30px; text-align:center;"></th>
+                  <th style="padding:6px 10px;">Companhia Aérea</th>
+                  <th style="padding:6px 10px;">Tipo / Produto</th>
+                  <th style="padding:6px 10px;">Aeronave</th>
+                  <th style="padding:6px 10px;">Faixa</th>
+                  <th style="padding:6px 10px; text-align:right;">Tarifa ($/kg)</th>
+                  <th style="padding:6px 10px; text-align:right;">Mínimo</th>
+                  <th style="padding:6px 10px; text-align:right;">Total Estimado</th>
+                </tr>
+              </thead>
+              <tbody id="air-export-tariff-list">
+                <!-- 3 linhas por página -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- RODAPÉ DE PAGINAÇÃO E AÇÕES COMPACTAS -->
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div id="air-export-tariff-pagination" style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-muted);">
+              <!-- Controles de Paginação -->
+            </div>
+
+            <div id="air-export-tariff-actions" style="display:flex; gap:8px; align-items:center;">
+              <button type="button" class="btn btn-secondary" id="btn-tariff-with-agent" onclick="selectTariffForAgentDraft()" style="padding:6px 12px; font-size:11px;">
+                📨 Cotar com Agente
+              </button>
+              <button type="button" class="btn btn-primary" id="btn-use-tariff-only" onclick="submitQuotationWithTariffOnly()" style="background:var(--gold); color:#0f1629; border:none; padding:7px 14px; font-weight:700; font-size:12px; cursor:pointer; border-radius:6px;">
+                ⚡ Aplicar Tarifa &amp; Gerar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+
         <h2><span class="emoji">🤝</span> Tipo de Parceiro</h2>
         <p class="desc">Selecione quem receberá esta cotação.</p>
 
@@ -3509,9 +3605,11 @@ function documentOriginLabel(origin) {
 }
 
 function formatDocumentSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  const num = Number(bytes) || 0;
+  if (num <= 0) return '0 B';
+  if (num < 1024) return num + ' B';
+  if (num < 1024 * 1024) return (num / 1024).toFixed(1) + ' KB';
+  return (num / 1024 / 1024).toFixed(1) + ' MB';
 }
 
 function renderQuotationDocuments() {
@@ -3521,7 +3619,7 @@ function renderQuotationDocuments() {
       ? '<p class="document-empty">Nenhum documento vinculado. Use “Adicionar documentos” para incluir arquivos recebidos por WhatsApp ou outros canais.</p>'
       : quotationDocuments.map(document => `
     <div class="quotation-document-row">
-      <div class="quotation-document-name"><a href="${API}/quotations/${currentQuotationId}/documents/${document.id}/download" title="Baixar ${ifrEscape(document.originalName)}">${ifrEscape(document.originalName)}</a><small>${documentOriginLabel(document.origin)} · ${formatDocumentSize(document.blob.size)}${document.sourceContainerName ? ' · extraído de ' + ifrEscape(document.sourceContainerName) : ''}</small></div>
+      <div class="quotation-document-name"><a href="${API}/quotations/${currentQuotationId}/documents/${document.id}/download" title="Baixar ${ifrEscape(document.originalName)}">${ifrEscape(document.originalName)}</a><small>${documentOriginLabel(document.origin)} · ${formatDocumentSize(document.blob?.size || document.size || 0)}${document.sourceContainerName ? ' · extraído de ' + ifrEscape(document.sourceContainerName) : ''}</small></div>
       <label class="document-check" title="Enviar ao parceiro"><input type="checkbox" data-document-role="partner" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''} onchange="setDocumentForwardDefault('${document.id}',this.checked)"><span style="display:none">Parceiro</span></label>
       <label class="document-check" title="Enviar ao prestador DTA"><input type="checkbox" data-document-role="dta" value="${document.id}"><span style="display:none">DTA</span></label>
       <label class="document-check" title="Enviar à transportadora"><input type="checkbox" data-document-role="trucker" value="${document.id}"><span style="display:none">Transportadora</span></label>
@@ -3533,7 +3631,7 @@ function renderQuotationDocuments() {
   });
   const replyContainer = document.getElementById('replyDocumentsList');
   if (replyContainer) replyContainer.innerHTML = quotationDocuments.length ? '<small style="display:block;color:var(--text-muted);margin-bottom:7px">Documentos para incluir nesta resposta:</small>' + quotationDocuments.map(document => `
-    <label style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-top:1px solid rgba(255,255,255,.06);font-size:11px"><input type="checkbox" data-document-role="reply" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''}><span>${ifrEscape(document.originalName)} <em style="color:var(--text-muted)">· ${formatDocumentSize(document.blob.size)}</em></span></label>`).join('') : '<p class="document-empty">Nenhum documento vinculado.</p>';
+    <label style="display:flex;align-items:center;gap:9px;padding:7px 4px;border-top:1px solid rgba(255,255,255,.06);font-size:11px"><input type="checkbox" data-document-role="reply" value="${document.id}" ${document.forwardByDefault ? 'checked' : ''}><span>${ifrEscape(document.originalName)} <em style="color:var(--text-muted)">· ${formatDocumentSize(document.blob?.size || document.size || 0)}</em></span></label>`).join('') : '<p class="document-empty">Nenhum documento vinculado.</p>';
 }
 
 function openPartnerReply(responseId) {
@@ -8796,6 +8894,16 @@ function switchSettingsTab(tab) {
           <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">Usada para calcular o IOF automaticamente (frete + taxas de origem × esta taxa) quando não há uma regra de Incoterm específica para a rota. O campo de IOF na cotação é sempre calculado pelo sistema — não é editável manualmente.</p>
         </div>
 
+        <div class="settings-section">
+          <h3 style="margin:0 0 14px;">Tarifário Aéreo</h3>
+          <div class="form-group" style="max-width:400px;">
+            <label>Upload de Planilha Excel (.xlsx, .xls)</label>
+            <input type="file" id="ps-tariff-upload" accept=".xlsx, .xls" style="padding: 6px; font-size: 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text);">
+          </div>
+          <button class="btn btn-secondary" onclick="uploadAirExportTariffJS(event)" style="margin-top:10px; font-size:12px;">📤 Importar Tarifário</button>
+          <p style="font-size:13px;color:var(--text-muted);margin:8px 0 0;">O upload de uma nova planilha substituirá todas as tarifas aéreas cadastradas no sistema. Utilize o modelo padrão "Tarifário Exportação Aérea_Modelo ACG.xlsx".</p>
+        </div>
+
         <button class="btn btn-primary" onclick="savePricingSettings()" style="margin-top:20px;">💾 Salvar Configurações</button>
       `;
       loadPricingSettings();
@@ -11133,6 +11241,47 @@ async function savePricingSettings() {
   }
 }
 
+async function uploadAirExportTariffJS(event) {
+  event.preventDefault();
+  const fileInput = document.getElementById('ps-tariff-upload');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    toast('⚠️ Selecione um arquivo Excel primeiro.');
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const btn = event.target;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '⏳ Importando...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(API + '/quotations/air-export-tariffs/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+      body: formData
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Erro no upload');
+    }
+    
+    const result = await res.json();
+    toast(`✅ Tarifário importado com sucesso! ${result.importedRows} registros inseridos.`);
+    fileInput.value = ''; // limpa o input
+  } catch (error) {
+    toast('❌ ' + error.message);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
+
 async function loadDeconsolidatorsTable() {
   try {
     const res = await fetch(API + '/deconsolidators');
@@ -12496,6 +12645,7 @@ function updateWizardUI() {
     document.getElementById('btnWizardNext').style.display = 'inline-block';
     document.getElementById('btnSendAgent').style.display = 'inline-block';
     document.getElementById('btnSendOutlook').style.display = 'none';
+    checkAndRenderAirExportTariffs();
   } else {
     document.getElementById('btnWizardNext').style.display = 'inline-block';
     document.getElementById('btnSendAgent').style.display = 'none';
@@ -12503,6 +12653,374 @@ function updateWizardUI() {
   }
 
   updateWizardVehicleIcon();
+}
+
+window.rawAirExportTariffRates = [];
+window.selectedAirlineNames = new Set();
+window.selectedAirExportTariffRate = null;
+window.airExportTariffRatesList = [];
+window.tariffCurrentPage = 1;
+window.tariffPageSize = 3;
+
+async function checkAndRenderAirExportTariffs() {
+  const panel = document.getElementById('air-export-tariff-panel');
+  if (!panel) return;
+
+  const direction = (document.getElementById('r-direction')?.value || 'EXPORT').toUpperCase();
+  const loadType = (document.getElementById('r-type')?.value || 'AIR_GENERAL').toUpperCase();
+  const isAirExport = direction === 'EXPORT' && loadType.includes('AIR');
+
+  if (!isAirExport) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+
+  const originPort = document.getElementById('r-origin-port')?.value || document.getElementById('r-origin')?.value || '';
+  const destPort = document.getElementById('r-destination-port')?.value || document.getElementById('r-destination')?.value || '';
+  
+  let weightKg = parseFloat(document.getElementById('r-weight')?.value || '0') || 0;
+  const packages = parseInt(document.getElementById('r-packages')?.value || '1') || 1;
+  const dimensions = document.getElementById('r-dimensions')?.value || '';
+  const cbmVal = calculateCbmLocal(dimensions, packages);
+  
+  const taxavelCalculado = getLocalTaxavel(dimensions, packages, weightKg, loadType, cbmVal, 'M');
+  if (taxavelCalculado > 0) {
+    weightKg = taxavelCalculado;
+  }
+
+  const commodity = document.getElementById('r-cargo-description')?.value || '';
+
+  const listEl = document.getElementById('air-export-tariff-list');
+  const loadingEl = document.getElementById('air-export-tariff-loading');
+  const subtitleEl = document.getElementById('air-export-tariff-subtitle');
+
+  if (subtitleEl) {
+    subtitleEl.innerHTML = `Rota: <strong>${escapeFeeHtml(originPort || 'GRU')} → ${escapeFeeHtml(destPort || 'SCL')}</strong> | Peso Taxável: <strong>${weightKg > 0 ? weightKg + ' kg' : 'A definir'}</strong>`;
+  }
+
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (listEl) listEl.innerHTML = '';
+
+  try {
+    const url = `/api/quotations/air-export-tariffs?origin=${encodeURIComponent(originPort)}&destination=${encodeURIComponent(destPort)}&weightKg=${encodeURIComponent(weightKg)}&commodity=${encodeURIComponent(commodity)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (loadingEl) loadingEl.style.display = 'none';
+
+    window.rawAirExportTariffRates = data.rates || [];
+    window.selectedAirlineNames.clear();
+    
+    // Popula o dropdown de Cias Aéreas com checkboxes de seleção múltipla
+    populateAirlineFilterDropdown(window.rawAirExportTariffRates);
+
+    // Aplica os filtros e a ordenação padrão (Menor Valor primeiro)
+    applyTariffFiltersAndSort();
+  } catch (err) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (listEl) listEl.innerHTML = `<tr><td colspan="8" style="color:var(--error); padding:12px; text-align:center;">Erro ao carregar tarifário: ${escapeFeeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function populateAirlineFilterDropdown(rates) {
+  const container = document.getElementById('tariff-airline-checkboxes-list');
+  if (!container) return;
+
+  const uniqueAirlines = new Map();
+  (rates || []).forEach(r => {
+    if (r.airlineName && !uniqueAirlines.has(r.airlineName)) {
+      uniqueAirlines.set(r.airlineName, r.airlineCode);
+    }
+  });
+
+  const sortedList = Array.from(uniqueAirlines.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  
+  if (window.selectedAirlineNames.size === 0) {
+    sortedList.forEach(([name]) => window.selectedAirlineNames.add(name));
+  }
+
+  const allChecked = sortedList.length > 0 && sortedList.every(([name]) => window.selectedAirlineNames.has(name));
+
+  let html = `
+    <label style="display:flex; align-items:center; gap:8px; padding:6px 12px; cursor:pointer; font-weight:700; border-bottom:1px solid rgba(255,255,255,0.08); font-size:11px; color:var(--gold);">
+      <input type="checkbox" id="chk-airline-all" onchange="toggleAllAirlineCheckboxes(this.checked)" ${allChecked ? 'checked' : ''} style="accent-color:var(--gold); cursor:pointer;">
+      <span>Selecionar Todas (${sortedList.length})</span>
+    </label>`;
+
+  sortedList.forEach(([name, code]) => {
+    const checked = window.selectedAirlineNames.has(name);
+    html += `
+      <label style="display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:11px; color:var(--text); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+        <input type="checkbox" class="chk-airline-item" value="${escapeFeeHtml(name)}" onchange="onAirlineCheckboxChange('${escapeFeeHtml(name)}', this.checked)" ${checked ? 'checked' : ''} style="accent-color:var(--gold); cursor:pointer;">
+        <span>${escapeFeeHtml(name)} <small style="color:var(--text-muted);">(${escapeFeeHtml(code)})</small></span>
+      </label>`;
+  });
+
+  container.innerHTML = html;
+  updateAirlineToggleLabel(sortedList.length);
+}
+
+function updateAirlineToggleLabel(totalCount) {
+  const toggleBtnText = document.getElementById('tariff-airline-toggle-text');
+  if (!toggleBtnText) return;
+
+  const total = totalCount || (document.querySelectorAll('.chk-airline-item')?.length || 0);
+  const selectedCount = window.selectedAirlineNames.size;
+
+  if (selectedCount === 0 || selectedCount >= total) {
+    toggleBtnText.textContent = `Todas as Cias Aéreas (${total})`;
+  } else if (selectedCount === 1) {
+    const firstName = Array.from(window.selectedAirlineNames)[0];
+    toggleBtnText.textContent = `${firstName}`;
+  } else {
+    toggleBtnText.textContent = `Cias Aéreas (${selectedCount} selecionadas)`;
+  }
+}
+
+function toggleAllAirlineCheckboxes(isChecked) {
+  const container = document.getElementById('tariff-airline-checkboxes-list');
+  if (!container) return;
+
+  const checkboxes = container.querySelectorAll('.chk-airline-item');
+  window.selectedAirlineNames.clear();
+
+  checkboxes.forEach(chk => {
+    chk.checked = isChecked;
+    if (isChecked) window.selectedAirlineNames.add(chk.value);
+  });
+
+  applyTariffFiltersAndSort();
+}
+
+function onAirlineCheckboxChange(airlineName, isChecked) {
+  if (isChecked) {
+    window.selectedAirlineNames.add(airlineName);
+  } else {
+    window.selectedAirlineNames.delete(airlineName);
+  }
+
+  const container = document.getElementById('tariff-airline-checkboxes-list');
+  const totalItems = container ? container.querySelectorAll('.chk-airline-item').length : 0;
+  const chkAll = document.getElementById('chk-airline-all');
+  if (chkAll) chkAll.checked = window.selectedAirlineNames.size >= totalItems;
+
+  applyTariffFiltersAndSort();
+}
+
+function toggleAirlineDropdownPopover(e) {
+  if (e) e.stopPropagation();
+  const popover = document.getElementById('tariff-airline-popover');
+  if (!popover) return;
+  const isShown = popover.style.display === 'block';
+  popover.style.display = isShown ? 'none' : 'block';
+}
+
+document.addEventListener('click', function(e) {
+  const popover = document.getElementById('tariff-airline-popover');
+  const toggleBtn = document.getElementById('tariff-airline-toggle-btn');
+  if (popover && popover.style.display === 'block') {
+    if (!popover.contains(e.target) && !toggleBtn?.contains(e.target)) {
+      popover.style.display = 'none';
+    }
+  }
+});
+
+function applyTariffFiltersAndSort() {
+  const sortVal = document.getElementById('tariff-sort-select')?.value || 'ASC';
+  const badgeEl = document.getElementById('air-export-tariff-summary-badge');
+
+  let filtered = [...(window.rawAirExportTariffRates || [])];
+  const totalAvailable = filtered.length;
+
+  // Filtro Multi-Seleção de Cias Aéreas
+  if (window.selectedAirlineNames.size > 0) {
+    filtered = filtered.filter(r => window.selectedAirlineNames.has(r.airlineName));
+  } else {
+    filtered = []; // Nenhuma Cia selecionada
+  }
+
+  const uniqueCount = new Set((window.rawAirExportTariffRates || []).map(r => r.airlineName)).size;
+  updateAirlineToggleLabel(uniqueCount);
+
+  // Ordenação: Menor Preço, Maior Preço, A-Z
+  if (sortVal === 'ASC') {
+    filtered.sort((a, b) => (a.totalFreight || 0) - (b.totalFreight || 0));
+  } else if (sortVal === 'DESC') {
+    filtered.sort((a, b) => (b.totalFreight || 0) - (a.totalFreight || 0));
+  } else if (sortVal === 'AZ') {
+    filtered.sort((a, b) => (a.airlineName || '').localeCompare(b.airlineName || ''));
+  }
+
+  window.airExportTariffRatesList = filtered;
+  window.tariffCurrentPage = 1;
+
+  if (badgeEl) badgeEl.textContent = `${filtered.length} de ${totalAvailable} opções`;
+
+  if (filtered.length > 0) {
+    if (!filtered.includes(window.selectedAirExportTariffRate)) {
+      window.selectedAirExportTariffRate = filtered[0];
+    }
+  } else {
+    window.selectedAirExportTariffRate = null;
+  }
+
+  renderTariffPage();
+}
+
+function renderTariffPage() {
+  const listEl = document.getElementById('air-export-tariff-list');
+  const paginationEl = document.getElementById('air-export-tariff-pagination');
+  if (!listEl) return;
+
+  const total = window.airExportTariffRatesList.length;
+  if (!total) {
+    listEl.innerHTML = `
+      <tr>
+        <td colspan="8" style="padding:14px; text-align:center; color:var(--text-muted);">
+          Nenhuma tarifa cadastrada no tarifário para esta rota.
+        </td>
+      </tr>`;
+    if (paginationEl) paginationEl.innerHTML = '';
+    return;
+  }
+
+  const totalPages = Math.ceil(total / window.tariffPageSize);
+  if (window.tariffCurrentPage > totalPages) window.tariffCurrentPage = totalPages;
+  if (window.tariffCurrentPage < 1) window.tariffCurrentPage = 1;
+
+  const startIdx = (window.tariffCurrentPage - 1) * window.tariffPageSize;
+  const endIdx = Math.min(startIdx + window.tariffPageSize, total);
+  const pageRates = window.airExportTariffRatesList.slice(startIdx, endIdx);
+
+  let html = '';
+  pageRates.forEach((rate, pageOffset) => {
+    const globalIdx = startIdx + pageOffset;
+    const isSelected = window.selectedAirExportTariffRate === rate;
+
+    const totalFreightUsd = rate.totalFreight ? Number(rate.totalFreight).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
+    const unitRateUsd = rate.unitRatePerKg ? Number(rate.unitRatePerKg).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
+    const minRateUsd = rate.minRate ? 'USD ' + Number(rate.minRate).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+
+    const typeBadge = rate.rateType ? `<span style="font-size:10px; padding:1px 5px; border-radius:3px; background:rgba(255,255,255,0.06); color:var(--text-muted);">${escapeFeeHtml(rate.rateType)}${rate.prodCode && rate.prodCode !== 'STANDARD' ? ' / ' + escapeFeeHtml(rate.prodCode) : ''}</span>` : '-';
+    const aircraftInfo = rate.aircraftTypes ? `<span style="font-size:10px; color:var(--text-muted);">${escapeFeeHtml(rate.aircraftTypes)}${rate.flightNo ? ' (' + escapeFeeHtml(rate.flightNo) + ')' : ''}</span>` : 'ALL';
+
+    html += `
+      <tr id="tariff-row-${globalIdx}" onclick="onAirTariffSelect(${globalIdx})" style="border-bottom:1px solid rgba(255,255,255,0.04); background:${isSelected ? 'rgba(245,166,35,0.08)' : 'transparent'}; cursor:pointer; transition:background 0.15s ease;">
+        <td style="padding:6px 10px; text-align:center;">
+          <input type="radio" name="air_tariff_selection" value="${globalIdx}" ${isSelected ? 'checked' : ''} onchange="onAirTariffSelect(${globalIdx})" style="width:14px; height:14px; accent-color:var(--gold); cursor:pointer;">
+        </td>
+        <td style="padding:6px 10px; font-weight:700; color:var(--text); font-size:12px;">
+          ✈️ ${escapeFeeHtml(rate.airlineName)} <span style="font-size:10px; color:var(--text-muted); font-weight:400;">(${escapeFeeHtml(rate.airlineCode)})</span>
+        </td>
+        <td style="padding:6px 10px;">${typeBadge}</td>
+        <td style="padding:6px 10px;">${aircraftInfo}</td>
+        <td style="padding:6px 10px;"><span style="font-size:10px; font-weight:600; color:var(--gold);">${escapeFeeHtml(rate.selectedWeightBreak || 'N/A')}</span></td>
+        <td style="padding:6px 10px; text-align:right; font-weight:600; font-size:12px;">USD ${unitRateUsd}</td>
+        <td style="padding:6px 10px; text-align:right; color:var(--text-muted); font-size:11px;">${minRateUsd}</td>
+        <td style="padding:6px 10px; text-align:right; font-weight:800; color:var(--gold); font-size:13px;">USD ${totalFreightUsd}</td>
+      </tr>`;
+  });
+
+  listEl.innerHTML = html;
+
+  if (paginationEl) {
+    paginationEl.innerHTML = `
+      <span>Exibindo ${startIdx + 1}–${endIdx} de ${total}</span>
+      <div style="display:flex; gap:4px; margin-left:6px; align-items:center;">
+        <button type="button" class="btn btn-secondary" onclick="changeTariffPage(-1)" ${window.tariffCurrentPage <= 1 ? 'disabled style="opacity:0.35; padding:2px 7px; font-size:10px;"' : 'style="padding:2px 7px; font-size:10px;"'}>&lt;</button>
+        <span style="font-weight:600; color:var(--gold); font-size:11px; padding:0 4px;">Pág. ${window.tariffCurrentPage} / ${totalPages}</span>
+        <button type="button" class="btn btn-secondary" onclick="changeTariffPage(1)" ${window.tariffCurrentPage >= totalPages ? 'disabled style="opacity:0.35; padding:2px 7px; font-size:10px;"' : 'style="padding:2px 7px; font-size:10px;"'}>&gt;</button>
+      </div>`;
+  }
+}
+
+function changeTariffPage(delta) {
+  window.tariffCurrentPage += delta;
+  renderTariffPage();
+}
+
+function onAirTariffSelect(globalIdx) {
+  window.selectedAirExportTariffRate = window.airExportTariffRatesList[globalIdx] || null;
+  renderTariffPage();
+}
+
+async function submitQuotationWithTariffOnly() {
+  const selected = window.selectedAirExportTariffRate;
+  if (!selected) {
+    alert('Selecione uma tarifa da companhia aérea antes de prosseguir.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-use-tariff-only');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⚡ Salvando e Gerando Revisão...';
+
+  try {
+    const qData = await saveQuotationRecord();
+    if (!qData || !qData.id) throw new Error('Não foi possível obter a cotação salva.');
+
+    const updateRes = await fetch(API + '/quotations/' + qData.id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        carrier: selected.airlineName,
+        freightValue: selected.totalFreight,
+        freightCurrency: selected.currency || 'USD',
+        weightBreak: selected.selectedWeightBreak,
+        ruleStage: 'FINAL',
+        status: 'GERADA'
+      })
+    });
+
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+
+    if (!updateRes.ok) {
+      const errJson = await updateRes.json();
+      throw new Error(errJson.error || 'Erro ao atualizar tarifa.');
+    }
+
+    // Aplica as regras de Incoterm para puxar as taxas obrigatórias (ex: coleta na origem)
+    qData.weightBreak = selected.selectedWeightBreak;
+    try {
+      const normalizedModal = normalizeReturnRuleModal(qData);
+      const incotermToFetch = qData.route?.incoterm || qData.incoterm;
+      if (incotermToFetch) {
+        const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incotermToFetch)}&modal=${encodeURIComponent(normalizedModal)}&direction=${encodeURIComponent(qData.direction || 'IMPORT')}`);
+        if (rulesResponse.ok) {
+          const loadedRules = await rulesResponse.json();
+          const ruleList = Array.isArray(loadedRules) ? loadedRules : [];
+          const specificRules = ruleList.filter(rule => rule.modal === normalizedModal);
+          const specificNames = new Set(specificRules.map(rule => `${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
+          const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
+          returnIncotermRules = [...specificRules, ...complementaryRules];
+          applyReturnIncotermRules(qData, true);
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar regras de Incoterm no tarifário:', e);
+    }
+
+    // Abre imediatamente a modal de Revisão Final da Cotação!
+    await validateAndGeneratePDF(qData.id);
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+    alert('Erro ao processar cotação com tarifário: ' + err.message);
+  }
+}
+
+function selectTariffForAgentDraft() {
+  const selected = window.selectedAirExportTariffRate;
+  if (!selected) {
+    alert('Selecione uma tarifa do tarifário antes de prosseguir.');
+    return;
+  }
+  const totalFmt = Number(selected.totalFreight || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  alert(`Tarifa da ${selected.airlineName} (USD ${totalFmt}) selecionada como referência. Selecione os contatos do agente abaixo para enviar a solicitação.`);
+  document.getElementById('partner-list-search')?.focus();
 }
 
 function updateWizardVehicleIcon() {

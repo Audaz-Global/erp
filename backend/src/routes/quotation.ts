@@ -15,7 +15,9 @@ import {
   duplicateQuotation,
   getPublicWebView,
   previewIncotermApplicability,
-  previewGeographicComparison
+  previewGeographicComparison,
+  getAirExportTariffs,
+  uploadAirExportTariff
 } from '../controllers/quotationController';
 
 const router = Router();
@@ -27,7 +29,10 @@ router.get('/:id/view', getPublicWebView);
 // Protect all other quotation routes
 router.use(authenticate);
 
+router.get('/air-export-tariffs', getAirExportTariffs);
+router.post('/air-export-tariffs/upload', documentUpload.single('file'), uploadAirExportTariff);
 router.post('/', createQuotation);
+
 router.get('/', getQuotations);
 router.get('/metrics/partner-responses', getPartnerResponseMetrics);
 router.post('/incoterm-applicability-preview', previewIncotermApplicability);
