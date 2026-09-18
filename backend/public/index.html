@@ -6029,6 +6029,16 @@ function setDraftDispatchState(state, details = {}) {
 // registro no banco (o que também libera o upload dos documentos pendentes).
 // Extraído de generateDraftEmail() para poder ser chamado mais cedo — ao
 // entrar no passo 7 (Documentos) — sem disparar a geração do rascunho por IA.
+// Frete da tarifa escolhida em "Cotar com Agente", gravado em qualquer caminho
+// que salve a cotação. Só vale se ela ainda é a selecionada na tabela.
+function referenceTariffFields() {
+  const referenceTariff = window.agentReferenceTariff;
+  if (!referenceTariff || referenceTariff !== window.selectedAirExportTariffRate || referenceTariff.totalFreight == null) return {};
+  const fields = { freightValue: Number(referenceTariff.totalFreight), freightCurrency: referenceTariff.currency || 'USD' };
+  if (referenceTariff.selectedWeightBreak) fields.weightBreak = referenceTariff.selectedWeightBreak;
+  return fields;
+}
+
 async function saveQuotationRecord() {
   const body = {
       reference: document.getElementById('r-reference').value,
@@ -6089,13 +6099,7 @@ async function saveQuotationRecord() {
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
-    // Só vale se a tarifa de referência ainda é a selecionada na tabela.
-    const referenceTariff = window.agentReferenceTariff;
-    if (referenceTariff && referenceTariff === window.selectedAirExportTariffRate && referenceTariff.totalFreight != null) {
-      body.freightValue = Number(referenceTariff.totalFreight);
-      body.freightCurrency = referenceTariff.currency || 'USD';
-      if (referenceTariff.selectedWeightBreak) body.weightBreak = referenceTariff.selectedWeightBreak;
-    }
+    Object.assign(body, referenceTariffFields());
     let resCreate;
     if (currentQuotationId) {
       // Atualizar cotação existente
@@ -6455,7 +6459,8 @@ async function saveAsAwaitingAgent() {
       truckerName: selectedTruckerRecipients[0]?.partnerName || null,
       truckerEmail: selectedTruckerRecipients[0]?.email || null,
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
-      transportRoute: document.getElementById('r-transport-route').value || null
+      transportRoute: document.getElementById('r-transport-route').value || null,
+      ...referenceTariffFields()
     };
 
     if (!currentQuotationId) {
