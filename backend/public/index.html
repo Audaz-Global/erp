@@ -8121,7 +8121,12 @@ async function loadPendingQuotationData() {
   if (q.freightValue != null) {
     document.getElementById('r-freight').value = q.freightValue;
     document.getElementById('r-freight-currency').value = normalizeCostCurrency(q.freightCurrency || 'USD');
-    if (q.weightBreak) document.getElementById('r-weight-break').value = q.weightBreak;
+    // Tarifário grava a faixa como "+1000-KG"; o select usa "+1000".
+    const savedBreak = String(q.weightBreak || '').trim();
+    const breakSelect = document.getElementById('r-weight-break');
+    const breakMatch = savedBreak.match(/^\+?\s*(\d+)/);
+    const breakValue = breakMatch ? `+${breakMatch[1]}` : savedBreak.toLowerCase();
+    if (breakValue && [...breakSelect.options].some(opt => opt.value === breakValue)) breakSelect.value = breakValue;
     document.getElementById('r-freight').dispatchEvent(new Event('input'));
   }
   try {
