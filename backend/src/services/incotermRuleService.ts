@@ -45,6 +45,7 @@ export interface CalculatedFee {
   provenanceLabel?: string;
   evidence?: string | null;
   needsReview?: boolean;
+  mandatory?: boolean;
 }
 
 export interface FeeCalculationContext {
@@ -241,7 +242,8 @@ export function calculateFee(
       provenanceType: 'SYSTEM_RULE',
       provenanceLabel: 'Regra automática · Incoterm (a cotar)',
       evidence: rule.description || null,
-      needsReview: true
+      needsReview: true,
+      mandatory: Boolean((rule as any).required)
     };
   }
 
@@ -376,7 +378,8 @@ export function calculateFee(
     provenanceType: 'SYSTEM_RULE',
     provenanceLabel: 'Regra automática · Incoterm',
     evidence: rule.description || null,
-    needsReview: rule.chargeType === 'PER_DG_PRODUCT' && Number(qty) <= 0
+    needsReview: rule.chargeType === 'PER_DG_PRODUCT' && Number(qty) <= 0,
+    mandatory: Boolean((rule as any).required)
   };
 }
 
@@ -414,6 +417,7 @@ export function formatFeesForController(
     costCurrency: f.costCurrency,
     unitValue: f.unitValue,
     billingUnit: f.billingUnit,
-    quantity: f.quantity
+    quantity: f.quantity,
+    mandatory: f.mandatory
   }));
 }

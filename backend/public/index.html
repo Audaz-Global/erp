@@ -7942,27 +7942,32 @@ function calculateReturnRuleFees(q) {
     const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
     const quantity = quantityMap[rule.chargeType] ?? null;
     const percentageBaseValue = rule.chargeType === 'PERCENTAGE' && Number(rule.value) > 0 ? totalValue * 100 / Number(rule.value) : null;
-    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN' };
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN', mandatory:Boolean(rule.required) };
   };
 
+  // Presets de regra só entram aqui se forem obrigatórios OU já tiverem um
+  // valor real calculado — regra opcional zerada (sem base de cálculo ainda)
+  // só polui a tela sem trazer informação nova. Taxa vinda do e-mail nunca
+  // passa por aqui: ela é mesclada à parte em mergeReturnFees a partir do
+  // que já está no textarea, então nunca é afetada por este filtro.
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
     if (rule.pricingStatus === 'ON_REQUEST') {
-      calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
+      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
       return;
     }
     const value = calculateRule(rule);
-    if (value != null) {
+    if (value != null && (rule.required || value > 0)) {
       calculated.push(structuredRuleFee(rule, value));
       originTotal += value;
     }
   });
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'DESTINATION').forEach(rule => {
     if (rule.pricingStatus === 'ON_REQUEST') {
-      calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
+      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
       return;
     }
     const value = calculateRule(rule);
-    if (value != null) calculated.push(structuredRuleFee(rule, value));
+    if (value != null && (rule.required || value > 0)) calculated.push(structuredRuleFee(rule, value));
   });
   return calculated;
 }
@@ -11586,7 +11591,10 @@ function currentUnifiedApplication() {
     incoterm: document.getElementById('sf-app-incoterm').value,
     modal: document.getElementById('sf-app-modal').value,
     direction: document.getElementById('sf-app-direction').value,
-    required: document.getElementById('sf-app-required').checked,
+    // required é sempre derivado de applicability (o backend recalcula do
+    // mesmo jeito ao salvar) — nunca lido do checkbox separado, pra não
+    // divergir entre o que a lista mostra antes de salvar e o que persiste.
+    required: applicability === 'REQUIRED',
     sortOrder: Number(document.getElementById('sf-app-order').value),
     active: true,
     applicability,

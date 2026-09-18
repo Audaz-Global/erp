@@ -89,7 +89,10 @@ export function normalizeApplications(value: unknown) {
       throw new Error(`${err.message} (aplicação ${index + 1})`);
     }
     return {
-      incoterm, modal, direction, required: Boolean(application.required), sortOrder, active: application.active !== false,
+      // required é derivado de applicability — nunca aceito como input
+      // independente, pra não divergir entre esta tela e a Árvore de
+      // Incoterms, que editam a mesma regra.
+      incoterm, modal, direction, required: applicability === 'REQUIRED', sortOrder, active: application.active !== false,
       applicability, financialGroup: application.financialGroup ? String(application.financialGroup).toUpperCase() : null,
       condition, reason: application.reason ? String(application.reason).trim() || null : null
     };
