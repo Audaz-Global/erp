@@ -240,6 +240,20 @@ export const extractData = async (req: Request, res: Response) => {
 
       aiResult = await extractAgentCosts(combinedText, contextRules, localFeesTable, quotationContext, mediaParts);
       if (aiResult?.costs) {
+        // Remove valores nulos/zeros inseridos pelo Schema se a IA atestou que não estão presentes no e-mail
+        if (Array.isArray(aiResult.costs.present_fields)) {
+          const present = new Set(aiResult.costs.present_fields.map((f: string) => f.toLowerCase().trim()));
+          if (!present.has('freight_value') && (aiResult.costs.freight_value === 0 || aiResult.costs.freight_value === null)) {
+            delete aiResult.costs.freight_value;
+          }
+          if (!present.has('freight_usd') && (aiResult.costs.freight_usd === 0 || aiResult.costs.freight_usd === null)) {
+            delete aiResult.costs.freight_usd;
+          }
+          if (!present.has('services_brl') && (aiResult.costs.services_brl === 0 || aiResult.costs.services_brl === null)) {
+            delete aiResult.costs.services_brl;
+          }
+        }
+        
         tagPartnerCosts(aiResult.costs, (quotation as any)?.partnerType);
         applyRateValidityPolicy(aiResult.costs);
         applyStackableReviewPolicy(aiResult.costs, quotation);
