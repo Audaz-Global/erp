@@ -2715,6 +2715,7 @@
         <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Árvore de Incoterms</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
+        <li data-tab="airlineProfiles" onclick="switchSettingsTab('airlineProfiles')">Cadastro de Companhias Aéreas</li>
 
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
@@ -8914,6 +8915,7 @@ function switchSettingsTab(tab) {
     case 'fixedFeesAir':
       currentFixedFeeScope = 'AIR';
       content.innerHTML = buildFixedFeesTabHtml('AIR');
+      loadAirlineOptionsForFixedFees();
       loadFixedFeesTable();
       break;
 
@@ -9119,6 +9121,13 @@ function switchSettingsTab(tab) {
         if (info) info.textContent = 'Vincule cobranças acessórias exclusivas deste armador, como ISPS, THC, documentação ou DG. Frete internacional deve ser cadastrado na Base de Fretes Marítimos.';
       }
       loadCarrierProfilesSettings();
+      break;
+
+    case 'airlineProfiles':
+      content.innerHTML=`<div class="sc-title">Cadastro de Companhias Aéreas</div><p class="sc-desc">Cadastre a identidade de cada companhia aérea: nome, código IATA e as siglas que ela usa nos AWBs (ex: CTC, FSC, BGC). Valores das taxas seguem únicos, cadastrados na Árvore de Incoterms — aqui você só vincula taxas exclusivas de uma companhia específica.</p>
+      <div class="settings-section"><div style="display:flex;justify-content:space-between"><h3>Cadastro da Companhia Aérea</h3><button class="btn btn-secondary" onclick="importAtlantisAirlinesCatalog()">Importar catálogo (Projeto Atlantis)</button></div><div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px"><div class="form-group"><label>Nome</label><input id="ap-name"></div><div class="form-group"><label>Código IATA</label><input id="ap-code" maxlength="2" style="text-transform:uppercase"></div><div class="form-group"><label>Siglas usadas nos AWBs, separadas por vírgula</label><input id="ap-aliases" placeholder="CTC, FSC, BGC"></div></div><div class="form-group"><label>Observações operacionais</label><input id="ap-description" placeholder="Hubs, rotas, moedas faturadas, tipo de faturamento..."></div><input type="hidden" id="ap-id"><button class="btn btn-primary" onclick="saveAirlineProfile()">Salvar Companhia Aérea</button><button class="btn btn-secondary" onclick="cancelAirlineProfileEdit()">Limpar</button><div id="airlineProfilesTable" style="margin-top:14px;overflow:auto"></div></div>
+      <div class="settings-section"><h3>Taxas Exclusivas</h3><p style="font-size:12px;color:var(--text-muted)">Vincule uma taxa do cadastro "Tarifas Específicas — Companhias Aéreas" à companhia aérea.</p><div style="display:grid;grid-template-columns:1fr 2fr auto;gap:12px;align-items:end"><div class="form-group"><label>Companhia Aérea</label><select id="apf-airline"></select></div><div class="form-group"><label>Taxa</label><select id="apf-fee"></select></div><button class="btn btn-primary" onclick="linkAirlineFee()">Vincular</button></div><div id="airlineFeesTable" style="margin-top:14px;overflow:auto"></div></div>`;
+      loadAirlineProfilesSettings();
       break;
 
     case 'carrierRates':
@@ -11059,7 +11068,9 @@ function buildFixedFeesTabHtml(scope) {
 
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
         <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: Capatazia, AWB Fee, BL Fee..."></div>
-        <div class="form-group" style="margin:0;"><label>${isSea ? 'Armador' : 'Cia Aérea'}</label><input type="text" id="ff-carrier" placeholder="${isSea ? 'Ex: COSCO, MSC (Opcional)' : 'Ex: LATAM, Azul (Opcional)'}"></div>
+        ${isSea
+          ? `<div class="form-group" style="margin:0;"><label>Armador</label><input type="text" id="ff-carrier" placeholder="Ex: COSCO, MSC (Opcional)"></div>`
+          : `<div class="form-group" style="margin:0;"><label>Cia Aérea</label><select id="ff-airline-select" onchange="onFixedFeeAirlineChange()"><option value="">Selecione (opcional)...</option></select><input type="hidden" id="ff-carrier"><input type="hidden" id="ff-airline-profile-id"></div>`}
         <div class="form-group" style="margin:0;"><label>Equipamento / Carga</label>
           <select id="ff-container">
             <option value="">Nenhum/Opcional</option>
@@ -11194,6 +11205,23 @@ async function loadFixedFeesTable() {
   }
 }
 
+async function loadAirlineOptionsForFixedFees() {
+  const select = document.getElementById('ff-airline-select');
+  if (!select) return;
+  try {
+    const res = await fetch(API + '/airline-profiles');
+    const airlines = res.ok ? await res.json() : [];
+    select.innerHTML = '<option value="">Selecione (opcional)...</option>' + airlines.map(a => `<option value="${a.id}">${ifrEscape(a.name)}${a.code ? ' (' + ifrEscape(a.code) + ')' : ''}</option>`).join('');
+  } catch (e) { console.error('Erro ao carregar companhias aéreas', e); }
+}
+
+function onFixedFeeAirlineChange() {
+  const select = document.getElementById('ff-airline-select');
+  const option = select?.selectedOptions?.[0];
+  document.getElementById('ff-airline-profile-id').value = select?.value || '';
+  document.getElementById('ff-carrier').value = select?.value ? (option?.textContent || '').replace(/\s*\([^)]*\)$/, '') : '';
+}
+
 function clearFixedFeeFilters() {
   ['fff-search', 'fff-type', 'fff-carrier', 'fff-equipment', 'fff-status']
     .forEach(id => {
@@ -11207,6 +11235,10 @@ function editFixedFee(fee) {
   document.getElementById('ff-id').value = fee.id;
   document.getElementById('ff-name').value = fee.name;
   document.getElementById('ff-carrier').value = fee.carrier || '';
+  const airlineProfileIdField = document.getElementById('ff-airline-profile-id');
+  if (airlineProfileIdField) airlineProfileIdField.value = fee.airlineProfileId || '';
+  const airlineSelect = document.getElementById('ff-airline-select');
+  if (airlineSelect) airlineSelect.value = fee.airlineProfileId || '';
   document.getElementById('ff-container').value = fee.containerSize || '';
   document.getElementById('ff-value').value = fee.value;
   document.getElementById('ff-currency').value = fee.currency;
@@ -11227,6 +11259,10 @@ function cancelEditFixedFee() {
   document.getElementById('ff-id').value = '';
   document.getElementById('ff-name').value = '';
   document.getElementById('ff-carrier').value = '';
+  const airlineProfileIdField = document.getElementById('ff-airline-profile-id');
+  if (airlineProfileIdField) airlineProfileIdField.value = '';
+  const airlineSelect = document.getElementById('ff-airline-select');
+  if (airlineSelect) airlineSelect.value = '';
   document.getElementById('ff-container').value = '';
   document.getElementById('ff-value').value = '';
   document.getElementById('ff-currency').value = 'USD';
@@ -11258,6 +11294,7 @@ async function saveFixedFee() {
   const payload = {
     name,
     carrier,
+    airlineProfileId: document.getElementById('ff-airline-profile-id')?.value || null,
     containerSize,
     value: parseFloat(value),
     currency: document.getElementById('ff-currency').value,
@@ -12226,6 +12263,37 @@ async function seedMaerskProfile(){await fetch('/api/carrier-profiles/seed-maers
 async function saveCarrierFieldRule(){const carrierId=document.getElementById('cfr-carrier').value,data={id:document.getElementById('cfr-id').value||undefined,modal:document.getElementById('cfr-modal').value,stage:document.getElementById('cfr-stage').value,fieldKey:document.getElementById('cfr-field').value,behavior:document.getElementById('cfr-behavior').value,reason:document.getElementById('cfr-reason').value};const res=await fetch(`/api/carrier-profiles/${carrierId}/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Regra salva!');loadCarrierProfilesSettings();}else{const e=await res.json();toast('❌ '+e.error);}}
 async function deleteCarrierRule(carrierId,id){if(!confirm('Excluir regra?'))return;await fetch(`/api/carrier-profiles/${carrierId}/rules/${id}`,{method:'DELETE'});loadCarrierProfilesSettings();}
 async function linkCarrierFee(){const carrierId=document.getElementById('cpf-carrier').value,feeId=document.getElementById('cpf-fee').value,p=carrierProfilesSettingsCache.find(x=>x.id===carrierId);const res=await fetch('/api/fixed-fees/'+feeId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({carrierProfileId:carrierId,carrier:p?.name})});if(res.ok){toast('✅ Taxa vinculada!');loadCarrierProfilesSettings();}else toast('❌ Erro ao vincular taxa.');}
+
+let airlineProfilesSettingsCache=[];
+function airlineAliasesText(p){try{const list=JSON.parse(p.aliases||'[]');return Array.isArray(list)?list.join(', '):'';}catch{return '';}}
+async function loadAirlineProfilesSettings(){
+  const [pr,fr]=await Promise.all([fetch(API+'/airline-profiles'),fetch(API+'/fixed-fees')]);
+  airlineProfilesSettingsCache=pr.ok?await pr.json():[];
+  const fees=fr.ok?await fr.json():[];
+  const airlineSelect=document.getElementById('apf-airline');
+  if(airlineSelect)airlineSelect.innerHTML=airlineProfilesSettingsCache.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('');
+  const feeSelect=document.getElementById('apf-fee');
+  if(feeSelect)feeSelect.innerHTML=fees.filter(f=>f.modal==='AIR'||f.modal==='ALL').map(f=>`<option value="${f.id}">${ifrEscape(f.carrier||'Geral')} — ${ifrEscape(f.name)} (${f.currency} ${Number(f.value).toFixed(2)})</option>`).join('');
+  const table=document.getElementById('airlineProfilesTable');
+  if(table)table.innerHTML=airlineProfilesSettingsCache.length?'<table class="k-table"><thead><tr><th>Companhia Aérea</th><th>IATA</th><th>Siglas</th><th>Taxas</th><th>Ações</th></tr></thead><tbody>'+airlineProfilesSettingsCache.map(p=>`<tr><td><strong>${ifrEscape(p.name)}</strong></td><td>${ifrEscape(p.code)||'—'}</td><td>${ifrEscape(airlineAliasesText(p))}</td><td>${p.fixedFees?.length||0}</td><td><button class="action-btn" onclick="editAirlineProfile('${p.id}')">✏️</button><button class="action-btn danger" onclick="deleteAirlineProfile('${p.id}')">🗑️</button></td></tr>`).join('')+'</tbody></table>':'<p>Nenhuma companhia aérea cadastrada.</p>';
+  renderAirlineFeesTable();
+}
+function renderAirlineFeesTable(){const el=document.getElementById('airlineFeesTable');if(!el)return;const fees=airlineProfilesSettingsCache.flatMap(p=>(p.fixedFees||[]).map(f=>({...f,airlineName:p.name})));el.innerHTML='<h4>Taxas Vinculadas</h4>'+(fees.length?'<table class="k-table"><tbody>'+fees.map(f=>`<tr><td>${ifrEscape(f.airlineName)}</td><td>${ifrEscape(f.name)}</td><td>${f.currency} ${Number(f.value).toFixed(2)}</td><td>${f.modal}</td></tr>`).join('')+'</tbody></table>':'<p style="color:var(--text-muted)">Nenhuma taxa vinculada.</p>');}
+function editAirlineProfile(id){const p=airlineProfilesSettingsCache.find(x=>x.id===id);if(!p)return;document.getElementById('ap-id').value=p.id;document.getElementById('ap-name').value=p.name;document.getElementById('ap-code').value=p.code||'';document.getElementById('ap-aliases').value=airlineAliasesText(p);document.getElementById('ap-description').value=p.description||'';}
+function cancelAirlineProfileEdit(){document.getElementById('ap-id').value='';document.getElementById('ap-name').value='';document.getElementById('ap-code').value='';document.getElementById('ap-aliases').value='';document.getElementById('ap-description').value='';}
+async function saveAirlineProfile(){
+  const id=document.getElementById('ap-id').value;
+  const name=document.getElementById('ap-name').value.trim();
+  if(!name){toast('⚠️ Informe o nome da companhia aérea.');return;}
+  const payload={name,code:document.getElementById('ap-code').value.trim()||null,aliases:document.getElementById('ap-aliases').value.split(',').map(v=>v.trim()).filter(Boolean),description:document.getElementById('ap-description').value.trim()||null,active:true};
+  const url=id?API+'/airline-profiles/'+id:API+'/airline-profiles';
+  const res=await fetch(url,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(res.ok){toast('✅ Companhia aérea salva!');cancelAirlineProfileEdit();loadAirlineProfilesSettings();}
+  else{const data=await res.json().catch(()=>({}));toast('❌ '+(data.error||'Erro ao salvar companhia aérea.'));}
+}
+async function deleteAirlineProfile(id){if(!confirm('Excluir esta companhia aérea?'))return;const res=await fetch(API+'/airline-profiles/'+id,{method:'DELETE'});if(res.ok){toast('🗑️ Companhia aérea excluída.');loadAirlineProfilesSettings();}else{const data=await res.json().catch(()=>({}));toast('❌ '+(data.error||'Erro ao excluir.'));}}
+async function linkAirlineFee(){const airlineId=document.getElementById('apf-airline').value,feeId=document.getElementById('apf-fee').value,p=airlineProfilesSettingsCache.find(x=>x.id===airlineId);const res=await fetch(API+'/fixed-fees/'+feeId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({airlineProfileId:airlineId,carrier:p?.name})});if(res.ok){toast('✅ Taxa vinculada!');loadAirlineProfilesSettings();}else toast('❌ Erro ao vincular taxa.');}
+async function importAtlantisAirlinesCatalog(){const res=await fetch(API+'/airline-profiles/import-atlantis',{method:'POST'});if(res.ok){const data=await res.json();toast(`✅ ${data.imported} companhia(s) aérea(s) importada(s)!`);loadAirlineProfilesSettings();}else toast('❌ Erro ao importar catálogo.');}
 const CARRIER_RATE_STATUS={REFERENCE:'Somente referência',APPROVED:'Aprovado',EXPIRED:'Expirado',REJECTED:'Rejeitado'};
 function ensureCarrierEquipmentProfileForm(){const aliases=document.getElementById('cp-aliases');if(!aliases||document.getElementById('cp-equipment'))return;aliases.closest('.form-group').insertAdjacentHTML('afterend',`<div class="form-group"><label>Equipamentos habilitados</label><select id="cp-equipment" multiple size="4"><option value="20GP" selected>20' Dry (20GP)</option><option value="40GP" selected>40' Dry (40GP)</option><option value="40HC" selected>40' High Cube (40HC)</option><option value="20RH">20' Reefer / RIF</option><option value="40RH">40' Reefer / RIF</option><option value="20OT">20' Open Top / TOR</option><option value="40OT">40' Open Top / TOR</option></select><small>Use Ctrl/Cmd para selecionar mais de um.</small></div>`);}
 async function ensureCarrierRateManualForm(){const stats=document.getElementById('carrierRateStats');if(!stats||document.getElementById('cr-new-carrier'))return;const res=await fetch('/api/carrier-profiles');if(!res.ok)return;const profiles=await res.json();stats.insertAdjacentHTML('afterend',`<div class="settings-section" id="carrierRateManualForm"><h3>Nova taxa por equipamento</h3><div style="display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px"><div class="form-group"><label>Armador</label><select id="cr-new-carrier" onchange="refreshNewCarrierEquipment()">${profiles.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('')}</select></div><div class="form-group"><label>Taxa</label><input id="cr-new-name" placeholder="Ex.: THC"></div><div class="form-group"><label>Porto</label><input id="cr-new-port" placeholder="Ex.: Santos ou ALL"></div><div class="form-group"><label>Equipamento</label><select id="cr-new-equipment"></select></div><div class="form-group"><label>Valor</label><input id="cr-new-amount" type="number" step="0.01"></div><div class="form-group"><label>Moeda</label><input id="cr-new-currency" value="USD"></div><div class="form-group"><label>Base</label><input id="cr-new-unit" value="PER CONTAINER"></div><div class="form-group"><label>Vigência inicial</label><input id="cr-new-from" type="date"></div><div class="form-group"><label>Vigência final</label><input id="cr-new-to" type="date"></div><div class="form-group"><label>Status</label><select id="cr-new-status"><option value="REFERENCE">Referência</option><option value="APPROVED">Aprovada</option></select></div></div><button class="btn btn-primary" onclick="createCarrierRate()">Salvar taxa</button></div>`);window.carrierRateProfiles=profiles;refreshNewCarrierEquipment();}
