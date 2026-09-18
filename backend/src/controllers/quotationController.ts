@@ -523,12 +523,16 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
 
     if (costs) {
-      if (costs.freight_currency && costs.freight_value !== undefined) {
-        updateData.freightValue = costs.freight_value;
-        updateData.freightCurrency = normalizeCurrency(costs.freight_currency);
-      } else {
-        updateData.freightValue = costs.freight_usd;
-        updateData.freightCurrency = 'USD';
+      const hasFreightField = Array.isArray(costs.present_fields) ? costs.present_fields.includes('freight_value') : true;
+
+      if (hasFreightField) {
+        if (costs.freight_currency && costs.freight_value !== undefined) {
+          updateData.freightValue = costs.freight_value;
+          updateData.freightCurrency = normalizeCurrency(costs.freight_currency);
+        } else if (costs.freight_usd !== undefined) {
+          updateData.freightValue = costs.freight_usd;
+          updateData.freightCurrency = 'USD';
+        }
       }
       updateData.iofUsd = costs.iof_usd;
       const quotationForStorage = current;
@@ -545,7 +549,8 @@ export const updatePhase = async (req: Request, res: Response) => {
         : storageUnchanged
         ? current.destinationStorageSource
         : (informedStorage > 0 ? 'MANUAL' : (!costCompositionReviewed && quotationForStorage?.modal === 'SEA' && quotationForStorage?.loadType === 'LCL' ? 'MINIMUM_FALLBACK' : null));
-      updateData.destinationServicesTotal = costs.services_brl;
+      // Evita duplicação no Smart Profit do frontend: se temos taxas detalhadas, o total global fica 0
+      updateData.destinationServicesTotal = (Array.isArray(costs.destination_fees) && costs.destination_fees.length > 0) ? 0 : costs.services_brl;
       updateData.destinationTaxes = costs.taxes_brl;
       updateData.totalBrl = costs.total_brl;
       if (costs.frequency !== undefined) {
