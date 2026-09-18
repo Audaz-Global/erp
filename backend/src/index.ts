@@ -54,6 +54,7 @@ import incotermTreeRoutes from './routes/incotermTree';
 import outlookRoutes from './routes/outlookRoutes';
 import carrierProfileRoutes from './routes/carrierProfile';
 import carrierRateRoutes from './routes/carrierRate';
+import airlineProfileRoutes from './routes/airlineProfile';
 
 import knowledgeRoutes from './routes/knowledge';
 import smartcomexRoutes from './routes/smartcomex';
@@ -80,6 +81,7 @@ app.use('/api/incoterm-tree', incotermTreeRoutes);
 app.use('/api/outlook', outlookRoutes);
 app.use('/api/carrier-profiles', carrierProfileRoutes);
 app.use('/api/carrier-rates', carrierRateRoutes);
+app.use('/api/airline-profiles', airlineProfileRoutes);
 app.use('/api/agent-draft-email-settings', agentDraftEmailSettingsRoutes);
 app.use('/api/agent-draft-email-templates', agentDraftEmailTemplateRoutes);
 app.use('/api/draft-email-field-rules', draftEmailFieldRuleRoutes);
