@@ -4241,7 +4241,7 @@ function initializeReviewCostEditor(quotation = {}) {
   };
   const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false });
+  if (iof > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
@@ -6650,21 +6650,21 @@ function recalculateRevIof() {
   if (!iofField) return;
   const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
 
-  if (window.reviewCostEditorReady && window.reviewCostLines?.freight) {
+  if (window.reviewCostEditorReady && window.reviewCostLines?.destination) {
     // reviewPercentageBase() (base do IOF, FREIGHT_PLUS_ORIGIN) recalcula a
     // partir da linha MAIN_FREIGHT guardada no editor de custos — não a
     // partir do campo rev-freight diretamente. Atualiza essa linha primeiro
     // pra não calcular o IOF em cima de um frete desatualizado.
     refreshReviewMainFreightBasis();
-    let iofLine = window.reviewCostLines.freight.find(line => line.special === 'IOF');
+    let iofLine = window.reviewCostLines.destination.find(line => line.special === 'IOF');
     if (!iofLine) {
       iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false };
-      window.reviewCostLines.freight.push(iofLine);
+      window.reviewCostLines.destination.push(iofLine);
     }
     iofLine.unitValue = iofRatePct;
     const total = reviewCostTotal(iofLine);
     iofField.value = total.toFixed(2);
-    if (total <= 0) window.reviewCostLines.freight = window.reviewCostLines.freight.filter(line => line.special !== 'IOF');
+    if (total <= 0) window.reviewCostLines.destination = window.reviewCostLines.destination.filter(line => line.special !== 'IOF');
     renderReviewCostEditor();
   } else {
     // Editor de custos ainda não inicializado — calcula direto a partir dos
@@ -7874,6 +7874,13 @@ function normalizeReturnFeeName(name) {
   if (normalized.includes('collect')) return 'collect';
   if (normalized.includes('delivery')) return 'delivery';
   if (normalized.includes('desconsol') || normalized.includes('deconsolid')) return 'deconsolidation';
+  // hawb/awb (documento de embarque a\u00e9reo) e inland/coleta/pickup \u2014 nomes de
+  // regra de Incoterm chegam bem mais verbosos ("Taxa de Emiss\u00e3o de HAWB /
+  // Documenta\u00e7\u00e3o A\u00e9rea na Origem (AWB Fee)") do que o que normalmente vem do
+  // e-mail do agente ("AWB Fee"), ent\u00e3o sem esses atalhos as duas linhas
+  // nunca casam e ficam duplicadas na tela.
+  if (normalized.includes('hawb') || normalized.includes('awb')) return 'awb';
+  if (normalized.includes('inland') || normalized.includes('pickup')) return 'inland';
   return normalized.replace(/[^a-z0-9]/g, '');
 }
 
@@ -7966,6 +7973,11 @@ function calculateReturnRuleFees(q) {
   // passa por aqui: ela é mesclada à parte em mergeReturnFees a partir do
   // que já está no textarea, então nunca é afetada por este filtro.
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
+    // Coleta/Inland de origem já tem um campo fixo dedicado (Inland de
+    // Origem / Coleta, logo abaixo), sempre visível quando preenchido —
+    // não gerar também o preset da regra de Incoterm pro mesmo conceito,
+    // senão a coleta aparece duas vezes na tabela.
+    if (normalizeReturnFeeName(rule.feeName) === 'inland') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
       if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
       return;
