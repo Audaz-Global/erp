@@ -4116,7 +4116,14 @@ function formatFeeLine(fee) {
   const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(fee.name || '');
   const terminalHint = /terminal|port|porto|wharf/i.test(fee.name || '');
   const inferredIsps = carrierHint && !terminalHint ? 'ISPS_CARRIER' : terminalHint && !carrierHint ? 'ISPS_TERMINAL' : 'ISPS_UNCLASSIFIED';
-  const ispsDetails = isIsps ? ` | ISPS ${fee.ispsClassification || inferredIsps} | SCOPE ${fee.applicationScope || fee.feeType || 'UNKNOWN'} | FREIGHT ${fee.includedInFreight || 'TO_CONFIRM'}${fee.chargedBy ? ` | CHARGEDBY ${fee.chargedBy}` : ''}` : '';
+  // SCOPE precisa ser gravado pra QUALQUER taxa, não só ISPS — sem ele, ao
+  // reabrir a cotação a taxa perde a referência de Origem/Destino e o
+  // classificador de grupo financeiro (GROUP) não tem como resolver nada
+  // além de TO_CONFIRM, travando a geração do PDF ("Classifique o grupo
+  // financeiro antes de finalizar").
+  const scopeValue = fee.applicationScope || fee.feeType;
+  const scopeDetails = scopeValue && scopeValue !== 'UNKNOWN' ? ` | SCOPE ${scopeValue}` : '';
+  const ispsDetails = isIsps ? ` | ISPS ${fee.ispsClassification || inferredIsps} | FREIGHT ${fee.includedInFreight || 'TO_CONFIRM'}${fee.chargedBy ? ` | CHARGEDBY ${fee.chargedBy}` : ''}` : '';
   const classification = inferFeeClassification(fee.name, fee.applicationScope || fee.feeType, fee.ispsClassification || inferredIsps, fee.chargedBy);
   const classificationDetails = ` | GROUP ${fee.financialGroup || classification.financialGroup} | NATURE ${fee.chargeNature || classification.chargeNature} | SOURCE ${fee.classificationSource || 'RULE'}`;
   const cleanMeta = value => String(value || '').replace(/[|\r\n]+/g,' ').trim().slice(0,300);
@@ -4126,7 +4133,7 @@ function formatFeeLine(fee) {
   const costCurrency = fee.costCurrency ? normalizeCostCurrency(fee.costCurrency) : currency;
   const costDetails = fee.costUnitValue != null && Number.isFinite(Number(fee.costUnitValue)) ? ` | COST ${Number(fee.costUnitValue).toFixed(2)}${costCurrency !== currency ? ` | COSTCURRENCY ${costCurrency}` : ''}` : '';
   const visibleDetails = fee.showOnDocument === false ? ` | VISIBLE false` : '';
-  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${costDetails}${visibleDetails}${ispsDetails}`;
+  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${scopeDetails}${provenanceDetails}${costDetails}${visibleDetails}${ispsDetails}`;
 }
 
 const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
@@ -8018,6 +8025,11 @@ function calculateReturnRuleFees(q) {
     }
   });
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'DESTINATION').forEach(rule => {
+    // IOF já tem um cálculo automático dedicado (campo fixo "IOF sobre
+    // frete e taxas de origem", usa a taxa configurada em Câmbio &
+    // Armazenagem) — não gerar também o preset da regra de Incoterm pro
+    // mesmo conceito, senão o IOF aparece duas vezes na tabela de destino.
+    if (normalizeReturnFeeName(rule.feeName) === 'iof') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
       if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
       return;
