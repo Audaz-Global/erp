@@ -46,6 +46,7 @@ export interface CalculatedFee {
   evidence?: string | null;
   needsReview?: boolean;
   mandatory?: boolean;
+  feeType?: string;
 }
 
 export interface FeeCalculationContext {
@@ -243,7 +244,8 @@ export function calculateFee(
       provenanceLabel: 'Regra automática · Incoterm (a cotar)',
       evidence: rule.description || null,
       needsReview: true,
-      mandatory: Boolean((rule as any).required)
+      mandatory: Boolean((rule as any).required),
+      feeType: rule.feeType
     };
   }
 
@@ -379,7 +381,8 @@ export function calculateFee(
     provenanceLabel: 'Regra automática · Incoterm',
     evidence: rule.description || null,
     needsReview: rule.chargeType === 'PER_DG_PRODUCT' && Number(qty) <= 0,
-    mandatory: Boolean((rule as any).required)
+    mandatory: Boolean((rule as any).required),
+    feeType: rule.feeType
   };
 }
 
@@ -418,6 +421,11 @@ export function formatFeesForController(
     unitValue: f.unitValue,
     billingUnit: f.billingUnit,
     quantity: f.quantity,
-    mandatory: f.mandatory
+    mandatory: f.mandatory,
+    // Sem isso, a taxa não carrega Origem/Destino quando volta pro front —
+    // o classificador de grupo financeiro não tem como resolver nada além
+    // de TO_CONFIRM, travando a geração do PDF ("Classifique o grupo
+    // financeiro antes de finalizar").
+    feeType: f.feeType
   }));
 }
