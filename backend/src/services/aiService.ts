@@ -654,6 +654,22 @@ Finalize apenas com "Atenciosamente,". Retorne somente o corpo do e-mail.`;
   }
 };
 
+// Zero em campo que a própria IA não listou em present_fields é default do
+// schema, não valor do parceiro. Removido aqui para que nenhum consumidor
+// sobrescreva na tela um valor real com 0. Usado só na extração manual; o
+// fluxo do Outlook já filtra por present_fields.
+const UNCONFIRMED_ZERO_FIELDS = ['freight_value', 'freight_usd', 'iof_usd', 'storage_brl', 'services_brl', 'taxes_brl', 'total_brl'];
+export const dropUnconfirmedZeroCosts = (costs: any) => {
+  if (!Array.isArray(costs.present_fields)) return;
+  const present = new Set(costs.present_fields.map((field: any) => String(field).trim().toLowerCase()));
+  // freight_usd é derivado de freight_value, não costuma vir listado sozinho.
+  if (present.has('freight_value')) present.add('freight_usd');
+  for (const field of UNCONFIRMED_ZERO_FIELDS) {
+    const value = costs[field];
+    if (!present.has(field) && (value === null || (value !== undefined && Number(value) === 0))) delete costs[field];
+  }
+};
+
 export const extractAgentCosts = async (
   text: string, 
   contextRules: string = '', 

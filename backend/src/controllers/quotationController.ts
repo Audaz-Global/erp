@@ -545,12 +545,16 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
 
     if (costs) {
-      if (costs.freight_currency && costs.freight_value !== undefined) {
-        updateData.freightValue = costs.freight_value;
-        updateData.freightCurrency = normalizeCurrency(costs.freight_currency);
-      } else {
-        updateData.freightValue = costs.freight_usd;
-        updateData.freightCurrency = 'USD';
+      const hasFreightField = Array.isArray(costs.present_fields) ? costs.present_fields.includes('freight_value') : true;
+
+      if (hasFreightField) {
+        if (costs.freight_currency && costs.freight_value !== undefined) {
+          updateData.freightValue = costs.freight_value;
+          updateData.freightCurrency = normalizeCurrency(costs.freight_currency);
+        } else if (costs.freight_usd !== undefined) {
+          updateData.freightValue = costs.freight_usd;
+          updateData.freightCurrency = 'USD';
+        }
       }
       updateData.iofUsd = costs.iof_usd;
       const quotationForStorage = current;

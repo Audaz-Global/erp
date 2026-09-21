@@ -3906,6 +3906,7 @@ function clearExtract() {
   document.getElementById('emailText').value=''; 
   document.getElementById('emailTextAgent').value=''; 
   currentQuotationId = null;
+  window.agentReferenceTariff = null;
   quotationDocuments = [];
   sourceDocumentsUploadedForQuotation = null;
   window.lastExtractedRawText = null;
@@ -5637,16 +5638,19 @@ function fillReviewForm(d, mode) {
   } else if (mode === 'AGENT') {
     if(d.costs) {
       const freightInput = document.getElementById('r-freight');
-      const origValue = d.costs.freight_value !== undefined ? d.costs.freight_value : d.costs.freight_usd;
+      // Campo ausente na extração = parceiro não informou; mantém o que já está na tela.
+      const origValue = d.costs.freight_value != null ? d.costs.freight_value : d.costs.freight_usd;
+      const hasExtractedFreight = origValue != null;
       const origCurrency = normalizeCostCurrency(d.costs.freight_currency || 'USD');
       
-      freightInput.value = origValue || '';
-      if (document.getElementById('r-freight-currency')) {
-        document.getElementById('r-freight-currency').value = origCurrency;
+      if (hasExtractedFreight) {
+        freightInput.value = origValue;
+        if (document.getElementById('r-freight-currency')) {
+          document.getElementById('r-freight-currency').value = origCurrency;
+        }
+        document.getElementById('conf-freight').innerHTML = renderConf(origValue, d.costs.confidence);
+        freightInput.dispatchEvent(new Event('input'));
       }
-      document.getElementById('conf-freight').innerHTML = renderConf(origValue, d.costs.confidence);
-
-      freightInput.dispatchEvent(new Event('input'));
       renderRateOptionsPicker(d.costs.rate_options);
 
       // IOF é sempre calculado pelo sistema (ver listener de r-freight acima) —
@@ -5657,14 +5661,11 @@ function fillReviewForm(d, mode) {
       if ((d.costs.present_fields || []).includes('storage_brl')) document.getElementById('r-storage').dataset.source = `${String(d.costs.partner_type || currentPartnerType || 'AGENTE').toUpperCase()}_RESPONSE`;
       document.getElementById('conf-storage').innerHTML = renderConf(d.costs.storage_brl, d.costs.confidence);
 
-      document.getElementById('r-services').value = d.costs.services_brl || '';
-      document.getElementById('conf-services').innerHTML = renderConf(d.costs.services_brl, d.costs.confidence);
-
-      document.getElementById('r-taxes').value = d.costs.taxes_brl || '';
-      document.getElementById('conf-taxes').innerHTML = renderConf(d.costs.taxes_brl, d.costs.confidence);
-
-      document.getElementById('r-total').value = d.costs.total_brl || '';
-      document.getElementById('conf-total').innerHTML = renderConf(d.costs.total_brl, d.costs.confidence);
+      [['services_brl', 'services'], ['taxes_brl', 'taxes'], ['total_brl', 'total']].forEach(([field, id]) => {
+        if (d.costs[field] == null) return;
+        document.getElementById(`r-${id}`).value = d.costs[field] || '';
+        document.getElementById(`conf-${id}`).innerHTML = renderConf(d.costs[field], d.costs.confidence);
+      });
 
       document.getElementById('r-transit-time').value = d.costs.transit_time_days || '';
       document.getElementById('conf-transit-time').innerHTML = renderConf(d.costs.transit_time_days, d.costs.confidence);
@@ -5733,14 +5734,14 @@ function fillReviewForm(d, mode) {
         document.getElementById('r-weight-break').value = wBreak;
         taxavel = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, loadType, q.totalCbm, wBreak);
       }
-      const freightVal = parseFloat(d.costs.freight_usd) || 0;
+      const freightVal = parseFloat(d.costs.freight_usd ?? freightInput.value) || 0;
       const isAir = loadType.toUpperCase().includes('AIR');
       const isLcl = loadType.toUpperCase().includes('LCL');
       const unitVal = isAir || isLcl ? (freightVal / taxavel) : freightVal;
 
       document.getElementById('r-frequency').value = d.costs.frequency || '';
       document.getElementById('conf-frequency').innerHTML = renderConf(d.costs.frequency, d.costs.confidence);
-      document.getElementById('r-freight-unit').value = origValue ? unitVal.toFixed(2) : '';
+      if (hasExtractedFreight) document.getElementById('r-freight-unit').value = origValue ? unitVal.toFixed(2) : '';
 
       // As regras conhecidas do Incoterm prevalecem e as taxas novas do agente
       // são apenas complementadas, sem apagar ou duplicar os valores prefixados.
@@ -6111,6 +6112,16 @@ function setDraftDispatchState(state, details = {}) {
 // registro no banco (o que também libera o upload dos documentos pendentes).
 // Extraído de generateDraftEmail() para poder ser chamado mais cedo — ao
 // entrar no passo 7 (Documentos) — sem disparar a geração do rascunho por IA.
+// Frete da tarifa escolhida em "Cotar com Agente", gravado em qualquer caminho
+// que salve a cotação. Só vale se ela ainda é a selecionada na tabela.
+function referenceTariffFields() {
+  const referenceTariff = window.agentReferenceTariff;
+  if (!referenceTariff || referenceTariff !== window.selectedAirExportTariffRate || referenceTariff.totalFreight == null) return {};
+  const fields = { freightValue: Number(referenceTariff.totalFreight), freightCurrency: referenceTariff.currency || 'USD' };
+  if (referenceTariff.selectedWeightBreak) fields.weightBreak = referenceTariff.selectedWeightBreak;
+  return fields;
+}
+
 async function saveQuotationRecord() {
   const body = {
       reference: document.getElementById('r-reference').value,
@@ -6172,6 +6183,7 @@ async function saveQuotationRecord() {
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
       transportRoute: document.getElementById('r-transport-route').value || null
     };
+    Object.assign(body, referenceTariffFields());
     let resCreate;
     if (currentQuotationId) {
       // Atualizar cotação existente
@@ -6538,7 +6550,8 @@ async function saveAsAwaitingAgent() {
       truckerName: selectedTruckerRecipients[0]?.partnerName || null,
       truckerEmail: selectedTruckerRecipients[0]?.email || null,
       operatorInitials: document.getElementById('r-operator-initials').value.trim() || undefined,
-      transportRoute: document.getElementById('r-transport-route').value || null
+      transportRoute: document.getElementById('r-transport-route').value || null,
+      ...referenceTariffFields()
     };
 
     if (!currentQuotationId) {
@@ -6864,10 +6877,10 @@ function updateBuyVsSellTable() {
   let sellDestFeesUsd = destBaseUsd;
   let sellDestFeesExSpreadUsd = destBaseUsd;
 
-  // Somar também linhas avulsas de destino (exceto Seguro). "Spread / Profit"
-  // entra na Venda normalmente, mas fica de fora do custo do agente (abaixo).
-  const destText = document.getElementById('rev-destination-services').value || '';
-  parseFeeText(destText).forEach(fee => {
+  const destText = document.getElementById('rev-destination-services')?.value || '';
+  const destFeeLines = parseFeeText(destText);
+
+  destFeeLines.forEach(fee => {
     const l = (fee.name || '').toLowerCase();
     if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
         const val = fee.totalValue || 0;
@@ -7141,6 +7154,10 @@ async function validateAndGeneratePDF(qIdParam = null) {
   if (window.pdfReviewPreviousQuotationId === undefined) window.pdfReviewPreviousQuotationId = currentQuotationId;
   currentQuotationId = qId;
 
+  // Taxas do Incoterm calculadas pelo "Aplicar Tarifa & Gerar PDF" — uso único.
+  const tariffPresetFees = window.tariffReviewPresetFees?.quotationId === qId ? window.tariffReviewPresetFees : null;
+  window.tariffReviewPresetFees = null;
+
   // Buscar dados atuais da cotação para pré-preencher o modal de revisão
   try {
     await loadQuotationDocuments();
@@ -7237,7 +7254,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
           console.error(e);
         }
       }
-      document.getElementById('rev-origin-services').value = originFeesText;
+      document.getElementById('rev-origin-services').value = originFeesText || tariffPresetFees?.origin || '';
 
       let destFeesText = '';
       if (q.destinationServices) {
@@ -7251,7 +7268,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
           console.error(e);
         }
       }
-      document.getElementById('rev-destination-services').value = destFeesText;
+      document.getElementById('rev-destination-services').value = destFeesText || tariffPresetFees?.destination || '';
     } else {
       // Venda do frete não parte mais do valor bruto extraído do agente
       // (r-freight, que é o custo) — só de um valor de venda já salvo
@@ -8193,6 +8210,19 @@ async function loadPendingQuotationData() {
   document.getElementById('r-transshipments').value = formatTransshipments(q.transshipments);
   applyCarrierProfile('r', q.carrier, 'RETURN', q.modal, q.loadType);
   document.getElementById('r-agent-origin-inland-transit').value = q.originInlandTransitTime || '';
+  // Frete já gravado (ex.: tarifa escolhida no "Cotar com Agente"); a extração
+  // do retorno só o substitui se o agente informar um frete.
+  if (q.freightValue != null) {
+    document.getElementById('r-freight').value = q.freightValue;
+    document.getElementById('r-freight-currency').value = normalizeCostCurrency(q.freightCurrency || 'USD');
+    // Tarifário grava a faixa como "+1000-KG"; o select usa "+1000".
+    const savedBreak = String(q.weightBreak || '').trim();
+    const breakSelect = document.getElementById('r-weight-break');
+    const breakMatch = savedBreak.match(/^\+?\s*(\d+)/);
+    const breakValue = breakMatch ? `+${breakMatch[1]}` : savedBreak.toLowerCase();
+    if (breakValue && [...breakSelect.options].some(opt => opt.value === breakValue)) breakSelect.value = breakValue;
+    document.getElementById('r-freight').dispatchEvent(new Event('input'));
+  }
   try {
     const modal = normalizeReturnRuleModal(q);
     const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incoterm)}&modal=${encodeURIComponent(modal)}&direction=${encodeURIComponent(q.direction || 'IMPORT')}`);
@@ -13246,7 +13276,9 @@ async function submitQuotationWithTariffOnly() {
       const normalizedModal = normalizeReturnRuleModal(qData);
       const incotermToFetch = qData.route?.incoterm || qData.incoterm;
       if (incotermToFetch) {
-        const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incotermToFetch)}&modal=${encodeURIComponent(normalizedModal)}&direction=${encodeURIComponent(qData.direction || 'IMPORT')}`);
+        const rawDirection = String(qData.direction || qData.route?.direction || document.getElementById('r-direction')?.value || document.getElementById('rev-direction')?.value || 'EXPORT').toUpperCase();
+        const cleanDirection = rawDirection.includes('EXPORT') ? 'EXPORT' : (rawDirection.includes('IMPORT') ? 'IMPORT' : 'ALL');
+        const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incotermToFetch)}&modal=${encodeURIComponent(normalizedModal)}&direction=${encodeURIComponent(cleanDirection)}`);
         if (rulesResponse.ok) {
           const loadedRules = await rulesResponse.json();
           const ruleList = Array.isArray(loadedRules) ? loadedRules : [];
@@ -13255,6 +13287,26 @@ async function submitQuotationWithTariffOnly() {
           const complementaryRules = ruleList.filter(rule => rule.modal === 'ALL' && !specificNames.has(`${rule.feeType}:${normalizeReturnFeeName(rule.feeName)}`));
           returnIncotermRules = [...specificRules, ...complementaryRules];
           applyReturnIncotermRules(qData, true);
+
+          // Mesmas taxas que a tela de Retorno montaria para esta cotação, calculadas
+          // com o frete da tarifa (sem herdar campos de outra cotação aberta no Retorno).
+          const freightInput = document.getElementById('r-freight');
+          const breakInput = document.getElementById('r-weight-break');
+          const previousFreight = freightInput.value, previousBreak = breakInput.value;
+          let calculated = [];
+          try {
+            freightInput.value = selected.totalFreight;
+            breakInput.value = '';
+            calculated = calculateReturnRuleFees(qData);
+          } finally {
+            freightInput.value = previousFreight;
+            breakInput.value = previousBreak;
+          }
+          window.tariffReviewPresetFees = {
+            quotationId: qData.id,
+            origin: formatReturnFees(mergeReturnFees([], calculated.filter(f => f.feeType === 'ORIGIN'))),
+            destination: formatReturnFees(mergeReturnFees([], calculated.filter(f => f.feeType === 'DESTINATION')))
+          };
         }
       }
     } catch (e) {
@@ -13276,6 +13328,8 @@ function selectTariffForAgentDraft() {
     alert('Selecione uma tarifa do tarifário antes de prosseguir.');
     return;
   }
+  // Guardada para ser gravada na cotação (saveQuotationRecord) e reaparecer no retorno do agente.
+  window.agentReferenceTariff = selected;
   const totalFmt = Number(selected.totalFreight || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   alert(`Tarifa da ${selected.airlineName} (USD ${totalFmt}) selecionada como referência. Selecione os contatos do agente abaixo para enviar a solicitação.`);
   document.getElementById('partner-list-search')?.focus();
