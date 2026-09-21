@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import path from 'path';
 import { prisma } from '../prisma';
 import { ALLOWED_DOCUMENT_EXTENSIONS, safeDocumentName } from '../services/quotationDocumentService';
+import { sendOutlookEmail } from '../services/outlookService';
 
 const TYPE_VALUES = new Set(['BUG', 'MELHORIA', 'DUVIDA', 'OUTRO']);
 const PRIORITY_VALUES = new Set(['BAIXA', 'MEDIA', 'ALTA', 'URGENTE']);
@@ -14,9 +15,29 @@ const ticketListSelect = {
   createdAt: true, updatedAt: true, resolvedAt: true,
   createdBy: { select: { id: true, name: true } },
   assignedTo: { select: { id: true, name: true } },
+  reporterProfessional: { select: { id: true, name: true, email: true } },
   quotation: { select: { id: true, reference: true } },
   _count: { select: { comments: true, documents: true } }
 } as const;
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// E-mail simples de aviso quando o chamado é marcado como resolvido — usa o
+// texto do último comentário (o diagnóstico que a pessoa que resolveu
+// escreveu) como corpo, então não duplica a explicação em dois lugares.
+function resolutionEmailHtml(ticketTitle: string, diagnosisText: string): string {
+  const diagnosisHtml = escapeHtml(diagnosisText).replace(/\n/g, '<br>');
+  return `
+    <div style="font-family:Arial,sans-serif;font-size:14px;color:#1f2937;line-height:1.5;">
+      <p>Olá,</p>
+      <p>O chamado abaixo foi marcado como <strong style="color:#059669;">resolvido</strong>:</p>
+      <p style="font-size:16px;font-weight:bold;margin:16px 0 8px;">${escapeHtml(ticketTitle)}</p>
+      <div style="background:#f3f4f6;border-left:3px solid #059669;padding:12px 16px;margin:12px 0;">${diagnosisHtml}</div>
+      <p style="color:#6b7280;font-size:12px;margin-top:24px;">Este e-mail foi enviado automaticamente pelo sistema Audaz ao resolver o chamado.</p>
+    </div>`;
+}
 
 // Modo de teste local não passa por login real (ver middlewares/auth.ts) —
 // resolve/gera o mesmo usuário de teste já usado em createQuotation, para
@@ -48,6 +69,7 @@ export async function getTicket(req: Request, res: Response) {
     include: {
       createdBy: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
+      reporterProfessional: { select: { id: true, name: true, email: true } },
       quotation: { select: { id: true, reference: true } },
       comments: { orderBy: { createdAt: 'asc' } },
       documents: { select: { id: true, originalName: true, createdAt: true, blob: { select: { mimeType: true, size: true } } }, orderBy: { createdAt: 'asc' } }
@@ -69,7 +91,8 @@ export async function createTicket(req: Request, res: Response) {
     const ticket = await prisma.ticket.create({
       data: {
         title, description, type, priority, module: req.body?.module || null,
-        quotationId: req.body?.quotationId || null, createdById
+        quotationId: req.body?.quotationId || null, createdById,
+        reporterProfessionalId: req.body?.reporterProfessionalId || null
       },
       select: ticketListSelect
     });
@@ -96,12 +119,27 @@ export async function updateTicket(req: Request, res: Response) {
       data.priority = req.body.priority;
     }
     if (req.body?.assignedToId !== undefined) data.assignedToId = req.body.assignedToId || null;
+    if (req.body?.reporterProfessionalId !== undefined) data.reporterProfessionalId = req.body.reporterProfessionalId || null;
     if (req.body?.status !== undefined) {
       if (!STATUS_VALUES.has(req.body.status)) throw new Error('Status inválido.');
       data.status = req.body.status;
       data.resolvedAt = RESOLVED_STATUSES.has(req.body.status) ? new Date() : null;
     }
     const ticket = await prisma.ticket.update({ where: { id: existing.id }, data, select: ticketListSelect });
+
+    // Avisa o solicitante por e-mail só na transição pra RESOLVIDO (não
+    // reenvia se o chamado já estava resolvido e só outro campo mudou, nem
+    // dispara pra FECHADO — fechar não é necessariamente ter sido resolvido).
+    if (data.status === 'RESOLVIDO' && existing.status !== 'RESOLVIDO' && ticket.reporterProfessional?.email) {
+      try {
+        const lastComment = await prisma.ticketComment.findFirst({ where: { ticketId: ticket.id }, orderBy: { createdAt: 'desc' } });
+        const diagnosisText = lastComment?.body || 'O chamado foi marcado como resolvido.';
+        await sendOutlookEmail(ticket.reporterProfessional.email, `Chamado resolvido: ${ticket.title}`, resolutionEmailHtml(ticket.title, diagnosisText));
+      } catch (emailError: any) {
+        console.error('Erro ao enviar e-mail de resolução do chamado:', emailError?.message || emailError);
+      }
+    }
+
     res.json(ticket);
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Erro ao atualizar chamado.' });

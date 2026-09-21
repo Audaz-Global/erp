@@ -2996,6 +2996,11 @@
       <label>Descrição *</label>
       <textarea id="ticket-description" rows="4" placeholder="Descreva o problema/melhoria com o máximo de detalhe possível (passos, cotação afetada, etc.)"></textarea>
     </div>
+    <div class="form-group">
+      <label>Solicitante</label>
+      <select id="ticket-reporter"><option value="">Selecione quem está abrindo...</option></select>
+      <small style="display:block;margin-top:4px;color:var(--text-muted);">Usado pra avisar por e-mail quando o chamado for resolvido.</small>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
       <div class="form-group">
         <label>Tipo</label>
@@ -10398,6 +10403,20 @@ function resetTicketModalSections() {
   document.getElementById('ticket-meta-line').style.display = 'none';
 }
 
+async function loadTicketReporterOptions(selectedId = '') {
+  const select = document.getElementById('ticket-reporter');
+  if (!select) return;
+  try {
+    if (!window.allProfessionalsList) {
+      const res = await fetch(API + '/professionals');
+      window.allProfessionalsList = res.ok ? await res.json() : [];
+    }
+    const options = window.allProfessionalsList.filter(p => p.active || p.id === selectedId);
+    select.innerHTML = '<option value="">Selecione quem está abrindo...</option>' + options.map(p => `<option value="${p.id}">${ifrEscape(p.name)}${p.email ? ' — ' + ifrEscape(p.email) : ''}</option>`).join('');
+    select.value = selectedId || '';
+  } catch (e) { console.error('Erro ao carregar profissionais', e); }
+}
+
 function openNewTicketModal() {
   document.getElementById('ticketModal').style.display = 'block';
   document.getElementById('ticketModalTitle').innerText = 'Novo Chamado';
@@ -10408,6 +10427,7 @@ function openNewTicketModal() {
   document.getElementById('ticket-priority').value = 'MEDIA';
   document.getElementById('ticket-module').value = '';
   document.getElementById('btnSaveTicket').style.display = '';
+  loadTicketReporterOptions();
   resetTicketModalSections();
   window.currentTicketDetail = null;
 }
@@ -10427,10 +10447,11 @@ async function openTicketDetail(id) {
     document.getElementById('ticket-priority').value = ticket.priority || 'MEDIA';
     document.getElementById('ticket-module').value = ticket.module || '';
     document.getElementById('btnSaveTicket').style.display = '';
+    loadTicketReporterOptions(ticket.reporterProfessional?.id || '');
 
     const metaLine = document.getElementById('ticket-meta-line');
     metaLine.style.display = 'block';
-    metaLine.textContent = `Aberto por ${ticket.createdBy?.name || '-'} em ${new Date(ticket.createdAt).toLocaleString('pt-BR')}${ticket.assignedTo ? ` · Atribuído a ${ticket.assignedTo.name}` : ''}${ticket.quotation ? ` · Cotação: ${ticket.quotation.reference}` : ''}`;
+    metaLine.textContent = `Aberto por ${ticket.createdBy?.name || '-'}${ticket.reporterProfessional ? ` (solicitante: ${ticket.reporterProfessional.name})` : ''} em ${new Date(ticket.createdAt).toLocaleString('pt-BR')}${ticket.assignedTo ? ` · Atribuído a ${ticket.assignedTo.name}` : ''}${ticket.quotation ? ` · Cotação: ${ticket.quotation.reference}` : ''}`;
 
     document.getElementById('ticket-status-section').style.display = 'block';
     document.getElementById('ticket-attachments-section').style.display = 'block';
@@ -10477,7 +10498,8 @@ async function saveTicket() {
     title, description,
     type: document.getElementById('ticket-type').value,
     priority: document.getElementById('ticket-priority').value,
-    module: document.getElementById('ticket-module').value.trim() || null
+    module: document.getElementById('ticket-module').value.trim() || null,
+    reporterProfessionalId: document.getElementById('ticket-reporter')?.value || null
   };
 
   btn.disabled = true;
@@ -10505,7 +10527,8 @@ async function updateTicketStatus(status) {
     const res = await fetch(API + '/tickets/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Falha ao mudar status.');
-    toast('✅ Status atualizado: ' + (TICKET_STATUS_MAP[status]?.label || status));
+    const notifiedReporter = status === 'RESOLVIDO' && data.reporterProfessional?.email;
+    toast('✅ Status atualizado: ' + (TICKET_STATUS_MAP[status]?.label || status) + (notifiedReporter ? ` · e-mail enviado para ${data.reporterProfessional.name}` : ''));
     openTicketDetail(id);
     loadTickets();
   } catch (err) {
