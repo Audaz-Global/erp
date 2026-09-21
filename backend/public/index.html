@@ -6792,10 +6792,12 @@ function updateBuyVsSellTable() {
   let costInsuranceUsd = agentCosts.insurance_cost_usd != null ? parseFloat(agentCosts.insurance_cost_usd) : 0;
 
   // 5. TAXAS DESTINO & SERVIÇOS
+  // rev-services já é a soma das mesmas linhas de rev-destination-services
+  // somadas individualmente logo abaixo — não entra aqui, senão cada taxa
+  // (exceto Seguro) é contada duas vezes no total de Venda/Compra.
   const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
-  const servicesBrl = parseFloat(document.getElementById('rev-services').value) || 0;
   const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  const destBaseUsd = (storageBrl + servicesBrl + taxesBrl) / usdRate;
+  const destBaseUsd = (storageBrl + taxesBrl) / usdRate;
   let sellDestFeesUsd = destBaseUsd;
   let sellDestFeesExSpreadUsd = destBaseUsd;
 
