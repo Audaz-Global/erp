@@ -42,6 +42,7 @@ model ProfessionalProfile {
   updatedAt         DateTime @updatedAt
 
   reportedTickets Ticket[] @relation("TicketReporter")
+  resolvedTickets Ticket[] @relation("TicketResolver")
 
   @@index([active, name])
 }
@@ -862,6 +863,7 @@ model AirExportTariffRate {
 
 model Ticket {
   id           String    @id @default(uuid())
+  number       Int       @unique @default(autoincrement())
   title        String
   description  String
   type         String    @default("MELHORIA") // BUG, MELHORIA, DUVIDA, OUTRO
@@ -880,6 +882,11 @@ model Ticket {
   // campo é o que permite saber a quem responder/avisar quando resolver.
   reporterProfessionalId String?
   reporterProfessional   ProfessionalProfile? @relation("TicketReporter", fields: [reporterProfessionalId], references: [id])
+  // Quem do time está de fato resolvendo o chamado — mesma lógica do
+  // reporterProfessional (assignedTo/createdBy sempre apontam pro usuário
+  // único de teste, então não servem pra registrar isso de verdade).
+  resolverProfessionalId String?
+  resolverProfessional   ProfessionalProfile? @relation("TicketResolver", fields: [resolverProfessionalId], references: [id])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   resolvedAt   DateTime?
