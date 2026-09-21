@@ -4238,7 +4238,21 @@ function initializeReviewCostEditor(quotation = {}) {
   const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
-  const decorate = (fee, scope) => { const unitValue=reviewCostNumber(fee.unitValue ?? fee.value); const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value); const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0); return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, costUnitValue:fee.costUnitValue != null?reviewCostNumber(fee.costUnitValue):unitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):unitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope }; };
+  // fee.costUnitValue só vem preenchido se essa linha já passou por um
+  // ciclo de salvamento (formatFeeLine grava COST à parte de Venda quando
+  // os dois divergem). Na primeira vez que a taxa chega (extraída do
+  // e-mail do agente ou de regra automática), o valor extraído é o que o
+  // agente cobra (Compra) — Venda começa vazia, pra forçar quem está
+  // cotando a decidir o preço em vez de vender no preço de custo sem notar.
+  const decorate = (fee, scope) => {
+    const extractedValue = reviewCostNumber(fee.unitValue ?? fee.value);
+    const isFreshExtraction = fee.costUnitValue == null;
+    const costUnitValue = isFreshExtraction ? extractedValue : reviewCostNumber(fee.costUnitValue);
+    const unitValue = isFreshExtraction ? 0 : extractedValue;
+    const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value);
+    const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0);
+    return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, costUnitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):costUnitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope };
+  };
   window.reviewCostLines = {
     freight: [reviewMainFreightLine(quotation), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
@@ -7194,7 +7208,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
       }
       document.getElementById('rev-destination-services').value = destFeesText;
     } else {
-      document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
+      // Venda do frete não parte mais do valor bruto extraído do agente
+      // (r-freight, que é o custo) — só de um valor de venda já salvo
+      // antes, senão o operador corre o risco de vender no preço de custo
+      // sem perceber (chamado "VALORES COMPRA x VENDA").
+      document.getElementById('rev-freight').value = q.freightValue || '';
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = (document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : '') || q.freightCurrency || 'USD';
       }
