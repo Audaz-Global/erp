@@ -4197,12 +4197,19 @@ function reviewCostProfitLabel(line) {
   const sellUsd = reviewCostToUsd(sell, line.currency);
   const buyUsd = reviewCostToUsd(buy, line.costCurrency || line.currency);
   const profit = sellUsd - buyUsd;
-  if (Math.abs(profit) < 0.005) return '';
-  const color = profit > 0 ? '#10B981' : '#EF4444';
-  const sign = profit > 0 ? '+' : '-';
-  const margin = sellUsd > 0 ? (profit / sellUsd) * 100 : 0;
   const sameCurrency = normalizeCostCurrency(line.costCurrency || line.currency) === normalizeCostCurrency(line.currency);
-  return `<div class="cost-line-profit-label" style="font-size:9px;color:${color};margin-top:2px;white-space:nowrap;">${sign}${sameCurrency ? escapeFeeHtml(line.currency || 'USD') : 'USD'} ${reviewCostAmount(Math.abs(profit))} (${margin.toFixed(0)}%)</div>`;
+  if (Math.abs(profit) < 0.005) {
+    // Linha ainda sem valor nenhum (Compra e Venda zeradas) não é repasse,
+    // é só vazia — nada a avisar ainda.
+    if (Math.abs(sellUsd) < 0.005 && Math.abs(buyUsd) < 0.005) return '';
+    return `<div class="cost-line-profit-label" style="font-size:9px;color:var(--text-muted);margin-top:2px;white-space:nowrap;" title="Venda igual à Compra — confirme se é repasse mesmo ou se faltou aplicar margem.">= repasse, sem margem</div>`;
+  }
+  const isNegative = profit < 0;
+  const color = isNegative ? '#EF4444' : '#10B981';
+  const sign = isNegative ? '-' : '+';
+  const margin = sellUsd > 0 ? (profit / sellUsd) * 100 : 0;
+  const warningIcon = isNegative ? '⚠️ ' : '';
+  return `<div class="cost-line-profit-label" style="font-size:9px;color:${color};margin-top:2px;white-space:nowrap;${isNegative ? 'font-weight:700;' : ''}" ${isNegative ? 'title="Venda menor que Compra — está vendendo no prejuízo nesta linha."' : ''}>${warningIcon}${sign}${sameCurrency ? escapeFeeHtml(line.currency || 'USD') : 'USD'} ${reviewCostAmount(Math.abs(profit))} (${margin.toFixed(0)}%)</div>`;
 }
 
 function reviewCostProvenance(line) {
@@ -4269,17 +4276,14 @@ function initializeReviewCostEditor(quotation = {}) {
   const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
-  // fee.costUnitValue só vem preenchido se essa linha já passou por um
-  // ciclo de salvamento (formatFeeLine grava COST à parte de Venda quando
-  // os dois divergem). Na primeira vez que a taxa chega (extraída do
-  // e-mail do agente ou de regra automática), o valor extraído é o que o
-  // agente cobra (Compra) — Venda começa vazia, pra forçar quem está
-  // cotando a decidir o preço em vez de vender no preço de custo sem notar.
+  // Venda volta a espelhar o valor extraído por padrão (igual Compra) — a
+  // maioria das linhas é repasse puro (sem markup), então deixar Venda em
+  // branco forçava redigitar quase toda a cotação. Margem zero/negativa
+  // agora é sinalizada visualmente (reviewCostProfitLabel), não escondida
+  // atrás de um campo vazio.
   const decorate = (fee, scope) => {
-    const extractedValue = reviewCostNumber(fee.unitValue ?? fee.value);
-    const isFreshExtraction = fee.costUnitValue == null;
-    const costUnitValue = isFreshExtraction ? extractedValue : reviewCostNumber(fee.costUnitValue);
-    const unitValue = isFreshExtraction ? 0 : extractedValue;
+    const unitValue = reviewCostNumber(fee.unitValue ?? fee.value);
+    const costUnitValue = fee.costUnitValue != null ? reviewCostNumber(fee.costUnitValue) : unitValue;
     const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value);
     const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0);
     return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, costUnitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):costUnitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope };
@@ -7270,11 +7274,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
       }
       document.getElementById('rev-destination-services').value = destFeesText || tariffPresetFees?.destination || '';
     } else {
-      // Venda do frete não parte mais do valor bruto extraído do agente
-      // (r-freight, que é o custo) — só de um valor de venda já salvo
-      // antes, senão o operador corre o risco de vender no preço de custo
-      // sem perceber (chamado "VALORES COMPRA x VENDA").
-      document.getElementById('rev-freight').value = q.freightValue || '';
+      document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = (document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : '') || q.freightCurrency || 'USD';
       }
@@ -7650,6 +7650,18 @@ async function confirmAndGeneratePDF() {
   if (confirmIsps.length && !window.confirm(`${confirmIsps.map(item=>item.message).join('\n')}\nConfirma que as cobranças são aplicáveis?`)) return;
   const uncertainFees = reviewedFees.filter(fee => fee.needsReview);
   if (uncertainFees.length && !window.confirm(`Existem taxas com unidade não identificada ou cálculo divergente: ${uncertainFees.map(fee => fee.name).join(', ')}. Confirma os totais apresentados?`)) return;
+
+  // Venda menor que Compra não bloqueia (pode ser intencional em algum
+  // caso raro), mas pede confirmação explícita antes de gerar o PDF —
+  // evita mandar proposta vendendo no prejuízo sem perceber.
+  const negativeMarginFees = reviewedFees.filter(fee => {
+    if (fee.pending || fee.costUnitValue == null) return false;
+    const qty = Number.isFinite(fee.quantity) ? fee.quantity : 1;
+    const buyUsd = reviewConvertCost(fee.costUnitValue * qty, fee.costCurrency || fee.currency, 'USD');
+    const sellUsd = reviewConvertCost(fee.totalValue || 0, fee.currency, 'USD');
+    return sellUsd < buyUsd - 0.005;
+  });
+  if (negativeMarginFees.length && !window.confirm(`Venda menor que Compra nestas taxas — confirme que é intencional antes de gerar o PDF:\n${negativeMarginFees.map(fee => '• ' + fee.name).join('\n')}`)) return;
 
   const confirmBtn = document.querySelector('#pdfReviewOverlay .btn-primary');
   confirmBtn.disabled = true;
