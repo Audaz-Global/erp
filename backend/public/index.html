@@ -4377,7 +4377,12 @@ function syncReviewCostEditor() {
   const inland = all.find(line => line.special === 'ORIGIN_INLAND');
   if (inland) { document.getElementById('rev-origin-inland-value').value = reviewCostTotal(inland).toFixed(2); document.getElementById('rev-origin-inland-currency').value = inland.currency; }
   else { document.getElementById('rev-origin-inland-value').value = ''; }
-  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, currency:normalizeCostCurrency(line.currency), value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (/_EMAIL$/.test(line.provenanceType||'')?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] });
+  const toFee = (line, scope, group) => {
+    const rawFg = line.financialGroup;
+    const resolvedGroup = (rawFg && rawFg !== 'TO_CONFIRM') ? rawFg : group;
+    const wasAutoAssignedGroup = !rawFg || rawFg === 'TO_CONFIRM';
+    return { ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, currency:normalizeCostCurrency(line.currency), value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:resolvedGroup, wasAutoAssignedGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (/_EMAIL$/.test(line.provenanceType||'')?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] };
+  };
   const originFees = window.reviewCostLines.origin.filter(line => !line.special).map(line => toFee(line,'ORIGIN',line.financialGroup || 'ORIGIN_CHARGE'));
   const destinationFees = window.reviewCostLines.destination.filter(line => !line.special || line.special === 'CUSTOMS').map(line => toFee(line,'DESTINATION',line.financialGroup || 'DESTINATION_CHARGE'));
   window.reviewCostLines.freight.filter(line => !line.special).forEach(line => destinationFees.push(toFee(line,'FREIGHT','FREIGHT_COMPONENT')));
@@ -4420,7 +4425,7 @@ function renderFeeCalculationPreview() {
   [['rev-origin-services','rev-origin-fees-preview'],['rev-destination-services','rev-destination-fees-preview']].forEach(([fieldId,panelId]) => {
     const panel = document.getElementById(panelId); if (!panel) return;
     const fees = parseFeeText(document.getElementById(fieldId)?.value);
-    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong><br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
+    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong>${f.wasAutoAssignedGroup ? ' <span title="Sem categoria prévia; atribuído automaticamente ao grupo da seção" style="color:#f5c36a;font-size:10px;">(Automático)</span>' : ''}<br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
   });
   renderIspsAlerts();
 }
@@ -4430,7 +4435,7 @@ function ispsReview(fees) {
   const alerts = [];
   ispsFees.filter(fee => fee.ispsClassification === 'ISPS_UNCLASSIFIED').forEach(fee => alerts.push({code:'UNCLASSIFIED',message:`${fee.name}: classifique como ISPS_CARRIER ou ISPS_TERMINAL.`}));
   ispsFees.filter(fee => fee.includedInFreight === 'INCLUDED').forEach(fee => alerts.push({code:'INCLUDED',message:`${fee.name}: indicada como já incluída no frete; não deve ser somada separadamente sem correção.`}));
-  ispsFees.filter(fee => fee.includedInFreight === 'TO_CONFIRM').forEach(fee => alerts.push({code:'INCLUSION_PENDING',message:`${fee.name}: confirme se está incluída no frete.`}));
+  ispsFees.filter(fee => fee.includedInFreight === 'TO_CONFIRM').forEach(fee => alerts.push({code:'INCLUSION_PENDING',message:`${fee.message || fee.name}: confirme se está incluída no frete.`}));
   const groups = new Map();
   ispsFees.forEach(fee => { const key=[fee.ispsClassification,fee.applicationScope,String(fee.chargedBy||'').toLowerCase(),fee.billingUnit].join('|'); groups.set(key,[...(groups.get(key)||[]),fee]); });
   groups.forEach(group => { if(group.length>1) alerts.push({code:'DUPLICATE',message:`Possível duplicidade: ${group.map(fee=>fee.name).join(' / ')}.`}); });
@@ -4443,8 +4448,8 @@ function renderIspsAlerts() {
   const panel=document.getElementById('rev-isps-alerts'); if(!panel)return;
   const fees=[...parseFeeText(document.getElementById('rev-origin-services')?.value),...parseFeeText(document.getElementById('rev-destination-services')?.value)];
   const review=ispsReview(fees);
-  const financialAlerts=fees.filter(f=>f.financialGroup==='TO_CONFIRM').map(f=>({code:'FINANCIAL',message:`${f.name}: defina o grupo financeiro com GROUP ... antes de finalizar.`}));
-  panel.innerHTML=[...review.alerts,...financialAlerts].map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
+  const autoGroupAlerts=fees.filter(f=>f.wasAutoAssignedGroup).map(f=>({code:'AUTO_GROUP',message:`${f.name}: sem grupo financeiro cadastrado; classificado automaticamente como ${FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup}.`}));
+  panel.innerHTML=[...review.alerts,...autoGroupAlerts].map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
 }
 
 function isDangerousGoodsFeeName(name) {
