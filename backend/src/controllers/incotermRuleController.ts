@@ -268,6 +268,26 @@ function getDefaultRules() {
     },
 
     // ============================
+    // CIP - Carriage and Insurance Paid to (Aéreo)
+    // Vendedor paga frete e seguro até o destino.
+    // ============================
+    {
+      incoterm: 'CIP', modal: 'AIR', direction: 'EXPORT', feeType: 'ORIGIN', feeName: 'Coleta Rodoviária na Fábrica / Armazém do Exportador (Inland Pickup Brasil)',
+      chargeType: 'FIXED', value: 0, currency: 'BRL', sortOrder: 1, applicability: 'REQUIRED', pricingStatus: 'ON_REQUEST',
+      description: 'Coleta no exportador'
+    },
+    {
+      incoterm: 'CIP', modal: 'AIR', direction: 'EXPORT', feeType: 'ORIGIN', feeName: 'Taxa de Emissão e Confecção de Conhecimento Aéreo (AWB / HAWB Fee)',
+      chargeType: 'PER_DOCUMENT', value: 0, currency: 'USD', sortOrder: 5, applicability: 'REQUIRED', pricingStatus: 'ON_REQUEST',
+      description: 'Emissão de AWB'
+    },
+    {
+      incoterm: 'CIP', modal: 'AIR', direction: 'EXPORT', feeType: 'ORIGIN', feeName: 'Armazenagem Aeroportuária',
+      chargeType: 'PER_WM', value: 0.05, costValue: 0.03, minValue: 5.00, currency: 'USD', sortOrder: 99, applicability: 'REQUIRED', pricingStatus: 'PRICED',
+      description: 'Armazenagem aeroportuária na origem'
+    },
+
+    // ============================
     // FOB - Free On Board (Marítimo)
     // Vendedor entrega a bordo do navio. Sem taxas de origem para o comprador.
     // FOB é exclusivo para modal marítimo (ICC 2020)

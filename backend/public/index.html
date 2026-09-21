@@ -12989,7 +12989,9 @@ async function submitQuotationWithTariffOnly() {
       const normalizedModal = normalizeReturnRuleModal(qData);
       const incotermToFetch = qData.route?.incoterm || qData.incoterm;
       if (incotermToFetch) {
-        const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incotermToFetch)}&modal=${encodeURIComponent(normalizedModal)}&direction=${encodeURIComponent(qData.direction || 'IMPORT')}`);
+        const rawDirection = String(qData.direction || qData.route?.direction || document.getElementById('r-direction')?.value || document.getElementById('rev-direction')?.value || 'EXPORT').toUpperCase();
+        const cleanDirection = rawDirection.includes('EXPORT') ? 'EXPORT' : (rawDirection.includes('IMPORT') ? 'IMPORT' : 'ALL');
+        const rulesResponse = await fetch(`/api/incoterm-rules?incoterm=${encodeURIComponent(incotermToFetch)}&modal=${encodeURIComponent(normalizedModal)}&direction=${encodeURIComponent(cleanDirection)}`);
         if (rulesResponse.ok) {
           const loadedRules = await rulesResponse.json();
           const ruleList = Array.isArray(loadedRules) ? loadedRules : [];
