@@ -1423,8 +1423,13 @@
           <div class="form-group" id="r-dg-class-group"><label>Classe de risco</label><input type="text" id="r-dg-class" placeholder="Ex: 9"></div>
           <div class="form-group" id="r-dg-product-count-group"><label>Produtos perigosos distintos</label><input type="number" id="r-dg-product-count" min="0" placeholder="Ex: 4"></div>
           <div class="form-group">
-            <label>Valor da Carga (USD) <span id="conf-commercial-value"></span></label>
-            <input type="number" id="r-commercial-value" step="0.01" placeholder="Ex: 10000.00">
+            <label>Valor da Carga <span id="conf-commercial-value"></span></label>
+            <div style="display:flex;gap:6px;">
+              <select id="r-commercial-value-currency" style="width:80px;flex-shrink:0;">
+                <option value="USD">USD</option><option value="EUR">EUR</option><option value="BRL">BRL</option>
+              </select>
+              <input type="number" id="r-commercial-value" step="0.01" placeholder="Ex: 10000.00" style="flex:1;">
+            </div>
           </div>
           <div id="r-dg-alerts" style="grid-column:1/-1;"></div>
           <div class="form-group">
@@ -2410,8 +2415,13 @@
           <input type="number" id="rev-packages" placeholder="1">
         </div>
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px;">Valor Comercial (USD)</label>
-          <input type="number" id="rev-commercial-value" step="0.01" placeholder="0.00">
+          <label style="font-size:11px;">Valor Comercial</label>
+          <div style="display:flex;gap:6px;">
+            <select id="rev-commercial-value-currency" style="width:72px;flex-shrink:0;">
+              <option value="USD">USD</option><option value="EUR">EUR</option><option value="BRL">BRL</option>
+            </select>
+            <input type="number" id="rev-commercial-value" step="0.01" placeholder="0.00" style="flex:1;">
+          </div>
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Carga empilhável?</label>
@@ -4158,7 +4168,7 @@ function reviewPercentageBase(line) {
   const targetCurrency=line.currency || 'USD';
   const freight=(window.reviewCostLines?.freight || []).filter(item=>item.special==='MAIN_FREIGHT').reduce((sum,item)=>sum+reviewConvertCost(reviewCostNumber(item.quantity,0)*reviewCostNumber(item.unitValue,0),item.currency,targetCurrency),0);
   const origin=(window.reviewCostLines?.origin || []).filter(item=>item.billingUnit!=='PERCENTAGE').reduce((sum,item)=>sum+reviewConvertCost(reviewCostWithLimits(reviewCostNumber(item.quantity,0)*reviewCostNumber(item.unitValue,0),item),item.currency,targetCurrency),0);
-  const cargoValue=reviewConvertCost(reviewCostNumber(document.getElementById('rev-commercial-value')?.value),'USD',targetCurrency);
+  const cargoValue=reviewConvertCost(reviewCostNumber(document.getElementById('rev-commercial-value')?.value),document.getElementById('rev-commercial-value-currency')?.value || 'USD',targetCurrency);
   if (configured === 'FREIGHT_PLUS_ORIGIN') return freight + origin;
   if (configured === 'CARGO_VALUE') return cargoValue;
   if (configured === 'FREIGHT_PLUS_CARGO_VALUE') return freight + cargoValue;
@@ -5593,6 +5603,7 @@ function fillReviewForm(d, mode) {
       }
 
       document.getElementById('r-commercial-value').value = d.cargo.commercial_value_usd || '';
+      document.getElementById('r-commercial-value-currency').value = ['USD','EUR','BRL'].includes(d.cargo.commercial_currency) ? d.cargo.commercial_currency : 'USD';
       document.getElementById('conf-commercial-value').innerHTML = renderConf(d.cargo.commercial_value_usd, d.cargo.confidence);
 
       let dims = '';
@@ -6136,6 +6147,7 @@ async function saveQuotationRecord() {
       hybridModalEvidence: document.getElementById('r-hybrid-modal-note').textContent || null,
       hybridModalAcknowledged: document.getElementById('r-hybrid-modal-ack').checked,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
+      commercialCurrency: document.getElementById('r-commercial-value-currency')?.value || 'USD',
       packages: document.getElementById('r-dimensions').value || null,
       status: 'CRIADA',
       partnerType: currentPartnerType,
@@ -6502,6 +6514,7 @@ async function saveAsAwaitingAgent() {
       hybridModalEvidence: document.getElementById('r-hybrid-modal-note').textContent || null,
       hybridModalAcknowledged: document.getElementById('r-hybrid-modal-ack').checked,
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
+      commercialCurrency: document.getElementById('r-commercial-value-currency')?.value || 'USD',
       packages: document.getElementById('r-dimensions').value || null,
       status: 'AGUARDANDO_PARCEIRO',
       agentEmail: agentEmail,
@@ -6719,13 +6732,19 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
   });
 
   if (requiresIns) {
-    const valMercadoria = parseFloat(document.getElementById('rev-commercial-value').value) || 0;
+    const valMercadoriaRaw = parseFloat(document.getElementById('rev-commercial-value').value) || 0;
+    const commercialCurrency = document.getElementById('rev-commercial-value-currency') ? document.getElementById('rev-commercial-value-currency').value : 'USD';
     const valFrete = parseFloat(document.getElementById('rev-freight').value) || 0;
     const freightCurrency = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
-    
+
     const usdRate = 5.05;
     const eurRate = 5.50;
-    
+
+    // Converter Valor Comercial para USD
+    let valMercadoria = valMercadoriaRaw;
+    if (commercialCurrency === 'EUR') valMercadoria = valMercadoriaRaw * (eurRate / usdRate);
+    else if (commercialCurrency === 'BRL') valMercadoria = valMercadoriaRaw / usdRate;
+
     // Converter Frete para USD
     let valFreteUsd = valFrete;
     if (freightCurrency === 'EUR') valFreteUsd = valFrete * (eurRate / usdRate);
@@ -7151,6 +7170,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-net-weight').value = q.totalNetWeightKg || '';
     document.getElementById('rev-packages').value = q.totalPackages || '';
     document.getElementById('rev-commercial-value').value = q.commercialValue || '';
+    document.getElementById('rev-commercial-value-currency').value = ['USD','EUR','BRL'].includes(q.commercialCurrency) ? q.commercialCurrency : 'USD';
     document.getElementById('rev-imo').value = q.dangerousGoodsStatus || (q.isImo ? 'CONFIRMED' : 'TO_CONFIRM');
     document.getElementById('rev-msds').value = q.msdsStatus || (q.isImo ? 'PENDING' : 'NOT_REQUESTED');
     document.getElementById('rev-stackable').value = q.stackableStatus || 'TO_CONFIRM';
@@ -7770,6 +7790,7 @@ async function confirmAndGeneratePDF() {
         totalNetWeightKg: parseFloat(document.getElementById('rev-net-weight').value) || null,
         totalPackages: parseInt(document.getElementById('rev-packages').value) || null,
         commercialValue: parseFloat(document.getElementById('rev-commercial-value').value) || null,
+        commercialCurrency: document.getElementById('rev-commercial-value-currency')?.value || 'USD',
         dangerousGoodsStatus: document.getElementById('rev-imo').value,
         isImo: document.getElementById('rev-imo').value === 'CONFIRMED',
         msdsStatus: document.getElementById('rev-msds').value,
@@ -7974,7 +7995,10 @@ function calculateReturnRuleFees(q) {
   const calculated = [];
   let originTotal = 0;
 
-  const cargoValue = Number(q.commercialValue) || 0;
+  // Valor comercial pode ter sido extraído em EUR/BRL — converte pra USD
+  // antes de usar como base de percentual (freight já é USD nesta função).
+  const commercialCurrencyRaw = normalizeCostCurrency(q.commercialCurrency || 'USD');
+  const cargoValue = commercialCurrencyRaw === 'EUR' ? (Number(q.commercialValue) || 0) * (5.50 / 5.05) : commercialCurrencyRaw === 'BRL' ? (Number(q.commercialValue) || 0) / 5.05 : (Number(q.commercialValue) || 0);
   const calculateRule = rule => {
     let value = null;
     if (rule.chargeType === 'FIXED' || rule.chargeType === 'PER_DOCUMENT' || rule.chargeType === 'PER_SHIPMENT') value = Number(rule.value) || 0;
@@ -11945,6 +11969,7 @@ async function loadQuotationIntoDraft(quotationId) {
           hybrid_shipment_detected: quotation.hybridModalDetected,
           hybrid_shipment_note: quotation.hybridModalEvidence,
           commercial_value_usd: quotation.commercialValue,
+          commercial_currency: quotation.commercialCurrency,
           dimensions: quotation.packages,
           confidence: 1
         }
