@@ -19,13 +19,14 @@ export const getFixedFees = async (req: Request, res: Response) => {
 
 export const createFixedFee = async (req: Request, res: Response) => {
   try {
-    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, ispsClassification, includedInFreight, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, airlineProfileId, containerSize, type, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, ispsClassification, includedInFreight, modal, active } = req.body;
     const normalized = normalizeFee({ name, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, classificationSource:'MANUAL', ispsClassification, includedInFreight, chargedBy: carrier, applicationScope: type });
     const fee = await prisma.fixedFee.create({
       data: {
         name,
         carrier,
         carrierProfileId: carrierProfileId || null,
+        airlineProfileId: airlineProfileId || null,
         containerSize,
         type,
         value: Number(value),
@@ -51,7 +52,7 @@ export const createFixedFee = async (req: Request, res: Response) => {
 export const updateFixedFee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, carrier, carrierProfileId, containerSize, type, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, ispsClassification, includedInFreight, modal, active } = req.body;
+    const { name, carrier, carrierProfileId, airlineProfileId, containerSize, type, value, currency, billingUnit, originalUnit, financialGroup, chargeNature, ispsClassification, includedInFreight, modal, active } = req.body;
     const current = await prisma.fixedFee.findUnique({ where: { id } });
     if (!current) {
       res.status(404).json({ error: 'Taxa fixa não encontrada.' });
@@ -79,6 +80,7 @@ export const updateFixedFee = async (req: Request, res: Response) => {
         name,
         carrier,
         carrierProfileId,
+        airlineProfileId,
         containerSize,
         type,
         value: value !== undefined ? Number(value) : undefined,

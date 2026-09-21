@@ -241,7 +241,7 @@
   .cost-base-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); }
   .cost-base-title { font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
   .cost-base-subtotal { font-size:11px; color:var(--text-muted); text-align:right; }
-  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 38px; gap:8px; min-width:1050px; }
+  .cost-columns-head,.cost-line { display:grid; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 60px 38px; gap:8px; min-width:1110px; }
   .cost-columns-head { padding:8px 12px; background:rgba(255,255,255,.025); border-bottom:1px solid rgba(255,255,255,.07); color:var(--text-muted); font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
   .cost-lines { display:flex; flex-direction:column; min-height:58px; }
   .cost-line { align-items:start; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.065); background:transparent; transition:background .15s ease; }
@@ -467,7 +467,7 @@
     .cost-bases-grid { grid-template-columns:1fr; }
     .cost-base-card { overflow-x:auto; }
     .cost-lines { overflow:visible; }
-    .cost-columns-head,.cost-line { min-width:1050px; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 38px; }
+    .cost-columns-head,.cost-line { min-width:1110px; grid-template-columns:minmax(160px,1.6fr) minmax(115px,1.1fr) 56px 66px 90px 135px 70px 70px 100px 60px 38px; }
     .cost-add-line { min-width:960px; }
     .summary-cards { grid-template-columns: repeat(2, 1fr); }
     .detail-content { grid-template-columns: 1fr; }
@@ -2517,9 +2517,9 @@
         <div style="font-size:10px;color:var(--text-muted);text-align:right;">Valor total = quantidade × valor unitário</div>
       </div>
       <div id="review-cost-editor" class="cost-bases-grid">
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
-        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span></span></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
+        <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#34d399;">Taxas de destino</div><div class="cost-base-subtotal" id="cost-subtotal-destination">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-destination"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('destination')">+ Inserir taxa de destino</button></div>
       </div>
       <div class="cost-grand-total"><div><strong>Total da proposta por moeda</strong><div style="font-size:10px;color:var(--text-muted);margin-top:3px;">Sem conversão silenciosa entre moedas</div></div><div id="cost-grand-values" class="cost-grand-values">—</div></div>
       <details style="margin-top:14px;">
@@ -2715,6 +2715,7 @@
         <li data-tab="standardFees" onclick="switchSettingsTab('standardFees')">Árvore de Incoterms</li>
         <li data-tab="taxes" onclick="switchSettingsTab('taxes')">Parâmetros Padrão</li>
         <li data-tab="pricingSettings" onclick="switchSettingsTab('pricingSettings')">Câmbio & Armazenagem</li>
+        <li data-tab="airlineProfiles" onclick="switchSettingsTab('airlineProfiles')">Cadastro de Companhias Aéreas</li>
 
         <li class="nav-section-title">PARCEIROS & DIVERSOS</li>
         <li data-tab="agentDraftEmail" onclick="switchSettingsTab('agentDraftEmail')">E-mail para Parceiros</li>
@@ -2962,6 +2963,19 @@
     <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px;">
       <button onclick="closeClientModal()" class="btn btn-secondary">Cancelar</button>
       <button onclick="saveClient()" class="btn btn-primary" id="btnSaveClient">Salvar Cliente</button>
+    </div>
+  </div>
+</div>
+
+<div id="clientDuplicateModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9200; overflow-y:auto; padding:20px;">
+  <div style="max-width:560px; margin:60px auto; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; position:relative;">
+    <button onclick="closeClientDuplicateModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    <h2 style="font-size:18px; margin-bottom:6px;">⚠️ Já existe cliente parecido</h2>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Encontramos cadastro(s) parecido(s) com o que você está criando. Confira antes de criar um novo, pra não duplicar o cliente.</p>
+    <div id="client-duplicate-list" style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;margin-bottom:20px;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:12px;">
+      <button onclick="closeClientDuplicateModal()" class="btn btn-secondary">Cancelar</button>
+      <button onclick="confirmCreateClientAnyway()" class="btn btn-primary">Criar mesmo assim</button>
     </div>
   </div>
 </div>
@@ -3343,6 +3357,14 @@ function updateModalCalculatedWeights() {
 // dimensões, volumes ou peso bruto). window.chargeableWeightOverride guarda
 // esse valor — null significa "usar o cálculo automático".
 window.chargeableWeightOverride = null;
+
+// Visibilidade das linhas de IOF e Impostos de destino na proposta impressa.
+// Essas linhas são especiais (recriadas do zero a cada recálculo, fora do
+// JSON de origin/destinationServices), então o estado do checkbox precisa
+// ficar guardado aqui para sobreviver aos re-renders — o valor sempre soma
+// no total, só a exibição da linha muda.
+window.iofVisibleOnDocument = true;
+window.destinationTaxesVisibleOnDocument = true;
 
 function updateTaxableWeightOverrideUI() {
   const resetBtn = document.getElementById('rev-calc-taxable-reset');
@@ -4040,6 +4062,7 @@ function parseFeeLine(line) {
   const baseValueSegment = segments.find(value => /^BASEVALUE\s+/i.test(value));
   const costSegment = segments.find(value => /^COST\s+/i.test(value));
   const costCurrencySegment = segments.find(value => /^COSTCURRENCY\s+/i.test(value));
+  const visibleSegment = segments.find(value => /^VISIBLE\s+/i.test(value));
   let ispsClassification = ispsSegment ? ispsSegment.replace(/^ISPS\s+/i, '').trim().toUpperCase() : null;
   if (isIsps && !['ISPS_CARRIER','ISPS_TERMINAL'].includes(ispsClassification)) {
     const carrierHint = /carrier|armador|vessel|navio|shipping line/i.test(name);
@@ -4060,12 +4083,13 @@ function parseFeeLine(line) {
   const percentageBaseValue = baseValueSegment ? parseFloat(baseValueSegment.replace(/^BASEVALUE\s+/i, '').trim().replace(',','.')) : null;
   const costUnitValue = costSegment ? parseFloat(costSegment.replace(/^COST\s+/i, '').trim().replace(',','.')) : null;
   const costCurrency = costCurrencySegment ? normalizeCostCurrency(costCurrencySegment.replace(/^COSTCURRENCY\s+/i, '').trim()) : null;
+  const showOnDocument = visibleSegment ? visibleSegment.replace(/^VISIBLE\s+/i, '').trim().toLowerCase() !== 'false' : true;
   const ispsUnclassified = isIsps && ispsClassification === 'ISPS_UNCLASSIFIED';
   const ispsInclusionPending = isIsps && includedInFreight !== 'NOT_INCLUDED';
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons, pending: isPending || undefined };
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, showOnDocument, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons, pending: isPending || undefined };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -4097,7 +4121,8 @@ function formatFeeLine(fee) {
   const currency = normalizeCostCurrency(fee.currency);
   const costCurrency = fee.costCurrency ? normalizeCostCurrency(fee.costCurrency) : currency;
   const costDetails = fee.costUnitValue != null && Number.isFinite(Number(fee.costUnitValue)) ? ` | COST ${Number(fee.costUnitValue).toFixed(2)}${costCurrency !== currency ? ` | COSTCURRENCY ${costCurrency}` : ''}` : '';
-  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${costDetails}${ispsDetails}`;
+  const visibleDetails = fee.showOnDocument === false ? ` | VISIBLE false` : '';
+  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${provenanceDetails}${costDetails}${visibleDetails}${ispsDetails}`;
 }
 
 const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
@@ -4217,7 +4242,7 @@ function initializeReviewCostEditor(quotation = {}) {
   };
   const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.freight.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (iof > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
@@ -4227,7 +4252,7 @@ function initializeReviewCostEditor(quotation = {}) {
   const storageProvenance=storageWasExtracted || /_RESPONSE$|AGENT_RESPONSE/.test(storageSource) ? `${partnerType}_EMAIL` : storageSource==='MINIMUM_FALLBACK'?'SYSTEM_RATE':'MANUAL';
   if (storage > 0 || storageRequested) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'STORAGE', fixedDefinition:true, name:storageSource === 'MINIMUM_FALLBACK' && !storageWasExtracted ? 'Estimativa de Armazenagem - Piso mínimo LCL' : (storage > 0 ? 'Estimativa de Armazenagem' : 'Estimativa de Armazenagem - A confirmar'), quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:storage, currency:normalizeCostCurrency(quotation.destinationStorageCurrency || 'BRL'), financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:storageProvenance, evidence:window.lastExtractedAgentData?.costs?.field_evidence?.find(item=>item.field==='storage_brl')?.evidence || quotation.storageRequestEvidence || '' });
   const taxes = reviewCostNumber(document.getElementById('rev-taxes')?.value);
-  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED' });
+  if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.destinationTaxesVisibleOnDocument !== false });
   if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
   if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION', provenanceType:'MANUAL' });
   renderReviewCostEditor();
@@ -4263,6 +4288,7 @@ function renderReviewCostEditor() {
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
       <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div>${reviewCostProfitLabel(line)}</div>
+      <div><label>Exibir</label>${(line.special && line.special !== 'IOF' && line.special !== 'DESTINATION_TAXES') ? '<div class="cost-line-static">—</div>' : `<input type="checkbox" style="width:18px;height:18px;" ${line.showOnDocument === false ? '' : 'checked'} onchange="updateReviewCostLine('${group}','${line.id}','showOnDocument',this.checked)" title="Marcado: aparece na proposta/PDF do cliente. Desmarcado: fica só para controle interno (o valor continua no total).">`}</div>
       <div><label>Ação</label>${line.locked ? '<div style="height:34px"></div>' : `<button type="button" title="Excluir linha" class="cost-line-remove" onclick="removeReviewCostLine('${group}','${line.id}')">×</button>`}</div>
     </div>`; }).join('') : '<div style="padding:16px 8px;text-align:center;color:var(--text-muted);font-size:11px;">Nenhuma linha nesta base.</div>';
   });
@@ -4274,6 +4300,8 @@ function updateReviewCostLine(group, id, field, value) {
   line[field] = ['quantity','unitValue','costUnitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : ['currency','costCurrency'].includes(field) ? normalizeCostCurrency(value) : value;
   if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
+  if (field === 'showOnDocument' && line.special === 'IOF') window.iofVisibleOnDocument = value;
+  if (field === 'showOnDocument' && line.special === 'DESTINATION_TAXES') window.destinationTaxesVisibleOnDocument = value;
   const row = document.querySelector(`[data-cost-id="${id}"]`);
   const total = row?.querySelector('.cost-line-total');
   if (total) {
@@ -4288,7 +4316,7 @@ function updateReviewCostLine(group, id, field, value) {
 
 function addReviewCostLine(group) {
   const defaults = { freight:{name:'Novo componente de frete',scope:'FREIGHT',financialGroup:'FREIGHT_COMPONENT'}, origin:{name:'Nova taxa de origem',scope:'ORIGIN',financialGroup:'ORIGIN_CHARGE'}, destination:{name:'Nova taxa de destino',scope:'DESTINATION',financialGroup:'DESTINATION_CHARGE'} }[group];
-  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, costUnitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL' });
+  window.reviewCostLines[group].push({ id:reviewCostId(), name:defaults.name, quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:0, costUnitValue:0, minValue:0, maxValue:0, currency:group === 'destination' ? 'BRL' : 'USD', applicationScope:defaults.scope, financialGroup:defaults.financialGroup, chargeNature:'LOCAL_SERVICE', classificationSource:'MANUAL', provenanceType:'MANUAL', quantitySource:'MANUAL', showOnDocument:true });
   renderReviewCostEditor();
   setTimeout(() => document.querySelector(`#cost-lines-${group} .cost-line:last-child input`)?.focus(), 0);
 }
@@ -6387,6 +6415,12 @@ async function saveAsAwaitingAgent() {
     // referência da cotação no assunto do e-mail (Camada 1 do matching), não
     // depende deste campo estar preenchido.
     const agentEmail = selectedPartnerRecipients.map(item => item.email).join('; ');
+    const operatorInitialsField = document.getElementById('r-operator-initials');
+    if (!operatorInitialsField.value.trim()) {
+      alert('Selecione "Cotando como" (suas iniciais) antes de marcar a cotação como Aguardando Parceiro — elas são usadas na referência da cotação e no assunto do e-mail ao agente.');
+      btn.disabled = false; btn.innerHTML = originalHtml;
+      return;
+    }
     const cnpjField = document.getElementById('r-client-cnpj');
     if (cnpjIsRequiredForQuotation(document.getElementById('r-type').value, document.getElementById('r-storage-request').checked) && !cnpjField.value.trim()) {
       alert('Informe o CNPJ do cliente: obrigatório para cotações LCL ou quando a estimativa de armazenagem for solicitada.');
@@ -6488,12 +6522,14 @@ async function saveAsAwaitingAgent() {
       });
       const resPhase = await fetch(API + `/quotations/${currentQuotationId}/phase`, {
         method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO', agentEmail })
+        body: JSON.stringify({ status: 'AGUARDANDO_PARCEIRO', agentEmail, operatorInitials: operatorInitialsField.value.trim() })
       });
       if (!resPhase.ok) {
         const errData = await resPhase.json().catch(() => ({}));
         throw new Error(errData.error || 'Falha ao marcar cotação como Aguardando Parceiro');
       }
+      const phaseData = await resPhase.json().catch(() => null);
+      if (phaseData?.reference) document.getElementById('r-reference').value = phaseData.reference;
     }
 
     toast('✅ Enviado para Aguardando Parceiro!');
@@ -6615,21 +6651,21 @@ function recalculateRevIof() {
   if (!iofField) return;
   const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
 
-  if (window.reviewCostEditorReady && window.reviewCostLines?.freight) {
+  if (window.reviewCostEditorReady && window.reviewCostLines?.destination) {
     // reviewPercentageBase() (base do IOF, FREIGHT_PLUS_ORIGIN) recalcula a
     // partir da linha MAIN_FREIGHT guardada no editor de custos — não a
     // partir do campo rev-freight diretamente. Atualiza essa linha primeiro
     // pra não calcular o IOF em cima de um frete desatualizado.
     refreshReviewMainFreightBasis();
-    let iofLine = window.reviewCostLines.freight.find(line => line.special === 'IOF');
+    let iofLine = window.reviewCostLines.destination.find(line => line.special === 'IOF');
     if (!iofLine) {
-      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED' };
-      window.reviewCostLines.freight.push(iofLine);
+      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false };
+      window.reviewCostLines.destination.push(iofLine);
     }
     iofLine.unitValue = iofRatePct;
     const total = reviewCostTotal(iofLine);
     iofField.value = total.toFixed(2);
-    if (total <= 0) window.reviewCostLines.freight = window.reviewCostLines.freight.filter(line => line.special !== 'IOF');
+    if (total <= 0) window.reviewCostLines.destination = window.reviewCostLines.destination.filter(line => line.special !== 'IOF');
     renderReviewCostEditor();
   } else {
     // Editor de custos ainda não inicializado — calcula direto a partir dos
@@ -7339,6 +7375,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
       document.getElementById('rev-calc-taxable-weight').value = window.chargeableWeightOverride;
     }
 
+    // Restaura a visibilidade salva das linhas de IOF e Impostos de destino
+    // na proposta (padrão: visível, se a cotação nunca teve a flag definida).
+    window.iofVisibleOnDocument = q.iofVisibleOnDocument !== false;
+    window.destinationTaxesVisibleOnDocument = q.destinationTaxesVisibleOnDocument !== false;
+
     // Calcular e atualizar os pesos e volumes calculados inicialmente
     updateModalCalculatedWeights();
 
@@ -7632,6 +7673,8 @@ async function confirmAndGeneratePDF() {
       frequency: frequencyValue,
       weightBreak: weightBreakValue,
       chargeableWeightOverride: window.chargeableWeightOverride,
+      iofVisibleOnDocument: window.iofVisibleOnDocument !== false,
+      destinationTaxesVisibleOnDocument: window.destinationTaxesVisibleOnDocument !== false,
       // Atualizar também os dados da cotação com os valores revisados
       originCity: document.getElementById('rev-origin-city').value,
       originCountry: document.getElementById('rev-origin-country').value,
@@ -7711,6 +7754,8 @@ async function confirmAndGeneratePDF() {
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
         chargeableWeightOverride: window.chargeableWeightOverride,
+        iofVisibleOnDocument: window.iofVisibleOnDocument !== false,
+        destinationTaxesVisibleOnDocument: window.destinationTaxesVisibleOnDocument !== false,
         clientName: document.getElementById('rev-client-name').value,
         clientCnpj: document.getElementById('rev-client-cnpj').value,
         clientContactName: document.getElementById('rev-client-contact').value || null,
@@ -7834,6 +7879,13 @@ function normalizeReturnFeeName(name) {
   if (normalized.includes('collect')) return 'collect';
   if (normalized.includes('delivery')) return 'delivery';
   if (normalized.includes('desconsol') || normalized.includes('deconsolid')) return 'deconsolidation';
+  // hawb/awb (documento de embarque a\u00e9reo) e inland/coleta/pickup \u2014 nomes de
+  // regra de Incoterm chegam bem mais verbosos ("Taxa de Emiss\u00e3o de HAWB /
+  // Documenta\u00e7\u00e3o A\u00e9rea na Origem (AWB Fee)") do que o que normalmente vem do
+  // e-mail do agente ("AWB Fee"), ent\u00e3o sem esses atalhos as duas linhas
+  // nunca casam e ficam duplicadas na tela.
+  if (normalized.includes('hawb') || normalized.includes('awb')) return 'awb';
+  if (normalized.includes('inland') || normalized.includes('pickup')) return 'inland';
   return normalized.replace(/[^a-z0-9]/g, '');
 }
 
@@ -7917,27 +7969,37 @@ function calculateReturnRuleFees(q) {
     const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
     const quantity = quantityMap[rule.chargeType] ?? null;
     const percentageBaseValue = rule.chargeType === 'PERCENTAGE' && Number(rule.value) > 0 ? totalValue * 100 / Number(rule.value) : null;
-    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN' };
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN', mandatory:Boolean(rule.required) };
   };
 
+  // Presets de regra só entram aqui se forem obrigatórios OU já tiverem um
+  // valor real calculado — regra opcional zerada (sem base de cálculo ainda)
+  // só polui a tela sem trazer informação nova. Taxa vinda do e-mail nunca
+  // passa por aqui: ela é mesclada à parte em mergeReturnFees a partir do
+  // que já está no textarea, então nunca é afetada por este filtro.
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'ORIGIN').forEach(rule => {
+    // Coleta/Inland de origem já tem um campo fixo dedicado (Inland de
+    // Origem / Coleta, logo abaixo), sempre visível quando preenchido —
+    // não gerar também o preset da regra de Incoterm pro mesmo conceito,
+    // senão a coleta aparece duas vezes na tabela.
+    if (normalizeReturnFeeName(rule.feeName) === 'inland') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
-      calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
+      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
       return;
     }
     const value = calculateRule(rule);
-    if (value != null) {
+    if (value != null && (rule.required || value > 0)) {
       calculated.push(structuredRuleFee(rule, value));
       originTotal += value;
     }
   });
   returnIncotermRules.filter(r => r.active !== false && r.feeType === 'DESTINATION').forEach(rule => {
     if (rule.pricingStatus === 'ON_REQUEST') {
-      calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
+      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
       return;
     }
     const value = calculateRule(rule);
-    if (value != null) calculated.push(structuredRuleFee(rule, value));
+    if (value != null && (rule.required || value > 0)) calculated.push(structuredRuleFee(rule, value));
   });
   return calculated;
 }
@@ -8857,6 +8919,7 @@ function switchSettingsTab(tab) {
     case 'fixedFeesAir':
       currentFixedFeeScope = 'AIR';
       content.innerHTML = buildFixedFeesTabHtml('AIR');
+      loadAirlineOptionsForFixedFees();
       loadFixedFeesTable();
       break;
 
@@ -9062,6 +9125,13 @@ function switchSettingsTab(tab) {
         if (info) info.textContent = 'Vincule cobranças acessórias exclusivas deste armador, como ISPS, THC, documentação ou DG. Frete internacional deve ser cadastrado na Base de Fretes Marítimos.';
       }
       loadCarrierProfilesSettings();
+      break;
+
+    case 'airlineProfiles':
+      content.innerHTML=`<div class="sc-title">Cadastro de Companhias Aéreas</div><p class="sc-desc">Cadastre a identidade de cada companhia aérea: nome, código IATA e as siglas que ela usa nos AWBs (ex: CTC, FSC, BGC). Valores das taxas seguem únicos, cadastrados na Árvore de Incoterms — aqui você só vincula taxas exclusivas de uma companhia específica.</p>
+      <div class="settings-section"><div style="display:flex;justify-content:space-between"><h3>Cadastro da Companhia Aérea</h3><button class="btn btn-secondary" onclick="importAtlantisAirlinesCatalog()">Importar catálogo (Projeto Atlantis)</button></div><div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px"><div class="form-group"><label>Nome</label><input id="ap-name"></div><div class="form-group"><label>Código IATA</label><input id="ap-code" maxlength="2" style="text-transform:uppercase"></div><div class="form-group"><label>Siglas usadas nos AWBs, separadas por vírgula</label><input id="ap-aliases" placeholder="CTC, FSC, BGC"></div></div><div class="form-group"><label>Observações operacionais</label><input id="ap-description" placeholder="Hubs, rotas, moedas faturadas, tipo de faturamento..."></div><input type="hidden" id="ap-id"><button class="btn btn-primary" onclick="saveAirlineProfile()">Salvar Companhia Aérea</button><button class="btn btn-secondary" onclick="cancelAirlineProfileEdit()">Limpar</button><div id="airlineProfilesTable" style="margin-top:14px;overflow:auto"></div></div>
+      <div class="settings-section"><h3>Taxas Exclusivas</h3><p style="font-size:12px;color:var(--text-muted)">Vincule uma taxa do cadastro "Tarifas Específicas — Companhias Aéreas" à companhia aérea.</p><div style="display:grid;grid-template-columns:1fr 2fr auto;gap:12px;align-items:end"><div class="form-group"><label>Companhia Aérea</label><select id="apf-airline"></select></div><div class="form-group"><label>Taxa</label><select id="apf-fee"></select></div><button class="btn btn-primary" onclick="linkAirlineFee()">Vincular</button></div><div id="airlineFeesTable" style="margin-top:14px;overflow:auto"></div></div>`;
+      loadAirlineProfilesSettings();
       break;
 
     case 'carrierRates':
@@ -10113,9 +10183,30 @@ function renderClientsTable() {
       <td style="color:var(--text-muted);">${ifrEscape(c.productSegment || '-')}</td>
       <td>${c.needsValidation ? '<span class="status-badge review" title="' + ifrEscape(c.validationNote || '') + '">Pendente (Atlantis)</span>' : (c.atlantisId ? '<span class="status-badge approved">Vinculado</span>' : '<span class="status-badge draft">—</span>')}</td>
       <td style="color:var(--text-muted);">${c._count?.quotations ?? 0}</td>
-      <td><div class="action-btns"><button class="action-btn" onclick="editClientById('${c.id}')" title="Editar">✏️</button></div></td>
+      <td><div class="action-btns"><button class="action-btn" onclick="editClientById('${c.id}')" title="Editar">✏️</button><button class="action-btn danger" onclick="deleteClientById('${c.id}')" title="Excluir">🗑️</button></div></td>
     </tr>
   `).join('');
+}
+
+async function deleteClientById(id) {
+  const client = (window.allClientsList || []).find(item => item.id === id);
+  const quotationsCount = client?._count?.quotations ?? 0;
+  if (quotationsCount > 0) {
+    toast(`❌ Este cliente tem ${quotationsCount} cotação(ões) vinculada(s) e não pode ser excluído.`);
+    return;
+  }
+  if (!confirm(`Tem certeza que deseja excluir o cliente "${client?.name || ''}" permanentemente?`)) return;
+  try {
+    const response = await fetch(API + '/clients/' + id, { method: 'DELETE' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Não foi possível excluir o cliente.');
+    }
+    toast('🗑️ Cliente excluído.');
+    loadClients();
+  } catch (e) {
+    toast('❌ ' + e.message);
+  }
 }
 
 function closeClientModal() {
@@ -10185,7 +10276,7 @@ function editClientById(id) {
   }
 }
 
-async function saveClient() {
+async function saveClient(confirmedNew = false) {
   const id = document.getElementById('client-id').value;
   const btn = document.getElementById('btnSaveClient');
   const name = document.getElementById('client-name').value.trim();
@@ -10207,6 +10298,7 @@ async function saveClient() {
     contacts,
     productSegment: document.getElementById('client-product-segment').value || null,
     insuranceRateOverride: document.getElementById('client-insurance-rate-override').value.trim() || null,
+    ...(id ? {} : { confirmedNew }),
     ...(() => {
       const state = window.atlantisLinkState['client-modal'] || { atlantisId:null, needsValidation:false, validationNote:null };
       return { atlantisId: state.atlantisId, needsValidation: state.needsValidation, validationNote: state.validationNote };
@@ -10219,7 +10311,13 @@ async function saveClient() {
     const url = id ? API + '/clients/' + id : API + '/clients';
     const res = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Falha ao salvar cliente.');
+    if (!res.ok) {
+      if (!id && data.needsConfirmation) {
+        showClientDuplicateConfirm(data.candidates || []);
+        return;
+      }
+      throw new Error(data.error || 'Falha ao salvar cliente.');
+    }
     toast('✅ Cliente salvo com sucesso.');
     closeClientModal();
     loadClients();
@@ -10229,6 +10327,37 @@ async function saveClient() {
     btn.disabled = false;
     btn.innerText = 'Salvar Cliente';
   }
+}
+
+function showClientDuplicateConfirm(candidates) {
+  const list = document.getElementById('client-duplicate-list');
+  list.innerHTML = candidates.map(c => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div>
+        <div style="font-weight:600;">${ifrEscape(c.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${ifrEscape(c.cnpj || 'sem CNPJ')} · ${ifrEscape(c.contactName || 'sem contato')} · ${c.quotationsCount} cotação(ões)</div>
+        <div style="font-size:11px;color:var(--gold);">${ifrEscape(c.matchReason)}</div>
+      </div>
+      <button type="button" class="btn btn-secondary" style="white-space:nowrap;" onclick="useExistingClientInstead('${c.id}')">Usar este</button>
+    </div>
+  `).join('');
+  document.getElementById('clientDuplicateModal').style.display = 'block';
+}
+
+function closeClientDuplicateModal() {
+  document.getElementById('clientDuplicateModal').style.display = 'none';
+}
+
+function confirmCreateClientAnyway() {
+  closeClientDuplicateModal();
+  saveClient(true);
+}
+
+async function useExistingClientInstead(id) {
+  closeClientDuplicateModal();
+  closeClientModal();
+  await loadClients();
+  editClientById(id);
 }
 
 // ════════════ CHAMADOS ════════════
@@ -10943,7 +11072,9 @@ function buildFixedFeesTabHtml(scope) {
 
       <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;">
         <div class="form-group" style="margin:0;"><label>Nome da Taxa</label><input type="text" id="ff-name" placeholder="Ex: Capatazia, AWB Fee, BL Fee..."></div>
-        <div class="form-group" style="margin:0;"><label>${isSea ? 'Armador' : 'Cia Aérea'}</label><input type="text" id="ff-carrier" placeholder="${isSea ? 'Ex: COSCO, MSC (Opcional)' : 'Ex: LATAM, Azul (Opcional)'}"></div>
+        ${isSea
+          ? `<div class="form-group" style="margin:0;"><label>Armador</label><input type="text" id="ff-carrier" placeholder="Ex: COSCO, MSC (Opcional)"></div>`
+          : `<div class="form-group" style="margin:0;"><label>Cia Aérea</label><select id="ff-airline-select" onchange="onFixedFeeAirlineChange()"><option value="">Selecione (opcional)...</option></select><input type="hidden" id="ff-carrier"><input type="hidden" id="ff-airline-profile-id"></div>`}
         <div class="form-group" style="margin:0;"><label>Equipamento / Carga</label>
           <select id="ff-container">
             <option value="">Nenhum/Opcional</option>
@@ -11078,6 +11209,23 @@ async function loadFixedFeesTable() {
   }
 }
 
+async function loadAirlineOptionsForFixedFees() {
+  const select = document.getElementById('ff-airline-select');
+  if (!select) return;
+  try {
+    const res = await fetch(API + '/airline-profiles');
+    const airlines = res.ok ? await res.json() : [];
+    select.innerHTML = '<option value="">Selecione (opcional)...</option>' + airlines.map(a => `<option value="${a.id}">${ifrEscape(a.name)}${a.code ? ' (' + ifrEscape(a.code) + ')' : ''}</option>`).join('');
+  } catch (e) { console.error('Erro ao carregar companhias aéreas', e); }
+}
+
+function onFixedFeeAirlineChange() {
+  const select = document.getElementById('ff-airline-select');
+  const option = select?.selectedOptions?.[0];
+  document.getElementById('ff-airline-profile-id').value = select?.value || '';
+  document.getElementById('ff-carrier').value = select?.value ? (option?.textContent || '').replace(/\s*\([^)]*\)$/, '') : '';
+}
+
 function clearFixedFeeFilters() {
   ['fff-search', 'fff-type', 'fff-carrier', 'fff-equipment', 'fff-status']
     .forEach(id => {
@@ -11091,6 +11239,10 @@ function editFixedFee(fee) {
   document.getElementById('ff-id').value = fee.id;
   document.getElementById('ff-name').value = fee.name;
   document.getElementById('ff-carrier').value = fee.carrier || '';
+  const airlineProfileIdField = document.getElementById('ff-airline-profile-id');
+  if (airlineProfileIdField) airlineProfileIdField.value = fee.airlineProfileId || '';
+  const airlineSelect = document.getElementById('ff-airline-select');
+  if (airlineSelect) airlineSelect.value = fee.airlineProfileId || '';
   document.getElementById('ff-container').value = fee.containerSize || '';
   document.getElementById('ff-value').value = fee.value;
   document.getElementById('ff-currency').value = fee.currency;
@@ -11111,6 +11263,10 @@ function cancelEditFixedFee() {
   document.getElementById('ff-id').value = '';
   document.getElementById('ff-name').value = '';
   document.getElementById('ff-carrier').value = '';
+  const airlineProfileIdField = document.getElementById('ff-airline-profile-id');
+  if (airlineProfileIdField) airlineProfileIdField.value = '';
+  const airlineSelect = document.getElementById('ff-airline-select');
+  if (airlineSelect) airlineSelect.value = '';
   document.getElementById('ff-container').value = '';
   document.getElementById('ff-value').value = '';
   document.getElementById('ff-currency').value = 'USD';
@@ -11142,6 +11298,7 @@ async function saveFixedFee() {
   const payload = {
     name,
     carrier,
+    airlineProfileId: document.getElementById('ff-airline-profile-id')?.value || null,
     containerSize,
     value: parseFloat(value),
     currency: document.getElementById('ff-currency').value,
@@ -11515,7 +11672,10 @@ function currentUnifiedApplication() {
     incoterm: document.getElementById('sf-app-incoterm').value,
     modal: document.getElementById('sf-app-modal').value,
     direction: document.getElementById('sf-app-direction').value,
-    required: document.getElementById('sf-app-required').checked,
+    // required é sempre derivado de applicability (o backend recalcula do
+    // mesmo jeito ao salvar) — nunca lido do checkbox separado, pra não
+    // divergir entre o que a lista mostra antes de salvar e o que persiste.
+    required: applicability === 'REQUIRED',
     sortOrder: Number(document.getElementById('sf-app-order').value),
     active: true,
     applicability,
@@ -12107,6 +12267,37 @@ async function seedMaerskProfile(){await fetch('/api/carrier-profiles/seed-maers
 async function saveCarrierFieldRule(){const carrierId=document.getElementById('cfr-carrier').value,data={id:document.getElementById('cfr-id').value||undefined,modal:document.getElementById('cfr-modal').value,stage:document.getElementById('cfr-stage').value,fieldKey:document.getElementById('cfr-field').value,behavior:document.getElementById('cfr-behavior').value,reason:document.getElementById('cfr-reason').value};const res=await fetch(`/api/carrier-profiles/${carrierId}/rules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(res.ok){toast('✅ Regra salva!');loadCarrierProfilesSettings();}else{const e=await res.json();toast('❌ '+e.error);}}
 async function deleteCarrierRule(carrierId,id){if(!confirm('Excluir regra?'))return;await fetch(`/api/carrier-profiles/${carrierId}/rules/${id}`,{method:'DELETE'});loadCarrierProfilesSettings();}
 async function linkCarrierFee(){const carrierId=document.getElementById('cpf-carrier').value,feeId=document.getElementById('cpf-fee').value,p=carrierProfilesSettingsCache.find(x=>x.id===carrierId);const res=await fetch('/api/fixed-fees/'+feeId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({carrierProfileId:carrierId,carrier:p?.name})});if(res.ok){toast('✅ Taxa vinculada!');loadCarrierProfilesSettings();}else toast('❌ Erro ao vincular taxa.');}
+
+let airlineProfilesSettingsCache=[];
+function airlineAliasesText(p){try{const list=JSON.parse(p.aliases||'[]');return Array.isArray(list)?list.join(', '):'';}catch{return '';}}
+async function loadAirlineProfilesSettings(){
+  const [pr,fr]=await Promise.all([fetch(API+'/airline-profiles'),fetch(API+'/fixed-fees')]);
+  airlineProfilesSettingsCache=pr.ok?await pr.json():[];
+  const fees=fr.ok?await fr.json():[];
+  const airlineSelect=document.getElementById('apf-airline');
+  if(airlineSelect)airlineSelect.innerHTML=airlineProfilesSettingsCache.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('');
+  const feeSelect=document.getElementById('apf-fee');
+  if(feeSelect)feeSelect.innerHTML=fees.filter(f=>f.modal==='AIR'||f.modal==='ALL').map(f=>`<option value="${f.id}">${ifrEscape(f.carrier||'Geral')} — ${ifrEscape(f.name)} (${f.currency} ${Number(f.value).toFixed(2)})</option>`).join('');
+  const table=document.getElementById('airlineProfilesTable');
+  if(table)table.innerHTML=airlineProfilesSettingsCache.length?'<table class="k-table"><thead><tr><th>Companhia Aérea</th><th>IATA</th><th>Siglas</th><th>Taxas</th><th>Ações</th></tr></thead><tbody>'+airlineProfilesSettingsCache.map(p=>`<tr><td><strong>${ifrEscape(p.name)}</strong></td><td>${ifrEscape(p.code)||'—'}</td><td>${ifrEscape(airlineAliasesText(p))}</td><td>${p.fixedFees?.length||0}</td><td><button class="action-btn" onclick="editAirlineProfile('${p.id}')">✏️</button><button class="action-btn danger" onclick="deleteAirlineProfile('${p.id}')">🗑️</button></td></tr>`).join('')+'</tbody></table>':'<p>Nenhuma companhia aérea cadastrada.</p>';
+  renderAirlineFeesTable();
+}
+function renderAirlineFeesTable(){const el=document.getElementById('airlineFeesTable');if(!el)return;const fees=airlineProfilesSettingsCache.flatMap(p=>(p.fixedFees||[]).map(f=>({...f,airlineName:p.name})));el.innerHTML='<h4>Taxas Vinculadas</h4>'+(fees.length?'<table class="k-table"><tbody>'+fees.map(f=>`<tr><td>${ifrEscape(f.airlineName)}</td><td>${ifrEscape(f.name)}</td><td>${f.currency} ${Number(f.value).toFixed(2)}</td><td>${f.modal}</td></tr>`).join('')+'</tbody></table>':'<p style="color:var(--text-muted)">Nenhuma taxa vinculada.</p>');}
+function editAirlineProfile(id){const p=airlineProfilesSettingsCache.find(x=>x.id===id);if(!p)return;document.getElementById('ap-id').value=p.id;document.getElementById('ap-name').value=p.name;document.getElementById('ap-code').value=p.code||'';document.getElementById('ap-aliases').value=airlineAliasesText(p);document.getElementById('ap-description').value=p.description||'';}
+function cancelAirlineProfileEdit(){document.getElementById('ap-id').value='';document.getElementById('ap-name').value='';document.getElementById('ap-code').value='';document.getElementById('ap-aliases').value='';document.getElementById('ap-description').value='';}
+async function saveAirlineProfile(){
+  const id=document.getElementById('ap-id').value;
+  const name=document.getElementById('ap-name').value.trim();
+  if(!name){toast('⚠️ Informe o nome da companhia aérea.');return;}
+  const payload={name,code:document.getElementById('ap-code').value.trim()||null,aliases:document.getElementById('ap-aliases').value.split(',').map(v=>v.trim()).filter(Boolean),description:document.getElementById('ap-description').value.trim()||null,active:true};
+  const url=id?API+'/airline-profiles/'+id:API+'/airline-profiles';
+  const res=await fetch(url,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(res.ok){toast('✅ Companhia aérea salva!');cancelAirlineProfileEdit();loadAirlineProfilesSettings();}
+  else{const data=await res.json().catch(()=>({}));toast('❌ '+(data.error||'Erro ao salvar companhia aérea.'));}
+}
+async function deleteAirlineProfile(id){if(!confirm('Excluir esta companhia aérea?'))return;const res=await fetch(API+'/airline-profiles/'+id,{method:'DELETE'});if(res.ok){toast('🗑️ Companhia aérea excluída.');loadAirlineProfilesSettings();}else{const data=await res.json().catch(()=>({}));toast('❌ '+(data.error||'Erro ao excluir.'));}}
+async function linkAirlineFee(){const airlineId=document.getElementById('apf-airline').value,feeId=document.getElementById('apf-fee').value,p=airlineProfilesSettingsCache.find(x=>x.id===airlineId);const res=await fetch(API+'/fixed-fees/'+feeId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({airlineProfileId:airlineId,carrier:p?.name})});if(res.ok){toast('✅ Taxa vinculada!');loadAirlineProfilesSettings();}else toast('❌ Erro ao vincular taxa.');}
+async function importAtlantisAirlinesCatalog(){const res=await fetch(API+'/airline-profiles/import-atlantis',{method:'POST'});if(res.ok){const data=await res.json();toast(`✅ ${data.imported} companhia(s) aérea(s) importada(s)!`);loadAirlineProfilesSettings();}else toast('❌ Erro ao importar catálogo.');}
 const CARRIER_RATE_STATUS={REFERENCE:'Somente referência',APPROVED:'Aprovado',EXPIRED:'Expirado',REJECTED:'Rejeitado'};
 function ensureCarrierEquipmentProfileForm(){const aliases=document.getElementById('cp-aliases');if(!aliases||document.getElementById('cp-equipment'))return;aliases.closest('.form-group').insertAdjacentHTML('afterend',`<div class="form-group"><label>Equipamentos habilitados</label><select id="cp-equipment" multiple size="4"><option value="20GP" selected>20' Dry (20GP)</option><option value="40GP" selected>40' Dry (40GP)</option><option value="40HC" selected>40' High Cube (40HC)</option><option value="20RH">20' Reefer / RIF</option><option value="40RH">40' Reefer / RIF</option><option value="20OT">20' Open Top / TOR</option><option value="40OT">40' Open Top / TOR</option></select><small>Use Ctrl/Cmd para selecionar mais de um.</small></div>`);}
 async function ensureCarrierRateManualForm(){const stats=document.getElementById('carrierRateStats');if(!stats||document.getElementById('cr-new-carrier'))return;const res=await fetch('/api/carrier-profiles');if(!res.ok)return;const profiles=await res.json();stats.insertAdjacentHTML('afterend',`<div class="settings-section" id="carrierRateManualForm"><h3>Nova taxa por equipamento</h3><div style="display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px"><div class="form-group"><label>Armador</label><select id="cr-new-carrier" onchange="refreshNewCarrierEquipment()">${profiles.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('')}</select></div><div class="form-group"><label>Taxa</label><input id="cr-new-name" placeholder="Ex.: THC"></div><div class="form-group"><label>Porto</label><input id="cr-new-port" placeholder="Ex.: Santos ou ALL"></div><div class="form-group"><label>Equipamento</label><select id="cr-new-equipment"></select></div><div class="form-group"><label>Valor</label><input id="cr-new-amount" type="number" step="0.01"></div><div class="form-group"><label>Moeda</label><input id="cr-new-currency" value="USD"></div><div class="form-group"><label>Base</label><input id="cr-new-unit" value="PER CONTAINER"></div><div class="form-group"><label>Vigência inicial</label><input id="cr-new-from" type="date"></div><div class="form-group"><label>Vigência final</label><input id="cr-new-to" type="date"></div><div class="form-group"><label>Status</label><select id="cr-new-status"><option value="REFERENCE">Referência</option><option value="APPROVED">Aprovada</option></select></div></div><button class="btn btn-primary" onclick="createCarrierRate()">Salvar taxa</button></div>`);window.carrierRateProfiles=profiles;refreshNewCarrierEquipment();}

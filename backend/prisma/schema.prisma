@@ -203,6 +203,11 @@ model Quotation {
   // vale sobre o cálculo automático (max(peso bruto, peso cubado)) em todo
   // lugar que usa o CW como base — frete e taxas por kg/peso taxável.
   chargeableWeightOverride Float?
+  // Controla se a linha de IOF / Impostos de destino aparece impressa na
+  // proposta do cliente — o valor sempre conta no total, mudando isso só
+  // esconde/mostra a linha em si.
+  iofVisibleOnDocument             Boolean @default(true)
+  destinationTaxesVisibleOnDocument Boolean @default(true)
 
   // Gestão de Profit
   costsData       String? // JSON string
@@ -452,12 +457,15 @@ model FixedFee {
   updatedAt        DateTime        @updatedAt
   carrierProfileId String?
   carrierProfile   CarrierProfile? @relation(fields: [carrierProfileId], references: [id])
+  airlineProfileId String?
+  airlineProfile   AirlineProfile? @relation(fields: [airlineProfileId], references: [id])
   partnerId        String?
   effectiveFrom    DateTime?
   effectiveTo      DateTime?
   evidence         String?
 
   @@index([carrierProfileId])
+  @@index([airlineProfileId])
   @@index([partnerId])
 }
 
@@ -539,6 +547,26 @@ model CarrierProfile {
   fieldRules CarrierFieldRule[]
   fixedFees  FixedFee[]
   rates      CarrierRate[]
+}
+
+// Cadastro de companhias aéreas — equivalente ao CarrierProfile (Armadores),
+// mas modelado à parte porque campos de navio (equipmentScopes/contêiner)
+// não fazem sentido pra aéreo e não há hoje um relacionamento com cotação
+// (carrier de cotação aérea ainda é campo livre).
+model AirlineProfile {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String? // Código IATA de 2 letras (ex: LH, LA, QR)
+  aliases     String? // JSON array — siglas usadas nos AWBs/cotações (ex: CTC, FSC, BGC)
+  description String? // Notas operacionais: hubs, rotas, moedas faturadas, tipo de faturamento
+  active      Boolean  @default(true)
+  partnerId   String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fixedFees FixedFee[]
+
+  @@index([code])
 }
 
 model ChargeCatalog {

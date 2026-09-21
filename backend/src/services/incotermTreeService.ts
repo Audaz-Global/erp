@@ -94,14 +94,18 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
       if (pricingStatus === 'PRICED' && (feeData.value === undefined || feeData.value === null || (feeData.value as any) === '')) {
         throw new Error(`Informe o valor da taxa "${feeData.feeName}" ou marque "A cotar".`);
       }
+      const applicability = feeData.applicability || 'APPLICABLE';
 
       await tx.incotermRule.create({
         data: {
           incoterm: incotermUpper,
           direction: directionUpper,
           modal: modalUpper,
-          required: Boolean(feeData.required),
-          applicability: feeData.applicability || 'APPLICABLE',
+          // required é derivado de applicability — nunca aceito como input
+          // independente, pra não divergir entre esta tela (Árvore de
+          // Incoterms) e a de Taxas Padrão, que editam a mesma regra.
+          required: applicability === 'REQUIRED',
+          applicability,
           financialGroup: feeData.financialGroup || null,
           condition: feeData.condition ? (typeof feeData.condition === 'string' ? feeData.condition : JSON.stringify(feeData.condition)) : null,
           reason: feeData.reason || null,

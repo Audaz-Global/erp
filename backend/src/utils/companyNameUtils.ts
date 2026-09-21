@@ -74,3 +74,26 @@ export function companyNamesLikelyMatch(a?: string | null, b?: string | null): b
     return shorter.length >= 3 && longer.startsWith(shorter);
   });
 }
+
+// Comparação mais permissiva que companyNamesLikelyMatch — não exige mesma
+// contagem/ordem de palavras, só que todas as palavras com identidade (sem
+// sufixo jurídico/UF) do nome mais curto apareçam no mais longo. Pega casos
+// como "Gestamp" dentro de "GESTAMP BRASIL INDÚSTRIA DE AUTOPEÇAS S/A FILIAL
+// TAUBATÉ", que companyNamesLikelyMatch não detecta. Mais propenso a falso
+// positivo entre nomes curtos, então serve só pra AVISAR o operador de
+// possível duplicidade — nunca pra decidir automaticamente que é o mesmo
+// cliente.
+export function companyNamesOverlap(a?: string | null, b?: string | null): boolean {
+  const meaningfulWords = (value?: string | null) =>
+    normalizeCompanyName(value).split(' ').filter(Boolean).filter(w => !isNoiseWord(w, LEGAL_SUFFIX_WORDS));
+  const wordsA = meaningfulWords(a);
+  const wordsB = meaningfulWords(b);
+  if (!wordsA.length || !wordsB.length) return false;
+  const [shorter, longer] = wordsA.length <= wordsB.length ? [wordsA, wordsB] : [wordsB, wordsA];
+  return shorter.every(sw => longer.some(lw => {
+    if (sw === lw) return true;
+    const shorterWord = sw.length < lw.length ? sw : lw;
+    const longerWord = sw.length < lw.length ? lw : sw;
+    return shorterWord.length >= 3 && longerWord.startsWith(shorterWord);
+  }));
+}

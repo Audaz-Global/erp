@@ -19,6 +19,7 @@ import { normalizeCurrency, normalizeFee } from '../services/feeCalculationServi
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
+import { generateQuotationReference, isValidOperatorInitials, buildAgentEmailSubject } from '../services/quotationReferenceService';
 import { searchAirExportRates, importTariffFromBuffer } from '../services/airExportTariffService';
 
 export const uploadAirExportTariff = async (req: Request, res: Response) => {
@@ -80,7 +81,11 @@ export const createQuotation = async (req: Request, res: Response) => {
       enforceHybridModalAcknowledgement({ hybridModalDetected: quotationData.hybridModalDetected, hybridModalAcknowledged: quotationData.hybridModalAcknowledged });
     }
 
-    // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided
+    // Generate Reference in INITIALS-DDMMYY-HHMM format if not provided. As
+    // iniciais do operador são obrigatórias aqui — sem elas, a referência
+    // caía silenciosamente para o prefixo genérico 'ADZ' e nunca mais era
+    // corrigida (bug reportado: cotação "Aguardando Parceiro" sem as
+    // iniciais de quem realmente está cotando).
     let reference = quotationData.reference;
     if (reference) {
       try {
@@ -90,7 +95,10 @@ export const createQuotation = async (req: Request, res: Response) => {
         }
       } catch (e) {}
     } else {
-      reference = await generateReference(operatorInitials || 'ADZ');
+      if (!isValidOperatorInitials(operatorInitials)) {
+        return res.status(400).json({ error: 'Informe as iniciais do operador (2 a 4 letras) para gerar a referência da cotação.' });
+      }
+      reference = await generateQuotationReference(String(operatorInitials).trim());
     }
 
     // Handle Client
@@ -140,7 +148,7 @@ export const createQuotation = async (req: Request, res: Response) => {
       totalCbm = calculateCbmFromDimensions(quotationData.packages, quotationData.totalPackages || 1);
     }
 
-    const data = {
+    const data: any = {
       ...quotationData,
       totalCbm,
       iofUsd,
@@ -148,6 +156,15 @@ export const createQuotation = async (req: Request, res: Response) => {
       createdById: userId,
       ...(clientId ? { clientId } : {})
     };
+
+    // Cotação já criada direto como "Aguardando Parceiro" (fluxo "Só Marcar
+    // Aguardando" sem passar por "Gerar Rascunho"): grava também o código e o
+    // assunto do e-mail ao agente, senão eles ficam vazios pra sempre — só
+    // "Gerar Rascunho" os preenchia antes.
+    if (data.status === 'AGUARDANDO_PARCEIRO') {
+      data.agentEmailCode = reference;
+      data.draftEmailSubject = await buildAgentEmailSubject({ ...data, client: { name: clientName || null, cnpj: clientCnpj || null } }, reference);
+    }
 
     try {
       const quotation = await prisma.quotation.create({ data });
@@ -274,8 +291,8 @@ export const updateQuotation = async (req: Request, res: Response) => {
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
     if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
     if (!quotationData.reference) delete quotationData.reference;
-    if (!current.reference && !quotationData.reference && operatorInitials) {
-      quotationData.reference = await generateReference(operatorInitials);
+    if (!current.reference && !quotationData.reference && isValidOperatorInitials(operatorInitials)) {
+      quotationData.reference = await generateQuotationReference(String(operatorInitials).trim());
     }
 
     if (ruleStage) {
@@ -387,26 +404,6 @@ export const deleteQuotation = async (req: Request, res: Response) => {
   }
 };
 
-// Helper: Auto-generate Reference "INITIALS-DDMMYY-HHMM" format
-const generateReference = async (initials: string = 'ADZ') => {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-  }).formatToParts(new Date()).reduce<Record<string, string>>((acc, part) => ({ ...acc, [part.type]: part.value }), {});
-  const datePart = `${parts.day || '01'}${parts.month || '01'}${(parts.year || '2000').slice(-2)}`;
-  const timePart = `${parts.hour || '00'}${parts.minute || '00'}`;
-  const prefix = (initials || 'ADZ').trim().toUpperCase();
-  const base = `${prefix}-${datePart}-${timePart}`;
-  let candidate = base;
-  let suffix = 1;
-  try {
-    while (await prisma.quotation.findUnique({ where: { reference: candidate } })) {
-      candidate = `${base}-${suffix}`;
-      suffix += 1;
-    }
-  } catch (e) {}
-  return candidate;
-};
-
 // 6. Generate PDF for Quotation
 export const generateQuotationPdf = async (req: Request, res: Response) => {
   try {
@@ -486,7 +483,7 @@ export const updatePhase = async (req: Request, res: Response) => {
       current = localQuotationsStore.get(id);
     }
     if (!current) return res.status(404).json({ error: 'Cotação não encontrada' });
-    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, freightDisplayMode, costCompositionReviewed } = req.body;
+    const { status, costs, agentEmail, customsClearanceIncluded, transitTimeDays, frequency, weightBreak, chargeableWeightOverride, iofVisibleOnDocument, destinationTaxesVisibleOnDocument, freightDisplayMode, costCompositionReviewed, operatorInitials } = req.body;
 
     if (['AGUARDANDO_PARCEIRO', 'GERADA'].includes(status)) {
       enforceCnpjRequirement({
@@ -520,6 +517,31 @@ export const updatePhase = async (req: Request, res: Response) => {
     }
     if (chargeableWeightOverride !== undefined) {
       updateData.chargeableWeightOverride = chargeableWeightOverride === null ? null : Number(chargeableWeightOverride) || null;
+    }
+    if (iofVisibleOnDocument !== undefined) {
+      updateData.iofVisibleOnDocument = Boolean(iofVisibleOnDocument);
+    }
+    if (destinationTaxesVisibleOnDocument !== undefined) {
+      updateData.destinationTaxesVisibleOnDocument = Boolean(destinationTaxesVisibleOnDocument);
+    }
+
+    // Cotação indo para "Aguardando Parceiro" sem nunca ter passado por
+    // "Gerar Rascunho": grava o código/referência e o assunto do e-mail ao
+    // agente aqui, com as iniciais do operador logado — sem isso ficavam
+    // vazios/desatualizados (bug reportado) até alguém clicar "Gerar
+    // Rascunho" manualmente. Não mexe em nada se já estiverem preenchidos
+    // (evita sobrescrever um rascunho já gerado/editado).
+    if (status === 'AGUARDANDO_PARCEIRO' && (!current.agentEmailCode || !current.draftEmailSubject)) {
+      let agentEmailCode = current.agentEmailCode || current.reference;
+      if (!agentEmailCode) {
+        if (!isValidOperatorInitials(operatorInitials)) {
+          return res.status(400).json({ error: 'Informe as iniciais do operador (2 a 4 letras) para marcar como Aguardando Parceiro.' });
+        }
+        agentEmailCode = await generateQuotationReference(String(operatorInitials).trim());
+      }
+      updateData.reference = agentEmailCode;
+      updateData.agentEmailCode = agentEmailCode;
+      updateData.draftEmailSubject = await buildAgentEmailSubject(current, agentEmailCode);
     }
 
     if (costs) {
@@ -702,7 +724,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
               currency: curr,
               brl: getBrlValue(val, curr),
               financialGroup: normalizeFee({ ...f, applicationScope:'ORIGIN' }).financialGroup,
-              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature
+              chargeNature: normalizeFee({ ...f, applicationScope:'ORIGIN' }).chargeNature,
+              showOnDocument: f.showOnDocument !== false
             };
           });
         }
@@ -729,7 +752,8 @@ export const getPublicWebView = async (req: Request, res: Response) => {
               currency: curr,
               brl: getBrlValue(val, curr),
               financialGroup: normalizeFee({ ...f, applicationScope:'DESTINATION' }).financialGroup,
-              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature
+              chargeNature: normalizeFee({ ...f, applicationScope:'DESTINATION' }).chargeNature,
+              showOnDocument: f.showOnDocument !== false
             };
           });
         }
@@ -1125,7 +1149,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           <td class="t-right">${fCurr} ${(fVal / taxavel).toFixed(2)} / kg</td>
           <td class="t-right">R$ ${(fTotalBrl / taxavel).toFixed(2)} / kg</td>
         </tr>
-        ${detailedFeesFreightComponents.map(fee => `
+        ${detailedFeesFreightComponents.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
           <td>${fee.name}</td><td>Componente do frete${fee.chargeNature ? ` · ${fee.chargeNature}` : ''}</td>
           <td class="t-right">${fee.currency} ${fee.val.toFixed(2)}</td><td class="t-right">R$ ${fee.brl.toFixed(2)}</td>
@@ -1141,7 +1165,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <tr>
           <td colspan="4" class="section-title">Origem</td>
         </tr>
-        ${detailedFeesOrigem.map(fee => `
+        ${detailedFeesOrigem.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
           <td>${fee.name}</td>
           <td>Fixo / Unitário</td>
@@ -1160,7 +1184,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         <tr>
           <td colspan="4" class="section-title">Destino (Local)</td>
         </tr>
-        ${detailedFeesDestino.map(fee => `
+        ${detailedFeesDestino.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
           <td>${fee.name}</td>
           <td>Fixo / Variável</td>
@@ -1179,7 +1203,7 @@ export const getPublicWebView = async (req: Request, res: Response) => {
           // Profit/spread do agente é informação interna: não aparece como
           // linha nem rótulo aqui, mas seu valor continua contando no
           // subtotal (subtotalAdditionalBrl já inclui o profit, sem exibi-lo).
-          const visibleAdditionalFees = detailedFeesAdditionalGroups.filter(fee => fee.financialGroup !== 'PROFIT');
+          const visibleAdditionalFees = detailedFeesAdditionalGroups.filter(fee => fee.financialGroup !== 'PROFIT' && fee.showOnDocument !== false);
           if (!visibleAdditionalFees.length) return '';
           return `
         <tr><td colspan="4" class="section-title">Taxas DG, aduaneiras, seguro e impostos</td></tr>
