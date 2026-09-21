@@ -6833,6 +6833,9 @@ function updateBuyVsSellTable() {
   let sellDestFeesUsd = destBaseUsd;
   let sellDestFeesExSpreadUsd = destBaseUsd;
 
+  const destText = document.getElementById('rev-destination-services')?.value || '';
+  const destFeeLines = parseFeeText(destText);
+
   destFeeLines.forEach(fee => {
     const l = (fee.name || '').toLowerCase();
     if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
