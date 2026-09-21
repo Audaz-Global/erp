@@ -7634,7 +7634,10 @@ async function confirmAndGeneratePDF() {
     alert(`O valor máximo não pode ser menor que o mínimo: ${invalidLimits.map(line => line.name).join(', ')}.`);
     return;
   }
-  const reviewedFees = [...parseFeeText(document.getElementById('rev-origin-services').value), ...parseFeeText(document.getElementById('rev-destination-services').value)];
+  const reviewedFees = [
+    ...parseFeeText(document.getElementById('rev-origin-services').value, 'ORIGIN').map(f => ({ ...f, financialGroup: (f.financialGroup && f.financialGroup !== 'TO_CONFIRM') ? f.financialGroup : 'ORIGIN_CHARGE', wasAutoAssignedGroup: !f.financialGroup || f.financialGroup === 'TO_CONFIRM' })),
+    ...parseFeeText(document.getElementById('rev-destination-services').value, 'DESTINATION').map(f => ({ ...f, financialGroup: (f.financialGroup && f.financialGroup !== 'TO_CONFIRM') ? f.financialGroup : 'DESTINATION_CHARGE', wasAutoAssignedGroup: !f.financialGroup || f.financialGroup === 'TO_CONFIRM' }))
+  ];
   const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING'));
   if (missingQuantity.length) {
     alert(`Informe a quantidade aplicável antes de finalizar: ${missingQuantity.map(fee => fee.name).join(', ')}.`);
