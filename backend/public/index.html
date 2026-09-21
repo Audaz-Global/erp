@@ -4160,7 +4160,11 @@ function reviewPercentageBase(line) {
   const savedBase=reviewCostNumber(line.percentageBaseValue); return savedBase > 0 ? savedBase : freight;
 }
 function reviewCostTotal(line) { const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(reviewCostNumber(line.unitValue)/100) : reviewCostNumber(line.quantity,0)*reviewCostNumber(line.unitValue,0); return reviewCostSellFloor(reviewCostWithLimits(raw,line),line); }
-function reviewCostBuyTotal(line) { const costUnitValue=reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)); const raw=line.billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(costUnitValue/100) : reviewCostNumber(line.quantity,0)*costUnitValue; return reviewCostWithLimits(raw,line); }
+// costBillingUnit/costQuantity só existem na linha de Frete Internacional
+// (Compra sempre fiel à carga, mesmo que a Venda use uma base diferente,
+// ex: Frete Mínimo fixo) — em qualquer outra linha, caem no fallback do
+// billingUnit/quantity compartilhado de sempre.
+function reviewCostBuyTotal(line) { const costUnitValue=reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)); const billingUnit=line.costBillingUnit || line.billingUnit; const quantity=line.costQuantity != null ? line.costQuantity : line.quantity; const raw=billingUnit==='PERCENTAGE' ? reviewPercentageBase(line)*(costUnitValue/100) : reviewCostNumber(quantity,0)*costUnitValue; return reviewCostWithLimits(raw,line); }
 // Conversão aproximada só para tornar Compra e Venda comparáveis quando estão
 // em moedas diferentes (ex: compra em EUR, venda em USD) — sem isso, o lucro
 // por linha vira uma subtração sem sentido entre números de moedas distintas.
@@ -4206,19 +4210,28 @@ function quotationFreightEvidence(quotation) {
   return { hasAgent:Boolean(data?.costs && (data.costs.freight_value != null || data.costs.freight_usd != null)), evidence };
 }
 
-function reviewMainFreightLine(quotation = {}) {
+function reviewMainFreightLine(quotation = {}, previousLine = null) {
   const loadType = String(document.getElementById('rev-load-type')?.value || '').toUpperCase();
   const gross = reviewCostNumber(document.getElementById('rev-weight')?.value);
   const packages = parseInt(document.getElementById('rev-packages')?.value) || 1;
   const dimensions = document.getElementById('rev-dimensions')?.value || '';
   const cbm = calculateCbmLocal(dimensions, packages) || reviewCostNumber(document.getElementById('rev-calc-cbm')?.textContent);
-  let quantity = 1, billingUnit = 'TOTAL_SHIPMENT';
+  let costQuantity = 1, costBillingUnit = 'TOTAL_SHIPMENT';
   // Override manual do Peso/Medida Taxável Final (Chargeable Weight), quando
   // ativo, vale sobre o cálculo automático — inclusive sobre a faixa
   // tarifária do agente (weightBreak), que não deve mais distorcer o CW.
-  if (loadType.includes('AIR')) { quantity = window.chargeableWeightOverride || getLocalTaxavel(dimensions, packages, gross, loadType, cbm) || 1; billingUnit = 'PER_CHARGEABLE_WEIGHT'; }
-  else if (loadType.includes('LCL')) { quantity = window.chargeableWeightOverride || cbm || 1; billingUnit = 'PER_CBM'; }
-  else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); quantity = containerMatch ? Number(containerMatch[1]) : 1; billingUnit = 'PER_CONTAINER'; }
+  // Isso é sempre a base real da Compra (o que o agente cobrou) — nunca
+  // muda por edição do operador, diferente da base da Venda logo abaixo.
+  if (loadType.includes('AIR')) { costQuantity = window.chargeableWeightOverride || getLocalTaxavel(dimensions, packages, gross, loadType, cbm) || 1; costBillingUnit = 'PER_CHARGEABLE_WEIGHT'; }
+  else if (loadType.includes('LCL')) { costQuantity = window.chargeableWeightOverride || cbm || 1; costBillingUnit = 'PER_CBM'; }
+  else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); costQuantity = containerMatch ? Number(containerMatch[1]) : 1; costBillingUnit = 'PER_CONTAINER'; }
+  // Base da Venda: por padrão acompanha a mesma base da Compra (cargo), mas
+  // se o operador já mudou pra outra base (ex: "Frete Mínimo" fixo, pra
+  // cobrar independente do peso), essa escolha é preservada nos recálculos
+  // seguintes — só a Compra continua sempre fiel ao que o agente informou.
+  const useCustomSellBasis = previousLine?.special === 'MAIN_FREIGHT' && previousLine.editedManually;
+  const quantity = useCustomSellBasis && previousLine.quantity != null ? previousLine.quantity : costQuantity;
+  const billingUnit = useCustomSellBasis && previousLine.billingUnit ? previousLine.billingUnit : costBillingUnit;
   const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
   const source=quotationFreightEvidence(quotation);
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
@@ -4226,8 +4239,8 @@ function reviewMainFreightLine(quotation = {}) {
   const unitValue=quantity > 0 ? total / quantity : total;
   const agentFreightUsd = window.lastExtractedAgentData?.costs?.freight_usd;
   const costTotal = agentFreightUsd != null ? reviewConvertCost(Number(agentFreightUsd), 'USD', currency) : total;
-  const costUnitValue = quantity > 0 ? costTotal / quantity : costTotal;
-  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue, costUnitValue, currency, financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?`${partnerType}_EMAIL`:'MANUAL', evidence:source.evidence };
+  const costUnitValue = costQuantity > 0 ? costTotal / costQuantity : costTotal;
+  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue, costQuantity, costBillingUnit, costUnitValue, currency, financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?`${partnerType}_EMAIL`:'MANUAL', evidence:source.evidence, editedManually:Boolean(useCustomSellBasis) };
 }
 
 function initializeReviewCostEditor(quotation = {}) {
@@ -4255,7 +4268,7 @@ function initializeReviewCostEditor(quotation = {}) {
     return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, costUnitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):costUnitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope };
   };
   window.reviewCostLines = {
-    freight: [reviewMainFreightLine(quotation), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
+    freight: [reviewMainFreightLine(quotation, (window.reviewCostLines?.freight || []).find(l => l.special === 'MAIN_FREIGHT')), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
     destination: cleanDestination.map(fee => decorate(fee, 'DESTINATION'))
   };
@@ -4281,11 +4294,16 @@ function initializeReviewCostEditor(quotation = {}) {
 function refreshReviewMainFreightBasis() {
   if (!window.reviewCostEditorReady) return;
   const current = window.reviewCostLines.freight.find(line => line.special === 'MAIN_FREIGHT'); if (!current) return;
-  const calculated = reviewMainFreightLine();
+  const calculated = reviewMainFreightLine({}, current);
   current.quantity = calculated.quantity;
   current.billingUnit = calculated.billingUnit;
   current.unitValue = calculated.unitValue;
   current.currency = calculated.currency;
+  // Compra segue sempre fiel à carga/agente, independente da base de Venda
+  // que o operador tenha customizado (ex: Frete Mínimo fixo).
+  current.costQuantity = calculated.costQuantity;
+  current.costBillingUnit = calculated.costBillingUnit;
+  current.costUnitValue = calculated.costUnitValue;
   renderReviewCostEditor();
 }
 
@@ -4299,8 +4317,8 @@ function renderReviewCostEditor() {
     const lines = window.reviewCostLines[group] || [];
     target.innerHTML = lines.length ? lines.map(line => { const source=reviewCostProvenance(line); return `<div class="cost-line" data-cost-id="${line.id}">
       <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div></div>
-      <div><label>Base de cálculo</label><select ${(line.locked || line.fixedDefinition) ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
-      <div><label>Qtd.</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
+      <div><label>Base de cálculo${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
+      <div><label>Qtd.${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${line.fixedDefinition ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
       <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
       <div><label>Compra</label><div style="display:flex;gap:4px;align-items:center;"><select style="width:54px;flex-shrink:0;padding:5px 2px;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" style="flex:1;min-width:55px;" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div></div>
@@ -4317,7 +4335,7 @@ function renderReviewCostEditor() {
 function updateReviewCostLine(group, id, field, value) {
   const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
   line[field] = ['quantity','unitValue','costUnitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : ['currency','costCurrency'].includes(field) ? normalizeCostCurrency(value) : value;
-  if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue'].includes(field)) line.editedManually = true;
+  if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue','quantity','billingUnit'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
   if (field === 'showOnDocument' && line.special === 'IOF') window.iofVisibleOnDocument = value;
   if (field === 'showOnDocument' && line.special === 'DESTINATION_TAXES') window.destinationTaxesVisibleOnDocument = value;
