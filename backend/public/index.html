@@ -2996,6 +2996,11 @@
       <label>Descrição *</label>
       <textarea id="ticket-description" rows="4" placeholder="Descreva o problema/melhoria com o máximo de detalhe possível (passos, cotação afetada, etc.)"></textarea>
     </div>
+    <div class="form-group">
+      <label>Solicitante</label>
+      <select id="ticket-reporter"><option value="">Selecione quem está abrindo...</option></select>
+      <small style="display:block;margin-top:4px;color:var(--text-muted);">Usado pra avisar por e-mail quando o chamado for resolvido.</small>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
       <div class="form-group">
         <label>Tipo</label>
@@ -3877,10 +3882,10 @@ async function runExtract(mode = 'CLIENT') {
         }
       }
     } else {
-      alert('Erro na extração: ' + (json.error || 'Desconhecido'));
+      await appConfirm(json.error || 'Erro desconhecido ao processar com IA.', { title: 'Erro na extração', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
     }
   } catch (err) {
-    alert('Erro: ' + err.message);
+    await appConfirm(err.message || 'Erro inesperado ao processar com IA.', { title: 'Erro', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
   }
   btn.disabled = false; btn.innerHTML = originalHtml;
 }
@@ -4234,7 +4239,21 @@ function initializeReviewCostEditor(quotation = {}) {
   const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
-  const decorate = (fee, scope) => { const unitValue=reviewCostNumber(fee.unitValue ?? fee.value); const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value); const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0); return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, costUnitValue:fee.costUnitValue != null?reviewCostNumber(fee.costUnitValue):unitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):unitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope }; };
+  // fee.costUnitValue só vem preenchido se essa linha já passou por um
+  // ciclo de salvamento (formatFeeLine grava COST à parte de Venda quando
+  // os dois divergem). Na primeira vez que a taxa chega (extraída do
+  // e-mail do agente ou de regra automática), o valor extraído é o que o
+  // agente cobra (Compra) — Venda começa vazia, pra forçar quem está
+  // cotando a decidir o preço em vez de vender no preço de custo sem notar.
+  const decorate = (fee, scope) => {
+    const extractedValue = reviewCostNumber(fee.unitValue ?? fee.value);
+    const isFreshExtraction = fee.costUnitValue == null;
+    const costUnitValue = isFreshExtraction ? extractedValue : reviewCostNumber(fee.costUnitValue);
+    const unitValue = isFreshExtraction ? 0 : extractedValue;
+    const originalTotalValue=reviewCostNumber(fee.originalTotalValue ?? fee.totalValue ?? fee.value);
+    const percentageBaseValue=reviewCostNumber(fee.percentageBaseValue) || (fee.billingUnit==='PERCENTAGE' && unitValue>0 ? originalTotalValue*100/unitValue : 0);
+    return { ...fee, name:stripReturnEstimateLabel(fee.name), id:reviewCostId(), quantity:fee.billingUnit==='PERCENTAGE'?null:reviewCostNumber(fee.quantity,1), unitValue, costUnitValue, originalUnitValue:fee.originalUnitValue != null?reviewCostNumber(fee.originalUnitValue):costUnitValue, originalTotalValue, minValue:reviewCostNumber(fee.minValue), maxValue:reviewCostNumber(fee.maxValue), percentageBaseValue, provenanceType:fee.provenanceType || (fee.source==='PARTNER'||fee.classificationSource==='AI'?`${partnerType}_EMAIL`:fee.source==='INCOTERM'?'SYSTEM_RULE':null), currency:normalizeCostCurrency(fee.currency), applicationScope:scope };
+  };
   window.reviewCostLines = {
     freight: [reviewMainFreightLine(quotation), ...freightComponents.map(fee => ({...decorate(fee, 'FREIGHT'), financialGroup:'FREIGHT_COMPONENT'}))],
     origin: cleanOrigin.map(fee => decorate(fee, 'ORIGIN')),
@@ -6805,15 +6824,12 @@ function updateBuyVsSellTable() {
   let costInsuranceUsd = agentCosts.insurance_cost_usd != null ? parseFloat(agentCosts.insurance_cost_usd) : 0;
 
   // 5. TAXAS DESTINO & SERVIÇOS
+  // rev-services já é a soma das mesmas linhas de rev-destination-services
+  // somadas individualmente logo abaixo — não entra aqui, senão cada taxa
+  // (exceto Seguro) é contada duas vezes no total de Venda/Compra.
   const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
-  const servicesBrl = parseFloat(document.getElementById('rev-services').value) || 0;
   const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  // Somar também linhas avulsas de destino (exceto Seguro). "Spread / Profit"
-  // entra na Venda normalmente, mas fica de fora do custo do agente (abaixo).
-  const destText = document.getElementById('rev-destination-services').value || '';
-  const destFeeLines = parseFeeText(destText);
-  // rev-services já é a soma dessas linhas quando elas existem; somar os dois duplica o destino.
-  const destBaseUsd = (storageBrl + (destFeeLines.length ? 0 : servicesBrl) + taxesBrl) / usdRate;
+  const destBaseUsd = (storageBrl + taxesBrl) / usdRate;
   let sellDestFeesUsd = destBaseUsd;
   let sellDestFeesExSpreadUsd = destBaseUsd;
 
@@ -7206,7 +7222,11 @@ async function validateAndGeneratePDF(qIdParam = null) {
       }
       document.getElementById('rev-destination-services').value = destFeesText || tariffPresetFees?.destination || '';
     } else {
-      document.getElementById('rev-freight').value = document.getElementById('r-freight').value || q.freightValue || '';
+      // Venda do frete não parte mais do valor bruto extraído do agente
+      // (r-freight, que é o custo) — só de um valor de venda já salvo
+      // antes, senão o operador corre o risco de vender no preço de custo
+      // sem perceber (chamado "VALORES COMPRA x VENDA").
+      document.getElementById('rev-freight').value = q.freightValue || '';
       if (document.getElementById('rev-freight-currency')) {
         document.getElementById('rev-freight-currency').value = (document.getElementById('r-freight-currency') ? document.getElementById('r-freight-currency').value : '') || q.freightCurrency || 'USD';
       }
@@ -10428,6 +10448,20 @@ function resetTicketModalSections() {
   document.getElementById('ticket-meta-line').style.display = 'none';
 }
 
+async function loadTicketReporterOptions(selectedId = '') {
+  const select = document.getElementById('ticket-reporter');
+  if (!select) return;
+  try {
+    if (!window.allProfessionalsList) {
+      const res = await fetch(API + '/professionals');
+      window.allProfessionalsList = res.ok ? await res.json() : [];
+    }
+    const options = window.allProfessionalsList.filter(p => p.active || p.id === selectedId);
+    select.innerHTML = '<option value="">Selecione quem está abrindo...</option>' + options.map(p => `<option value="${p.id}">${ifrEscape(p.name)}${p.email ? ' — ' + ifrEscape(p.email) : ''}</option>`).join('');
+    select.value = selectedId || '';
+  } catch (e) { console.error('Erro ao carregar profissionais', e); }
+}
+
 function openNewTicketModal() {
   document.getElementById('ticketModal').style.display = 'block';
   document.getElementById('ticketModalTitle').innerText = 'Novo Chamado';
@@ -10438,6 +10472,7 @@ function openNewTicketModal() {
   document.getElementById('ticket-priority').value = 'MEDIA';
   document.getElementById('ticket-module').value = '';
   document.getElementById('btnSaveTicket').style.display = '';
+  loadTicketReporterOptions();
   resetTicketModalSections();
   window.currentTicketDetail = null;
 }
@@ -10457,10 +10492,11 @@ async function openTicketDetail(id) {
     document.getElementById('ticket-priority').value = ticket.priority || 'MEDIA';
     document.getElementById('ticket-module').value = ticket.module || '';
     document.getElementById('btnSaveTicket').style.display = '';
+    loadTicketReporterOptions(ticket.reporterProfessional?.id || '');
 
     const metaLine = document.getElementById('ticket-meta-line');
     metaLine.style.display = 'block';
-    metaLine.textContent = `Aberto por ${ticket.createdBy?.name || '-'} em ${new Date(ticket.createdAt).toLocaleString('pt-BR')}${ticket.assignedTo ? ` · Atribuído a ${ticket.assignedTo.name}` : ''}${ticket.quotation ? ` · Cotação: ${ticket.quotation.reference}` : ''}`;
+    metaLine.textContent = `Aberto por ${ticket.createdBy?.name || '-'}${ticket.reporterProfessional ? ` (solicitante: ${ticket.reporterProfessional.name})` : ''} em ${new Date(ticket.createdAt).toLocaleString('pt-BR')}${ticket.assignedTo ? ` · Atribuído a ${ticket.assignedTo.name}` : ''}${ticket.quotation ? ` · Cotação: ${ticket.quotation.reference}` : ''}`;
 
     document.getElementById('ticket-status-section').style.display = 'block';
     document.getElementById('ticket-attachments-section').style.display = 'block';
@@ -10507,7 +10543,8 @@ async function saveTicket() {
     title, description,
     type: document.getElementById('ticket-type').value,
     priority: document.getElementById('ticket-priority').value,
-    module: document.getElementById('ticket-module').value.trim() || null
+    module: document.getElementById('ticket-module').value.trim() || null,
+    reporterProfessionalId: document.getElementById('ticket-reporter')?.value || null
   };
 
   btn.disabled = true;
@@ -10535,7 +10572,8 @@ async function updateTicketStatus(status) {
     const res = await fetch(API + '/tickets/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Falha ao mudar status.');
-    toast('✅ Status atualizado: ' + (TICKET_STATUS_MAP[status]?.label || status));
+    const notifiedReporter = status === 'RESOLVIDO' && data.reporterProfessional?.email;
+    toast('✅ Status atualizado: ' + (TICKET_STATUS_MAP[status]?.label || status) + (notifiedReporter ? ` · e-mail enviado para ${data.reporterProfessional.name}` : ''));
     openTicketDetail(id);
     loadTickets();
   } catch (err) {

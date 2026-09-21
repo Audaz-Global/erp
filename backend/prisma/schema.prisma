@@ -41,6 +41,8 @@ model ProfessionalProfile {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  reportedTickets Ticket[] @relation("TicketReporter")
+
   @@index([active, name])
 }
 
@@ -872,6 +874,12 @@ model Ticket {
   createdBy    User      @relation("TicketCreatedBy", fields: [createdById], references: [id])
   assignedToId String?
   assignedTo   User?     @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+  // Quem realmente abriu o chamado (pessoa do time, escolhida no formulário)
+  // — createdById hoje sempre aponta pro usuário único de teste, porque o
+  // login real do sistema está desligado (ver middlewares/auth.ts). Este
+  // campo é o que permite saber a quem responder/avisar quando resolver.
+  reporterProfessionalId String?
+  reporterProfessional   ProfessionalProfile? @relation("TicketReporter", fields: [reporterProfessionalId], references: [id])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   resolvedAt   DateTime?
@@ -883,6 +891,7 @@ model Ticket {
   @@index([createdById])
   @@index([assignedToId])
   @@index([quotationId])
+  @@index([reporterProfessionalId])
 }
 
 model TicketComment {
