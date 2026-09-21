@@ -3877,10 +3877,10 @@ async function runExtract(mode = 'CLIENT') {
         }
       }
     } else {
-      alert('Erro na extração: ' + (json.error || 'Desconhecido'));
+      await appConfirm(json.error || 'Erro desconhecido ao processar com IA.', { title: 'Erro na extração', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
     }
   } catch (err) {
-    alert('Erro: ' + err.message);
+    await appConfirm(err.message || 'Erro inesperado ao processar com IA.', { title: 'Erro', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
   }
   btn.disabled = false; btn.innerHTML = originalHtml;
 }

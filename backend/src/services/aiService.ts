@@ -175,10 +175,14 @@ async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
     try {
       return await fn();
     } catch (error: any) {
+      // error.status vem estruturado do SDK (GoogleGenerativeAIFetchError) —
+      // mais confiável que caçar texto na mensagem, que muda de wording.
+      // Mantém o match por texto só como fallback pra erros sem status.
+      const status = error?.status;
       const message = String(error?.message || '');
-      const is429 = message.includes('429') || message.includes('Too Many Requests');
-      const is503 = message.includes('503') || /service unavailable|overloaded|high demand/i.test(message);
-      const isBilling = message.includes('prepayment') || message.includes('depleted');
+      const is429 = status === 429 || message.includes('429') || message.includes('Too Many Requests');
+      const is503 = status === 503 || message.includes('503') || /service unavailable|overloaded|high demand/i.test(message);
+      const isBilling = status === 402 || message.includes('prepayment') || message.includes('depleted');
       const isRetryable = (is429 || is503) && !isBilling;
 
       if (isRetryable && attempt < maxAttempts - 1) {
@@ -197,6 +201,23 @@ async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
 }
 
 const AI_OVERLOAD_MESSAGE = 'O serviço de IA está temporariamente sobrecarregado. Tentamos algumas vezes automaticamente e não conseguimos — tente novamente em alguns minutos.';
+
+// Traduz erros do provedor de IA (Gemini) em mensagens que o operador
+// consegue agir — em vez do texto técnico cru do SDK (ex: "[402 Payment
+// Required] Your prepayment credits are depleted...") vazando até o
+// alert() do navegador. error.status vem estruturado do SDK do Google
+// (GoogleGenerativeAIFetchError), então não depende de casar texto em
+// inglês que pode mudar. A mensagem técnica completa continua indo pro
+// console.error de cada catch, só não chega mais ao usuário final.
+function friendlyAiErrorMessage(error: any, context: string): string {
+  if (error?.isRetryExhausted) return AI_OVERLOAD_MESSAGE;
+  const status = error?.status;
+  if (status === 402) return 'O saldo pré-pago da API de IA (Gemini) acabou. Peça para alguém do time recarregar em aistudio.google.com/apikey e tente novamente.';
+  if (status === 400) return 'A chave da API de IA está inválida ou expirou. Avise o time técnico para verificar a configuração.';
+  if (status === 403) return 'A API de IA recusou a permissão da chave configurada. Avise o time técnico.';
+  if (status === 429 || status === 503) return AI_OVERLOAD_MESSAGE;
+  return `${context} Tente novamente em alguns minutos; se persistir, avise o time técnico.`;
+}
 
 export const extractClientData = async (text: string, contextRules: string = '', mediaParts: any[] = [], modalFocus?: 'AIR' | 'SEA') => {
 
@@ -439,8 +460,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
   } catch (error: any) {
     console.error('[extractClientData] ERRO REAL:', error?.message || error);
     if (error?.response) console.error('[extractClientData] API response:', JSON.stringify(error.response));
-    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
-    throw new Error('Falha ao processar dados do cliente com IA: ' + (error?.message || String(error)));
+    throw new Error(friendlyAiErrorMessage(error, 'Não foi possível processar os dados do cliente com IA.'));
   }
 };
 export function buildAgentDraftDataContext(data: DraftPayload): string {
@@ -553,8 +573,8 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
   } catch (error: any) {
-    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
-    throw new Error('Falha ao gerar rascunho com IA');
+    console.error('[generateAgentDraft] ERRO:', error?.message || error);
+    throw new Error(friendlyAiErrorMessage(error, 'Não foi possível gerar o rascunho com IA.'));
   }
 };
 
@@ -592,8 +612,8 @@ export const generateTruckerDraft = async (data: DraftPayload, contextRules: str
     const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
   } catch (error: any) {
-    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
-    throw new Error('Falha ao gerar rascunho de transportadora com IA');
+    console.error('[generateTruckerDraft] ERRO:', error?.message || error);
+    throw new Error(friendlyAiErrorMessage(error, 'Não foi possível gerar o rascunho de transportadora com IA.'));
   }
 };
 
@@ -626,8 +646,8 @@ Finalize apenas com "Atenciosamente,". Retorne somente o corpo do e-mail.`;
     const result = await withRetry(() => model.generateContent(prompt));
     return result.response.text().trim();
   } catch (error: any) {
-    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
-    throw new Error('Falha ao gerar rascunho de DTA com IA');
+    console.error('[generateDtaDraft] ERRO:', error?.message || error);
+    throw new Error(friendlyAiErrorMessage(error, 'Não foi possível gerar o rascunho de DTA com IA.'));
   }
 };
 
@@ -906,8 +926,7 @@ export const extractAgentCosts = async (
     if (String(error?.message || '').toLowerCase().includes('token')) {
       throw new Error('O retorno do agente contém mais informações do que a IA consegue processar de uma vez. Remova anexos que não contenham valores da cotação e tente novamente.');
     }
-    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
-    throw new Error('Falha ao processar custos com IA: ' + (error?.message || String(error)));
+    throw new Error(friendlyAiErrorMessage(error, 'Não foi possível processar os custos com IA.'));
   }
 };
 
@@ -941,7 +960,6 @@ export const translateDraftText = async (text: string, targetLanguage: string, o
     return result.response.text().trim();
   } catch (error: any) {
     console.error('[translateDraftText] ERRO:', error);
-    if (error?.isRetryExhausted) throw new Error(AI_OVERLOAD_MESSAGE);
-    throw new Error('Falha ao traduzir rascunho com IA: ' + (error?.message || String(error)));
+    throw new Error(friendlyAiErrorMessage(error, 'Não foi possível traduzir o rascunho com IA.'));
   }
 };
