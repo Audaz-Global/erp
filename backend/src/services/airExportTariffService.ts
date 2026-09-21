@@ -58,6 +58,10 @@ export function matchesAirportOrCity(rawPort: string, queryStr: string): boolean
 
   if (p === q || q.includes(p) || p.includes(q)) return true;
 
+  // Extrai códigos IATA de 3 letras presentes na string de busca (ex: "GRU - Guarulhos" -> "GRU")
+  const extractedIataCodes: string[] = q.match(/\b[A-Z]{3}\b/g) || [];
+  if (extractedIataCodes.includes(p)) return true;
+
   const iataCityMap: Record<string, string[]> = {
     GRU: ['GUARULHOS', 'SAO PAULO', 'SÃO PAULO', 'SP', 'BRASIL', 'BRAZIL'],
     VCP: ['VIRACOPOS', 'CAMPINAS', 'SAO PAULO', 'SÃO PAULO', 'SP'],

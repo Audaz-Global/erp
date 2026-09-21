@@ -1558,7 +1558,10 @@
                 </button>
 
                 <!-- POPOVER DE CHECKBOXES PARA SELEÇÃO MÚLTIPLA -->
-                <div id="tariff-airline-popover" style="display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:9500; background:#1a2340; border:1px solid var(--gold); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); min-width:240px; max-height:220px; overflow-y:auto; padding:4px 0;">
+                <div id="tariff-airline-popover" style="display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:9500; background:#1a2340; border:1px solid var(--gold); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); min-width:250px; max-height:240px; overflow-y:auto; padding:0;">
+                  <div style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.08); position:sticky; top:0; background:#1a2340; z-index:2;">
+                    <input type="text" id="chk-airline-search" placeholder="🔍 Buscar Cia Aérea (nome ou código)..." oninput="filterAirlineCheckboxesInDropdown(this.value)" style="width:100%; padding:5px 8px; font-size:11px; border-radius:4px; border:1px solid var(--border); background:rgba(0,0,0,0.3); color:var(--text); box-sizing:border-box; outline:none;">
+                  </div>
                   <div id="tariff-airline-checkboxes-list">
                     <!-- Checkboxes inseridos via JS -->
                   </div>
@@ -13047,7 +13050,7 @@ function populateAirlineFilterDropdown(rates) {
   sortedList.forEach(([name, code]) => {
     const checked = window.selectedAirlineNames.has(name);
     html += `
-      <label style="display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:11px; color:var(--text); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+      <label class="airline-item-label" style="display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:11px; color:var(--text); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
         <input type="checkbox" class="chk-airline-item" value="${escapeFeeHtml(name)}" onchange="onAirlineCheckboxChange('${escapeFeeHtml(name)}', this.checked)" ${checked ? 'checked' : ''} style="accent-color:var(--gold); cursor:pointer;">
         <span>${escapeFeeHtml(name)} <small style="color:var(--text-muted);">(${escapeFeeHtml(code)})</small></span>
       </label>`;
@@ -13055,6 +13058,21 @@ function populateAirlineFilterDropdown(rates) {
 
   container.innerHTML = html;
   updateAirlineToggleLabel(sortedList.length);
+}
+
+function filterAirlineCheckboxesInDropdown(query) {
+  const container = document.getElementById('tariff-airline-checkboxes-list');
+  if (!container) return;
+  const q = String(query || '').toLowerCase().trim();
+  const labels = container.querySelectorAll('.airline-item-label');
+  labels.forEach(lbl => {
+    const text = (lbl.textContent || '').toLowerCase();
+    if (!q || text.includes(q)) {
+      lbl.style.display = 'flex';
+    } else {
+      lbl.style.display = 'none';
+    }
+  });
 }
 
 function updateAirlineToggleLabel(totalCount) {
@@ -13173,8 +13191,12 @@ function renderTariffPage() {
   if (!total) {
     listEl.innerHTML = `
       <tr>
-        <td colspan="8" style="padding:14px; text-align:center; color:var(--text-muted);">
-          Nenhuma tarifa cadastrada no tarifário para esta rota.
+        <td colspan="8" style="padding:18px 12px; text-align:center;">
+          <div style="background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.22); border-radius:10px; padding:14px 18px; max-width:600px; margin:0 auto;">
+            <div style="font-size:18px; margin-bottom:4px;">✈️ ℹ️</div>
+            <strong style="color:var(--gold); font-size:12px;">Nenhuma tarifa pré-cadastrada no tarifário para esta rota</strong>
+            <p style="font-size:11px; color:var(--text-muted); margin:6px 0 0; line-height:1.4;">Esta rota ainda não possui tarifas diretas registradas na tabela do sistema. Você pode solicitar a cotação diretamente aos parceiros pelo botão <strong>"Cotar com Agente"</strong> abaixo.</p>
+          </div>
         </td>
       </tr>`;
     if (paginationEl) paginationEl.innerHTML = '';
