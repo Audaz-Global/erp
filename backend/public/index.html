@@ -1558,7 +1558,10 @@
                 </button>
 
                 <!-- POPOVER DE CHECKBOXES PARA SELEÇÃO MÚLTIPLA -->
-                <div id="tariff-airline-popover" style="display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:9500; background:#1a2340; border:1px solid var(--gold); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); min-width:240px; max-height:220px; overflow-y:auto; padding:4px 0;">
+                <div id="tariff-airline-popover" style="display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:9500; background:#1a2340; border:1px solid var(--gold); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); min-width:250px; max-height:240px; overflow-y:auto; padding:0;">
+                  <div style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.08); position:sticky; top:0; background:#1a2340; z-index:2;">
+                    <input type="text" id="chk-airline-search" placeholder="🔍 Buscar Cia Aérea (nome ou código)..." oninput="filterAirlineCheckboxesInDropdown(this.value)" style="width:100%; padding:5px 8px; font-size:11px; border-radius:4px; border:1px solid var(--border); background:rgba(0,0,0,0.3); color:var(--text); box-sizing:border-box; outline:none;">
+                  </div>
                   <div id="tariff-airline-checkboxes-list">
                     <!-- Checkboxes inseridos via JS -->
                   </div>
@@ -4398,7 +4401,12 @@ function syncReviewCostEditor() {
   const inland = all.find(line => line.special === 'ORIGIN_INLAND');
   if (inland) { document.getElementById('rev-origin-inland-value').value = reviewCostTotal(inland).toFixed(2); document.getElementById('rev-origin-inland-currency').value = inland.currency; }
   else { document.getElementById('rev-origin-inland-value').value = ''; }
-  const toFee = (line, scope, group) => ({ ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, currency:normalizeCostCurrency(line.currency), value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:group || line.financialGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (/_EMAIL$/.test(line.provenanceType||'')?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] });
+  const toFee = (line, scope, group) => {
+    const rawFg = line.financialGroup;
+    const resolvedGroup = (rawFg && rawFg !== 'TO_CONFIRM') ? rawFg : group;
+    const wasAutoAssignedGroup = !rawFg || rawFg === 'TO_CONFIRM';
+    return { ...line, id:undefined, special:undefined, locked:undefined, fixedDefinition:undefined, currency:normalizeCostCurrency(line.currency), value:reviewCostTotal(line), totalValue:reviewCostTotal(line), applicationScope:scope, financialGroup:resolvedGroup, wasAutoAssignedGroup, quantitySource:line.editedManually?'MANUAL':(line.quantitySource || 'MANUAL'), classificationSource:line.classificationSource || (/_EMAIL$/.test(line.provenanceType||'')?'AI':line.provenanceType==='MANUAL'?'MANUAL':'RULE'), provenanceType:line.provenanceType || reviewCostProvenance(line).type, editedManually:Boolean(line.editedManually), needsReview:false, reviewReasons:[] };
+  };
   const originFees = window.reviewCostLines.origin.filter(line => !line.special).map(line => toFee(line,'ORIGIN',line.financialGroup || 'ORIGIN_CHARGE'));
   const destinationFees = window.reviewCostLines.destination.filter(line => !line.special || line.special === 'CUSTOMS').map(line => toFee(line,'DESTINATION',line.financialGroup || 'DESTINATION_CHARGE'));
   window.reviewCostLines.freight.filter(line => !line.special).forEach(line => destinationFees.push(toFee(line,'FREIGHT','FREIGHT_COMPONENT')));
@@ -4441,7 +4449,7 @@ function renderFeeCalculationPreview() {
   [['rev-origin-services','rev-origin-fees-preview'],['rev-destination-services','rev-destination-fees-preview']].forEach(([fieldId,panelId]) => {
     const panel = document.getElementById(panelId); if (!panel) return;
     const fees = parseFeeText(document.getElementById(fieldId)?.value);
-    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong><br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
+    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong>${f.wasAutoAssignedGroup ? ' <span title="Sem categoria prévia; atribuído automaticamente ao grupo da seção" style="color:#f5c36a;font-size:10px;">(Automático)</span>' : ''}<br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
   });
   renderIspsAlerts();
 }
@@ -4451,7 +4459,7 @@ function ispsReview(fees) {
   const alerts = [];
   ispsFees.filter(fee => fee.ispsClassification === 'ISPS_UNCLASSIFIED').forEach(fee => alerts.push({code:'UNCLASSIFIED',message:`${fee.name}: classifique como ISPS_CARRIER ou ISPS_TERMINAL.`}));
   ispsFees.filter(fee => fee.includedInFreight === 'INCLUDED').forEach(fee => alerts.push({code:'INCLUDED',message:`${fee.name}: indicada como já incluída no frete; não deve ser somada separadamente sem correção.`}));
-  ispsFees.filter(fee => fee.includedInFreight === 'TO_CONFIRM').forEach(fee => alerts.push({code:'INCLUSION_PENDING',message:`${fee.name}: confirme se está incluída no frete.`}));
+  ispsFees.filter(fee => fee.includedInFreight === 'TO_CONFIRM').forEach(fee => alerts.push({code:'INCLUSION_PENDING',message:`${fee.message || fee.name}: confirme se está incluída no frete.`}));
   const groups = new Map();
   ispsFees.forEach(fee => { const key=[fee.ispsClassification,fee.applicationScope,String(fee.chargedBy||'').toLowerCase(),fee.billingUnit].join('|'); groups.set(key,[...(groups.get(key)||[]),fee]); });
   groups.forEach(group => { if(group.length>1) alerts.push({code:'DUPLICATE',message:`Possível duplicidade: ${group.map(fee=>fee.name).join(' / ')}.`}); });
@@ -4464,8 +4472,8 @@ function renderIspsAlerts() {
   const panel=document.getElementById('rev-isps-alerts'); if(!panel)return;
   const fees=[...parseFeeText(document.getElementById('rev-origin-services')?.value),...parseFeeText(document.getElementById('rev-destination-services')?.value)];
   const review=ispsReview(fees);
-  const financialAlerts=fees.filter(f=>f.financialGroup==='TO_CONFIRM').map(f=>({code:'FINANCIAL',message:`${f.name}: defina o grupo financeiro com GROUP ... antes de finalizar.`}));
-  panel.innerHTML=[...review.alerts,...financialAlerts].map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
+  const autoGroupAlerts=fees.filter(f=>f.wasAutoAssignedGroup).map(f=>({code:'AUTO_GROUP',message:`${f.name}: sem grupo financeiro cadastrado; classificado automaticamente como ${FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup}.`}));
+  panel.innerHTML=[...review.alerts,...autoGroupAlerts].map(alert=>`<div style="margin-top:6px;padding:9px 11px;border:1px solid ${alert.code==='COEXISTENCE'?'rgba(59,130,246,.4)':'rgba(245,166,35,.38)'};border-radius:8px;background:${alert.code==='COEXISTENCE'?'rgba(59,130,246,.08)':'rgba(245,166,35,.08)'};font-size:12px;">${alert.code==='COEXISTENCE'?'ℹ️':'⚠️'} ${escapeFeeHtml(alert.message)}</div>`).join('');
 }
 
 function isDangerousGoodsFeeName(name) {
@@ -7629,7 +7637,10 @@ async function confirmAndGeneratePDF() {
     alert(`O valor máximo não pode ser menor que o mínimo: ${invalidLimits.map(line => line.name).join(', ')}.`);
     return;
   }
-  const reviewedFees = [...parseFeeText(document.getElementById('rev-origin-services').value), ...parseFeeText(document.getElementById('rev-destination-services').value)];
+  const reviewedFees = [
+    ...parseFeeText(document.getElementById('rev-origin-services').value, 'ORIGIN').map(f => ({ ...f, financialGroup: (f.financialGroup && f.financialGroup !== 'TO_CONFIRM') ? f.financialGroup : 'ORIGIN_CHARGE', wasAutoAssignedGroup: !f.financialGroup || f.financialGroup === 'TO_CONFIRM' })),
+    ...parseFeeText(document.getElementById('rev-destination-services').value, 'DESTINATION').map(f => ({ ...f, financialGroup: (f.financialGroup && f.financialGroup !== 'TO_CONFIRM') ? f.financialGroup : 'DESTINATION_CHARGE', wasAutoAssignedGroup: !f.financialGroup || f.financialGroup === 'TO_CONFIRM' }))
+  ];
   const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING'));
   if (missingQuantity.length) {
     alert(`Informe a quantidade aplicável antes de finalizar: ${missingQuantity.map(fee => fee.name).join(', ')}.`);
@@ -13051,7 +13062,7 @@ function populateAirlineFilterDropdown(rates) {
   sortedList.forEach(([name, code]) => {
     const checked = window.selectedAirlineNames.has(name);
     html += `
-      <label style="display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:11px; color:var(--text); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+      <label class="airline-item-label" style="display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:11px; color:var(--text); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
         <input type="checkbox" class="chk-airline-item" value="${escapeFeeHtml(name)}" onchange="onAirlineCheckboxChange('${escapeFeeHtml(name)}', this.checked)" ${checked ? 'checked' : ''} style="accent-color:var(--gold); cursor:pointer;">
         <span>${escapeFeeHtml(name)} <small style="color:var(--text-muted);">(${escapeFeeHtml(code)})</small></span>
       </label>`;
@@ -13059,6 +13070,21 @@ function populateAirlineFilterDropdown(rates) {
 
   container.innerHTML = html;
   updateAirlineToggleLabel(sortedList.length);
+}
+
+function filterAirlineCheckboxesInDropdown(query) {
+  const container = document.getElementById('tariff-airline-checkboxes-list');
+  if (!container) return;
+  const q = String(query || '').toLowerCase().trim();
+  const labels = container.querySelectorAll('.airline-item-label');
+  labels.forEach(lbl => {
+    const text = (lbl.textContent || '').toLowerCase();
+    if (!q || text.includes(q)) {
+      lbl.style.display = 'flex';
+    } else {
+      lbl.style.display = 'none';
+    }
+  });
 }
 
 function updateAirlineToggleLabel(totalCount) {
@@ -13177,8 +13203,12 @@ function renderTariffPage() {
   if (!total) {
     listEl.innerHTML = `
       <tr>
-        <td colspan="8" style="padding:14px; text-align:center; color:var(--text-muted);">
-          Nenhuma tarifa cadastrada no tarifário para esta rota.
+        <td colspan="8" style="padding:18px 12px; text-align:center;">
+          <div style="background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.22); border-radius:10px; padding:14px 18px; max-width:600px; margin:0 auto;">
+            <div style="font-size:18px; margin-bottom:4px;">✈️ ℹ️</div>
+            <strong style="color:var(--gold); font-size:12px;">Nenhuma tarifa pré-cadastrada no tarifário para esta rota</strong>
+            <p style="font-size:11px; color:var(--text-muted); margin:6px 0 0; line-height:1.4;">Esta rota ainda não possui tarifas diretas registradas na tabela do sistema. Você pode solicitar a cotação diretamente aos parceiros pelo botão <strong>"Cotar com Agente"</strong> abaixo.</p>
+          </div>
         </td>
       </tr>`;
     if (paginationEl) paginationEl.innerHTML = '';

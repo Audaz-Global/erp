@@ -274,16 +274,19 @@ function getDefaultRules() {
     {
       incoterm: 'CIP', modal: 'AIR', direction: 'EXPORT', feeType: 'ORIGIN', feeName: 'Coleta Rodoviária na Fábrica / Armazém do Exportador (Inland Pickup Brasil)',
       chargeType: 'FIXED', value: 0, currency: 'BRL', sortOrder: 1, applicability: 'REQUIRED', pricingStatus: 'ON_REQUEST',
+      financialGroup: 'ORIGIN_CHARGE',
       description: 'Coleta no exportador'
     },
     {
       incoterm: 'CIP', modal: 'AIR', direction: 'EXPORT', feeType: 'ORIGIN', feeName: 'Taxa de Emissão e Confecção de Conhecimento Aéreo (AWB / HAWB Fee)',
       chargeType: 'PER_DOCUMENT', value: 0, currency: 'USD', sortOrder: 5, applicability: 'REQUIRED', pricingStatus: 'ON_REQUEST',
+      financialGroup: 'ORIGIN_CHARGE',
       description: 'Emissão de AWB'
     },
     {
       incoterm: 'CIP', modal: 'AIR', direction: 'EXPORT', feeType: 'ORIGIN', feeName: 'Armazenagem Aeroportuária',
       chargeType: 'PER_WM', value: 0.05, costValue: 0.03, minValue: 5.00, currency: 'USD', sortOrder: 99, applicability: 'REQUIRED', pricingStatus: 'PRICED',
+      financialGroup: 'ORIGIN_CHARGE',
       description: 'Armazenagem aeroportuária na origem'
     },
 
