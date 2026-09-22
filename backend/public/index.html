@@ -8046,7 +8046,10 @@ function normalizeReturnFeeName(name) {
   // Documenta\u00e7\u00e3o A\u00e9rea na Origem (AWB Fee)") do que o que normalmente vem do
   // e-mail do agente ("AWB Fee"), ent\u00e3o sem esses atalhos as duas linhas
   // nunca casam e ficam duplicadas na tela.
-  if (normalized.includes('hawb') || normalized.includes('awb')) return 'awb';
+  // "Documents"/"Document" (palavra inteira, em inglês) é como alguns agentes
+  // escrevem a mesma taxa de emissão de HAWB — mas não pode casar com nomes em
+  // português como "Documentação"/"Documental", que são taxas diferentes.
+  if (normalized.includes('hawb') || normalized.includes('awb') || /\bdocuments?\b/.test(normalized)) return 'awb';
   if (normalized.includes('inland') || normalized.includes('pickup')) return 'inland';
   return normalized.replace(/[^a-z0-9]/g, '');
 }
