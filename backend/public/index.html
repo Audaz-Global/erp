@@ -3888,9 +3888,16 @@ async function runExtract(mode = 'CLIENT') {
         // Com mais de uma opção de frete, a Revisão Final abriria por cima do
         // painel de escolha antes do usuário conseguir ver/clicar nele — pausa
         // aqui e deixa o botão do próprio painel levar pra Revisão Final.
+        const presentFields = Array.isArray(json.data.costs?.present_fields) ? json.data.costs.present_fields : [];
         if (Array.isArray(json.data.costs?.rate_options) && json.data.costs.rate_options.length > 1) {
           toast('⚠️ O agente ofereceu mais de uma opção de frete — escolha uma antes de continuar.');
           document.getElementById('r-rate-options-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (!presentFields.length) {
+          // Nenhum valor foi reconhecido no anexo/texto (ex.: PDF dentro de um
+          // .msg sem texto extraível) — avisa em vez de fingir sucesso, senão
+          // o operador só percebe quando reparar que tudo ficou zerado.
+          await appConfirm('Não conseguimos identificar nenhum valor no material enviado (e-mail/anexo). Confira se o PDF de cotação foi anexado separadamente (não só dentro do .msg) e preencha os valores manualmente na Revisão Final.', { title: 'Nada foi extraído', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
+          validateAndGeneratePDF();
         } else {
           toast('🎉 Custos extraídos! Confira a Revisão Final antes de gerar o PDF.');
           validateAndGeneratePDF();
