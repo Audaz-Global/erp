@@ -2648,8 +2648,9 @@
           <input type="number" id="rev-cost-total" disabled placeholder="0.00" style="background:rgba(0,0,0,0.1); border:1px solid rgba(16,185,129,0.3); font-weight:600;">
         </div>
         <div class="form-group" style="margin:0;">
-          <label style="font-size:11px; color:#10B981; font-weight:bold;">Profit Desejado (USD)</label>
+          <label style="font-size:11px; color:#10B981; font-weight:bold;">Profit a ADICIONAR (USD)</label>
           <input type="number" id="rev-profit" step="0.01" placeholder="Ex: 150.00" style="border:1.5px solid #10B981; font-weight:bold; color:#10B981;">
+          <small style="display:block;margin-top:4px;color:var(--text-muted);">Somado ao profit que as áreas marcadas já têm — não substitui o total da cotação (áreas fora da seleção, como Seguro, mantêm o profit atual).</small>
         </div>
         <div class="form-group" style="margin:0; grid-column:span 2;">
           <label style="font-size:11px;">Distribuir Profit Em: <span id="rev-profit-split-warning" style="color:#F59E0B; font-weight:700;"></span></label>
@@ -6953,6 +6954,9 @@ function updateBuyVsSellTable() {
     { key: 'destination', label: 'Taxas Destino / Serviços', cost: costDestFeesUsd, sell: sellDestFeesUsd },
     { key: 'customs', label: 'Desembaraço Aduaneiro', cost: costCustomsUsd, sell: sellCustomsUsd }
   ];
+  // Guardado só pra mensagem explicativa do Aplicar Profit (applySmartProfit)
+  // poder mostrar quanto de profit já existe fora das áreas marcadas.
+  window.lastBuyVsSellItems = items;
 
   let totalCostSum = 0;
   let totalSellSum = 0;
@@ -7080,6 +7084,14 @@ function applySmartProfit() {
   const appliedParts = [];
   const AREA_LABELS = { freight: 'Frete', origin: 'Origem', destination: 'Destino' };
 
+  // Só pra explicar o resultado na mensagem final — não muda nenhum cálculo.
+  // "Profit a ADICIONAR" soma em cima do que as áreas marcadas já têm, então
+  // o profit de fora da seleção (ex: Seguro) permanece e entra no total.
+  const targetKeysForMessage = new Set(targets.map(t => t.key));
+  const untouchedProfitUsd = (window.lastBuyVsSellItems || [])
+    .filter(item => !targetKeysForMessage.has(item.key))
+    .reduce((sum, item) => sum + (item.sell - item.cost), 0);
+
   targets.forEach(t => {
     const shareUsd = profitValUsd * (t.pct / 100);
 
@@ -7126,7 +7138,17 @@ function applySmartProfit() {
   renderReviewCostEditor();
   recalculateModalDestinationServicesTotal();
   updateBuyVsSellTable();
-  alert(profitValUsd > 0 ? `Profit de USD ${profitValUsd.toFixed(2)} distribuído — ${appliedParts.join(' | ')}` : 'Profit zerado nas áreas selecionadas.');
+
+  const newTotalProfitUsd = parseFloat(document.getElementById('rev-profit')?.value) || 0;
+  if (profitValUsd > 0) {
+    alert(
+      `Profit ADICIONADO: USD ${profitValUsd.toFixed(2)} (${appliedParts.join(' | ')})\n` +
+      `Profit que já existia fora das áreas marcadas (Seguro, etc.): USD ${untouchedProfitUsd.toFixed(2)}\n` +
+      `Novo profit TOTAL da cotação: USD ${newTotalProfitUsd.toFixed(2)}`
+    );
+  } else {
+    alert(`Profit zerado nas áreas selecionadas. Profit TOTAL da cotação agora: USD ${newTotalProfitUsd.toFixed(2)}`);
+  }
 }
 
 // Edição direta do preço de Venda na tabela Compra vs. Venda. Frete/Inland/
