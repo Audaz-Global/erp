@@ -6754,10 +6754,15 @@ function recalculateRevIof() {
   }
 }
 
+// Compra do seguro: a empresa sempre paga 0,097% da base, sem piso mínimo —
+// diferente da Venda, que tem alíquota/piso configuráveis na tela.
+const INSURANCE_COST_RATE_PERCENT = 0.097;
+
 function calculateAndInjectInsurance(isUserManualInsurance = false) {
   const requiresIns = document.getElementById('rev-insurance').value === 'true';
   const destFeesTextarea = document.getElementById('rev-destination-services');
   let currentText = destFeesTextarea.value || '';
+  let seguroCostUsd = 0;
 
   // Limpar linha de seguro existente
   const lines = currentText.split('\n').filter(line => {
@@ -6803,19 +6808,21 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
     else if (originInlandCurrency === 'BRL') originServicesTotalUsd += originInlandValue / usdRate;
     else originServicesTotalUsd += originInlandValue;
 
+    // Base de cálculo é a mesma pra Compra e Venda — só mudam alíquota/piso.
+    const baseType = document.getElementById('rev-insurance-base') ? document.getElementById('rev-insurance-base').value : 'FOB_FREIGHT';
+    let baseSeguroUsd = valMercadoria;
+    if (baseType === 'FOB_FREIGHT') baseSeguroUsd = valMercadoria + valFreteUsd;
+    else if (baseType === 'CIF_TOTAL') baseSeguroUsd = valMercadoria + valFreteUsd + originServicesTotalUsd;
+    seguroCostUsd = baseSeguroUsd * (INSURANCE_COST_RATE_PERCENT / 100);
+
     let seguroValUsd = 0;
 
     if (isUserManualInsurance) {
       seguroValUsd = parseFloat(document.getElementById('rev-insurance-val').value) || 0;
     } else {
-      // Usar base de cálculo, alíquota e piso configurados
-      const baseType = document.getElementById('rev-insurance-base') ? document.getElementById('rev-insurance-base').value : 'FOB_FREIGHT';
+      // Usar alíquota e piso configurados (Venda)
       const ratePercent = document.getElementById('rev-insurance-rate') ? (parseFloat(document.getElementById('rev-insurance-rate').value) || 0.2) : 0.2;
       const minUsd = document.getElementById('rev-insurance-min') ? (parseFloat(document.getElementById('rev-insurance-min').value) || 40.00) : 40.00;
-
-      let baseSeguroUsd = valMercadoria;
-      if (baseType === 'FOB_FREIGHT') baseSeguroUsd = valMercadoria + valFreteUsd;
-      else if (baseType === 'CIF_TOTAL') baseSeguroUsd = valMercadoria + valFreteUsd + originServicesTotalUsd;
 
       seguroValUsd = Math.max(baseSeguroUsd * (ratePercent / 100), minUsd);
       if (document.getElementById('rev-insurance-val')) {
@@ -6823,13 +6830,13 @@ function calculateAndInjectInsurance(isUserManualInsurance = false) {
       }
     }
 
-    lines.push(formatFeeLine({ name:'Seguro Internacional', unitValue:seguroValUsd, value:seguroValUsd, currency:'USD', billingUnit:'PER_SHIPMENT', quantity:1, totalValue:seguroValUsd }));
+    lines.push(formatFeeLine({ name:'Seguro Internacional', unitValue:seguroValUsd, value:seguroValUsd, currency:'USD', billingUnit:'PER_SHIPMENT', quantity:1, totalValue:seguroValUsd, costUnitValue:seguroCostUsd, costCurrency:'USD' }));
   }
 
   destFeesTextarea.value = lines.join('\n');
   if (window.reviewCostEditorReady && document.getElementById('pdfReviewOverlay')?.style.display === 'block') {
     window.reviewCostLines.destination = (window.reviewCostLines.destination || []).filter(line => !/seguro internacional/i.test(line.name || ''));
-    if (requiresIns) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Seguro Internacional', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-insurance-val')?.value), currency:'USD', applicationScope:'DESTINATION', financialGroup:'INSURANCE', chargeNature:'INSURANCE', classificationSource:'RULE', provenanceType:'CALCULATED', quantitySource:'MANUAL' });
+    if (requiresIns) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Seguro Internacional', quantity:1, billingUnit:'PER_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-insurance-val')?.value), currency:'USD', costUnitValue:seguroCostUsd, costCurrency:'USD', applicationScope:'DESTINATION', financialGroup:'INSURANCE', chargeNature:'INSURANCE', classificationSource:'RULE', provenanceType:'CALCULATED', quantitySource:'MANUAL' });
     renderReviewCostEditor();
   }
   recalculateModalDestinationServicesTotal();
@@ -6884,9 +6891,24 @@ function updateBuyVsSellTable() {
   let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesExSpreadUsd;
 
   // 4. SEGURO INTERNACIONAL
+  // Compra do seguro nunca vem do agente (não é uma taxa que ele cobra) —
+  // é sempre 0,097% da mesma base usada pra calcular a Venda, sem piso.
   const requiresIns = document.getElementById('rev-insurance').value === 'true';
   const sellInsuranceUsd = requiresIns ? (parseFloat(document.getElementById('rev-insurance-val')?.value) || 0) : 0;
-  let costInsuranceUsd = agentCosts.insurance_cost_usd != null ? parseFloat(agentCosts.insurance_cost_usd) : 0;
+  let costInsuranceUsd = 0;
+  if (requiresIns) {
+    const insValMercadoriaRaw = parseFloat(document.getElementById('rev-commercial-value')?.value) || 0;
+    const insCommercialCurrency = document.getElementById('rev-commercial-value-currency')?.value || 'USD';
+    let insValMercadoria = insValMercadoriaRaw;
+    if (insCommercialCurrency === 'EUR') insValMercadoria = insValMercadoriaRaw * (eurRate / usdRate);
+    else if (insCommercialCurrency === 'BRL') insValMercadoria = insValMercadoriaRaw / usdRate;
+
+    const insuranceBaseType = document.getElementById('rev-insurance-base')?.value || 'FOB_FREIGHT';
+    let baseSeguroUsd = insValMercadoria;
+    if (insuranceBaseType === 'FOB_FREIGHT') baseSeguroUsd = insValMercadoria + sellFreightUsd;
+    else if (insuranceBaseType === 'CIF_TOTAL') baseSeguroUsd = insValMercadoria + sellFreightUsd + sellOriginFeesUsd + sellInlandUsd;
+    costInsuranceUsd = baseSeguroUsd * (INSURANCE_COST_RATE_PERCENT / 100);
+  }
 
   // 5. TAXAS DESTINO & SERVIÇOS
   // rev-services já é a soma das mesmas linhas de rev-destination-services
