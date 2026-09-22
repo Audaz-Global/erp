@@ -128,7 +128,11 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Start Server
 // Start Server
 async function startServer() {
-  try {
+  // READ_ONLY_STARTUP=1 pula backfills/limpezas e o worker do Outlook — útil para rodar
+  // localmente apontando para um banco compartilhado sem alterar nenhum dado dele.
+  const readOnlyStartup = process.env.READ_ONLY_STARTUP === '1';
+  if (readOnlyStartup) console.log('⚠️ READ_ONLY_STARTUP ativo: backfills e worker do Outlook desativados.');
+  if (!readOnlyStartup) try {
     const migratedRoadLegs = await backfillLegacyRoadLegs();
     if (migratedRoadLegs > 0) console.log(`✅ ${migratedRoadLegs} transporte(s) legado(s) migrado(s) para Rodoviário Nacional.`);
     const linkedRules = await backfillIncotermRuleStandardFees(prisma);
@@ -160,7 +164,7 @@ async function startServer() {
     console.log(`🚀 Server is running on port ${PORT}`);
 
     // Iniciar worker de leitura do Outlook
-    import('./services/outlookCron').then(cron => {
+    if (!readOnlyStartup) import('./services/outlookCron').then(cron => {
       cron.startOutlookWatcher();
     }).catch(e => console.error('Erro ao carregar Cron do Outlook', e));
   });
