@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getIncotermTree, updateIncotermTree, IncotermTreePayload } from '../services/incotermTreeService';
+import { getIncotermTree, updateIncotermTree, IncotermTreePayload, IncotermTreeValidationError } from '../services/incotermTreeService';
 
 export const getTree = async (req: Request, res: Response) => {
   try {
@@ -34,7 +34,7 @@ export const updateTree = async (req: Request, res: Response) => {
     res.json(result);
   } catch (error: any) {
     console.error('Erro ao atualizar árvore de Incoterm:', error);
-    if (error.message && error.message.includes('compatível com o modal')) {
+    if (error instanceof IncotermTreeValidationError || (error.message && error.message.includes('compatível com o modal'))) {
        return res.status(400).json({ error: error.message });
     }
     res.status(500).json({ error: 'Erro interno ao atualizar árvore de Incoterm.' });
