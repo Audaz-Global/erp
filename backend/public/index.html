@@ -4274,8 +4274,17 @@ function reviewMainFreightLine(quotation = {}, previousLine = null) {
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
   const currency=normalizeCostCurrency(document.getElementById('rev-freight-currency')?.value);
   const unitValue=quantity > 0 ? total / quantity : total;
+  const agentFreightValue = window.lastExtractedAgentData?.costs?.freight_value;
+  const agentFreightCurrency = window.lastExtractedAgentData?.costs?.freight_currency ? normalizeCostCurrency(window.lastExtractedAgentData.costs.freight_currency) : null;
   const agentFreightUsd = window.lastExtractedAgentData?.costs?.freight_usd;
-  const costTotal = agentFreightUsd != null ? reviewConvertCost(Number(agentFreightUsd), 'USD', currency) : total;
+  // Quando a Venda está na mesma moeda que o agente cotou, usa o valor bruto
+  // direto (freight_value) — sem round-trip por USD, que introduz um desvio
+  // de arredondamento por usar uma taxa de câmbio diferente da que a IA usou
+  // pra calcular freight_usd (gerava um "profit" de frete que não existe).
+  // Só recorre à conversão por USD se o operador trocou a moeda da Venda.
+  const costTotal = agentFreightValue != null && agentFreightCurrency === currency
+    ? Number(agentFreightValue)
+    : (agentFreightUsd != null ? reviewConvertCost(Number(agentFreightUsd), 'USD', currency) : total);
   const costUnitValue = costQuantity > 0 ? costTotal / costQuantity : costTotal;
   return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue, costQuantity, costBillingUnit, costUnitValue, currency, financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?`${partnerType}_EMAIL`:'MANUAL', evidence:source.evidence, editedManually:Boolean(useCustomSellBasis) };
 }
