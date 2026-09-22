@@ -213,15 +213,15 @@ export const extractData = async (req: Request, res: Response) => {
           const fees = await prisma.fixedFee.findMany({
             where: { active: true, modal: { in: [feeModal, 'ALL'] } }
           });
-          const deconsolidators = await prisma.deconsolidator.findMany({
-            where: { active: true, modal: feeModal }
-          });
+          // Desconsolidação NÃO entra mais aqui — esse catálogo só tem um valor
+          // (o que pagamos ao desconsolidador), sem Venda própria, então a IA
+          // devolvia o mesmo número como Compra e Venda (perdendo a margem).
+          // A regra de Desconsolidação (Compra + Venda com mínimo) já existe
+          // completa na árvore de Incoterms e é aplicada automaticamente depois
+          // da extração (applyReturnIncotermRules/calculateReturnRuleFees).
           localFeesTable = `CATÁLOGO DE TAXAS POR ${modalLabel.toUpperCase()} (CADASTRADAS NO BANCO; respeite o grupo financeiro informado):\n\n`;
           fees.forEach(f => {
             localFeesTable += `- Cia: ${f.carrier || 'Geral'} | Taxa: ${f.name} | Valor: ${f.value} ${f.currency} | Escopo: ${f.type} | Grupo: ${f.financialGroup || 'TO_CONFIRM'} | Natureza: ${f.chargeNature || 'OTHER'}\n`;
-          });
-          deconsolidators.forEach(d => {
-            localFeesTable += `- Desconsolidação (${d.name}${d.location ? ' - ' + d.location : ''}): ${d.value} ${d.currency}\n`;
           });
         } catch (dbErr) {
           console.error('Erro ao carregar taxas locais no banco:', dbErr);

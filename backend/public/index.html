@@ -8126,7 +8126,12 @@ function calculateReturnRuleFees(q) {
     const billingUnit = unitMap[rule.chargeType] || 'UNKNOWN';
     const quantity = quantityMap[rule.chargeType] ?? null;
     const percentageBaseValue = rule.chargeType === 'PERCENTAGE' && Number(rule.value) > 0 ? totalValue * 100 / Number(rule.value) : null;
-    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN', mandatory:Boolean(rule.required) };
+    // costValue/costCurrency da regra precisam vir junto, senão a Compra cai
+    // no fallback de espelhar a Venda (repasse) mesmo quando a árvore de
+    // Incoterms já tem um custo padrão cadastrado pra essa taxa.
+    const costUnitValue = rule.costValue != null ? Number(rule.costValue) : Number(rule.value) || 0;
+    const costCurrency = rule.costCurrency ? normalizeCostCurrency(rule.costCurrency) : normalizeCostCurrency(rule.currency);
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), costUnitValue, costCurrency, billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN', mandatory:Boolean(rule.required) };
   };
 
   // Presets de regra só entram aqui se forem obrigatórios OU já tiverem um
