@@ -12823,6 +12823,14 @@ function renderTreeFees(type, containerId) {
           <input type="checkbox" ${isOnRequest ? 'checked' : ''} onchange="updateTreeFee('${type}', ${index}, 'pricingStatus', this.checked ? 'ON_REQUEST' : 'PRICED'); renderTreeFees('${type}', '${containerId}')"> A cotar
         </label>
         ` : ''}
+        <div style="display:flex;gap:10px;margin-top:6px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;">
+            Tipo compra ${renderTreePaymentTypeSelect(type, index, 'purchasePaymentType', fee.purchasePaymentType)}
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:.03em;">
+            Tipo venda ${renderTreePaymentTypeSelect(type, index, 'salePaymentType', fee.salePaymentType)}
+          </label>
+        </div>
       </td>
       <td>
         <select style="width:140px;" onchange="updateTreeFee('${type}', ${index}, 'applicability', this.value); renderTreeFees('${type}', '${containerId}')">
@@ -12846,6 +12854,15 @@ function renderTreeFees(type, containerId) {
   container.innerHTML = html;
 }
 
+// Tipo de compra/venda da taxa: PP (Prepaid) ou CC (Collect).
+function renderTreePaymentTypeSelect(type, index, field, current) {
+  return `<select style="width: 62px;" title="PP = Prepaid · CC = Collect" onchange="updateTreeFee('${type}', ${index}, '${field}', this.value || null)">
+            <option value="" ${!current ? 'selected' : ''}>--</option>
+            <option value="PP" ${current === 'PP' ? 'selected' : ''}>PP</option>
+            <option value="CC" ${current === 'CC' ? 'selected' : ''}>CC</option>
+          </select>`;
+}
+
 function updateTreeFee(type, index, field, value) {
   let parsed = value;
   if (field === 'sortOrder') parsed = Number(value);
@@ -12867,7 +12884,7 @@ function updateTreeFeeCost(type, index, value) {
 }
 
 function addTreeFee(type) {
-  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', costCurrency: null, minValue: null, minCurrency: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
+  const newFee = { sortOrder: 99, feeName: '', chargeType: 'FIXED', value: '', costValue: null, pricingStatus: 'PRICED', currency: 'USD', costCurrency: null, minValue: null, minCurrency: null, purchasePaymentType: null, salePaymentType: null, percentBase: 'FREIGHT', applicability: 'APPLICABLE' };
   getTreeFeeList(type).push(newFee);
   renderTreeFees(type, TREE_FEE_CONTAINER_ID[type]);
 }

@@ -725,6 +725,8 @@ model IncotermRule {
   currency         String   @default("USD") // Moeda da Venda (value)
   costCurrency     String? // Moeda da Compra (costValue) — pode divergir da Venda
   minCurrency      String? // Moeda do Mínimo (minValue) — pode divergir da Venda
+  purchasePaymentType String? // Tipo de compra: PP (Prepaid) ou CC (Collect)
+  salePaymentType     String? // Tipo de venda: PP (Prepaid) ou CC (Collect)
   percentBase      String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
   description      String? // Descrição informativa para o operador
   sortOrder        Int      @default(0)
