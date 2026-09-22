@@ -8096,6 +8096,10 @@ function toReturnBrl(value, currency) {
 
 function calculateReturnRuleFees(q) {
   const freight = parseFloat(document.getElementById('r-freight').value) || 0;
+  // Lembrete "A COTAR" de uma taxa ainda sem valor (ex: Profit Share, negociado
+  // por agente) nasce na moeda do frete — moeda fixa cadastrada na regra não
+  // faz sentido pra taxa que sempre varia por cotação.
+  const pendingCurrency = normalizeCostCurrency(document.getElementById('r-freight-currency')?.value || 'USD');
   const weightBreak = document.getElementById('r-weight-break').value || q.weightBreak || 'normal';
   const taxable = getLocalTaxavel(q.packages, q.totalPackages, q.totalGrossWeightKg, q.loadType, q.totalCbm, weightBreak);
   const grossTons = (Number(q.totalGrossWeightKg) || 0) / 1000;
@@ -8154,7 +8158,7 @@ function calculateReturnRuleFees(q) {
     // senão a coleta aparece duas vezes na tabela.
     if (normalizeReturnFeeName(rule.feeName) === 'inland') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
-      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'ORIGIN', pending: true });
+      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: pendingCurrency, feeType: 'ORIGIN', pending: true });
       return;
     }
     const value = calculateRule(rule);
@@ -8170,7 +8174,7 @@ function calculateReturnRuleFees(q) {
     // mesmo conceito, senão o IOF aparece duas vezes na tabela de destino.
     if (normalizeReturnFeeName(rule.feeName) === 'iof') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
-      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: rule.currency || 'USD', feeType: 'DESTINATION', pending: true });
+      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: pendingCurrency, feeType: 'DESTINATION', pending: true });
       return;
     }
     const value = calculateRule(rule);
