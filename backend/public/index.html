@@ -3010,7 +3010,7 @@
       <textarea id="ticket-description" rows="4" placeholder="Descreva o problema/melhoria com o máximo de detalhe possível (passos, cotação afetada, etc.)"></textarea>
     </div>
     <div class="form-group">
-      <label>Solicitante</label>
+      <label>Solicitante *</label>
       <select id="ticket-reporter"><option value="">Selecione quem está abrindo...</option></select>
       <small style="display:block;margin-top:4px;color:var(--text-muted);">Usado pra avisar por e-mail quando o chamado for resolvido.</small>
     </div>
@@ -10632,13 +10632,15 @@ async function saveTicket() {
   if (!title) { toast('⚠️ Informe um título.'); return; }
   const description = document.getElementById('ticket-description').value.trim();
   if (!description) { toast('⚠️ Descreva o chamado.'); return; }
+  const reporterProfessionalId = document.getElementById('ticket-reporter')?.value || '';
+  if (!id && !reporterProfessionalId) { toast('⚠️ Selecione quem está abrindo o chamado.'); return; }
 
   const payload = {
     title, description,
     type: document.getElementById('ticket-type').value,
     priority: document.getElementById('ticket-priority').value,
     module: document.getElementById('ticket-module').value.trim() || null,
-    reporterProfessionalId: document.getElementById('ticket-reporter')?.value || null,
+    reporterProfessionalId: reporterProfessionalId || null,
     ...(id && document.getElementById('ticket-resolver')?.value ? { resolverProfessionalId: document.getElementById('ticket-resolver').value } : {})
   };
 
