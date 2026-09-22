@@ -4296,7 +4296,10 @@ function initializeReviewCostEditor(quotation = {}) {
   const destination = enrichFeeMetadata(parseFeeText(document.getElementById('rev-destination-services')?.value || ''), window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
   const freightComponents = [...origin, ...destination].filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
   const cleanOrigin = origin.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
-  const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
+  // IOF sempre tem sua própria linha calculada automaticamente (injetada
+  // logo abaixo) — qualquer linha de "IOF" que já viesse salva no texto
+  // (ex: de uma extração antiga) duplicava a taxa, uma delas ficando zerada.
+  const cleanDestination = destination.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !/\biof\b/i.test(fee.name || ''));
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
   // Venda volta a espelhar o valor extraído por padrão (igual Compra) — a
   // maioria das linhas é repasse puro (sem markup), então deixar Venda em
@@ -4317,7 +4320,10 @@ function initializeReviewCostEditor(quotation = {}) {
   };
   const iofRatePct = (window.pricingSettingsCache && window.pricingSettingsCache.iofRate) ? parseFloat(window.pricingSettingsCache.iofRate) : 3.5;
   const iof = reviewCostNumber(document.getElementById('rev-iof')?.value);
-  if (iof > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false });
+  // Base do cálculo (Frete + Taxas Origem) acompanha a moeda do frete, então
+  // a linha nasce nessa mesma moeda em vez de forçar USD sempre.
+  const iofCurrency = normalizeCostCurrency(document.getElementById('rev-freight-currency')?.value || 'USD');
+  if (iof > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', unitValue:iofRatePct, percentBase:'FREIGHT_PLUS_ORIGIN', percentageBaseValue: iofRatePct > 0 ? iof/(iofRatePct/100) : 0, currency:iofCurrency, financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false });
   const inland = reviewCostNumber(document.getElementById('rev-origin-inland-value')?.value);
   if (inland > 0) window.reviewCostLines.origin.unshift({ id:reviewCostId(), special:'ORIGIN_INLAND', fixedDefinition:true, name:`Inland de Origem / Coleta${document.getElementById('rev-origin-inland-route')?.value ? ` (${document.getElementById('rev-origin-inland-route').value})` : ''}`, quantity:1, billingUnit:'PER_SHIPMENT', unitValue:inland, currency:document.getElementById('rev-origin-inland-currency')?.value || 'USD', financialGroup:'ORIGIN_CHARGE', chargeNature:'LOCAL_SERVICE', provenanceType:'AGENT_EMAIL' });
   const storage = reviewCostNumber(document.getElementById('rev-storage')?.value);
@@ -6747,7 +6753,9 @@ function recalculateRevIof() {
     refreshReviewMainFreightBasis();
     let iofLine = window.reviewCostLines.destination.find(line => line.special === 'IOF');
     if (!iofLine) {
-      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:'USD', financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false };
+      // Nasce na moeda do frete (base do cálculo) em vez de forçar USD sempre.
+      const iofCurrency = normalizeCostCurrency(document.getElementById('rev-freight-currency')?.value || 'USD');
+      iofLine = { id:reviewCostId(), special:'IOF', fixedDefinition:true, name:'IOF sobre frete e taxas de origem', quantity:null, billingUnit:'PERCENTAGE', percentBase:'FREIGHT_PLUS_ORIGIN', currency:iofCurrency, financialGroup:'TAX_IOF', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.iofVisibleOnDocument !== false };
       window.reviewCostLines.destination.push(iofLine);
     }
     iofLine.unitValue = iofRatePct;
