@@ -45,3 +45,13 @@ export function normalizeIncotermText(raw: unknown): string {
 
   return original;
 }
+
+// Incoterms 2020: FOB (junto com FAS/CFR/CIF) é exclusivo de transporte
+// aquaviário — não existe "FOB aéreo". Quando o modal é aéreo e o Incoterm
+// lido (extraído por IA ou digitado manualmente) é FOB, o equivalente
+// correto é FCA (mesmo princípio de entrega ao transportador indicado pelo
+// comprador, sem a exigência específica de embarque marítimo).
+export function coerceIncotermForModal(incoterm: string, modal: unknown): string {
+  const isAir = String(modal || '').trim().toUpperCase() === 'AIR';
+  return isAir && incoterm === 'FOB' ? 'FCA' : incoterm;
+}

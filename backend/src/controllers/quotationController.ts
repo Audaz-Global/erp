@@ -14,7 +14,7 @@ import { quotationChanges, recordQuotationEvent } from '../services/quotationHis
 import { normalizeDangerousGoodsPayload, withDangerousGoodsCompliance } from '../services/dangerousGoodsService';
 import { evaluateIncotermApplicability, withIncotermApplicability } from '../services/incotermApplicabilityService';
 import { getGeographicComparisonAlerts } from '../services/geographicComparisonService';
-import { normalizeIncotermText } from '../services/incotermAliasService';
+import { normalizeIncotermText, coerceIncotermForModal } from '../services/incotermAliasService';
 import { normalizeCurrency, normalizeFee } from '../services/feeCalculationService';
 import { shouldHydrateAutomaticCosts } from '../services/costCompositionService';
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
@@ -72,7 +72,7 @@ export const createQuotation = async (req: Request, res: Response) => {
     Object.assign(quotationData, legacyRoadFields(normalizedGround.legs));
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
-    if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
+    if (quotationData.incoterm) quotationData.incoterm = coerceIncotermForModal(normalizeIncotermText(quotationData.incoterm), quotationData.modal);
     normalizeDangerousGoodsPayload(quotationData);
     if (ruleStage) {
       await enforceCarrierFieldRules(quotationData, String(ruleStage).toUpperCase()).catch(() => {});
@@ -289,7 +289,7 @@ export const updateQuotation = async (req: Request, res: Response) => {
     // Um campo vazio na tela nunca pode apagar a referência oficial já gerada.
     if (typeof quotationData.reference === 'string') quotationData.reference = quotationData.reference.trim();
     if (quotationData.freightCurrency) quotationData.freightCurrency = normalizeCurrency(quotationData.freightCurrency);
-    if (quotationData.incoterm) quotationData.incoterm = normalizeIncotermText(quotationData.incoterm);
+    if (quotationData.incoterm) quotationData.incoterm = coerceIncotermForModal(normalizeIncotermText(quotationData.incoterm), quotationData.modal || current.modal);
     if (!quotationData.reference) delete quotationData.reference;
     if (!current.reference && !quotationData.reference && isValidOperatorInitials(operatorInitials)) {
       quotationData.reference = await generateQuotationReference(String(operatorInitials).trim());

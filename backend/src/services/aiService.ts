@@ -4,7 +4,7 @@ import type { DraftPayload } from '../utils/draftPayload';
 import { applyRateValidityPolicy } from './rateValidityService';
 import { DG_STATUS, normalizeDangerousGoodsStatus, normalizeMsdsStatus } from './dangerousGoodsService';
 import { normalizeCurrency, normalizeFeeList } from './feeCalculationService';
-import { normalizeIncotermText } from './incotermAliasService';
+import { normalizeIncotermText, coerceIncotermForModal } from './incotermAliasService';
 
 export function getGenAI(): GoogleGenerativeAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -436,7 +436,8 @@ export const extractClientData = async (text: string, contextRules: string = '',
     const result = await withRetry(() => model.generateContent(contentPayload));
     const parsed = JSON.parse(result.response.text().trim());
     if (parsed.route?.incoterm) {
-      parsed.route.incoterm = normalizeIncotermText(parsed.route.incoterm);
+      const modalGuess = String(parsed.cargo?.type || '').toUpperCase().startsWith('AIR') ? 'AIR' : 'SEA';
+      parsed.route.incoterm = coerceIncotermForModal(normalizeIncotermText(parsed.route.incoterm), modalGuess);
     }
     if (parsed.route) {
       parsed.route.origin_address_source = parsed.route.origin_city ? (parsed.route.origin_address_source || 'TEXT') : 'NOT_FOUND';
