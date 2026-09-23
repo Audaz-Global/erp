@@ -108,13 +108,15 @@ function annotateFee(fee: any, rules: any[], ctx: ApplicabilityContext, alerts: 
   const rule = matchRuleForFee(fee, rules);
   if (!rule) return { ...fee, incotermApplicability: null, incotermRuleReason: null };
 
+  const base = { ...fee, incotermApplicability: rule.applicability, incotermRuleReason: rule.reason || null, purchasePaymentType: rule.purchasePaymentType || null, salePaymentType: rule.salePaymentType || null };
+
   if (rule.applicability === APPLICABILITY.NOT_APPLICABLE) {
     alerts.push({
       code: 'INCOTERM_NOT_APPLICABLE', level: 'WARNING',
       message: `${fee.name}: taxa atípica para ${plain(rule.incoterm)}${rule.reason ? ' — ' + rule.reason : '.'} Foi mantida porque já havia valor lançado; revise antes de finalizar.`,
       feeNames: [fee.name]
     });
-    return { ...fee, incotermApplicability: rule.applicability, incotermRuleReason: rule.reason || null };
+    return base;
   }
 
   if (rule.applicability === APPLICABILITY.CONDITIONAL) {
@@ -126,7 +128,7 @@ function annotateFee(fee: any, rules: any[], ctx: ApplicabilityContext, alerts: 
         feeNames: [fee.name]
       });
     }
-    return { ...fee, incotermApplicability: rule.applicability, incotermRuleReason: rule.reason || null };
+    return base;
   }
 
   if (rule.applicability === APPLICABILITY.TO_CONFIRM) {
@@ -135,15 +137,18 @@ function annotateFee(fee: any, rules: any[], ctx: ApplicabilityContext, alerts: 
       message: `${fee.name}: aplicabilidade ao Incoterm precisa ser confirmada antes de finalizar${rule.reason ? ' — ' + rule.reason : '.'}`,
       feeNames: [fee.name]
     });
-    return { ...fee, incotermApplicability: rule.applicability, incotermRuleReason: rule.reason || null };
+    return base;
   }
 
-  return { ...fee, incotermApplicability: rule.applicability, incotermRuleReason: rule.reason || null };
+  return base;
 }
 
-function requiredMissingAlerts(originFees: any[], destinationFees: any[], freightFees: any[], rules: any[]) {
+// Em routing order quem contrata é o agente do comprador: as taxas de origem são
+// faturadas ao exportador, em cobrança separada. Cobrá-las na cotação do agente
+// seria errado, então também não faz sentido alertar que "faltam" nela.
+function requiredMissingAlerts(originFees: any[], destinationFees: any[], freightFees: any[], rules: any[], isRoutingOrder = false) {
   const alerts: Array<{ code: string; level: 'INFO' | 'WARNING'; message: string; feeNames?: string[] }> = [];
-  const requiredRules = rules.filter(rule => rule.applicability === APPLICABILITY.REQUIRED);
+  const requiredRules = rules.filter(rule => rule.applicability === APPLICABILITY.REQUIRED && !(isRoutingOrder && rule.feeType === 'ORIGIN'));
   for (const rule of requiredRules) {
     const fees = rule.feeType === 'ORIGIN' ? originFees : rule.feeType === 'FREIGHT' ? freightFees : destinationFees;
     const present = fees.some(fee => {
@@ -202,7 +207,7 @@ export async function evaluateIncotermApplicability(quotation: any) {
   const originFees = normalizeFeeList(quotation.originServices, 'ORIGIN').map(fee => annotateFee(fee, rules, ctx, alerts));
   const destinationFees = normalizeFeeList(quotation.destinationServices, 'DESTINATION').map(fee => annotateFee(fee, rules, ctx, alerts));
   const freightFees = normalizeFeeList(freightFeesInput, 'FREIGHT').map(fee => annotateFee(fee, rules, ctx, alerts));
-  alerts.push(...requiredMissingAlerts(originFees, destinationFees, freightFees, rules));
+  alerts.push(...requiredMissingAlerts(originFees, destinationFees, freightFees, rules, quotation?.isRoutingOrder === true));
 
   return { originFees, destinationFees, freightFees, alerts };
 }
