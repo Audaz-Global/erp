@@ -4377,7 +4377,7 @@ function initializeReviewCostEditor(quotation = {}) {
   // FOB: taxas de origem não aparecem no PDF por padrão — o vendedor é
   // responsável por elas. O operador pode marcar "Exibir" manualmente se
   // precisar incluir alguma taxa específica.
-  const initIncoterm = String(document.getElementById('r-incoterm')?.value || '').toUpperCase().trim();
+  const initIncoterm = String(quotation.incoterm || document.getElementById('r-incoterm')?.value || '').toUpperCase().trim();
   if (initIncoterm === 'FOB') {
     window.reviewCostLines.origin.forEach(line => {
       // Só altera se o campo não veio já explicitamente definido como false
