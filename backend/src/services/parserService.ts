@@ -422,21 +422,47 @@ ${testMsg.body || ''}
     const imageMimeByExtension: Record<string, string> = {
       '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp'
     };
+    if (testMsg.attachments && testMsg.attachments.length > 0) {
+      extractedText += '\n--- ANEXOS DO EMAIL ---\n';
+    }
     for (const attachmentRef of (testMsg.attachments || [])) {
+      const fileName = String((attachmentRef as any).fileName || 'anexo');
+      const extension = String((attachmentRef as any).extension || fileName.slice(fileName.lastIndexOf('.'))).toLowerCase();
       try {
         const attachment = msg.getAttachment(attachmentRef);
-        const fileName = String(attachment.fileName || (attachmentRef as any).fileName || 'imagem');
-        const extension = String((attachmentRef as any).extension || fileName.slice(fileName.lastIndexOf('.'))).toLowerCase();
-        const mimeType = imageMimeByExtension[extension];
-        if (!mimeType) continue;
         const content = Buffer.from(attachment.content);
-        if (content.length < 4_000 || content.length > 1_500_000) continue;
-        const part = { inlineData: { data: content.toString('base64'), mimeType }, filename: fileName };
-        if (signatureMediaParts.length < 6) signatureMediaParts.push(part);
-        mediaParts.push(part);
-        extractedText += `\n[Imagem incorporada do MSG: ${fileName}]\n`;
+        const imageMimeType = imageMimeByExtension[extension];
+        if (imageMimeType) {
+          if (content.length < 4_000 || content.length > 1_500_000) continue;
+          const part = { inlineData: { data: content.toString('base64'), mimeType: imageMimeType }, filename: fileName };
+          if (signatureMediaParts.length < 6) signatureMediaParts.push(part);
+          mediaParts.push(part);
+          extractedText += `\n[Imagem incorporada do MSG: ${fileName}]\n`;
+        } else if (extension === '.pdf') {
+          const pdfData = await pdfParse(content);
+          const pdfText = String(pdfData.text || '').trim();
+          extractedText += `\n[Anexo PDF: ${fileName}]\n${pdfText || '[PDF sem texto pesquisável]'}\n`;
+          // PDFs com texto pesquisável já estão representados acima.
+          // O binário fica reservado a PDFs digitalizados/imagens.
+          if (pdfText.length < 200) {
+            mediaParts.push({ inlineData: { data: content.toString('base64'), mimeType: 'application/pdf' }, filename: fileName });
+          }
+        } else if (extension === '.xlsx' || extension === '.xls') {
+          const workbook = xlsx.read(content, { type: 'buffer' });
+          extractedText += `\n[Anexo Excel: ${fileName}]\n`;
+          workbook.SheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            if (sheet) {
+              const csvText = xlsx.utils.sheet_to_csv(sheet);
+              extractedText += `Aba ${sheetName}:\n${csvText}\n`;
+            }
+          });
+        } else {
+          extractedText += `\n[Anexo ignorado: ${fileName}]\n`;
+        }
       } catch (attachmentError: any) {
-        console.warn('Não foi possível ler imagem incorporada do MSG:', attachmentError?.message || attachmentError);
+        console.warn(`Aviso: Falha ao processar anexo "${fileName}" do MSG:`, attachmentError?.message || attachmentError);
+        extractedText += `\n[Anexo com erro: ${fileName}]\n`;
       }
     }
 

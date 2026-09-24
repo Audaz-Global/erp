@@ -21,6 +21,25 @@ function safeToFixed(num: any, digits: number = 2): string {
   return n.toFixed(digits);
 }
 
+const PERCENT_BASE_LABELS: Record<string, string> = {
+  FREIGHT: 'Frete Internacional',
+  FREIGHT_PLUS_ORIGIN: 'Frete + Taxas de Origem',
+  CARGO_VALUE: 'Valor da Mercadoria',
+  FREIGHT_PLUS_CARGO_VALUE: 'Frete + Valor da Mercadoria'
+};
+
+// Taxa percentual (ex: Collect Fee, IOF) não tem "quantidade" nem "valor
+// unitário" reais — mostrar "Qtd: 1 / Valor Unitário: USD 3.00" confunde o
+// cliente, que lê como se fosse uma cobrança fixa de USD 3. Em vez disso,
+// mostra a alíquota e a base de cálculo na coluna de unidade.
+function feeUnitColumns(f: any, unitVal: number): { qty: any; unit: string } {
+  if (String(f.billingUnit || '').toUpperCase() === 'PERCENTAGE') {
+    const baseLabel = PERCENT_BASE_LABELS[String(f.percentBase || '').toUpperCase()] || 'Taxas Selecionadas';
+    return { qty: '-', unit: `% de ${baseLabel}` };
+  }
+  return { qty: f.quantity ?? 1, unit: f.originalUnit || f.billingUnit || 'Unidade não identificada' };
+}
+
 function formatSubtotals(fees: any[]): string {
   if (!fees || !Array.isArray(fees)) return '';
   const totalsByCurrency: Record<string, number> = {};
@@ -1296,11 +1315,13 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
             const val = parseFloat(f.totalValue ?? f.value) || 0;
             const unitVal = parseFloat(f.unitValue ?? f.value) || 0;
             const curr = normalizeCurrency(f.currency);
+            const isPercentage = String(f.billingUnit || '').toUpperCase() === 'PERCENTAGE';
+            const { qty, unit } = feeUnitColumns(f, unitVal);
             return {
               name: f.name,
-              qty: f.quantity ?? 1,
-              unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
-              valueUnit: unitVal.toFixed(2),
+              qty,
+              unit,
+              valueUnit: isPercentage ? `${unitVal.toFixed(2)} %` : unitVal.toFixed(2),
               min: safeToFixed(f.minValue, 2),
               max: safeToFixed(f.maxValue, 2),
               currency: curr,
@@ -1389,11 +1410,13 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
             const val = parseFloat(f.totalValue ?? f.value) || 0;
             const unitVal = parseFloat(f.unitValue ?? f.value) || 0;
             const curr = f.currency || 'USD';
+            const isPercentage = String(f.billingUnit || '').toUpperCase() === 'PERCENTAGE';
+            const { qty, unit } = feeUnitColumns(f, unitVal);
             return {
               name: f.name,
-              qty: f.quantity ?? 1,
-              unit: f.originalUnit || f.billingUnit || 'Unidade não identificada',
-              valueUnit: unitVal.toFixed(2),
+              qty,
+              unit,
+              valueUnit: isPercentage ? `${unitVal.toFixed(2)} %` : unitVal.toFixed(2),
               min: safeToFixed(f.minValue, 2),
               max: safeToFixed(f.maxValue, 2),
               currency: curr,
