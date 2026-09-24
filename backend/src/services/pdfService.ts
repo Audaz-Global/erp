@@ -1170,7 +1170,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     destinationCountryRich = quotationData.destinationCountry ? String(quotationData.destinationCountry).trim().toUpperCase() : 'BRAZIL';
     
     carrierRich = quotationData.carrier || 'American Airlines Cargo';
-    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
+    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'A confirmar';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
     
     let ref = quotationData.reference || '';
@@ -1232,7 +1232,10 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     connectionsRich = quotationData.connections ? String(quotationData.connections).trim() : 'Direto (sem conexões)';
 
     carrierRich = quotationData.carrier || '—';
-    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
+    // Sem T.T. confirmado, mostra "A confirmar" em vez de inventar um prazo —
+    // um número fictício (ex: "12 dias") apareceria pro cliente como se
+    // fosse um dado real que ninguém nunca confirmou.
+    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'A confirmar';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
     
     let ref = quotationData.reference || '';

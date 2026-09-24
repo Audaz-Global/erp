@@ -7725,7 +7725,7 @@ async function confirmAndGeneratePDF() {
   // integridade do dado salvo — mesmo raciocínio das checagens acima.
   if (!isOnlyEditMode) {
     if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
-    if (!document.getElementById('rev-transit-time').value.trim() && !window.confirm('O tempo de trânsito não foi informado. Deseja continuar e gerar o PDF mesmo assim?')) return;
+    if (!document.getElementById('rev-transit-time').value.trim() && !(await appConfirm('O tempo de trânsito (T.T.) não foi informado. Se continuar, o PDF vai mostrar "A confirmar" no lugar de um prazo estimado — o cliente não vai ver nenhum número de dias.', { title: 'Tempo de trânsito não informado', confirmLabel: 'Continuar sem T.T.', cancelLabel: 'Voltar e preencher' }))) return;
   }
   const revCnpjField = document.getElementById('rev-client-cnpj');
   if (cnpjIsRequiredForQuotation(document.getElementById('rev-load-type').value, storageInput.dataset.requested === 'true') && !revCnpjField.value.trim()) {
