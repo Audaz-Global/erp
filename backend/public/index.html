@@ -5607,6 +5607,7 @@ function renderClientContactConflict(client) {
         <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="useExtractedContactAsNew()">➕ Usar e adicionar como novo contato</button>
         <select id="r-client-conflict-select" style="font-size:11px;padding:6px;">${options}</select>
         <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="selectRegisteredClientContact()">🔁 Usar este contato cadastrado</button>
+        <button type="button" class="btn btn-secondary" style="font-size:11px;padding:6px 10px;" onclick="updateRegisteredClientContactEmail()" title="Mesma pessoa do contato selecionado no dropdown, só que com e-mail novo — atualiza o cadastro dela em vez de criar um contato duplicado.">🔄 Atualizar contato existente com este e-mail</button>
       </div>
     </div>`;
 }
@@ -5636,6 +5637,37 @@ function selectRegisteredClientContact() {
   if (!conflict || !select) return;
   const chosen = conflict.registeredContacts[Number(select.value)];
   if (!chosen) return;
+  document.getElementById('r-client-contact').value = chosen.name || '';
+  document.getElementById('r-client-phone').value = chosen.phone || '';
+  document.getElementById('r-client-contact-conflict').innerHTML = '';
+  window.clientContactConflict = null;
+}
+
+// Mesma pessoa já cadastrada, só que escrevendo de um e-mail novo — atualiza
+// o registro existente em vez de criar um contato duplicado (como "adicionar
+// como novo") ou descartar o e-mail novo (como "usar o cadastrado").
+async function updateRegisteredClientContactEmail() {
+  const conflict = window.clientContactConflict;
+  const select = document.getElementById('r-client-conflict-select');
+  if (!conflict || !select) return;
+  const chosen = conflict.registeredContacts[Number(select.value)];
+  if (!chosen) return;
+  if (!chosen.id) {
+    toast('⚠️ Esse contato ainda não tem cadastro próprio pra atualizar — use "adicionar como novo contato" em vez disso.');
+    return;
+  }
+  try {
+    const res = await fetch(API + '/clients/' + conflict.clientId + '/contacts/' + chosen.id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: conflict.extracted.email })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao atualizar contato.');
+    toast('✅ Contato atualizado com o novo e-mail.');
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Erro ao atualizar contato.'));
+    return;
+  }
   document.getElementById('r-client-contact').value = chosen.name || '';
   document.getElementById('r-client-phone').value = chosen.phone || '';
   document.getElementById('r-client-contact-conflict').innerHTML = '';
