@@ -3097,6 +3097,10 @@
       <input type="hidden" id="tw-quotation-id">
       <small id="tw-quotation-hint" style="color:var(--text-muted);display:block;margin-top:3px;"></small>
     </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label style="font-size:11px;">Solicitante *</label>
+      <select id="tw-reporter"><option value="">Selecione quem está abrindo...</option></select>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
       <div class="form-group" style="margin:0;">
         <label style="font-size:11px;">Tipo</label>
@@ -10836,6 +10840,7 @@ function openTicketWidget() {
     window.ticketWidgetAttachments = [];
     renderTicketWidgetAttachments();
     populateTicketWidgetQuotationOptions().then(prefillTicketWidgetQuotation);
+    loadTicketProfessionalOptions('tw-reporter', '', 'Selecione quem está abrindo...');
     window.ticketWidgetInitialized = true;
   }
 }
@@ -10921,6 +10926,8 @@ async function submitTicketWidget() {
   if (!title) { toast('⚠️ Informe um título.'); return; }
   const description = document.getElementById('tw-description').value.trim();
   if (!description) { toast('⚠️ Descreva o chamado.'); return; }
+  const reporterProfessionalId = document.getElementById('tw-reporter')?.value || '';
+  if (!reporterProfessionalId) { toast('⚠️ Selecione quem está abrindo o chamado.'); return; }
   const btn = document.getElementById('tw-submit-btn');
   btn.disabled = true; btn.innerText = 'Enviando...';
   try {
@@ -10928,7 +10935,8 @@ async function submitTicketWidget() {
       title, description,
       type: document.getElementById('tw-type').value,
       priority: document.getElementById('tw-priority').value,
-      quotationId: document.getElementById('tw-quotation-id').value || null
+      quotationId: document.getElementById('tw-quotation-id').value || null,
+      reporterProfessionalId
     };
     const res = await fetch(API + '/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
