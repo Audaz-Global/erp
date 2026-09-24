@@ -869,6 +869,11 @@ export const getPublicWebView = async (req: Request, res: Response) => {
       if (leg.serviceType === 'DTA') detailedFeesOrigem.push(item); else detailedFeesDestino.push(item);
     });
 
+    const isFobExport = quotation.direction === 'EXPORT' && ['FOB', 'FCA', 'FAS'].includes(incotermStr);
+    if (isFobExport) {
+      detailedFeesOrigem = [];
+    }
+
     const detailedFeesFreightComponents = [...detailedFeesOrigem, ...detailedFeesDestino].filter(f => f.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','INSURANCE','TAX_IOF','PROFIT']);
     const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', INSURANCE:'Seguro', TAX_IOF:'IOF', PROFIT:'Profit' };
@@ -1148,9 +1153,9 @@ export const getPublicWebView = async (req: Request, res: Response) => {
         </tr>
         <tr>
           <td>International Freight</td>
-          <td>Por Kg/cm3 (6000)</td>
-          <td class="t-right">${fCurr} ${(fVal / taxavel).toFixed(2)} / kg</td>
-          <td class="t-right">R$ ${(fTotalBrl / taxavel).toFixed(2)} / kg</td>
+          <td>${modalForRules === 'SEA_FCL' ? 'Por Container' : (isAir ? 'Por Kg/cm3 (6000)' : 'Por CBM/Ton (1000)')}</td>
+          <td class="t-right">${fCurr} ${(modalForRules === 'SEA_FCL' ? (containerInfo.qty > 0 ? fVal / containerInfo.qty : fVal) : fVal / taxavel).toFixed(2)} ${modalForRules === 'SEA_FCL' ? '/ cont' : (isAir ? '/ kg' : '/ ton')}</td>
+          <td class="t-right">R$ ${(modalForRules === 'SEA_FCL' ? (containerInfo.qty > 0 ? fTotalBrl / containerInfo.qty : fTotalBrl) : fTotalBrl / taxavel).toFixed(2)} ${modalForRules === 'SEA_FCL' ? '/ cont' : (isAir ? '/ kg' : '/ ton')}</td>
         </tr>
         ${detailedFeesFreightComponents.filter(fee => fee.showOnDocument !== false).map(fee => `
         <tr>
