@@ -345,11 +345,31 @@ export async function searchAirExportRates(
   const originClean = String(origin || '').trim().toUpperCase();
   const destClean = String(destination || '').trim().toUpperCase();
 
+  const isPharma = (desc: string) => {
+    if (!desc) return false;
+    const d = desc.toUpperCase();
+    return d.includes('PHARMA') || d.includes('FARMA') || d.includes('VACINA') || d.includes('VACCIN') || d.includes('MEDICAMENT') || d.includes('MEDICINE') || d.includes('HEALTHCARE') || d.includes('REMEDIO');
+  };
+
+  const isPharmaRate = (rate: any) => {
+    const str = `${rate.commodity || ''} ${rate.prodCode || ''} ${rate.rateType || ''}`.toUpperCase();
+    return /\b(PHARMA|FARMA|PIL|VACCINES?|MEDICINES?|HEALTHCARE|AI|ACT|PASSIVE|CSAFE|ENVIROTAINER|TEMP)\b/.test(str);
+  };
+
+  const cargoIsPharma = isPharma(commodity || '');
+
   try {
     // Busca todas as taxas ativas (sem filtro de rota no DB para manter o fuzzy search matchesAirportOrCity)
-    const allRates = await prisma.airExportTariffRate.findMany({
+    let allRates = await prisma.airExportTariffRate.findMany({
       where: { active: true }
     });
+
+    if (cargoIsPharma) {
+      const pharmaRates = allRates.filter(r => isPharmaRate(r));
+      if (pharmaRates.length > 0) {
+        allRates = pharmaRates;
+      }
+    }
 
     const results: AirTariffSearchResult[] = [];
 
