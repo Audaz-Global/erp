@@ -11,11 +11,12 @@ const STATUS_VALUES = new Set(['ABERTO', 'EM_ANDAMENTO', 'RESOLVIDO', 'FECHADO']
 const RESOLVED_STATUSES = new Set(['RESOLVIDO', 'FECHADO']);
 
 const ticketListSelect = {
-  id: true, title: true, type: true, priority: true, status: true, module: true,
+  id: true, number: true, title: true, type: true, priority: true, status: true, module: true,
   createdAt: true, updatedAt: true, resolvedAt: true,
   createdBy: { select: { id: true, name: true } },
   assignedTo: { select: { id: true, name: true } },
   reporterProfessional: { select: { id: true, name: true, email: true } },
+  resolverProfessional: { select: { id: true, name: true, email: true } },
   quotation: { select: { id: true, reference: true } },
   _count: { select: { comments: true, documents: true } }
 } as const;
@@ -27,12 +28,12 @@ function escapeHtml(value: string): string {
 // E-mail simples de aviso quando o chamado é marcado como resolvido — usa o
 // texto do último comentário (o diagnóstico que a pessoa que resolveu
 // escreveu) como corpo, então não duplica a explicação em dois lugares.
-function resolutionEmailHtml(ticketTitle: string, diagnosisText: string): string {
+function resolutionEmailHtml(ticketTitle: string, diagnosisText: string, resolverName?: string | null): string {
   const diagnosisHtml = escapeHtml(diagnosisText).replace(/\n/g, '<br>');
   return `
     <div style="font-family:Arial,sans-serif;font-size:14px;color:#1f2937;line-height:1.5;">
       <p>Olá,</p>
-      <p>O chamado abaixo foi marcado como <strong style="color:#059669;">resolvido</strong>:</p>
+      <p>O chamado abaixo foi marcado como <strong style="color:#059669;">resolvido</strong>${resolverName ? ` por ${escapeHtml(resolverName)}` : ''}:</p>
       <p style="font-size:16px;font-weight:bold;margin:16px 0 8px;">${escapeHtml(ticketTitle)}</p>
       <div style="background:#f3f4f6;border-left:3px solid #059669;padding:12px 16px;margin:12px 0;">${diagnosisHtml}</div>
       <p style="color:#6b7280;font-size:12px;margin-top:24px;">Este e-mail foi enviado automaticamente pelo sistema Audaz ao resolver o chamado.</p>
@@ -70,6 +71,7 @@ export async function getTicket(req: Request, res: Response) {
       createdBy: { select: { id: true, name: true } },
       assignedTo: { select: { id: true, name: true } },
       reporterProfessional: { select: { id: true, name: true, email: true } },
+      resolverProfessional: { select: { id: true, name: true, email: true } },
       quotation: { select: { id: true, reference: true } },
       comments: { orderBy: { createdAt: 'asc' } },
       documents: { select: { id: true, originalName: true, createdAt: true, blob: { select: { mimeType: true, size: true } } }, orderBy: { createdAt: 'asc' } }
@@ -120,6 +122,7 @@ export async function updateTicket(req: Request, res: Response) {
     }
     if (req.body?.assignedToId !== undefined) data.assignedToId = req.body.assignedToId || null;
     if (req.body?.reporterProfessionalId !== undefined) data.reporterProfessionalId = req.body.reporterProfessionalId || null;
+    if (req.body?.resolverProfessionalId !== undefined) data.resolverProfessionalId = req.body.resolverProfessionalId || null;
     if (req.body?.status !== undefined) {
       if (!STATUS_VALUES.has(req.body.status)) throw new Error('Status inválido.');
       data.status = req.body.status;
@@ -134,7 +137,7 @@ export async function updateTicket(req: Request, res: Response) {
       try {
         const lastComment = await prisma.ticketComment.findFirst({ where: { ticketId: ticket.id }, orderBy: { createdAt: 'desc' } });
         const diagnosisText = lastComment?.body || 'O chamado foi marcado como resolvido.';
-        await sendOutlookEmail(ticket.reporterProfessional.email, `Chamado resolvido: ${ticket.title}`, resolutionEmailHtml(ticket.title, diagnosisText));
+        await sendOutlookEmail(ticket.reporterProfessional.email, `Chamado resolvido: ${ticket.title}`, resolutionEmailHtml(ticket.title, diagnosisText, ticket.resolverProfessional?.name));
       } catch (emailError: any) {
         console.error('Erro ao enviar e-mail de resolução do chamado:', emailError?.message || emailError);
       }
