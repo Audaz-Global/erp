@@ -2101,10 +2101,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     let sumOrigemUsd = 0;
     let sumOrigemEur = 0;
 
-    // Frete e IOF
-    if (fCurr === 'USD') sumOrigemUsd += fV + iV;
-    else if (fCurr === 'EUR') sumOrigemEur += fV + iV;
-    else if (fCurr === 'BRL') sumOrigemBrl += fV + iV;
+    // Frete
+    if (fCurr === 'USD') sumOrigemUsd += fV;
+    else if (fCurr === 'EUR') sumOrigemEur += fV;
+    else if (fCurr === 'BRL') sumOrigemBrl += fV;
 
     // Serviços na Origem
     if (quotationData.originServices) {
