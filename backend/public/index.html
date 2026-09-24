@@ -6900,111 +6900,39 @@ function updateBuyVsSellTable() {
   const tbody = document.getElementById('bvs-table-body');
   if (!tbody) return;
 
-  const usdRate = 5.05;
-  const eurRate = 5.50;
+  // Fonte única de verdade: as mesmas linhas de Compra/Venda já calculadas
+  // na tabela de custos acima (window.reviewCostLines), com o mesmo
+  // reviewCostTotal()/reviewCostBuyTotal() usado lá — nunca recalcula nada
+  // do zero nem depende de totais agregados vindos da IA (que raramente
+  // existem e, quando ausentes, faziam a Compra virar espelho da Venda).
+  const freightLines = window.reviewCostLines?.freight || [];
+  const originLines = window.reviewCostLines?.origin || [];
+  const destinationLines = window.reviewCostLines?.destination || [];
 
-  // Extrair Custos (Compra) da IA se disponíveis
-  const agentCosts = window.lastExtractedAgentData?.costs || {};
+  const sumSellUsd = lines => lines.reduce((sum, line) => sum + reviewCostToUsd(reviewCostTotal(line), line.currency), 0);
+  const sumBuyUsd = lines => lines.reduce((sum, line) => sum + reviewCostToUsd(reviewCostBuyTotal(line), line.costCurrency || line.currency), 0);
 
-  // 1. FRETE INTERNACIONAL
-  const sellFreightRaw = parseFloat(document.getElementById('rev-freight').value) || 0;
-  const sellFreightCurr = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
-  let sellFreightUsd = sellFreightRaw;
-  if (sellFreightCurr === 'EUR') sellFreightUsd = sellFreightRaw * (eurRate / usdRate);
-  else if (sellFreightCurr === 'BRL') sellFreightUsd = sellFreightRaw / usdRate;
-
-  let costFreightUsd = agentCosts.freight_usd != null ? parseFloat(agentCosts.freight_usd) : sellFreightUsd;
-
-  // 2. INLAND ORIGEM
-  const sellInlandRaw = parseFloat(document.getElementById('rev-origin-inland-value').value) || 0;
-  const sellInlandCurr = document.getElementById('rev-origin-inland-currency') ? document.getElementById('rev-origin-inland-currency').value : 'USD';
-  let sellInlandUsd = sellInlandRaw;
-  if (sellInlandCurr === 'EUR') sellInlandUsd = sellInlandRaw * 1.08;
-  else if (sellInlandCurr === 'BRL') sellInlandUsd = sellInlandRaw / usdRate;
-
-  let costInlandUsd = agentCosts.origin_inland_usd != null ? parseFloat(agentCosts.origin_inland_usd) : sellInlandUsd;
-
-  // 3. TAXAS ORIGEM
-  let sellOriginFeesUsd = 0;
-  let sellOriginFeesExSpreadUsd = 0;
-  const originServicesRaw = document.getElementById('rev-origin-services').value || '';
-  if (originServicesRaw.trim()) {
-    parseFeeText(originServicesRaw).forEach(fee => {
-        const val = fee.totalValue || 0;
-        const curr = fee.currency;
-        let usd = val;
-        if (curr === 'EUR') usd = val * 1.08;
-        else if (curr === 'BRL') usd = val / usdRate;
-        sellOriginFeesUsd += usd;
-        // "Spread / Profit" é markup nosso, não cobrança do agente — não pode
-        // inflar o Custo (Compra) quando o profit é aplicado/ajustado.
-        if (!/spread\s*\/\s*profit/i.test(fee.name || '')) sellOriginFeesExSpreadUsd += usd;
-    });
-  }
-  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesExSpreadUsd;
-
-  // 4. SEGURO INTERNACIONAL
-  // Compra do seguro nunca vem do agente (não é uma taxa que ele cobra) —
-  // é sempre 0,097% da mesma base usada pra calcular a Venda, sem piso.
-  const requiresIns = document.getElementById('rev-insurance').value === 'true';
-  const sellInsuranceUsd = requiresIns ? (parseFloat(document.getElementById('rev-insurance-val')?.value) || 0) : 0;
-  let costInsuranceUsd = 0;
-  if (requiresIns) {
-    const insValMercadoriaRaw = parseFloat(document.getElementById('rev-commercial-value')?.value) || 0;
-    const insCommercialCurrency = document.getElementById('rev-commercial-value-currency')?.value || 'USD';
-    let insValMercadoria = insValMercadoriaRaw;
-    if (insCommercialCurrency === 'EUR') insValMercadoria = insValMercadoriaRaw * (eurRate / usdRate);
-    else if (insCommercialCurrency === 'BRL') insValMercadoria = insValMercadoriaRaw / usdRate;
-
-    const insuranceBaseType = document.getElementById('rev-insurance-base')?.value || 'FOB_FREIGHT';
-    let baseSeguroUsd = insValMercadoria;
-    if (insuranceBaseType === 'FOB_FREIGHT') baseSeguroUsd = insValMercadoria + sellFreightUsd;
-    else if (insuranceBaseType === 'CIF_TOTAL') baseSeguroUsd = insValMercadoria + sellFreightUsd + sellOriginFeesUsd + sellInlandUsd;
-    costInsuranceUsd = baseSeguroUsd * (INSURANCE_COST_RATE_PERCENT / 100);
-  }
-
-  // 5. TAXAS DESTINO & SERVIÇOS
-  // rev-services já é a soma das mesmas linhas de rev-destination-services
-  // somadas individualmente logo abaixo — não entra aqui, senão cada taxa
-  // (exceto Seguro) é contada duas vezes no total de Venda/Compra.
-  const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
-  const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  const destBaseUsd = (storageBrl + taxesBrl) / usdRate;
-  let sellDestFeesUsd = destBaseUsd;
-  let sellDestFeesExSpreadUsd = destBaseUsd;
-
-  const destText = document.getElementById('rev-destination-services')?.value || '';
-  const destFeeLines = parseFeeText(destText);
-
-  destFeeLines.forEach(fee => {
-    const l = (fee.name || '').toLowerCase();
-    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
-        const val = fee.totalValue || 0;
-        const curr = fee.currency;
-        let usd = val;
-        if (curr === 'EUR') usd = val * 1.08;
-        else if (curr === 'BRL') usd = val / usdRate;
-        sellDestFeesUsd += usd;
-        if (!l.includes('spread / profit')) sellDestFeesExSpreadUsd += usd;
-    }
-  });
-
-  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesExSpreadUsd;
-
-  // 6. DESEMBARAÇO ADUANEIRO
-  const customsIncluded = document.getElementById('rev-customs-clearance').checked;
-  const customsValBrl = customsIncluded ? (parseFloat(document.getElementById('rev-customs-value').value) || 0) : 0;
-  const sellCustomsUsd = customsValBrl / usdRate;
-  let costCustomsUsd = 0; // Desembaraço próprio/interno sem custo direto de agente
+  // Inland de Origem, Seguro, IOF e Desembaraço já são linhas próprias
+  // dentro de origin/destination (injetadas por initializeReviewCostEditor)
+  // — viram linhas separadas aqui também, em vez de ficarem misturadas em
+  // "Taxas Locais Origem"/"Taxas Destino" (e IOF ganha linha própria, como
+  // o Seguro já tinha, em vez de entrar somado dentro de Taxas Destino).
+  const inlandLines = originLines.filter(l => l.special === 'ORIGIN_INLAND');
+  const originOnlyLines = originLines.filter(l => l.special !== 'ORIGIN_INLAND');
+  const insuranceLines = destinationLines.filter(l => l.financialGroup === 'INSURANCE');
+  const iofLines = destinationLines.filter(l => l.special === 'IOF');
+  const customsLines = destinationLines.filter(l => l.special === 'CUSTOMS');
+  const destinationOnlyLines = destinationLines.filter(l => l.financialGroup !== 'INSURANCE' && l.special !== 'IOF' && l.special !== 'CUSTOMS');
 
   // ITENS DA TABELA
   const items = [
-    { key: 'freight', label: 'Frete Internacional', cost: costFreightUsd, sell: sellFreightUsd },
-    { key: 'inland', label: 'Inland / Transporte Origem', cost: costInlandUsd, sell: sellInlandUsd },
-    { key: 'origin', label: 'Taxas Locais Origem', cost: costOriginFeesUsd, sell: sellOriginFeesUsd },
-    { key: 'insurance', label: 'Seguro Internacional', cost: costInsuranceUsd, sell: sellInsuranceUsd },
-    { key: 'destination', label: 'Taxas Destino / Serviços', cost: costDestFeesUsd, sell: sellDestFeesUsd },
-    { key: 'customs', label: 'Desembaraço Aduaneiro', cost: costCustomsUsd, sell: sellCustomsUsd }
+    { key: 'freight', label: 'Frete Internacional', cost: sumBuyUsd(freightLines), sell: sumSellUsd(freightLines) },
+    { key: 'inland', label: 'Inland / Transporte Origem', cost: sumBuyUsd(inlandLines), sell: sumSellUsd(inlandLines) },
+    { key: 'origin', label: 'Taxas Locais Origem', cost: sumBuyUsd(originOnlyLines), sell: sumSellUsd(originOnlyLines) },
+    { key: 'insurance', label: 'Seguro Internacional', cost: sumBuyUsd(insuranceLines), sell: sumSellUsd(insuranceLines) },
+    { key: 'iof', label: 'IOF', cost: sumBuyUsd(iofLines), sell: sumSellUsd(iofLines) },
+    { key: 'destination', label: 'Taxas Destino / Serviços', cost: sumBuyUsd(destinationOnlyLines), sell: sumSellUsd(destinationOnlyLines) },
+    { key: 'customs', label: 'Desembaraço Aduaneiro', cost: sumBuyUsd(customsLines), sell: sumSellUsd(customsLines) }
   ];
   // Guardado só pra mensagem explicativa do Aplicar Profit (applySmartProfit)
   // poder mostrar quanto de profit já existe fora das áreas marcadas.
@@ -7236,6 +7164,17 @@ function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
     document.getElementById('rev-insurance-val').value = newSellUsd.toFixed(2);
   } else if (key === 'customs') {
     document.getElementById('rev-customs-value').value = (newSellUsd * usdRate).toFixed(2);
+  } else if (key === 'iof') {
+    // IOF é sempre percentual (alíquota × base) — editar o total aqui ajusta
+    // a alíquota da linha pra fechar no valor digitado, em vez de virar uma
+    // linha de Spread/Profit separada (não faz sentido pra uma taxa fixa).
+    const iofLine = window.reviewCostLines.destination?.find(line => line.special === 'IOF');
+    if (iofLine) {
+      const base = reviewPercentageBase(iofLine);
+      const newTotalInLineCurrency = newSellUsd * (iofLine.currency === 'BRL' ? usdRate : iofLine.currency === 'EUR' ? (usdRate / eurRate) : 1);
+      iofLine.unitValue = base > 0 ? (newTotalInLineCurrency / base) * 100 : 0;
+      document.getElementById('rev-iof').value = newSellUsd.toFixed(2);
+    }
   } else if (key === 'origin' || key === 'destination') {
     const deltaUsd = newSellUsd - (Number(previousSellUsd) || 0);
     const textareaId = key === 'origin' ? 'rev-origin-services' : 'rev-destination-services';
