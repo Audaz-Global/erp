@@ -5,6 +5,7 @@ import {
   findOrCreateStandardFeeForLegacyRule,
   standardFeeSnapshot
 } from '../services/standardFeeLinkService';
+import { coerceIncotermForModal } from '../services/incotermAliasService';
 import {
   findIncotermRuleOrderConflict,
   IncotermRuleOrderConflictError,
@@ -47,7 +48,11 @@ export const getIncotermRules = async (req: Request, res: Response) => {
   try {
     const { incoterm, modal, direction } = req.query;
     const where: any = {};
-    if (incoterm) where.incoterm = { in: [String(incoterm).toUpperCase(), 'ALL'] };
+    // Defesa extra: mesmo que o front peça FOB pra um embarque aéreo (cotação
+    // antiga ainda não corrigida), a busca de regras usa o equivalente FCA —
+    // FOB não existe no aéreo (Incoterms 2020).
+    const normalizedIncotermQuery = incoterm ? coerceIncotermForModal(String(incoterm).toUpperCase(), modal ? String(modal).toUpperCase() : '') : null;
+    if (normalizedIncotermQuery) where.incoterm = { in: [normalizedIncotermQuery, 'ALL'] };
     if (modal) where.modal = { in: [String(modal).toUpperCase(), 'ALL'] };
     if (direction) where.direction = { in: [String(direction).toUpperCase(), 'ALL'] };
 

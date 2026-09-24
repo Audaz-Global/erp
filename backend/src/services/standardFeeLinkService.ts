@@ -25,9 +25,19 @@ export function standardFeeSnapshot(fee: StandardFee) {
 
 export function effectiveIncotermRule(rule: RuleWithStandardFee) {
   const fee = rule.standardFee;
+  const snapshot = fee ? standardFeeSnapshot(fee) : null;
   return {
     ...rule,
-    ...(fee ? standardFeeSnapshot(fee) : {}),
+    ...(snapshot || {}),
+    // Campos opcionais do catálogo (StandardFee) não podem apagar um valor
+    // já cadastrado especificamente na regra (IncotermRule) quando o próprio
+    // catálogo ainda não tem esse dado preenchido — senão uma Compra/Mínimo
+    // configurado só na regra (ex: CCT Fee com costValue próprio) some
+    // silenciosamente e a taxa passa a mostrar Compra = Venda.
+    costValue: snapshot?.costValue ?? rule.costValue ?? null,
+    costCurrency: snapshot?.costCurrency ?? rule.costCurrency ?? null,
+    minCurrency: snapshot?.minCurrency ?? rule.minCurrency ?? null,
+    minValue: snapshot?.minValue ?? rule.minValue ?? null,
     standardFeeId: fee?.id || rule.standardFeeId || null,
     standardFee: fee || null,
     active: rule.active && (fee ? fee.active : true)

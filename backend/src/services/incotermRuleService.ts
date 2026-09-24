@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { effectiveIncotermRule } from './standardFeeLinkService';
 import { evaluateIncotermCondition } from './incotermApplicabilityService';
+import { coerceIncotermForModal } from './incotermAliasService';
 
 const prisma = new PrismaClient();
 
@@ -64,13 +65,18 @@ export interface FeeCalculationContext {
  * Primeiro busca regras específicas para o modal, depois complementa com regras "ALL".
  */
 export async function getRulesForIncoterm(incoterm: string, modal: string, direction: string = 'ALL', context: FeeCalculationContext = {}): Promise<EffectiveIncotermRule[]> {
-  const normalizedIncoterm = incoterm.toUpperCase().trim();
-  
+  let normalizedIncoterm = incoterm.toUpperCase().trim();
+
   // Normalizar modal para o formato do banco
   let dbModal = modal.toUpperCase().trim();
   if (dbModal === 'AIR' || dbModal.includes('AIR')) dbModal = 'AIR';
   else if (dbModal.includes('FCL')) dbModal = 'SEA_FCL';
   else if (dbModal.includes('LCL')) dbModal = 'SEA_LCL';
+  // Defesa extra pra cotações antigas que já tenham FOB salvo com modal aéreo
+  // (FOB não existe no aéreo — ver coerceIncotermForModal) — garante que o
+  // cálculo de taxas nunca busca regras de FOB pra um embarque aéreo, mesmo
+  // que o valor bruto salvo na cotação ainda não tenha sido corrigido.
+  normalizedIncoterm = coerceIncotermForModal(normalizedIncoterm, dbModal);
   const dbDirection = ['IMPORT', 'EXPORT'].includes(String(direction).toUpperCase()) ? String(direction).toUpperCase() : 'ALL';
 
   let rules: any[] = [];
