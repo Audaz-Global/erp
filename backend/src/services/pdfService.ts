@@ -9,6 +9,12 @@ import { storageEstimatePdfFee } from './storageEstimateService';
 import { shouldHydrateAutomaticCosts } from './costCompositionService';
 import { normalizeDangerousGoodsStatus, DG_STATUS } from './dangerousGoodsService';
 
+// O tsconfig compila para CommonJS, o que transformaria import('puppeteer') em
+// require() — e o Puppeteer 25 é ESM, que não aceita require. Este import
+// dinâmico via Function escapa dessa conversão do compilador.
+const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<any>;
+const loadPuppeteer = () => dynamicImport('puppeteer');
+
 function safeToFixed(num: any, digits: number = 2): string {
   const n = parseFloat(num);
   if (isNaN(n) || !isFinite(n)) return (0).toFixed(digits);
@@ -348,7 +354,7 @@ const defaultTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">Peso Bruto:</span><span class="value">{{totalGrossWeightKg}} Kgs</span></div>
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Natureza:</span><span class="value">Importação</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Natureza:</span><span class="value">{{naturezaLabel}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">T.T:</span><span class="value">{{transitTimeLabel}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Peso Cubado:</span><span class="value">{{totalCbmRich}} M³</span></div>
       </div>
@@ -450,6 +456,7 @@ const defaultTemplate = `
   </table>
   {{/if}}
 
+  {{#if hasDestinationSection}}
   <div class="section-banner-sm">Destino</div>
   <table class="fee-table">
     <thead>
@@ -526,6 +533,7 @@ const defaultTemplate = `
       {{/if}}
     </tbody>
   </table>
+  {{/if}}
 
   {{#if detailedFeesAdditionalGroups.length}}
   <div class="section-banner-sm">Outras classificações financeiras</div>
@@ -869,7 +877,7 @@ const defaultAirTemplate = `
         <div style="display:flex; margin-bottom:4px;"><span class="label">Peso Bruto:</span><span class="value">{{totalGrossWeightKg}} Kgs</span></div>
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Natureza:</span><span class="value">Importação</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">Natureza:</span><span class="value">{{naturezaLabel}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">T.T:</span><span class="value">{{transitTimeLabel}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Peso Cubado:</span><span class="value">{{pesoCubadoRich}} kgs</span></div>
       </div>
@@ -984,6 +992,7 @@ const defaultAirTemplate = `
     </tbody>
   </table>
 
+  {{#if hasDestinationSection}}
   <div class="section-banner-sm">Destino</div>
   <table class="fee-table">
     <thead>
@@ -1017,6 +1026,7 @@ const defaultAirTemplate = `
       {{/if}}
     </tbody>
   </table>
+  {{/if}}
 
   {{#if detailedFeesAdditionalGroups.length}}
   <div class="section-banner-sm">Taxas DG, aduaneiras, impostos e profit</div>
@@ -1508,7 +1518,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     let sumOrigemBrl = 0;
     let sumOrigemUsd = 0;
     let sumOrigemEur = 0;
-    detailedFeesOrigem.forEach(f => {
+    detailedFeesOrigem.filter((f: any) => f.showOnDocument !== false).forEach(f => {
       const total = f.total ? String(f.total) : '';
       const parts = total.split(' ');
       if (parts.length >= 2) {
@@ -1523,7 +1533,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     let sumDestinoBrl = 0;
     let sumDestinoUsd = 0;
     let sumDestinoEur = 0;
-    detailedFeesDestino.forEach(f => {
+    detailedFeesDestino.filter((f: any) => f.showOnDocument !== false).forEach(f => {
       const total = f.total ? String(f.total) : '';
       const parts = total.split(' ');
       if (parts.length >= 2) {
@@ -1534,7 +1544,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
         else if (curr === 'BRL') sumDestinoBrl += v;
       }
     });
-    detailedFeesFreightComponents.forEach(f => {
+    detailedFeesFreightComponents.filter((f: any) => f.showOnDocument !== false).forEach(f => {
       const parts = String(f.total || '').split(' ');
       const value = parseFloat(parts[parts.length - 1] || '0') || 0;
       const currency = String(parts[0] || f.currency || 'USD').toUpperCase();
@@ -1542,7 +1552,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       else if (currency === 'EUR') sumOrigemEur += value;
       else if (currency === 'BRL') sumOrigemBrl += value;
     });
-    detailedFeesAdditionalGroups.forEach(f => {
+    detailedFeesAdditionalGroups.filter((f: any) => f.showOnDocument !== false).forEach(f => {
       const parts = String(f.total || '').split(' ');
       const value = parseFloat(parts[parts.length - 1] || '0') || 0;
       const currency = String(parts[0] || f.currency || 'USD').toUpperCase();
@@ -1579,6 +1589,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   const roadFreightRich = roadLeg?.route || '';
 
   const templateData = {
+    naturezaLabel: String(quotationData.direction).toUpperCase() === 'EXPORT' ? 'Exportação' : 'Importação',
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
     hideCarrierName: Boolean(quotationData.hideCarrierName),
     dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
@@ -1609,19 +1620,19 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     chargableWeight: chargableWeight.toFixed(2),
     freightUnitValue,
     freightTotalValue,
-    // "Exibir no Documento" desmarcado: a linha some da proposta impressa,
-    // mas os subtotais abaixo usam os arrays completos (sem esse filtro) e
-    // continuam contando o valor.
+    hasDestinationSection: detailedFeesDestino.filter((f: any) => f.showOnDocument !== false).length > 0,
+    // "Exibir no Documento" desmarcado: a linha some da proposta impressa
+    // e os subtotais/totais também ignoram essas taxas.
     detailedFeesOrigem: detailedFeesOrigem.filter((f: any) => f.showOnDocument !== false),
     detailedFeesDestino: detailedFeesDestino.filter((f: any) => f.showOnDocument !== false),
     detailedFeesFreightComponents: detailedFeesFreightComponents.filter((f: any) => f.showOnDocument !== false),
     // Profit/spread do agente é informação interna: some da listagem visível
     // ao cliente, mas o valor continua contando no subtotal abaixo.
     detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT' && f.showOnDocument !== false),
-    subtotalFrete: formatSubtotals([{ total: freightTotalValue }, ...detailedFeesFreightComponents]),
-    subtotalOrigem: formatSubtotals(detailedFeesOrigem),
-    subtotalDestino: formatSubtotals(detailedFeesDestino),
-    subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups),
+    subtotalFrete: formatSubtotals([{ total: freightTotalValue }, ...detailedFeesFreightComponents.filter((f: any) => f.showOnDocument !== false)]),
+    subtotalOrigem: formatSubtotals(detailedFeesOrigem.filter((f: any) => f.showOnDocument !== false)),
+    subtotalDestino: formatSubtotals(detailedFeesDestino.filter((f: any) => f.showOnDocument !== false)),
+    subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups.filter((f: any) => f.showOnDocument !== false)),
     totalGeralLabel,
     totalUsd: sumUsd.toFixed(2),
     logoBase64,
@@ -1637,7 +1648,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
 
   const html = template(templateData);
 
-  const puppeteerModule = await import('puppeteer');
+  const puppeteerModule = await loadPuppeteer();
   const puppeteer = puppeteerModule.default || puppeteerModule;
   const browser = await (puppeteer as any).launch({ 
     headless: true,
@@ -1985,7 +1996,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     let sumDestinoEur = 0;
 
     if (hasDetailedFees) {
-      detailedFees.forEach(f => {
+      detailedFees.filter((f: any) => f.showOnDocument !== false).forEach(f => {
         const val = (parseFloat(f.valueUnit) || 0) * (f.qty || 1);
         const curr = (f.currency || 'BRL').toUpperCase();
         if (curr === 'BRL') sumDestinoBrl += val;
@@ -1997,7 +2008,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
                        (parseFloat(quotationData.destinationStorage) || 0) +
                        (parseFloat(quotationData.destinationTaxes) || 0);
     }
-    detailedFeesAdditionalGroups.forEach((fee:any) => {
+    detailedFeesAdditionalGroups.filter((f: any) => f.showOnDocument !== false).forEach((fee:any) => {
       if (fee._alreadyInOriginTotal) return;
       const val = (parseFloat(fee.valueUnit) || 0) * (Number(fee.qty) || 1);
       const curr = String(fee.currency || 'BRL').toUpperCase();
@@ -2160,6 +2171,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     const templateData = {
       ...quotationData,
+      naturezaLabel: String(quotationData.direction).toUpperCase() === 'EXPORT' ? 'Exportação' : 'Importação',
       hideCarrierName: Boolean(quotationData.hideCarrierName),
       freightCurrency: fCurr,
       totalGeralLabel,
@@ -2184,24 +2196,24 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       containerQty,
       containerTypeRich,
       hasDetailedFees,
+      hasDestinationSection: hasDetailedFees ? (detailedFees.filter((f: any) => f.showOnDocument !== false).length > 0) : (parseFloat(quotationData.destinationStorage) > 0 || parseFloat(quotationData.destinationServicesTotal) > 0 || parseFloat(quotationData.destinationTaxes) > 0 || (quotationData.iofVisibleOnDocument && parseFloat(quotationData.iofUsd) > 0)),
       hasOriginSection: (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) || originServiceRows.length > 0,
       hasOriginInland: quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined,
       originInlandValue: (parseFloat(quotationData.originInlandValue) || 0).toFixed(2),
       originInlandCurrency: quotationData.originInlandCurrency || 'USD',
       originInlandRoute: quotationData.originInlandRoute || '',
       originInlandTransitTime: quotationData.originInlandTransitTime || 'Por coleta',
-      // "Exibir no Documento" desmarcado: a linha some da proposta impressa,
-      // mas os subtotais abaixo usam os arrays completos (sem esse filtro) e
-      // continuam contando o valor.
+      // "Exibir no Documento" desmarcado: a linha some da proposta impressa
+      // e os subtotais/totais também ignoram essas taxas.
       detailedFees: detailedFees.filter((f: any) => f.showOnDocument !== false),
       originServiceRows: originServiceRows.filter((f: any) => f.showOnDocument !== false),
       freightAccessories: freightAccessories.filter((f: any) => f.showOnDocument !== false),
       // Profit/spread do agente é informação interna: some da listagem
       // visível ao cliente, mas o valor continua contando no subtotal abaixo.
       detailedFeesAdditionalGroups: detailedFeesAdditionalGroups.filter((f:any) => f.financialGroup !== 'PROFIT' && f.showOnDocument !== false),
-      subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups),
-      subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }, ...freightAccessories]),
-      subtotalDestino: formatSubtotals(detailedFees),
+      subtotalAdditional: formatSubtotals(detailedFeesAdditionalGroups.filter((f: any) => f.showOnDocument !== false)),
+      subtotalFrete: formatSubtotals([{ currency: fCurr, total: `${fCurr} ${fV.toFixed(2)}` }, ...freightAccessories.filter((f: any) => f.showOnDocument !== false)]),
+      subtotalDestino: formatSubtotals(detailedFees.filter((f: any) => f.showOnDocument !== false)),
       freightQtyRich,
       freightCalculationType,
       freightUnitValueRich,
@@ -2219,7 +2231,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
 
     const html = template(templateData);
 
-    const puppeteerModule = await import('puppeteer');
+    const puppeteerModule = await loadPuppeteer();
     const puppeteer = puppeteerModule.default || puppeteerModule;
     const browser = await (puppeteer as any).launch({ 
       headless: 'new' as any,

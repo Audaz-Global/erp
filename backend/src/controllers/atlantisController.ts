@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { isAtlantisConfigured, searchAtlantisParty } from '../services/atlantisService';
+import { getAtlantisClientProfile, isAtlantisConfigured, searchAtlantisParty } from '../services/atlantisService';
 
 export const searchAtlantisCustomer = async (req: Request, res: Response) => {
   try {
@@ -24,6 +24,22 @@ export const searchAtlantisAgent = async (req: Request, res: Response) => {
     res.json({ candidates });
   } catch (error: any) {
     console.error('Erro ao consultar parceiro/agente no Atlantis:', error);
+    res.status(500).json({ error: 'Não foi possível consultar o Atlantis no momento.' });
+  }
+};
+
+// Perfil do cliente no Atlantis: diz se a cotação é routing order (quem contrata
+// está no exterior). Não bloqueia a cotação — se o Atlantis estiver fora do ar ou
+// o cliente não existir lá, devolve "não encontrado" e o operador decide.
+export const getClientProfile = async (req: Request, res: Response) => {
+  try {
+    if (!isAtlantisConfigured()) return res.status(503).json({ error: 'Integração com o Atlantis não está configurada.' });
+    const query = String(req.query.q || '');
+    const taxId = req.query.taxId ? String(req.query.taxId) : undefined;
+    const profile = await getAtlantisClientProfile(query, taxId);
+    res.json(profile);
+  } catch (error: any) {
+    console.error('Erro ao consultar perfil do cliente no Atlantis:', error);
     res.status(500).json({ error: 'Não foi possível consultar o Atlantis no momento.' });
   }
 };

@@ -1282,6 +1282,7 @@
               <input type="text" id="r-client-cnpj" placeholder="Ex: 00.000.000/0000-00">
             </div>
             <div id="r-client-atlantis-box"></div>
+            <div id="r-client-routing-box"></div>
             <div class="form-group">
               <label>Referência de Cotação (opcional)</label>
               <input type="text" id="r-reference" placeholder="Ex: W08 (20/02)">
@@ -2237,6 +2238,7 @@
         </div>
       </div>
       <div id="rev-client-atlantis-box"></div>
+      <div id="rev-client-routing-box"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Nome do Contato</label>
@@ -2525,10 +2527,6 @@
 
     <!-- CUSTOS -->
     <div style="margin-bottom:24px;">
-      <div style="display:flex;justify-content:space-between;gap:14px;align-items:end;margin-bottom:12px;">
-        <div><div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;">Composição da Cotação</div><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Estas são as mesmas linhas e bases que serão apresentadas no PDF.</div></div>
-        <div style="font-size:10px;color:var(--text-muted);text-align:right;">Valor total = quantidade × valor unitário</div>
-      </div>
       <div id="review-cost-editor" class="cost-bases-grid">
         <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#60a5fa;">Frete</div><div class="cost-base-subtotal" id="cost-subtotal-freight">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-freight"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('freight')">+ Inserir linha de frete</button></div>
         <div class="cost-base-card"><div class="cost-base-head"><div class="cost-base-title" style="color:#f5a623;">Taxas de origem</div><div class="cost-base-subtotal" id="cost-subtotal-origin">—</div></div><div class="cost-columns-head"><span>Descrição / origem</span><span>Base de cálculo</span><span>Qtd.</span><span>Moeda</span><span>Unitário (Venda)</span><span>Compra</span><span>Mínimo</span><span>Máximo</span><span style="text-align:right">Total</span><span>Exibir</span><span></span></div><div class="cost-lines" id="cost-lines-origin"></div><button type="button" class="cost-add-line" onclick="addReviewCostLine('origin')">+ Inserir taxa de origem</button></div>
@@ -4067,10 +4065,13 @@ function parseFeeLine(line) {
   const first = segments[0].split(/\s+/);
   const unitValue = isPending ? null : parseFloat(String(first[0] || '').replace(',', '.'));
   if (!name || (!isPending && !Number.isFinite(unitValue))) return null;
-  const currency = isPending ? 'USD' : normalizeCostCurrency(first[1]);
-  const billingUnit = isPending ? 'UNKNOWN' : String(segments[1] || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
+  const pendingCurrencySegment = segments.find(value => /^CURR\s+/i.test(value));
+  const currency = isPending
+    ? (pendingCurrencySegment ? normalizeCostCurrency(pendingCurrencySegment.replace(/^CURR\s+/i, '').trim()) : 'USD')
+    : normalizeCostCurrency(first[1]);
+  const billingUnit = String(segments[1] || 'UNKNOWN').toUpperCase().replace(/\s+/g, '_');
   const quantityMatch = segments.find(value => /^(QTY|QTD)\s+/i.test(value))?.match(/(?:QTY|QTD)\s+([\d.,]+)/i);
-  const quantityPending = isPending || segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value));
+  const quantityPending = segments.some(value => /^(QTY|QTD)\s+PENDENTE/i.test(value)) || (isPending && !quantityMatch);
   const totalMatch = segments.find(value => /^TOTAL\s+/i.test(value))?.match(/TOTAL\s+([\d.,]+)/i);
   const minimumMatch = segments.find(value => /^MIN\s+/i.test(value))?.match(/MIN\s+([\d.,]+)/i);
   const maximumMatch = segments.find(value => /^MAX\s+/i.test(value))?.match(/MAX\s+([\d.,]+)/i);
@@ -4121,7 +4122,9 @@ function parseFeeLine(line) {
   const financialGroupMissing = financialGroup === 'TO_CONFIRM';
   const needsReview = billingUnit === 'UNKNOWN' || quantityMissing || mismatch || ispsUnclassified || ispsInclusionPending || financialGroupMissing;
   const reviewReasons = [...(billingUnit === 'UNKNOWN' ? ['BILLING_UNIT_MISSING'] : []), ...(quantityMissing ? ['QUANTITY_MISSING'] : []), ...(mismatch ? ['TOTAL_MISMATCH'] : []), ...(ispsUnclassified ? ['ISPS_CLASSIFICATION_MISSING'] : []), ...(ispsInclusionPending ? ['ISPS_FREIGHT_INCLUSION_UNCONFIRMED'] : []), ...(financialGroupMissing ? ['FINANCIAL_GROUP_MISSING'] : [])];
-  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, showOnDocument, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, needsReview, reviewReasons, pending: isPending || undefined };
+  const purchasePaySegment = segments.find(value => /^PURCHASEPAY\s+/i.test(value));
+  const salePaySegment = segments.find(value => /^SALEPAY\s+/i.test(value));
+  return { name, unitValue, value: totalValue, currency, billingUnit, originalUnit: FEE_UNIT_LABELS[billingUnit] || null, quantity, minValue:minimumMatch ? parseFloat(minimumMatch[1].replace(',','.')) : 0, maxValue:maximumMatch ? parseFloat(maximumMatch[1].replace(',','.')) : 0, totalValue, costUnitValue, costCurrency, showOnDocument, quantitySource: 'MANUAL', canonicalCategory:isIsps?'ISPS_FEE':null, ispsClassification, applicationScope, chargedBy, includedInFreight, financialGroup, chargeNature, classificationSource, provenanceType, provenanceLabel, evidence, percentBase, percentageBaseValue, purchasePaymentType: purchasePaySegment ? purchasePaySegment.replace(/^PURCHASEPAY\s+/i, '').trim() : null, salePaymentType: salePaySegment ? salePaySegment.replace(/^SALEPAY\s+/i, '').trim() : null, needsReview, reviewReasons, pending: isPending || undefined };
 }
 
 function parseFeeText(text) { return String(text || '').split('\n').map(parseFeeLine).filter(Boolean); }
@@ -4161,7 +4164,9 @@ function formatFeeLine(fee) {
   const costCurrency = fee.costCurrency ? normalizeCostCurrency(fee.costCurrency) : currency;
   const costDetails = fee.costUnitValue != null && Number.isFinite(Number(fee.costUnitValue)) ? ` | COST ${Number(fee.costUnitValue).toFixed(2)}${costCurrency !== currency ? ` | COSTCURRENCY ${costCurrency}` : ''}` : '';
   const visibleDetails = fee.showOnDocument === false ? ` | VISIBLE false` : '';
-  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${scopeDetails}${provenanceDetails}${costDetails}${visibleDetails}${ispsDetails}`;
+  const purchasePayDetails = fee.purchasePaymentType ? ` | PURCHASEPAY ${cleanMeta(fee.purchasePaymentType)}` : '';
+  const salePayDetails = fee.salePaymentType ? ` | SALEPAY ${cleanMeta(fee.salePaymentType)}` : '';
+  return `${stripReturnEstimateLabel(fee.name)}: ${unitValue.toFixed(2)} ${currency} | ${unit} | QTD ${quantity ?? 'PENDENTE'} | MIN ${Number(fee.minValue || 0).toFixed(2)} | MAX ${Number(fee.maxValue || 0).toFixed(2)} | TOTAL ${total.toFixed(2)} ${currency}${classificationDetails}${scopeDetails}${provenanceDetails}${costDetails}${visibleDetails}${purchasePayDetails}${salePayDetails}${ispsDetails}`;
 }
 
 const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_HAWB','PER_MAWB','PER_BL','PER_CONTAINER','PER_PACKAGE','PER_ITEM','PER_KG','PER_CHARGEABLE_WEIGHT','PER_CBM','PER_TON','PER_WM','PERCENTAGE'];
@@ -4364,17 +4369,155 @@ function costUnitOptions(selected) { return COST_EDITOR_UNITS.map(unit => `<opti
 function costCurrencyOptions(selected) { const normalized=normalizeCostCurrency(selected); return ['USD','EUR','BRL'].map(currency => `<option value="${currency}" ${currency === normalized ? 'selected' : ''}>${currency}</option>`).join(''); }
 function reviewCostAmount(value) { return Number(value || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
+// ===== Cobrar de: separa a cotacao entre a conta do cliente e a do exportador =====
+// Em routing order parte das taxas e faturada ao agente e parte ao exportador
+// brasileiro, como as cotacoes do Atlantis ja fazem item a item. A sugestao
+// abaixo e provisoria e sera revista com o comercial.
+const CHARGE_TO_OPTIONS = { CLIENT: 'Cliente', SHIPPER: 'Exportador', NONE: 'Não cobrar' };
+
+function isRoutingOrderQuotation() {
+  return Boolean(window.clientRoutingOrder && window.clientRoutingOrder.value === true);
+}
+
+function chargeToLabel(key) {
+  if (key === 'CLIENT') return isRoutingOrderQuotation() ? 'Agente (cliente)' : 'Cliente';
+  return CHARGE_TO_OPTIONS[key] || key;
+}
+
+// Routing order: o agente (cliente) paga o frete; as taxas de origem sao faturadas
+// ao exportador no Brasil, em cobranca separada; o destino fica com o proprio
+// agente, que resolve no porto dele. Excecoes existem (as vezes o agente assume
+// taxas de origem do armador em moeda estrangeira), por isso cada linha pode ser
+// trocada a mao e a escolha manual nunca e sobrescrita.
+function suggestChargeTo(group, line) {
+  if (!isRoutingOrderQuotation()) return 'CLIENT';
+  if (group === 'freight') return 'CLIENT';
+  if (group === 'origin') return 'SHIPPER';
+  return 'NONE';
+}
+
+// Preenche o "Cobrar de" das linhas que o operador ainda nao ajustou a mao.
+function applyChargeToSuggestions() {
+  const routingOrder = isRoutingOrderQuotation();
+  ['freight', 'origin', 'destination'].forEach(group => {
+    (window.reviewCostLines[group] || []).forEach(line => {
+      if (!routingOrder) {
+        // Fora do routing order a cotação tem um pagador só, então a separação
+        // por conta não se aplica — e o que ela havia escondido volta ao PDF.
+        delete line.chargeTo;
+        delete line.chargeToSource;
+        if (line.hiddenByChargeTo) { line.showOnDocument = true; delete line.hiddenByChargeTo; }
+        return;
+      }
+      if (line.chargeToSource !== 'MANUAL') {
+        line.chargeTo = suggestChargeTo(group, line);
+        line.chargeToSource = 'AUTO';
+      }
+      // A cotação sai com as duas contas (agente e exportador), como as cotações
+      // do Atlantis. Só o que não é cobrado de ninguém fica fora do documento.
+      if (line.chargeTo === 'NONE') { line.showOnDocument = false; line.hiddenByChargeTo = true; }
+      else if (line.hiddenByChargeTo) { line.showOnDocument = true; delete line.hiddenByChargeTo; }
+    });
+  });
+}
+
+// Tipo de pagamento da taxa: PP (Prepaid, pago na origem) ou CC (Collect, pago
+// no destino). Vem preenchido da Árvore de Incoterms e pode ser ajustado nesta
+// cotação — é um campo, embaixo do valor a que se refere.
+function paymentTypeField(group, line, field) {
+  const venda = field === 'salePaymentType';
+  const valor = line[field] || '';
+  const rotulo = venda ? 'Venda' : 'Compra';
+  const titulo = `Tipo de ${rotulo.toLowerCase()} desta taxa — PP (Prepaid: pago na origem) ou CC (Collect: pago no destino). Vem da Árvore de Incoterms.`;
+  const opcoes = [['', 'Tipo —'], ['PP', 'PP · Prepaid'], ['CC', 'CC · Collect']]
+    .map(([v, texto]) => `<option value="${v}" ${v === valor ? 'selected' : ''}>${texto}</option>`).join('');
+  return `<select title="${titulo}" style="margin-top:4px;height:26px;padding:2px 4px;font-size:10px;${valor ? (venda ? 'color:#f5c36a;' : '') : 'color:#7f8ba1;'}" onchange="updateReviewCostLine('${group}','${line.id}','${field}',this.value)">${opcoes}</select>`;
+}
+
+function chargeToSelector(group, line) {
+  if (!isRoutingOrderQuotation()) return '';
+  const current = line.chargeTo || suggestChargeTo(group, line);
+  const auto = line.chargeToSource !== 'MANUAL';
+  const options = Object.keys(CHARGE_TO_OPTIONS).map(key => `<option value="${key}" ${key === current ? 'selected' : ''}>${escapeFeeHtml(chargeToLabel(key))}</option>`).join('');
+  return `<div class="cost-source-row" title="Quem recebe a fatura desta taxa. ${auto ? 'Sugerido pelo sistema — confira.' : 'Definido manualmente.'}">
+    <span style="font-size:9px;color:var(--text-muted);white-space:nowrap;">Cobrar de</span>
+    <select style="height:24px;padding:1px 4px;font-size:10px;${auto ? 'opacity:.75;' : 'border-color:var(--gold);'}" onchange="updateReviewCostLine('${group}','${line.id}','chargeTo',this.value)">${options}</select>
+  </div>`;
+}
+
+// O "Cobrar de" vive nas linhas do editor; as taxas salvas sao reconstruidas a
+// partir do texto, entao casamos pelo nome na hora de salvar.
+window.reviewChargeMap = { origin: {}, destination: {} };
+function feeChargeKey(name) {
+  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+function applyChargeToFees(fees, group) {
+  const map = (window.reviewChargeMap && window.reviewChargeMap[group]) || {};
+  return (fees || []).map(fee => {
+    const entry = map[feeChargeKey(fee.name)];
+    return entry ? { ...fee, chargeTo: entry.chargeTo, chargeToSource: entry.chargeToSource } : fee;
+  });
+}
+
+// Incoterms em que o destino e responsabilidade do comprador: numa exportacao,
+// essas taxas nao sao cobradas do cliente da Audaz. O bloco continua na tela
+// (o agente pode ter cotado algo que o operador precise ver), mas vem recolhido.
+const INCOTERMS_SEM_DESTINO_NA_EXPORTACAO = ['EXW', 'FCA', 'FAS', 'FOB'];
+window.destinationBlockExpanded = false;
+
+function destinoForaDaCotacao() {
+  if (!isRoutingOrderQuotation()) return false;
+  const incoterm = String(document.getElementById('rev-incoterm')?.value || '').toUpperCase().trim();
+  const direction = String(document.getElementById('rev-direction')?.value || '').toUpperCase();
+  return direction.includes('EXPORT') && INCOTERMS_SEM_DESTINO_NA_EXPORTACAO.includes(incoterm);
+}
+
+function toggleDestinationBlock() {
+  window.destinationBlockExpanded = !window.destinationBlockExpanded;
+  syncDestinationBlock();
+}
+
+function syncDestinationBlock() {
+  const container = document.getElementById('cost-lines-destination');
+  const card = container && container.closest('.cost-base-card');
+  if (!card) return;
+  const head = card.querySelector('.cost-base-head');
+  const columns = card.querySelector('.cost-columns-head');
+  const addButton = card.querySelector('.cost-add-line');
+  let aviso = card.querySelector('.destino-fora-aviso');
+
+  if (!destinoForaDaCotacao()) {
+    [columns, container, addButton].forEach(el => { if (el) el.style.display = ''; });
+    if (aviso) aviso.remove();
+    return;
+  }
+
+  const incoterm = String(document.getElementById('rev-incoterm')?.value || '').toUpperCase().trim();
+  const total = (window.reviewCostLines.destination || []).length;
+  const aberto = window.destinationBlockExpanded;
+  if (!aviso) {
+    aviso = document.createElement('div');
+    aviso.className = 'destino-fora-aviso';
+    aviso.style.cssText = 'padding:12px 16px;font-size:11px;color:var(--text-muted);display:flex;gap:10px;align-items:center;flex-wrap:wrap;';
+    head.insertAdjacentElement('afterend', aviso);
+  }
+  aviso.innerHTML = `<span>Em <strong>${escapeFeeHtml(incoterm)}</strong> de exportação o destino é por conta do comprador, então não entra na cotação nem no PDF.${total ? ` <strong>${total}</strong> ${total === 1 ? 'taxa informada' : 'taxas informadas'} pelo agente.` : ' Nenhuma taxa informada.'}</span>
+    <button type="button" class="btn btn-secondary" style="padding:3px 10px;font-size:11px;" onclick="toggleDestinationBlock()">${aberto ? 'Ocultar' : 'Ver taxas'}</button>`;
+  [columns, container, addButton].forEach(el => { if (el) el.style.display = aberto ? '' : 'none'; });
+}
+
 function renderReviewCostEditor() {
+  applyChargeToSuggestions();
   ['freight','origin','destination'].forEach(group => {
     const target = document.getElementById(`cost-lines-${group}`); if (!target) return;
     const lines = window.reviewCostLines[group] || [];
     target.innerHTML = lines.length ? lines.map(line => { const source=reviewCostProvenance(line); return `<div class="cost-line" data-cost-id="${line.id}">
-      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div></div>
+      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div>${chargeToSelector(group, line)}</div>
       <div><label>Base de cálculo${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
       <div><label>Qtd.${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${line.fixedDefinition ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
-      <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
-      <div><label>Compra</label><div style="display:flex;gap:4px;align-items:center;"><select style="width:54px;flex-shrink:0;padding:5px 2px;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" style="flex:1;min-width:55px;" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div></div>
+      <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)">${paymentTypeField(group, line, 'salePaymentType')}</div>
+      <div><label>Compra</label><div style="display:flex;gap:4px;align-items:center;"><select style="width:54px;flex-shrink:0;padding:5px 2px;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" style="flex:1;min-width:55px;" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div>${paymentTypeField(group, line, 'purchasePaymentType')}</div>
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
       <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div>${reviewCostProfitLabel(line)}</div>
@@ -4388,6 +4531,13 @@ function renderReviewCostEditor() {
 function updateReviewCostLine(group, id, field, value) {
   const line = (window.reviewCostLines[group] || []).find(item => item.id === id); if (!line) return;
   line[field] = ['quantity','unitValue','costUnitValue','minValue','maxValue'].includes(field) ? reviewCostNumber(value) : ['currency','costCurrency'].includes(field) ? normalizeCostCurrency(value) : value;
+  if (field === 'chargeTo') {
+    line.chargeToSource = 'MANUAL';
+    if (value === 'NONE') { line.showOnDocument = false; line.hiddenByChargeTo = true; }
+    else if (line.hiddenByChargeTo) { line.showOnDocument = true; delete line.hiddenByChargeTo; }
+    renderReviewCostEditor();
+    return;
+  }
   if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue','quantity','billingUnit'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
   if (field === 'showOnDocument' && line.special === 'IOF') window.iofVisibleOnDocument = value;
@@ -4419,6 +4569,7 @@ function removeReviewCostLine(group, id) {
 }
 
 function syncReviewCostEditor() {
+  syncDestinationBlock();
   const all = Object.values(window.reviewCostLines).flat();
   all.forEach(line => { const row=document.querySelector(`[data-cost-id="${line.id}"]`); const total=row?.querySelector('.cost-line-total'); if(total) total.textContent=`${line.currency || 'USD'} ${reviewCostAmount(reviewCostTotal(line))}`; const badge=row?.querySelector('.cost-source-badge'); if(badge){const source=reviewCostProvenance(line); badge.textContent=source.label; badge.className=`cost-source-badge ${source.css}`; badge.title=source.evidence || source.label;} });
   const main = window.reviewCostLines.freight.find(line => line.special === 'MAIN_FREIGHT');
@@ -4439,6 +4590,9 @@ function syncReviewCostEditor() {
   const originFees = window.reviewCostLines.origin.filter(line => !line.special).map(line => toFee(line,'ORIGIN',line.financialGroup || 'ORIGIN_CHARGE'));
   const destinationFees = window.reviewCostLines.destination.filter(line => !line.special || line.special === 'CUSTOMS').map(line => toFee(line,'DESTINATION',line.financialGroup || 'DESTINATION_CHARGE'));
   window.reviewCostLines.freight.filter(line => !line.special).forEach(line => destinationFees.push(toFee(line,'FREIGHT','FREIGHT_COMPONENT')));
+  window.reviewChargeMap = { origin: {}, destination: {} };
+  originFees.forEach(fee => { window.reviewChargeMap.origin[feeChargeKey(fee.name)] = { chargeTo: fee.chargeTo || 'CLIENT', chargeToSource: fee.chargeToSource || 'AUTO' }; });
+  destinationFees.forEach(fee => { window.reviewChargeMap.destination[feeChargeKey(fee.name)] = { chargeTo: fee.chargeTo || 'CLIENT', chargeToSource: fee.chargeToSource || 'AUTO' }; });
   document.getElementById('rev-origin-services').value = originFees.map(formatFeeLine).join('\n');
   document.getElementById('rev-destination-services').value = destinationFees.map(formatFeeLine).join('\n');
   const brlValue = fee => normalizeCostCurrency(fee.currency) === 'BRL' ? reviewCostTotal(fee) : normalizeCostCurrency(fee.currency) === 'EUR' ? reviewCostTotal(fee) * 5.50 : reviewCostTotal(fee) * 5.05;
@@ -4478,7 +4632,7 @@ function renderFeeCalculationPreview() {
   [['rev-origin-services','rev-origin-fees-preview'],['rev-destination-services','rev-destination-fees-preview']].forEach(([fieldId,panelId]) => {
     const panel = document.getElementById(panelId); if (!panel) return;
     const fees = parseFeeText(document.getElementById(fieldId)?.value);
-    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong>${f.wasAutoAssignedGroup ? ' <span title="Sem categoria prévia; atribuído automaticamente ao grupo da seção" style="color:#f5c36a;font-size:10px;">(Automático)</span>' : ''}<br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
+    panel.innerHTML = fees.length ? `<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left">Taxa</th><th>Classificação</th><th>Unitário</th><th>Unidade</th><th>Qtd.</th><th>Total</th></tr></thead><tbody>${fees.map(f => `<tr style="color:${f.needsReview ? '#f5c36a' : 'inherit'}"><td>${escapeFeeHtml(f.name)}${f.needsReview ? ' ⚠️' : ''}${f.canonicalCategory==='ISPS_FEE'?`<br><small>${escapeFeeHtml(f.ispsClassification)} · ${escapeFeeHtml(f.applicationScope)} · Frete: ${escapeFeeHtml(f.includedInFreight)}</small>`:''}${f.purchasePaymentType ? ` <span title="Tipo de Compra" style="font-size:9px; padding:2px 4px; border-radius:4px; background:rgba(0,0,0,0.05); border:1px solid var(--border); color:var(--text-muted); font-weight:600; line-height:1;">Compra: ${escapeFeeHtml(f.purchasePaymentType)}</span>` : ''}${f.salePaymentType ? ` <span title="Tipo de Venda" style="font-size:9px; padding:2px 4px; border-radius:4px; background:rgba(0,0,0,0.05); border:1px solid var(--border); color:var(--gold); font-weight:600; line-height:1;">Venda: ${escapeFeeHtml(f.salePaymentType)}</span>` : ''}</td><td style="text-align:center"><strong>${escapeFeeHtml(FINANCIAL_GROUP_LABELS[f.financialGroup] || f.financialGroup)}</strong>${f.wasAutoAssignedGroup ? ' <span title="Sem categoria prévia; atribuído automaticamente ao grupo da seção" style="color:#f5c36a;font-size:10px;">(Automático)</span>' : ''}<br><small>${escapeFeeHtml(CHARGE_NATURE_LABELS[f.chargeNature] || f.chargeNature)}</small></td><td style="text-align:center">${escapeFeeHtml(f.currency)} ${f.unitValue != null ? f.unitValue.toFixed(2) : 'A cotar'}</td><td style="text-align:center">${escapeFeeHtml(FEE_UNIT_LABELS[f.billingUnit] || f.billingUnit)}</td><td style="text-align:center">${f.quantity ?? 'Pendente'}</td><td style="text-align:center;font-weight:700">${escapeFeeHtml(f.currency)} ${f.totalValue != null ? f.totalValue.toFixed(2) : 'A cotar'}</td></tr>`).join('')}</tbody></table>` : '';
   });
   renderIspsAlerts();
 }
@@ -5510,6 +5664,7 @@ function fillReviewForm(d, mode) {
       const registeredBadge = document.getElementById('r-client-registered-badge');
       if (registeredBadge) registeredBadge.innerHTML = d.client.registered_client_id
         ? '<small style="display:block;margin:-8px 0 12px;color:var(--success);">✓ Cliente já cadastrado — nome, segmento e contato preenchidos com o registro existente.</small>' : '';
+      checkClientRoutingOrder('r-client');
       renderClientContactConflict(d.client);
     }
     if(d.route) {
@@ -6209,6 +6364,7 @@ async function saveQuotationRecord() {
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       ...atlantisPayload('r-client', 'client'),
+      ...routingOrderPayload(),
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       productSegment: document.getElementById('r-product-segment').value || null,
       cargoDescription: document.getElementById('r-cargo-description').value || null,
@@ -6578,6 +6734,7 @@ async function saveAsAwaitingAgent() {
       clientContactName: document.getElementById('r-client-contact').value || null,
       clientContactPhone: document.getElementById('r-client-phone').value || null,
       ...atlantisPayload('r-client', 'client'),
+      ...routingOrderPayload(),
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       productSegment: document.getElementById('r-product-segment').value || null,
       cargoDescription: document.getElementById('r-cargo-description').value || null,
@@ -7258,6 +7415,12 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-client-contact').value = (q.client?.contactName) || '';
     document.getElementById('rev-client-phone').value = (q.client?.contactPhone) || '';
     resetAtlantisLink('rev-client', q.client?.atlantisId || null);
+    if (q.isRoutingOrder === true || q.isRoutingOrder === false) {
+      window.clientRoutingOrder = { value: q.isRoutingOrder, source: q.routingOrderSource || 'AUTO', profile: { found: false, reason: q.routingOrderNote || '' } };
+      renderClientRoutingBadge();
+    } else {
+      checkClientRoutingOrder('rev-client');
+    }
     setSelectValueWithFallback(document.getElementById('rev-product-segment'), q.productSegment || (q.client?.productSegment) || '');
     document.getElementById('rev-reference').value = q.reference || '';
     document.getElementById('rev-incoterm').value = q.incoterm || 'FCA';
@@ -7717,7 +7880,10 @@ async function confirmAndGeneratePDF() {
     ...parseFeeText(document.getElementById('rev-origin-services').value, 'ORIGIN').map(f => ({ ...f, financialGroup: (f.financialGroup && f.financialGroup !== 'TO_CONFIRM') ? f.financialGroup : 'ORIGIN_CHARGE', wasAutoAssignedGroup: !f.financialGroup || f.financialGroup === 'TO_CONFIRM' })),
     ...parseFeeText(document.getElementById('rev-destination-services').value, 'DESTINATION').map(f => ({ ...f, financialGroup: (f.financialGroup && f.financialGroup !== 'TO_CONFIRM') ? f.financialGroup : 'DESTINATION_CHARGE', wasAutoAssignedGroup: !f.financialGroup || f.financialGroup === 'TO_CONFIRM' }))
   ];
-  const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING'));
+  // Quantidade zerada com valor unitário preenchido zera o total da taxa no PDF
+  // sem nenhum aviso — trata igual a quantidade ausente.
+  const missingQuantity = reviewedFees.filter(fee => fee.reviewReasons.includes('QUANTITY_MISSING')
+    || (Number(fee.unitValue) > 0 && Number(fee.quantity) === 0 && fee.billingUnit !== 'PERCENTAGE'));
   if (missingQuantity.length) {
     alert(`Informe a quantidade aplicável antes de finalizar: ${missingQuantity.map(fee => fee.name).join(', ')}.`);
     return;
@@ -7784,7 +7950,7 @@ async function confirmAndGeneratePDF() {
           }
       });
     }
-    originServicesList = enrichFeeMetadata(originServicesList, window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []);
+    originServicesList = applyChargeToFees(enrichFeeMetadata(originServicesList, window.reviewFeeMetadata?.origin || window.lastExtractedAgentData?.costs?.origin_fees || []), 'origin');
     const originServicesStr = JSON.stringify(originServicesList);
 
     const destinationServicesRaw = document.getElementById('rev-destination-services').value || '';
@@ -7823,7 +7989,7 @@ async function confirmAndGeneratePDF() {
           }
       });
     }
-    destinationServicesList = enrichFeeMetadata(destinationServicesList, window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []);
+    destinationServicesList = applyChargeToFees(enrichFeeMetadata(destinationServicesList, window.reviewFeeMetadata?.destination || window.lastExtractedAgentData?.costs?.destination_fees || []), 'destination');
     const destinationServicesStr = JSON.stringify(destinationServicesList);
 
     const targetServicesBrl = destinationServicesList.length > 0 ? destinationServicesTotalBrl : (parseFloat(document.getElementById('rev-services').value) || 0);
@@ -7929,6 +8095,7 @@ async function confirmAndGeneratePDF() {
         clientContactName: document.getElementById('rev-client-contact').value || null,
         clientContactPhone: document.getElementById('rev-client-phone').value || null,
         ...atlantisPayload('rev-client', 'client'),
+        ...routingOrderPayload(),
         carrier: document.getElementById('rev-carrier').value || null,
         hideCarrierName: document.getElementById('rev-hide-carrier').checked,
         carrierProfileId: carrierControlState.rev?.id || null,
@@ -8111,7 +8278,9 @@ function mergeReturnFees(existingFees, presetFees) {
 
 function formatReturnFees(fees) {
   return fees.map(f => {
-    return f.pending ? `${stripReturnEstimateLabel(f.name)}: A COTAR` : formatFeeLine({ ...f, name: stripReturnEstimateLabel(f.name) });
+    return f.pending
+      ? `${stripReturnEstimateLabel(f.name)}: A COTAR${f.billingUnit && f.billingUnit !== 'UNKNOWN' ? ` | ${f.billingUnit}` : ''}${f.quantity != null ? ` | QTY ${f.quantity}` : ''}${f.currency ? ` | CURR ${f.currency}` : ''}${f.purchasePaymentType ? ` | PURCHASEPAY ${f.purchasePaymentType}` : ''}${f.salePaymentType ? ` | SALEPAY ${f.salePaymentType}` : ''}`
+      : formatFeeLine({ ...f, name: stripReturnEstimateLabel(f.name) });
   }).join('\n');
 }
 
@@ -8172,7 +8341,7 @@ function calculateReturnRuleFees(q) {
     // Incoterms já tem um custo padrão cadastrado pra essa taxa.
     const costUnitValue = rule.costValue != null ? Number(rule.costValue) : Number(rule.value) || 0;
     const costCurrency = rule.costCurrency ? normalizeCostCurrency(rule.costCurrency) : normalizeCostCurrency(rule.currency);
-    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), costUnitValue, costCurrency, billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN', mandatory:Boolean(rule.required) };
+    return { name:rule.feeName, unitValue:Number(rule.value)||0, value:totalValue, currency:normalizeCostCurrency(rule.currency), costUnitValue, costCurrency, billingUnit, originalUnit:FEE_UNIT_LABELS[billingUnit], quantity, totalValue, quantitySource:'INCOTERM_RULE', feeType:rule.feeType, minValue:Number(rule.minValue)||0, percentBase:rule.percentBase||null, percentageBaseValue, classificationSource:'RULE', provenanceType:'SYSTEM_RULE', provenanceLabel:'Regra automática · Incoterm', evidence:rule.description||'', needsReview:billingUnit==='UNKNOWN', mandatory:Boolean(rule.required), purchasePaymentType:rule.purchasePaymentType||null, salePaymentType:rule.salePaymentType||null };
   };
 
   // Presets de regra só entram aqui se forem obrigatórios OU já tiverem um
@@ -8187,7 +8356,7 @@ function calculateReturnRuleFees(q) {
     // senão a coleta aparece duas vezes na tabela.
     if (normalizeReturnFeeName(rule.feeName) === 'inland') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
-      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: pendingCurrency, feeType: 'ORIGIN', pending: true });
+      if (rule.required) calculated.push({ ...structuredRuleFee(rule, null), value: null, totalValue: null, unitValue: null, currency: normalizeCostCurrency(rule.currency || pendingCurrency), feeType: 'ORIGIN', pending: true });
       return;
     }
     const value = calculateRule(rule);
@@ -8203,7 +8372,7 @@ function calculateReturnRuleFees(q) {
     // mesmo conceito, senão o IOF aparece duas vezes na tabela de destino.
     if (normalizeReturnFeeName(rule.feeName) === 'iof') return;
     if (rule.pricingStatus === 'ON_REQUEST') {
-      if (rule.required) calculated.push({ name: rule.feeName, value: null, currency: pendingCurrency, feeType: 'DESTINATION', pending: true });
+      if (rule.required) calculated.push({ ...structuredRuleFee(rule, null), value: null, totalValue: null, unitValue: null, currency: normalizeCostCurrency(rule.currency || pendingCurrency), feeType: 'DESTINATION', pending: true });
       return;
     }
     const value = calculateRule(rule);
@@ -9421,6 +9590,94 @@ function resetAtlantisLink(groupKey, existingAtlantisId) {
   box.innerHTML = existingAtlantisId ? `<div style="margin-top:8px;font-size:11px;color:var(--success);">✓ Já vinculado ao Atlantis</div>` : '';
 }
 
+// ===== Routing order =====
+// Regra definida com o comercial: e routing order quando quem contrata esta no
+// exterior. O pais vem do cadastro do cliente no Atlantis (consulta somente
+// leitura) e o operador pode trocar a classificacao a qualquer momento.
+window.clientRoutingOrder = { value: null, source: 'AUTO', profile: null };
+
+function routingBoxes() {
+  return ['r-client-routing-box', 'rev-client-routing-box'].map(id => document.getElementById(id)).filter(Boolean);
+}
+
+async function checkClientRoutingOrder(prefix) {
+  const scope = prefix || (document.getElementById('r-client-name') ? 'r-client' : 'rev-client');
+  const nameField = document.getElementById(`${scope}-name`);
+  if (!nameField) return;
+  const term = (nameField.value || '').trim();
+  if (term.length < 3) { window.clientRoutingOrder = { value: null, source: 'AUTO', profile: null }; routingBoxes().forEach(box => { box.innerHTML = ''; }); return; }
+  routingBoxes().forEach(box => { box.innerHTML = '<small style="color:var(--text-muted)">Consultando o cadastro do cliente no Atlantis...</small>'; });
+  try {
+    const params = new URLSearchParams({ q: term });
+    const cnpj = (document.getElementById(`${scope}-cnpj`)?.value || '').trim();
+    if (cnpj) params.set('taxId', cnpj);
+    const res = await fetch(`${API}/atlantis/client-profile?${params}`);
+    if (!res.ok) { marcarAtlantisIndisponivel(); return; }
+    const profile = await res.json();
+    window.clientRoutingOrder = { value: profile.routingOrder, source: 'AUTO', profile };
+    renderClientRoutingBadge();
+  } catch (err) {
+    marcarAtlantisIndisponivel();
+  }
+}
+
+// Sem resposta do Atlantis (fora da rede, servidor fora do ar), a cotação ficaria
+// sem classificação e o sistema trataria tudo como cliente normal, em silêncio.
+// Melhor pedir a classificação ao operador.
+function marcarAtlantisIndisponivel() {
+  window.clientRoutingOrder = { value: null, source: 'AUTO', profile: { found: false, unavailable: true } };
+  renderClientRoutingBadge();
+}
+
+function setClientRoutingOrder(value) {
+  window.clientRoutingOrder = { ...(window.clientRoutingOrder || {}), value, source: 'MANUAL' };
+  renderClientRoutingBadge();
+}
+
+function renderClientRoutingBadge() {
+  const boxes = routingBoxes();
+  if (!boxes.length) return;
+  const state = window.clientRoutingOrder || {};
+  const profile = state.profile || {};
+  let html = '';
+  if (state.value !== true && state.value !== false) {
+    html = profile.found === false
+      ? `<div style="margin:-4px 0 12px;padding:10px 12px;border:1px solid ${profile.unavailable ? 'var(--warning, #f5a623)' : 'var(--border)'};border-radius:8px;font-size:12px;">
+          <strong>${profile.unavailable ? 'Não foi possível consultar o Atlantis agora.' : 'Cliente não encontrado no Atlantis.'}</strong> Quem está contratando esta cotação?
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary" style="padding:4px 10px;" onclick="setClientRoutingOrder(true)">Agente no exterior (routing order)</button>
+            <button type="button" class="btn btn-secondary" style="padding:4px 10px;" onclick="setClientRoutingOrder(false)">Cliente no Brasil</button>
+          </div></div>`
+      : '';
+  } else {
+    const isRO = state.value === true;
+    const color = isRO ? 'var(--gold)' : 'var(--success)';
+    const history = profile.shipments && profile.shipments.total
+      ? ` &middot; ${profile.shipments.routingOrder} de ${profile.shipments.total} embarques anteriores foram routing order`
+      : '';
+    const origem = profile.found
+      ? `${ifrEscape(profile.name || '')}${profile.country ? ' &middot; ' + ifrEscape(profile.country) : ''}${profile.isAgent ? ' &middot; cadastrado como agente' : ''}`
+      : ifrEscape(profile.reason || 'Definido manualmente');
+    html = isRO ? `<div style="margin:-4px 0 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid rgba(245,166,35,.4); border-radius: 6px; background: rgba(245,166,35,.1); color: var(--gold); font-size: 12px; font-weight: 600;">🏷️ Routing Order</div>` : '';
+  }
+  boxes.forEach(box => { box.innerHTML = html; });
+  if (window.reviewCostEditorReady) renderReviewCostEditor();
+}
+
+// Campos de routing order enviados junto com a cotacao.
+function routingOrderPayload() {
+  const state = window.clientRoutingOrder || {};
+  if (state.value !== true && state.value !== false) return {};
+  const profile = state.profile || {};
+  return {
+    isRoutingOrder: state.value,
+    routingOrderSource: state.source || 'AUTO',
+    routingOrderNote: state.source === 'MANUAL'
+      ? (state.value ? 'Marcado manualmente como routing order pelo operador.' : 'Marcado manualmente como cliente no Brasil pelo operador.')
+      : (profile.reason || '')
+  };
+}
+
 function setupAtlantisLookup(groupKey) {
   const group = atlantisFieldGroups()[groupKey];
   const nameField = group && document.getElementById(group.nameId);
@@ -9434,7 +9691,7 @@ function setupAtlantisLookup(groupKey) {
     clearTimeout(atlantisDebounceTimers[groupKey]);
     const term = nameField.value.trim();
     if (term.length < 3) return;
-    atlantisDebounceTimers[groupKey] = setTimeout(() => runAtlantisSearch(groupKey), 500);
+    atlantisDebounceTimers[groupKey] = setTimeout(() => { runAtlantisSearch(groupKey); if (groupKey === 'r-client' || groupKey === 'rev-client') checkClientRoutingOrder(groupKey); }, 500);
   });
 }
 
@@ -11823,6 +12080,15 @@ async function applyFixedFees(type, targetId) {
       return true;
     });
     
+    // As taxas fixas de DESTINO cadastradas por armador/cia sao taxas locais no
+    // Brasil (chegada de importacao). Numa exportacao o destino e no exterior e
+    // quem cota aquele porto e o agente de la, entao nao faz sentido sugerir.
+    const quotationDirection = String(q?.direction || document.getElementById('r-direction')?.value || '').toUpperCase();
+    if (type === 'DESTINATION' && quotationDirection.includes('EXPORT')) {
+      toast('Taxas fixas de destino são taxas locais no Brasil (importação). Nesta exportação, o destino é cotado pelo agente no exterior.');
+      return;
+    }
+
     if (applicableFees.length === 0) {
       toast('Nenhuma taxa fixa encontrada para este cenário.');
       return;
@@ -12501,7 +12767,7 @@ const carrierControlState={};
 function formatTransshipments(value){let list=value;if(typeof value==='string'){try{list=JSON.parse(value)}catch{return value}}if(!Array.isArray(list))return'';return list.map(t=>[t.port,t.locode,t.eta,t.etd,t.vessel,t.voyage,t.notes].map(v=>v||'').join(' | ')).join('\n');}
 function parseTransshipments(value){return String(value||'').split('\n').map(l=>l.trim()).filter(Boolean).map(line=>{const p=line.split('|').map(v=>v.trim());return{port:p[0]||'',locode:p[1]||'',eta:p[2]||'',etd:p[3]||'',vessel:p[4]||'',voyage:p[5]||'',notes:p[6]||''};});}
 function carrierTargets(prefix){return prefix==='r'?{TRANSSHIPMENTS:['r-transshipments'],VESSEL_VOYAGE:['r-vessel-name','r-voyage-number'],FREE_TIME:['r-free-time-days'],RATE_VALIDITY:['r-rate-valid-until'],CONTRACT_NUMBER:['r-contract-number']}:{TRANSSHIPMENTS:['rev-transshipments'],VESSEL_VOYAGE:['rev-vessel-name','rev-voyage-number'],FREE_TIME:['rev-free-time-days'],RATE_VALIDITY:['rev-rate-valid-until'],CONTRACT_NUMBER:['rev-contract-number']};}
-async function applyCarrierProfile(prefix,carrierName,stage,modal,loadType,confirmChange=false){const panel=document.getElementById(prefix+'-carrier-controls');if(!panel)return null;const res=await fetch('/api/carrier-profiles/resolve?name='+encodeURIComponent(carrierName||''));const profile=res.ok?await res.json():null;if(!profile){panel.style.display='none';carrierControlState[prefix]=null;return null;}const prior=carrierControlState[prefix];if(confirmChange&&prior&&prior.id!==profile.id){const filled=Object.values(carrierTargets(prefix)).flat().some(id=>{const e=document.getElementById(id);return e&&String(e.value||'').trim()});if(filled&&!confirm(`O armador mudou de ${prior.name} para ${profile.name}. Aplicar as novas regras mantendo os valores atuais como exceção?`))return prior;}carrierControlState[prefix]=profile;panel.style.display='block';document.getElementById(prefix+'-carrier-profile-name').textContent='— '+profile.name;const targets=carrierTargets(prefix);Object.values(targets).flat().forEach(id=>{const e=document.getElementById(id);if(e){e.disabled=false;e.required=false;e.style.outline='';const b=e.closest('.form-group');if(b)b.style.display='';}});const normalized=normalizeFieldRuleModal(modal,loadType);const rules=(profile.fieldRules||[]).filter(r=>r.active!==false&&(r.modal==='ALL'||r.modal===normalized)&&(r.stage==='ALL'||r.stage===stage));rules.sort((a,b)=>((a.modal==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:2)+(b.stage==='ALL'?0:1)));const effective=new Map();rules.forEach(r=>effective.set(r.fieldKey,r));effective.forEach(rule=>(targets[rule.fieldKey]||[]).forEach(id=>{const e=document.getElementById(id);if(!e)return;const b=e.closest('.form-group');if(rule.behavior==='LOCKED')e.disabled=true;if(rule.behavior==='REQUIRED')e.required=true;if(rule.behavior==='SUGGESTED'){e.style.outline='2px solid var(--warning)';e.title=rule.reason||'Campo sugerido';}if(['HIDDEN','NOT_APPLICABLE'].includes(rule.behavior)&&b)b.style.display='none';if(rule.behavior==='NOT_APPLICABLE')e.value='';}));if(prefix==='r'&&profile.fixedFees?.length){['ORIGIN','DESTINATION'].forEach(type=>{const area=document.getElementById(type==='ORIGIN'?'r-agent-origin-services':'r-agent-destination-services');if(!area)return;const lines=profile.fixedFees.filter(f=>f.type===type&&(f.modal==='ALL'||f.modal===normalized)).map(f=>`[${profile.name}] ${f.name}: ${Number(f.value).toFixed(2)} ${f.currency}`);const current=area.value.split('\n').filter(Boolean);lines.forEach(line=>{const key=line.replace(/^\[[^\]]+\]\s*/,'').split(':')[0].toLowerCase();if(!current.some(x=>x.toLowerCase().includes(key)))current.push(line);});area.value=current.join('\n');});}if(prefix==='r')await applyApprovedCarrierRates(profile,normalized,loadType);return profile;}
+async function applyCarrierProfile(prefix,carrierName,stage,modal,loadType,confirmChange=false){const panel=document.getElementById(prefix+'-carrier-controls');if(!panel)return null;const res=await fetch('/api/carrier-profiles/resolve?name='+encodeURIComponent(carrierName||''));const profile=res.ok?await res.json():null;if(!profile){panel.style.display='none';carrierControlState[prefix]=null;return null;}const prior=carrierControlState[prefix];if(confirmChange&&prior&&prior.id!==profile.id){const filled=Object.values(carrierTargets(prefix)).flat().some(id=>{const e=document.getElementById(id);return e&&String(e.value||'').trim()});if(filled&&!confirm(`O armador mudou de ${prior.name} para ${profile.name}. Aplicar as novas regras mantendo os valores atuais como exceção?`))return prior;}carrierControlState[prefix]=profile;panel.style.display='block';document.getElementById(prefix+'-carrier-profile-name').textContent='— '+profile.name;const targets=carrierTargets(prefix);Object.values(targets).flat().forEach(id=>{const e=document.getElementById(id);if(e){e.disabled=false;e.required=false;e.style.outline='';const b=e.closest('.form-group');if(b)b.style.display='';}});const normalized=normalizeFieldRuleModal(modal,loadType);const rules=(profile.fieldRules||[]).filter(r=>r.active!==false&&(r.modal==='ALL'||r.modal===normalized)&&(r.stage==='ALL'||r.stage===stage));rules.sort((a,b)=>((a.modal==='ALL'?0:2)+(a.stage==='ALL'?0:1))-((b.modal==='ALL'?0:2)+(b.stage==='ALL'?0:1)));const effective=new Map();rules.forEach(r=>effective.set(r.fieldKey,r));effective.forEach(rule=>(targets[rule.fieldKey]||[]).forEach(id=>{const e=document.getElementById(id);if(!e)return;const b=e.closest('.form-group');if(rule.behavior==='LOCKED')e.disabled=true;if(rule.behavior==='REQUIRED')e.required=true;if(rule.behavior==='SUGGESTED'){e.style.outline='2px solid var(--warning)';e.title=rule.reason||'Campo sugerido';}if(['HIDDEN','NOT_APPLICABLE'].includes(rule.behavior)&&b)b.style.display='none';if(rule.behavior==='NOT_APPLICABLE')e.value='';}));if(prefix==='r'&&profile.fixedFees?.length){const pendingQuotation=(typeof allQuotations!=='undefined'?allQuotations:[]).find(x=>x.id===document.getElementById('pending-quotations')?.value);const quotationDirection=String(pendingQuotation?.direction||document.getElementById('r-direction')?.value||'').toUpperCase();const allowedFeeType=quotationDirection.includes('EXPORT')?'ORIGIN':quotationDirection.includes('IMPORT')?'DESTINATION':null;const sizeToken=/40/.test(String(loadType||''))?'40':/20/.test(String(loadType||''))?'20':null;['ORIGIN','DESTINATION'].forEach(type=>{if(allowedFeeType&&type!==allowedFeeType)return;const area=document.getElementById(type==='ORIGIN'?'r-agent-origin-services':'r-agent-destination-services');if(!area)return;const lines=profile.fixedFees.filter(f=>f.type===type&&(f.modal==='ALL'||f.modal===normalized)&&(!sizeToken||!f.containerSize||String(f.containerSize).includes(sizeToken))).map(f=>`[${profile.name}] ${f.name}: ${Number(f.value).toFixed(2)} ${f.currency}`);const current=area.value.split('\n').filter(Boolean);lines.forEach(line=>{const key=line.replace(/^\[[^\]]+\]\s*/,'').split(':')[0].toLowerCase();if(!current.some(x=>x.toLowerCase().includes(key)))current.push(line);});area.value=current.join('\n');});}if(prefix==='r')await applyApprovedCarrierRates(profile,normalized,loadType);return profile;}
 let carrierProfilesSettingsCache=[];
 function carrierAliasesText(p){try{return JSON.parse(p.aliases||'[]').join(', ')}catch{return p.aliases||''}}
 async function loadCarrierProfilesSettings(){const [pr,fr]=await Promise.all([fetch('/api/carrier-profiles'),fetch('/api/fixed-fees')]);carrierProfilesSettingsCache=pr.ok?await pr.json():[];const fees=fr.ok?await fr.json():[];['cfr-carrier','cpf-carrier'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=carrierProfilesSettingsCache.map(p=>`<option value="${p.id}">${ifrEscape(p.name)}</option>`).join('')});const feeSel=document.getElementById('cpf-fee');if(feeSel)feeSel.innerHTML=fees.map(f=>`<option value="${f.id}">${ifrEscape(f.carrier||'Geral')} — ${ifrEscape(f.name)} (${f.currency} ${Number(f.value).toFixed(2)})</option>`).join('');const table=document.getElementById('carrierProfilesTable');if(table)table.innerHTML=carrierProfilesSettingsCache.length?'<table class="k-table"><thead><tr><th>Armador</th><th>SCAC</th><th>Aliases</th><th>Taxas</th><th>Ações</th></tr></thead><tbody>'+carrierProfilesSettingsCache.map(p=>`<tr><td><strong>${ifrEscape(p.name)}</strong></td><td>${ifrEscape(p.code)||'—'}</td><td>${ifrEscape(carrierAliasesText(p))}</td><td>${p.fixedFees?.length||0}</td><td><button class="action-btn" onclick="editCarrierProfile('${p.id}')">✏️</button></td></tr>`).join('')+'</tbody></table>':'<p>Nenhum armador cadastrado.</p>';renderCarrierRulesTable();}

@@ -41,6 +41,9 @@ export interface IncotermTreePayload {
   freightFees: IncotermTreeFeePayload[];
 }
 
+// Erro de validação do payload — o controller devolve a mensagem ao operador (400).
+export class IncotermTreeValidationError extends Error {}
+
 // Tipo de compra/venda: PP (Prepaid) ou CC (Collect); qualquer outro valor vira nulo.
 function normalizePaymentType(value?: string): string | null {
   const upper = String(value || '').trim().toUpperCase();
@@ -96,11 +99,11 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
     for (const feeData of allFees) {
       if (!feeData) continue;
       if (!feeData.feeName || !feeData.chargeType) {
-        throw new Error('Informe nome e tipo de cobrança da taxa.');
+        throw new IncotermTreeValidationError('Informe nome e tipo de cobrança da taxa.');
       }
       const pricingStatus = feeData.pricingStatus === 'ON_REQUEST' ? 'ON_REQUEST' : 'PRICED';
       if (pricingStatus === 'PRICED' && (feeData.value === undefined || feeData.value === null || (feeData.value as any) === '')) {
-        throw new Error(`Informe o valor da taxa "${feeData.feeName}" ou marque "A cotar".`);
+        throw new IncotermTreeValidationError(`Informe o valor da taxa "${feeData.feeName}" ou marque "A cotar".`);
       }
       const applicability = feeData.applicability || 'APPLICABLE';
 

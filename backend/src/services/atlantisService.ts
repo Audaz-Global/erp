@@ -142,6 +142,100 @@ export async function searchAtlantisParty(role: AtlantisRole, query: string, tax
   }
 }
 
+export interface AtlantisClientProfile {
+  found: boolean;
+  atlantisId: string | null;
+  name: string | null;
+  country: string | null;
+  isForeign: boolean;
+  isAgent: boolean;
+  isCustomer: boolean;
+  shipments: { total: number; routingOrder: number };
+  routingOrder: boolean;
+  reason: string;
+}
+
+function isBrazil(country: string | null | undefined) {
+  return /brasil|brazil/i.test(String(country || ''));
+}
+
+/**
+ * Perfil do cliente no Atlantis para decidir se a cotação é routing order.
+ * Regra definida com o comercial: routing order é quando quem contrata está no
+ * exterior. O histórico de embarques vem junto só como evidência para o operador
+ * — quem decide o padrão é o país do cadastro.
+ */
+export async function getAtlantisClientProfile(query: string, taxId?: string): Promise<AtlantisClientProfile> {
+  if (!isAtlantisConfigured()) throw new Error('Integração com o Atlantis não está configurada.');
+  const empty: AtlantisClientProfile = {
+    found: false, atlantisId: null, name: null, country: null, isForeign: false,
+    isAgent: false, isCustomer: false, shipments: { total: 0, routingOrder: 0 },
+    routingOrder: false, reason: 'Cliente não encontrado no Atlantis — confirme manualmente.'
+  };
+
+  const term = String(query || '').trim();
+  const normalizedTaxId = taxId ? normalizeTaxId(taxId) : '';
+  if (!normalizedTaxId && term.length < 3) return empty;
+
+  const conn = await getPool().getConnection();
+  try {
+    const select = `SELECT cg.ID, cg.NAME_CG, cg.COMMERCIAL_NAME, cg.IS_AGENT + 0 AS IS_AGENT, cg.IS_CUSTOMER + 0 AS IS_CUSTOMER,
+                           co.NAME_COUNTRY
+                    FROM M0130_CONTACT_GENERAL cg
+                    LEFT JOIN M0001_ADDRESS a ON a.ID = cg.ADDRESS_FK
+                    LEFT JOIN M0001_COUNTRY co ON co.ID = a.COUNTRY_FK
+                    WHERE cg.DATE_DELETED IS NULL`;
+
+    let rows: any[] = [];
+    if (normalizedTaxId) {
+      const [taxRows] = await conn.query(
+        `${select} AND REPLACE(REPLACE(REPLACE(REPLACE(UPPER(cg.FEDERAL_REGISTRATION), '.', ''), '/', ''), '-', ''), ' ', '') = ? LIMIT 5`,
+        [normalizedTaxId]
+      );
+      rows = taxRows as any[];
+    }
+    if (!rows.length && term.length >= 3) {
+      const [nameRows] = await conn.query(
+        `${select} AND (cg.NAME_CG LIKE ? OR cg.COMMERCIAL_NAME LIKE ?)
+         ORDER BY CASE WHEN UPPER(cg.NAME_CG) = UPPER(?) OR UPPER(cg.COMMERCIAL_NAME) = UPPER(?) THEN 0 ELSE 1 END, cg.NAME_CG ASC
+         LIMIT 5`,
+        [`%${term}%`, `%${term}%`, term, term]
+      );
+      rows = nameRows as any[];
+    }
+    if (!rows.length) return empty;
+
+    const row = rows[0];
+    const [historyRows] = await conn.query(
+      `SELECT COUNT(*) AS total, SUM(CASE WHEN IS_ROUTING_ORDER = 1 THEN 1 ELSE 0 END) AS routingOrder
+       FROM M0020_SHIPMENT_HOUSE WHERE CUSTOMER_FK = ?`,
+      [row.ID]
+    );
+    const history = (historyRows as any[])[0] || {};
+    const country = row.NAME_COUNTRY || null;
+    const isForeign = Boolean(country) && !isBrazil(country);
+
+    return {
+      found: true,
+      atlantisId: String(row.ID),
+      name: row.NAME_CG || row.COMMERCIAL_NAME || null,
+      country,
+      isForeign,
+      isAgent: Number(row.IS_AGENT) === 1,
+      isCustomer: Number(row.IS_CUSTOMER) === 1,
+      shipments: { total: Number(history.total || 0), routingOrder: Number(history.routingOrder || 0) },
+      routingOrder: isForeign,
+      reason: !country
+        ? 'Cadastro do Atlantis sem país — confirme manualmente.'
+        : isForeign
+          ? `Cliente cadastrado no exterior (${country}) — quem contrata está fora do Brasil.`
+          : 'Cliente cadastrado no Brasil — cotação normal para o exportador.'
+    };
+  } finally {
+    conn.release();
+  }
+}
+
 export async function closeAtlantisPool() {
   if (pool) { await pool.end(); pool = null; }
 }
