@@ -3912,7 +3912,16 @@ async function runExtract(mode = 'CLIENT') {
       await appConfirm(json.error || 'Erro desconhecido ao processar com IA.', { title: 'Erro na extração', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
     }
   } catch (err) {
-    await appConfirm(err.message || 'Erro inesperado ao processar com IA.', { title: 'Erro', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
+    // "Failed to fetch" (TypeError do próprio navegador) significa que a
+    // conexão caiu antes de qualquer resposta chegar — normalmente porque a
+    // IA demorou demais (sobrecarregada) e o tempo limite da plataforma
+    // derrubou a requisição no meio do caminho. Sem essa mensagem específica,
+    // o operador só vê um erro genérico do navegador sem explicação nenhuma.
+    const isNetworkError = err instanceof TypeError && /fetch/i.test(err.message || '');
+    const message = isNetworkError
+      ? 'A conexão caiu antes de receber a resposta da IA — geralmente acontece quando ela está mais lenta ou sobrecarregada no momento. Tente novamente, costuma funcionar na segunda tentativa.'
+      : (err.message || 'Erro inesperado ao processar com IA.');
+    await appConfirm(message, { title: isNetworkError ? 'Conexão interrompida' : 'Erro', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
   }
   btn.disabled = false; btn.innerHTML = originalHtml;
 }
