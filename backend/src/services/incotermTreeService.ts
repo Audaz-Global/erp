@@ -19,6 +19,8 @@ export interface IncotermTreeFeePayload {
   currency?: string;
   costCurrency?: string;
   minCurrency?: string;
+  purchasePaymentType?: string;
+  salePaymentType?: string;
   percentBase?: string;
   description?: string;
   required?: boolean;
@@ -37,6 +39,15 @@ export interface IncotermTreePayload {
   originFees: IncotermTreeFeePayload[];
   destinationFees: IncotermTreeFeePayload[];
   freightFees: IncotermTreeFeePayload[];
+}
+
+// Erro de validação do payload — o controller devolve a mensagem ao operador (400).
+export class IncotermTreeValidationError extends Error {}
+
+// Tipo de compra/venda: PP (Prepaid) ou CC (Collect); qualquer outro valor vira nulo.
+function normalizePaymentType(value?: string): string | null {
+  const upper = String(value || '').trim().toUpperCase();
+  return upper === 'PP' || upper === 'CC' ? upper : null;
 }
 
 export async function getIncotermTree(incoterm: string, direction: string, modal: string) {
@@ -88,11 +99,11 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
     for (const feeData of allFees) {
       if (!feeData) continue;
       if (!feeData.feeName || !feeData.chargeType) {
-        throw new Error('Informe nome e tipo de cobrança da taxa.');
+        throw new IncotermTreeValidationError('Informe nome e tipo de cobrança da taxa.');
       }
       const pricingStatus = feeData.pricingStatus === 'ON_REQUEST' ? 'ON_REQUEST' : 'PRICED';
       if (pricingStatus === 'PRICED' && (feeData.value === undefined || feeData.value === null || (feeData.value as any) === '')) {
-        throw new Error(`Informe o valor da taxa "${feeData.feeName}" ou marque "A cotar".`);
+        throw new IncotermTreeValidationError(`Informe o valor da taxa "${feeData.feeName}" ou marque "A cotar".`);
       }
       const applicability = feeData.applicability || 'APPLICABLE';
 
@@ -120,6 +131,8 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
           currency: feeData.currency || 'USD',
           costCurrency: feeData.costCurrency || null,
           minCurrency: feeData.minCurrency || null,
+          purchasePaymentType: normalizePaymentType(feeData.purchasePaymentType),
+          salePaymentType: normalizePaymentType(feeData.salePaymentType),
           percentBase: feeData.chargeType === 'PERCENTAGE' ? (feeData.percentBase || 'FREIGHT') : null,
           description: feeData.description || null,
           sortOrder: parseIncotermRuleSortOrder(feeData.sortOrder) || sortOrderCounter++,

@@ -114,6 +114,12 @@ model Quotation {
   supplierCountry String?
   supplierCity    String?
 
+  // Routing order: quem contrata está no exterior (agente do comprador). Detectado
+  // pelo país do cliente no cadastro do Atlantis; o operador pode trocar.
+  isRoutingOrder     Boolean? // null = ainda não classificada
+  routingOrderSource String? // AUTO (Atlantis) ou MANUAL (operador)
+  routingOrderNote   String? // Motivo exibido ao operador (ex.: país do cliente)
+
   // Route
   incoterm           String?
   originPort         String?
@@ -726,6 +732,8 @@ model IncotermRule {
   currency         String   @default("USD") // Moeda da Venda (value)
   costCurrency     String? // Moeda da Compra (costValue) — pode divergir da Venda
   minCurrency      String? // Moeda do Mínimo (minValue) — pode divergir da Venda
+  purchasePaymentType String? // Tipo de compra: PP (Prepaid) ou CC (Collect)
+  salePaymentType     String? // Tipo de venda: PP (Prepaid) ou CC (Collect)
   percentBase      String? // Se PERCENTAGE: "FREIGHT", "FREIGHT_PLUS_ORIGIN"
   description      String? // Descrição informativa para o operador
   sortOrder        Int      @default(0)
