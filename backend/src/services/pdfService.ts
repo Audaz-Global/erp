@@ -1025,7 +1025,7 @@ const defaultAirTemplate = `
   </table>
 
   {{#if detailedFeesAdditionalGroups.length}}
-  <div class="section-banner-sm">Taxas DG, aduaneiras, impostos e profit</div>
+  <div class="section-banner-sm">Impostos e Taxas Adicionais</div>
   <table><thead><tr><th>Classificação</th><th>Taxa</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Total</th></tr></thead><tbody>
     {{#each detailedFeesAdditionalGroups}}
     <tr><td>{{this.financialGroupLabel}}</td><td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td><td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.total}}</td></tr>
@@ -1505,11 +1505,16 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       .filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','TAX_IOF','PROFIT']);
     const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', TAX_IOF:'IOF', PROFIT:'Profit' };
-    detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino]
+    // Só taxas de Destino entram nessa seção separada — impostos/DG/IOF são
+    // conceito de importação (destino). Taxas de Origem (ex: Custom clearance,
+    // Certificate of origin — documentação de exportação) ficam sempre juntas
+    // na tabela normal de Origem, mesmo que a IA as tenha classificado como
+    // CUSTOMS_CHARGE por causa do nome.
+    detailedFeesAdditionalGroups = detailedFeesDestino
       .filter(fee => additionalGroups.has(fee.financialGroup))
       .map(fee => ({ ...fee, financialGroupLabel: additionalLabels[fee.financialGroup] || fee.financialGroup }))
       .sort((a, b) => (a.financialGroup === 'TAX_IOF' ? 1 : 0) - (b.financialGroup === 'TAX_IOF' ? 1 : 0));
-    detailedFeesOrigem = detailedFeesOrigem.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup));
+    detailedFeesOrigem = detailedFeesOrigem.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
     detailedFeesDestino = detailedFeesDestino.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup))
       .sort((a, b) => (a.financialGroup === 'INSURANCE' ? 0 : 1) - (b.financialGroup === 'INSURANCE' ? 0 : 1));
 
