@@ -18,7 +18,7 @@ export function getGenAI(): GoogleGenerativeAI {
 const MAX_AI_INPUT_TOKENS = 800_000;
 const MAX_SOURCE_TEXT_CHARS = 600_000;
 const MAX_CONTEXT_TEXT_CHARS = 120_000;
-const MAX_MEDIA_PARTS = 8;
+const MAX_MEDIA_PARTS = 15;
 
 export function compactAiText(value: string, maxChars: number = MAX_SOURCE_TEXT_CHARS): string {
   const text = String(value || '').replace(/\0/g, '').trim();

@@ -111,11 +111,11 @@ export async function extractOutlookAttachments(attachments: any[]) {
       if (mime === 'application/pdf' || lowerName.endsWith('.pdf')) {
         const text = (await parsePdf(buffer)).trim();
         textBlocks.push(`[Anexo PDF: ${name}]\n${text || '[PDF sem texto pesquisável]'}`);
-        if (text.length < 200 && mediaParts.length < 6) mediaParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: 'application/pdf' }, filename: name });
+        if (text.length < 200 && mediaParts.length < 15) mediaParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: 'application/pdf' }, filename: name });
       } else if (/spreadsheet|excel/.test(mime) || /\.(xlsx?|csv)$/.test(lowerName)) {
         const text = lowerName.endsWith('.csv') ? buffer.toString('utf8') : await parseExcel(buffer);
         textBlocks.push(`[Anexo de planilha: ${name}]\n${crop(text, 80_000)}`);
-      } else if (mime.startsWith('image/') && mediaParts.length < 6) {
+      } else if (mime.startsWith('image/') && mediaParts.length < 15) {
         mediaParts.push({ inlineData: { data: buffer.toString('base64'), mimeType: mime }, filename: name });
         textBlocks.push(`[Anexo de imagem: ${name}]`);
       } else if (/text\//.test(mime) || /\.(txt|html?)$/.test(lowerName)) {
@@ -123,7 +123,7 @@ export async function extractOutlookAttachments(attachments: any[]) {
       } else if (lowerName.endsWith('.msg')) {
         const parsed = await parseMsg(buffer);
         textBlocks.push(`[Anexo MSG: ${name}]\n${crop(parsed.text, 80_000)}`);
-        mediaParts.push(...parsed.mediaParts.slice(0, Math.max(0, 6 - mediaParts.length)));
+        mediaParts.push(...parsed.mediaParts.slice(0, Math.max(0, 15 - mediaParts.length)));
       } else {
         textBlocks.push(`[Anexo não processado: ${name} (${mime})]`);
       }
