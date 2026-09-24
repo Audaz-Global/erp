@@ -1396,6 +1396,13 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     totalGrossWeightKg = rawBruto;
     
     pesoCubadoRich = calculateAirCubado(quotationData.packages || '', quotationData.totalPackages || 1);
+    // Sem dimensões pra calcular peso cubado, mas com um CBM conhecido — usa
+    // o fator padrão de conversão aéreo (1 m³ ≈ 167 kg) como substituto, em
+    // vez de ignorar o volume e cair só no peso bruto.
+    if (pesoCubadoRich <= 0) {
+      const cbmFallback = parseFloat(quotationData.totalCbm) || 0;
+      if (cbmFallback > 0) pesoCubadoRich = cbmFallback * 167;
+    }
 
     // Chargeable Weight: max(bruto, cubado), sem a faixa tarifária do agente
     // (weightBreak) distorcer o valor — só informativa. Override manual do
@@ -2325,6 +2332,9 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       // agente (weightBreak) distorcer o valor — só informativa. Override
       // manual do operador, quando preenchido, vale sobre o cálculo automático.
       let cubado = calculateAirCubado(packagesStr, totalPackages);
+      // Sem dimensões pra calcular peso cubado, mas com um CBM conhecido —
+      // usa o fator padrão de conversão aéreo (1 m³ ≈ 167 kg) como substituto.
+      if (cubado <= 0 && totalCbm > 0) cubado = totalCbm * 167;
       let taxavel = parseFloat(quotationData.chargeableWeightOverride) || Math.max(bruto, cubado);
       if (taxavel <= 0) taxavel = 1;
       

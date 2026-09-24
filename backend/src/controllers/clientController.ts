@@ -100,6 +100,33 @@ export const createClientContact = async (req: Request, res: Response) => {
   }
 };
 
+// Atualiza UM contato já cadastrado (ex: e-mail novo da mesma pessoa) sem
+// mexer nos demais nem trocar o ID — diferente de syncClientContacts, que
+// substitui a lista inteira. Usado no fluxo de extração quando o operador
+// confirma que o contato do e-mail é a mesma pessoa já cadastrada, só que
+// com um e-mail (ou telefone) diferente do que estava salvo.
+export const updateClientContact = async (req: Request, res: Response) => {
+  try {
+    const clientId = String(req.params.id);
+    const contactId = String(req.params.contactId);
+    const contact = await prisma.clientContact.findFirst({ where: { id: contactId, clientId } });
+    if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' });
+
+    const data: any = {};
+    if (req.body?.name !== undefined) data.name = String(req.body.name).trim();
+    if (req.body?.phone !== undefined) data.phone = req.body.phone ? String(req.body.phone).trim() : null;
+    if (req.body?.email !== undefined) data.email = req.body.email ? String(req.body.email).trim() : null;
+
+    const updated = await prisma.clientContact.update({ where: { id: contactId }, data });
+    if (updated.isPrimary) {
+      await prisma.client.update({ where: { id: clientId }, data: { contactName: updated.name, contactPhone: updated.phone, contactEmail: updated.email } });
+    }
+    res.json(updated);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Erro ao atualizar contato.' });
+  }
+};
+
 function clientData(body: any) {
   const name = String(body?.name || '').trim();
   if (!name) throw new Error('Informe o nome do cliente.');

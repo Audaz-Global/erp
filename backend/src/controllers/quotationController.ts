@@ -699,7 +699,10 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     // preenchido, vale sobre o cálculo automático.
     const bruto = quotation.totalGrossWeightKg || 0;
     const cbm = quotation.totalCbm || 0;
-    const cubado = isAir ? calculateAirCubado(quotation.packages || '', quotation.totalPackages || 1) : parseFloat((cbm * 1000).toFixed(2));
+    let cubado = isAir ? calculateAirCubado(quotation.packages || '', quotation.totalPackages || 1) : parseFloat((cbm * 1000).toFixed(2));
+    // Sem dimensões pra calcular peso cubado aéreo, mas com um CBM conhecido —
+    // usa o fator padrão de conversão aéreo (1 m³ ≈ 167 kg) como substituto.
+    if (isAir && cubado <= 0 && cbm > 0) cubado = cbm * 167;
     const taxavel = quotation.chargeableWeightOverride || Math.max(bruto, cubado) || 1; // evitar divisão por zero
 
     // Frete
