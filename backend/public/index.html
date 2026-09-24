@@ -4177,7 +4177,10 @@ const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_H
 window.reviewCostLines = { freight: [], origin: [], destination: [] };
 
 function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
-function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+// Number(null) === 0 em JS ("finito", não NaN) — sem essa checagem, um campo
+// null (ex: quantidade pendente de uma linha "A COTAR") virava 0 em vez de
+// cair no valor padrão, zerando o Total da linha inteira silenciosamente.
+function reviewCostNumber(value, fallback = 0) { if (value === null || value === undefined || value === '') return fallback; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function reviewCostWithLimits(raw, line) { const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(raw,maximum) : raw; }
 function reviewConvertCost(value, fromCurrency, toCurrency) { const from=normalizeCostCurrency(fromCurrency), to=normalizeCostCurrency(toCurrency); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
 // O Mínimo é uma trava de Venda — nunca de Compra (custo é custo real, não deve
