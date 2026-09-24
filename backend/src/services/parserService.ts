@@ -84,14 +84,22 @@ export function extractContactFromSignature(body: string, senderName = '', sende
   const signatureLines = (signatureStart >= 0 ? lines.slice(signatureStart + 1) : lines.slice(-20)).slice(0, 20);
   const evidence = signatureLines.join(' | ');
   const phonePattern = /(?:tel(?:ephone)?|phone|mobile|cell|whatsapp|fone|cel(?:ular)?)?\s*[:.]?\s*(\+?\d[\d() .-]{6,}\d)(?:\s*(?:ext\.?|ramal|x)\s*\d+)?/gi;
+  // NCM (classificação fiscal brasileira) sempre vem no formato 4-2-2 dígitos
+  // separados por ponto (ex: "7408.19.00") — bate no padrão genérico de
+  // telefone acima (só dígitos+pontuação, sem exigir "Tel:"/"Fone:" por
+  // perto) e some capturado como se fosse contato, quando é só um código de
+  // produto citado perto do fim do e-mail.
+  const ncmPattern = /^\d{4}\.\d{2}\.\d{2}$/;
   const phoneMatches = [...evidence.matchAll(phonePattern)].map(match => {
-    const phone = normalizePhone(match[1] || '');
+    const rawMatch = String(match[1] || '').trim();
+    if (ncmPattern.test(rawMatch)) return null;
+    const phone = normalizePhone(rawMatch);
     const digits = phone.replace(/\D/g, '');
     const context = evidence.slice(Math.max(0, (match.index || 0) - 24), (match.index || 0) + match[0].length).toLowerCase();
     const explicitlyMobile = /whatsapp|mobile|cell|celular/.test(context);
     const brazilianMobile = (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') || (digits.length === 11 && digits[2] === '9');
     return { phone, score: (explicitlyMobile ? 4 : 0) + (brazilianMobile ? 2 : 0) };
-  }).filter(item => item.phone).sort((a, b) => b.score - a.score);
+  }).filter((item): item is { phone: string; score: number } => Boolean(item?.phone)).sort((a, b) => b.score - a.score);
   const emailMatch = evidence.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   const nameLine = signatureLines.find(line => {
     const compact = line.replace(/[|•·]/g, ' ').trim();

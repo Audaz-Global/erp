@@ -3910,7 +3910,16 @@ async function runExtract(mode = 'CLIENT') {
       await appConfirm(json.error || 'Erro desconhecido ao processar com IA.', { title: 'Erro na extração', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
     }
   } catch (err) {
-    await appConfirm(err.message || 'Erro inesperado ao processar com IA.', { title: 'Erro', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
+    // "Failed to fetch" (TypeError do próprio navegador) significa que a
+    // conexão caiu antes de qualquer resposta chegar — normalmente porque a
+    // IA demorou demais (sobrecarregada) e o tempo limite da plataforma
+    // derrubou a requisição no meio do caminho. Sem essa mensagem específica,
+    // o operador só vê um erro genérico do navegador sem explicação nenhuma.
+    const isNetworkError = err instanceof TypeError && /fetch/i.test(err.message || '');
+    const message = isNetworkError
+      ? 'A conexão caiu antes de receber a resposta da IA — geralmente acontece quando ela está mais lenta ou sobrecarregada no momento. Tente novamente, costuma funcionar na segunda tentativa.'
+      : (err.message || 'Erro inesperado ao processar com IA.');
+    await appConfirm(message, { title: isNetworkError ? 'Conexão interrompida' : 'Erro', confirmLabel: 'Entendi', cancelLabel: 'Fechar' });
   }
   btn.disabled = false; btn.innerHTML = originalHtml;
 }
@@ -4173,7 +4182,10 @@ const COST_EDITOR_UNITS = ['TOTAL_SHIPMENT','PER_SHIPMENT','PER_DOCUMENT','PER_H
 window.reviewCostLines = { freight: [], origin: [], destination: [] };
 
 function reviewCostId() { return `cost-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
-function reviewCostNumber(value, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+// Number(null) === 0 em JS ("finito", não NaN) — sem essa checagem, um campo
+// null (ex: quantidade pendente de uma linha "A COTAR") virava 0 em vez de
+// cair no valor padrão, zerando o Total da linha inteira silenciosamente.
+function reviewCostNumber(value, fallback = 0) { if (value === null || value === undefined || value === '') return fallback; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function reviewCostWithLimits(raw, line) { const maximum=reviewCostNumber(line.maxValue); return maximum > 0 ? Math.min(raw,maximum) : raw; }
 function reviewConvertCost(value, fromCurrency, toCurrency) { const from=normalizeCostCurrency(fromCurrency), to=normalizeCostCurrency(toCurrency); if(from===to)return value; const rates={BRL:1,USD:5.05,EUR:5.50}; return value*(rates[from]||5.05)/(rates[to]||5.05); }
 // O Mínimo é uma trava de Venda — nunca de Compra (custo é custo real, não deve
@@ -4256,19 +4268,37 @@ function quotationFreightEvidence(quotation) {
   return { hasAgent:Boolean(data?.costs && (data.costs.freight_value != null || data.costs.freight_usd != null)), evidence };
 }
 
+// Sinal (não decisão definitiva) de que o agente cotou um valor fechado —
+// "per shipment"/"flat"/"all-in"/"lump sum" em inglês, ou "fixo"/"por
+// embarque" em português — em vez de uma taxa por kg/cbm/contêiner. Só usado
+// pra sugerir o estado inicial da checkbox "Valor fechado (não por kg)" na
+// linha de Frete Internacional; o operador sempre pode corrigir manualmente.
+function detectFlatFreightHint(evidenceText) {
+  return /\b(per[\s-]?shipment|flat\s*rate|flat|all[\s-]?in|lump[\s-]?sum|fixo|por\s*embarque)\b/i.test(String(evidenceText || ''));
+}
+
 function reviewMainFreightLine(quotation = {}, previousLine = null) {
   const loadType = String(document.getElementById('rev-load-type')?.value || '').toUpperCase();
   const gross = reviewCostNumber(document.getElementById('rev-weight')?.value);
   const packages = parseInt(document.getElementById('rev-packages')?.value) || 1;
   const dimensions = document.getElementById('rev-dimensions')?.value || '';
   const cbm = calculateCbmLocal(dimensions, packages) || reviewCostNumber(document.getElementById('rev-calc-cbm')?.textContent);
+  const source=quotationFreightEvidence(quotation);
+  // Se a linha já existia, mantém o que o operador decidiu (marcou/desmarcou
+  // a checkbox); só pra uma linha nova é que tenta sugerir a partir da
+  // evidência da extração.
+  const isFlat = previousLine?.special === 'MAIN_FREIGHT' ? Boolean(previousLine.flatFreight) : detectFlatFreightHint(source.evidence);
   let costQuantity = 1, costBillingUnit = 'TOTAL_SHIPMENT';
   // Override manual do Peso/Medida Taxável Final (Chargeable Weight), quando
   // ativo, vale sobre o cálculo automático — inclusive sobre a faixa
   // tarifária do agente (weightBreak), que não deve mais distorcer o CW.
   // Isso é sempre a base real da Compra (o que o agente cobrou) — nunca
   // muda por edição do operador, diferente da base da Venda logo abaixo.
-  if (loadType.includes('AIR')) { costQuantity = window.chargeableWeightOverride || getLocalTaxavel(dimensions, packages, gross, loadType, cbm) || 1; costBillingUnit = 'PER_CHARGEABLE_WEIGHT'; }
+  // Exceção: valor fechado (isFlat) não tem "taxa por kg" nenhuma pra ficar
+  // fiel — o valor do agente já É o custo total, dividir pelo peso inventa
+  // uma taxa que ele nunca informou.
+  if (isFlat) { costQuantity = 1; costBillingUnit = 'PER_SHIPMENT'; }
+  else if (loadType.includes('AIR')) { costQuantity = window.chargeableWeightOverride || getLocalTaxavel(dimensions, packages, gross, loadType, cbm) || 1; costBillingUnit = 'PER_CHARGEABLE_WEIGHT'; }
   else if (loadType.includes('LCL')) { costQuantity = window.chargeableWeightOverride || cbm || 1; costBillingUnit = 'PER_CBM'; }
   else if (loadType.includes('FCL')) { const containerMatch=String(dimensions).match(/(\d+)\s*(?:container|cntr|contêiner|conteiner)/i); costQuantity = containerMatch ? Number(containerMatch[1]) : 1; costBillingUnit = 'PER_CONTAINER'; }
   // Base da Venda: por padrão acompanha a mesma base da Compra (cargo), mas
@@ -4279,7 +4309,6 @@ function reviewMainFreightLine(quotation = {}, previousLine = null) {
   const quantity = useCustomSellBasis && previousLine.quantity != null ? previousLine.quantity : costQuantity;
   const billingUnit = useCustomSellBasis && previousLine.billingUnit ? previousLine.billingUnit : costBillingUnit;
   const total = reviewCostNumber(document.getElementById('rev-freight')?.value);
-  const source=quotationFreightEvidence(quotation);
   const partnerType=String(quotation.partnerType || window.lastExtractedAgentData?.costs?.partner_type || 'AGENTE').toUpperCase();
   const currency=normalizeCostCurrency(document.getElementById('rev-freight-currency')?.value);
   const unitValue=quantity > 0 ? total / quantity : total;
@@ -4295,7 +4324,7 @@ function reviewMainFreightLine(quotation = {}, previousLine = null) {
     ? Number(agentFreightValue)
     : (agentFreightUsd != null ? reviewConvertCost(Number(agentFreightUsd), 'USD', currency) : total);
   const costUnitValue = costQuantity > 0 ? costTotal / costQuantity : costTotal;
-  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue, costQuantity, costBillingUnit, costUnitValue, currency, financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?`${partnerType}_EMAIL`:'MANUAL', evidence:source.evidence, editedManually:Boolean(useCustomSellBasis) };
+  return { id:reviewCostId(), special:'MAIN_FREIGHT', locked:true, name:'Frete Internacional', quantity, billingUnit, unitValue, costQuantity, costBillingUnit, costUnitValue, currency, financialGroup:'INTERNATIONAL_FREIGHT', chargeNature:'BASE_FREIGHT', provenanceType:source.hasAgent?`${partnerType}_EMAIL`:'MANUAL', evidence:source.evidence, editedManually:Boolean(useCustomSellBasis), flatFreight:isFlat };
 }
 
 function initializeReviewCostEditor(quotation = {}) {
@@ -4526,7 +4555,7 @@ function renderReviewCostEditor() {
     const target = document.getElementById(`cost-lines-${group}`); if (!target) return;
     const lines = window.reviewCostLines[group] || [];
     target.innerHTML = lines.length ? lines.map(line => { const source=reviewCostProvenance(line); return `<div class="cost-line" data-cost-id="${line.id}">
-      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div>${chargeToSelector(group, line)}</div>
+      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div>${line.special==='MAIN_FREIGHT' ? `<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-muted);margin-top:4px;cursor:pointer;" title="Marque quando o agente cotou um valor fechado (ex: mínimo de embarque), não uma taxa por kg/cbm/contêiner — evita que o sistema divida o valor pelo peso da carga."><input type="checkbox" style="width:13px;height:13px;" ${line.flatFreight ? 'checked' : ''} onchange="updateReviewCostLine('${group}','${line.id}','flatFreight',this.checked)"> Valor fechado (não por kg)</label>` : ''}${chargeToSelector(group, line)}</div>
       <div><label>Base de cálculo${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
       <div><label>Qtd.${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${line.fixedDefinition ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
@@ -4554,6 +4583,10 @@ function updateReviewCostLine(group, id, field, value) {
   }
   if (!line.locked || ['unitValue','costUnitValue','currency','costCurrency','minValue','maxValue','quantity','billingUnit'].includes(field)) line.editedManually = true;
   if (line.special === 'MAIN_FREIGHT' && field === 'currency') document.getElementById('rev-freight-currency').value = value;
+  // Alterna Compra (e Venda, se não customizada à parte) entre a base fiel à
+  // carga (peso/cbm/contêiner) e valor fechado — precisa recalcular tudo via
+  // reviewMainFreightLine(), não só reescrever este campo.
+  if (line.special === 'MAIN_FREIGHT' && field === 'flatFreight') { refreshReviewMainFreightBasis(); return; }
   if (field === 'showOnDocument' && line.special === 'IOF') window.iofVisibleOnDocument = value;
   if (field === 'showOnDocument' && line.special === 'DESTINATION_TAXES') window.destinationTaxesVisibleOnDocument = value;
   const row = document.querySelector(`[data-cost-id="${id}"]`);
@@ -7041,111 +7074,39 @@ function updateBuyVsSellTable() {
   const tbody = document.getElementById('bvs-table-body');
   if (!tbody) return;
 
-  const usdRate = 5.05;
-  const eurRate = 5.50;
+  // Fonte única de verdade: as mesmas linhas de Compra/Venda já calculadas
+  // na tabela de custos acima (window.reviewCostLines), com o mesmo
+  // reviewCostTotal()/reviewCostBuyTotal() usado lá — nunca recalcula nada
+  // do zero nem depende de totais agregados vindos da IA (que raramente
+  // existem e, quando ausentes, faziam a Compra virar espelho da Venda).
+  const freightLines = window.reviewCostLines?.freight || [];
+  const originLines = window.reviewCostLines?.origin || [];
+  const destinationLines = window.reviewCostLines?.destination || [];
 
-  // Extrair Custos (Compra) da IA se disponíveis
-  const agentCosts = window.lastExtractedAgentData?.costs || {};
+  const sumSellUsd = lines => lines.reduce((sum, line) => sum + reviewCostToUsd(reviewCostTotal(line), line.currency), 0);
+  const sumBuyUsd = lines => lines.reduce((sum, line) => sum + reviewCostToUsd(reviewCostBuyTotal(line), line.costCurrency || line.currency), 0);
 
-  // 1. FRETE INTERNACIONAL
-  const sellFreightRaw = parseFloat(document.getElementById('rev-freight').value) || 0;
-  const sellFreightCurr = document.getElementById('rev-freight-currency') ? document.getElementById('rev-freight-currency').value : 'USD';
-  let sellFreightUsd = sellFreightRaw;
-  if (sellFreightCurr === 'EUR') sellFreightUsd = sellFreightRaw * (eurRate / usdRate);
-  else if (sellFreightCurr === 'BRL') sellFreightUsd = sellFreightRaw / usdRate;
-
-  let costFreightUsd = agentCosts.freight_usd != null ? parseFloat(agentCosts.freight_usd) : sellFreightUsd;
-
-  // 2. INLAND ORIGEM
-  const sellInlandRaw = parseFloat(document.getElementById('rev-origin-inland-value').value) || 0;
-  const sellInlandCurr = document.getElementById('rev-origin-inland-currency') ? document.getElementById('rev-origin-inland-currency').value : 'USD';
-  let sellInlandUsd = sellInlandRaw;
-  if (sellInlandCurr === 'EUR') sellInlandUsd = sellInlandRaw * 1.08;
-  else if (sellInlandCurr === 'BRL') sellInlandUsd = sellInlandRaw / usdRate;
-
-  let costInlandUsd = agentCosts.origin_inland_usd != null ? parseFloat(agentCosts.origin_inland_usd) : sellInlandUsd;
-
-  // 3. TAXAS ORIGEM
-  let sellOriginFeesUsd = 0;
-  let sellOriginFeesExSpreadUsd = 0;
-  const originServicesRaw = document.getElementById('rev-origin-services').value || '';
-  if (originServicesRaw.trim()) {
-    parseFeeText(originServicesRaw).forEach(fee => {
-        const val = fee.totalValue || 0;
-        const curr = fee.currency;
-        let usd = val;
-        if (curr === 'EUR') usd = val * 1.08;
-        else if (curr === 'BRL') usd = val / usdRate;
-        sellOriginFeesUsd += usd;
-        // "Spread / Profit" é markup nosso, não cobrança do agente — não pode
-        // inflar o Custo (Compra) quando o profit é aplicado/ajustado.
-        if (!/spread\s*\/\s*profit/i.test(fee.name || '')) sellOriginFeesExSpreadUsd += usd;
-    });
-  }
-  let costOriginFeesUsd = agentCosts.origin_services_total != null ? parseFloat(agentCosts.origin_services_total) : sellOriginFeesExSpreadUsd;
-
-  // 4. SEGURO INTERNACIONAL
-  // Compra do seguro nunca vem do agente (não é uma taxa que ele cobra) —
-  // é sempre 0,097% da mesma base usada pra calcular a Venda, sem piso.
-  const requiresIns = document.getElementById('rev-insurance').value === 'true';
-  const sellInsuranceUsd = requiresIns ? (parseFloat(document.getElementById('rev-insurance-val')?.value) || 0) : 0;
-  let costInsuranceUsd = 0;
-  if (requiresIns) {
-    const insValMercadoriaRaw = parseFloat(document.getElementById('rev-commercial-value')?.value) || 0;
-    const insCommercialCurrency = document.getElementById('rev-commercial-value-currency')?.value || 'USD';
-    let insValMercadoria = insValMercadoriaRaw;
-    if (insCommercialCurrency === 'EUR') insValMercadoria = insValMercadoriaRaw * (eurRate / usdRate);
-    else if (insCommercialCurrency === 'BRL') insValMercadoria = insValMercadoriaRaw / usdRate;
-
-    const insuranceBaseType = document.getElementById('rev-insurance-base')?.value || 'FOB_FREIGHT';
-    let baseSeguroUsd = insValMercadoria;
-    if (insuranceBaseType === 'FOB_FREIGHT') baseSeguroUsd = insValMercadoria + sellFreightUsd;
-    else if (insuranceBaseType === 'CIF_TOTAL') baseSeguroUsd = insValMercadoria + sellFreightUsd + sellOriginFeesUsd + sellInlandUsd;
-    costInsuranceUsd = baseSeguroUsd * (INSURANCE_COST_RATE_PERCENT / 100);
-  }
-
-  // 5. TAXAS DESTINO & SERVIÇOS
-  // rev-services já é a soma das mesmas linhas de rev-destination-services
-  // somadas individualmente logo abaixo — não entra aqui, senão cada taxa
-  // (exceto Seguro) é contada duas vezes no total de Venda/Compra.
-  const storageBrl = parseFloat(document.getElementById('rev-storage').value) || 0;
-  const taxesBrl = parseFloat(document.getElementById('rev-taxes').value) || 0;
-  const destBaseUsd = (storageBrl + taxesBrl) / usdRate;
-  let sellDestFeesUsd = destBaseUsd;
-  let sellDestFeesExSpreadUsd = destBaseUsd;
-
-  const destText = document.getElementById('rev-destination-services')?.value || '';
-  const destFeeLines = parseFeeText(destText);
-
-  destFeeLines.forEach(fee => {
-    const l = (fee.name || '').toLowerCase();
-    if (l && !l.startsWith('seguro') && !l.includes('seguro internacional')) {
-        const val = fee.totalValue || 0;
-        const curr = fee.currency;
-        let usd = val;
-        if (curr === 'EUR') usd = val * 1.08;
-        else if (curr === 'BRL') usd = val / usdRate;
-        sellDestFeesUsd += usd;
-        if (!l.includes('spread / profit')) sellDestFeesExSpreadUsd += usd;
-    }
-  });
-
-  let costDestFeesUsd = agentCosts.destination_services_total != null ? parseFloat(agentCosts.destination_services_total) / usdRate : sellDestFeesExSpreadUsd;
-
-  // 6. DESEMBARAÇO ADUANEIRO
-  const customsIncluded = document.getElementById('rev-customs-clearance').checked;
-  const customsValBrl = customsIncluded ? (parseFloat(document.getElementById('rev-customs-value').value) || 0) : 0;
-  const sellCustomsUsd = customsValBrl / usdRate;
-  let costCustomsUsd = 0; // Desembaraço próprio/interno sem custo direto de agente
+  // Inland de Origem, Seguro, IOF e Desembaraço já são linhas próprias
+  // dentro de origin/destination (injetadas por initializeReviewCostEditor)
+  // — viram linhas separadas aqui também, em vez de ficarem misturadas em
+  // "Taxas Locais Origem"/"Taxas Destino" (e IOF ganha linha própria, como
+  // o Seguro já tinha, em vez de entrar somado dentro de Taxas Destino).
+  const inlandLines = originLines.filter(l => l.special === 'ORIGIN_INLAND');
+  const originOnlyLines = originLines.filter(l => l.special !== 'ORIGIN_INLAND');
+  const insuranceLines = destinationLines.filter(l => l.financialGroup === 'INSURANCE');
+  const iofLines = destinationLines.filter(l => l.special === 'IOF');
+  const customsLines = destinationLines.filter(l => l.special === 'CUSTOMS');
+  const destinationOnlyLines = destinationLines.filter(l => l.financialGroup !== 'INSURANCE' && l.special !== 'IOF' && l.special !== 'CUSTOMS');
 
   // ITENS DA TABELA
   const items = [
-    { key: 'freight', label: 'Frete Internacional', cost: costFreightUsd, sell: sellFreightUsd },
-    { key: 'inland', label: 'Inland / Transporte Origem', cost: costInlandUsd, sell: sellInlandUsd },
-    { key: 'origin', label: 'Taxas Locais Origem', cost: costOriginFeesUsd, sell: sellOriginFeesUsd },
-    { key: 'insurance', label: 'Seguro Internacional', cost: costInsuranceUsd, sell: sellInsuranceUsd },
-    { key: 'destination', label: 'Taxas Destino / Serviços', cost: costDestFeesUsd, sell: sellDestFeesUsd },
-    { key: 'customs', label: 'Desembaraço Aduaneiro', cost: costCustomsUsd, sell: sellCustomsUsd }
+    { key: 'freight', label: 'Frete Internacional', cost: sumBuyUsd(freightLines), sell: sumSellUsd(freightLines) },
+    { key: 'inland', label: 'Inland / Transporte Origem', cost: sumBuyUsd(inlandLines), sell: sumSellUsd(inlandLines) },
+    { key: 'origin', label: 'Taxas Locais Origem', cost: sumBuyUsd(originOnlyLines), sell: sumSellUsd(originOnlyLines) },
+    { key: 'insurance', label: 'Seguro Internacional', cost: sumBuyUsd(insuranceLines), sell: sumSellUsd(insuranceLines) },
+    { key: 'iof', label: 'IOF', cost: sumBuyUsd(iofLines), sell: sumSellUsd(iofLines) },
+    { key: 'destination', label: 'Taxas Destino / Serviços', cost: sumBuyUsd(destinationOnlyLines), sell: sumSellUsd(destinationOnlyLines) },
+    { key: 'customs', label: 'Desembaraço Aduaneiro', cost: sumBuyUsd(customsLines), sell: sumSellUsd(customsLines) }
   ];
   // Guardado só pra mensagem explicativa do Aplicar Profit (applySmartProfit)
   // poder mostrar quanto de profit já existe fora das áreas marcadas.
@@ -7377,6 +7338,17 @@ function onBuyVsSellEdit(key, valueStr, previousSellUsd) {
     document.getElementById('rev-insurance-val').value = newSellUsd.toFixed(2);
   } else if (key === 'customs') {
     document.getElementById('rev-customs-value').value = (newSellUsd * usdRate).toFixed(2);
+  } else if (key === 'iof') {
+    // IOF é sempre percentual (alíquota × base) — editar o total aqui ajusta
+    // a alíquota da linha pra fechar no valor digitado, em vez de virar uma
+    // linha de Spread/Profit separada (não faz sentido pra uma taxa fixa).
+    const iofLine = window.reviewCostLines.destination?.find(line => line.special === 'IOF');
+    if (iofLine) {
+      const base = reviewPercentageBase(iofLine);
+      const newTotalInLineCurrency = newSellUsd * (iofLine.currency === 'BRL' ? usdRate : iofLine.currency === 'EUR' ? (usdRate / eurRate) : 1);
+      iofLine.unitValue = base > 0 ? (newTotalInLineCurrency / base) * 100 : 0;
+      document.getElementById('rev-iof').value = newSellUsd.toFixed(2);
+    }
   } else if (key === 'origin' || key === 'destination') {
     const deltaUsd = newSellUsd - (Number(previousSellUsd) || 0);
     const textareaId = key === 'origin' ? 'rev-origin-services' : 'rev-destination-services';
@@ -7872,7 +7844,7 @@ async function confirmAndGeneratePDF() {
   // integridade do dado salvo — mesmo raciocínio das checagens acima.
   if (!isOnlyEditMode) {
     if (storageInput.dataset.requested === 'true' && !(Number(storageInput.value) > 0) && !window.confirm('O cliente solicitou estimativa de armazenagem, mas nenhum valor foi informado. O PDF indicará "A confirmar". Deseja continuar?')) return;
-    if (!document.getElementById('rev-transit-time').value.trim() && !window.confirm('O tempo de trânsito não foi informado. Deseja continuar e gerar o PDF mesmo assim?')) return;
+    if (!document.getElementById('rev-transit-time').value.trim() && !(await appConfirm('O tempo de trânsito (T.T.) não foi informado. Se continuar, o PDF vai mostrar "A confirmar" no lugar de um prazo estimado — o cliente não vai ver nenhum número de dias.', { title: 'Tempo de trânsito não informado', confirmLabel: 'Continuar sem T.T.', cancelLabel: 'Voltar e preencher' }))) return;
   }
   const revCnpjField = document.getElementById('rev-client-cnpj');
   if (cnpjIsRequiredForQuotation(document.getElementById('rev-load-type').value, storageInput.dataset.requested === 'true') && !revCnpjField.value.trim()) {
@@ -9672,7 +9644,7 @@ function renderClientRoutingBadge() {
     const origem = profile.found
       ? `${ifrEscape(profile.name || '')}${profile.country ? ' &middot; ' + ifrEscape(profile.country) : ''}${profile.isAgent ? ' &middot; cadastrado como agente' : ''}`
       : ifrEscape(profile.reason || 'Definido manualmente');
-    html = isRO ? `<div style="margin:-4px 0 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid rgba(245,166,35,.4); border-radius: 6px; background: rgba(245,166,35,.1); color: var(--gold); font-size: 12px; font-weight: 600;">🏷️ Routing Order</div>` : '';
+    html = isRO ? `<div style="margin:-4px 0 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid rgba(245,166,35,.4); border-radius: 6px; background: rgba(245,166,35,.1); color: var(--gold); font-size: 12px; font-weight: 600;">🏷️ Routing Order</div>` : '';
   }
   boxes.forEach(box => { box.innerHTML = html; });
   if (window.reviewCostEditorReady) renderReviewCostEditor();

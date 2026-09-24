@@ -39,6 +39,7 @@ const PDF_I18N: Record<string, Record<string, string>> = {
     labelTransbordos: 'Transbordos:',
     labelRodoviario: 'Rodoviário:',
     labelRodoviarioIncluso: 'Incluso',
+    labelRodoviarioSolicitado: 'Solicitado — A confirmar',
     labelDtaIncluso: 'Incluso',
     labelDtaCargaNaoNacionalizada: '— carga não nacionalizada',
     sectionFrete: 'Frete',
@@ -123,6 +124,7 @@ const PDF_I18N: Record<string, Record<string, string>> = {
     labelTransbordos: 'Transshipments:',
     labelRodoviario: 'Trucking:',
     labelRodoviarioIncluso: 'Included',
+    labelRodoviarioSolicitado: 'Requested — To confirm',
     labelDtaIncluso: 'Included',
     labelDtaCargaNaoNacionalizada: '— non-nationalized cargo',
     sectionFrete: 'Freight',
@@ -564,6 +566,9 @@ const defaultTemplate = `
       {{#if transshipmentsRich}}<div style="width: 50%; display:flex;"><span class="label">{{i18n.labelTransbordos}}</span><span class="value">{{transshipmentsRich}}</span></div>{{/if}}
       {{#if roadFreightRich}}
       <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioIncluso}} ({{roadFreightRich}})</span></div>
+      {{/if}}
+      {{#if roadFreightPendingRich}}
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioSolicitado}} ({{roadFreightPendingRich}})</span></div>
       {{/if}}
       {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">{{i18n.labelDtaIncluso}} ({{dtaServiceRich}}) {{i18n.labelDtaCargaNaoNacionalizada}}</span></div>{{/if}}
     </div>
@@ -1082,11 +1087,14 @@ const defaultAirTemplate = `
       </div>
     </div>
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
-      <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelConexoes}}</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
       {{#if roadFreightRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioIncluso}} ({{roadFreightRich}})</span></div>
       {{/if}}
-      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
+      {{#if roadFreightPendingRich}}
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioSolicitado}} ({{roadFreightPendingRich}})</span></div>
+      {{/if}}
+      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">{{i18n.labelDtaIncluso}} ({{dtaServiceRich}}) {{i18n.labelDtaCargaNaoNacionalizada}}</span></div>{{/if}}
     </div>
   </div>
 
@@ -1207,7 +1215,7 @@ const defaultAirTemplate = `
   {{/if}}
 
   {{#if detailedFeesAdditionalGroups.length}}
-  <div class="section-banner-sm">Taxas DG, aduaneiras, impostos e profit</div>
+  <div class="section-banner-sm">Impostos e Taxas Adicionais</div>
   <table><thead><tr><th>Classificação</th><th>Taxa</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Total</th></tr></thead><tbody>
     {{#each detailedFeesAdditionalGroups}}
     <tr><td>{{this.financialGroupLabel}}</td><td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td><td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.total}}</td></tr>
@@ -1358,7 +1366,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     destinationCountryRich = quotationData.destinationCountry ? String(quotationData.destinationCountry).trim().toUpperCase() : 'BRAZIL';
     
     carrierRich = quotationData.carrier || 'American Airlines Cargo';
-    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
+    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'A confirmar';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
     
     let ref = quotationData.reference || '';
@@ -1420,7 +1428,10 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     connectionsRich = quotationData.connections ? String(quotationData.connections).trim() : 'Direto (sem conexões)';
 
     carrierRich = quotationData.carrier || '—';
-    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'Aprox. 12 Dia(s)';
+    // Sem T.T. confirmado, mostra "A confirmar" em vez de inventar um prazo —
+    // um número fictício (ex: "12 dias") apareceria pro cliente como se
+    // fosse um dado real que ninguém nunca confirmou.
+    transitTimeLabel = quotationData.transitTimeDays ? `Aprox. ${quotationData.transitTimeDays} Dia(s)` : 'A confirmar';
     ttColetaLabel = 'Aprox. 2 Dia(s)';
     
     let ref = quotationData.reference || '';
@@ -1684,11 +1695,16 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
       .filter(fee => fee.financialGroup === 'FREIGHT_COMPONENT');
     const additionalGroups = new Set(['DG_CHARGE','CUSTOMS_CHARGE','TAX_IOF','PROFIT']);
     const additionalLabels: Record<string,string> = { DG_CHARGE:'Taxa DG', CUSTOMS_CHARGE:'Impostos', TAX_IOF:'IOF', PROFIT:'Profit' };
-    detailedFeesAdditionalGroups = [...detailedFeesOrigem, ...detailedFeesDestino]
+    // Só taxas de Destino entram nessa seção separada — impostos/DG/IOF são
+    // conceito de importação (destino). Taxas de Origem (ex: Custom clearance,
+    // Certificate of origin — documentação de exportação) ficam sempre juntas
+    // na tabela normal de Origem, mesmo que a IA as tenha classificado como
+    // CUSTOMS_CHARGE por causa do nome.
+    detailedFeesAdditionalGroups = detailedFeesDestino
       .filter(fee => additionalGroups.has(fee.financialGroup))
       .map(fee => ({ ...fee, financialGroupLabel: additionalLabels[fee.financialGroup] || fee.financialGroup }))
       .sort((a, b) => (a.financialGroup === 'TAX_IOF' ? 1 : 0) - (b.financialGroup === 'TAX_IOF' ? 1 : 0));
-    detailedFeesOrigem = detailedFeesOrigem.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup));
+    detailedFeesOrigem = detailedFeesOrigem.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT');
     detailedFeesDestino = detailedFeesDestino.filter(fee => fee.financialGroup !== 'FREIGHT_COMPONENT' && !additionalGroups.has(fee.financialGroup))
       .sort((a, b) => (a.financialGroup === 'INSURANCE' ? 0 : 1) - (b.financialGroup === 'INSURANCE' ? 0 : 1));
 
@@ -1764,7 +1780,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   const roadLeg = (quotationData.groundServiceLegs || []).find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
   // Só mostra o aviso de Rodoviário quando o usuário marcou explicitamente a
   // caixa de transporte rodoviário — não inferir a partir de porto/cidade.
-  const roadFreightRich = roadLeg?.route || '';
+  // "Incluso" só quando o trecho já foi cotado/precificado (leg.value
+  // preenchido) — solicitado não é o mesmo que garantido no preço. Sem
+  // preço ainda, mostra um aviso de pendência em vez de prometer algo que
+  // não foi confirmado.
+  const roadFreightRich = roadLeg?.route && roadLeg.value != null ? roadLeg.route : '';
+  const roadFreightPendingRich = roadLeg?.route && roadLeg.value == null ? roadLeg.route : '';
 
   const i18n = getPdfLabels(Boolean(quotationData.isRoutingOrder));
 
@@ -1794,6 +1815,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     connectionsRich,
     carrierRich,
     roadFreightRich,
+    roadFreightPendingRich,
     dtaServiceRich:dtaLeg?.route || dtaLeg?.bondedTerminal || '',
     originCountryRich,
     destinationCountryRich,
@@ -1855,7 +1877,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     const dtaLeg = groundLegs.find((leg:any) => leg.serviceType === 'DTA' && leg.requested);
     const roadLeg = groundLegs.find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
     quotationData.dtaServiceRich = dtaLeg?.route || dtaLeg?.bondedTerminal || '';
-    quotationData.roadFreightRich = roadLeg?.route || quotationData.roadFreightRich || '';
+    // "Incluso" só quando o trecho já foi cotado/precificado — solicitado
+    // não é garantido no preço (ver mesmo raciocínio em generateAirPdf).
+    quotationData.roadFreightRich = (roadLeg?.route && roadLeg.value != null) ? roadLeg.route : '';
+    quotationData.roadFreightPendingRich = (roadLeg?.route && roadLeg.value == null) ? roadLeg.route : '';
     const isAir = String(quotationData.modal).toUpperCase() === 'AIR' || String(quotationData.loadType).startsWith('AIR');
     if (isAir) {
       return generateAirPdf(quotationData, templateHtml);
