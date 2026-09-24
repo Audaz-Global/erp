@@ -104,6 +104,9 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
   // Regras NOT_APPLICABLE nunca são oferecidas neste preenchimento automático
   // (lista ainda vazia — nada foi extraído/digitado, não há dado real a preservar).
   // Regras CONDITIONAL só entram quando a condição já é conhecida e atendida.
+  // Regras apenas "Applicable" (ou "A confirmar") não preenchem mais sozinhas
+  // — só REQUIRED (ou CONDITIONAL já atendida) auto-preenche a cotação;
+  // o resto fica disponível na Árvore de Incoterms pra inserção manual.
   const applicabilityContext = {
     direction: dbDirection,
     isDangerousGoods: Boolean(context.dangerousGoodsProductCount && context.dangerousGoodsProductCount > 0),
@@ -113,9 +116,9 @@ export async function getRulesForIncoterm(incoterm: string, modal: string, direc
   const effectiveRules = rules.map(effectiveIncotermRule).filter(r => {
     if (!r.active) return false;
     const applicability = (r as any).applicability || 'APPLICABLE';
-    if (applicability === 'NOT_APPLICABLE') return false;
+    if (applicability === 'REQUIRED') return true;
     if (applicability === 'CONDITIONAL') return evaluateIncotermCondition((r as any).condition, applicabilityContext).met;
-    return true;
+    return false;
   });
   const ranked = effectiveRules.sort((a, b) => {
     const score = (rule: any) => (rule.incoterm === 'ALL' ? 0 : 4) + (rule.modal === 'ALL' ? 0 : 2) + (rule.direction === 'ALL' ? 0 : 1);
