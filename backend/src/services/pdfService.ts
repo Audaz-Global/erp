@@ -1144,6 +1144,7 @@ const defaultAirTemplate = `
     </tbody>
   </table>
 
+  {{#if detailedFeesOrigem.length}}
   <div class="section-banner-sm">Origem</div>
   <table class="fee-table">
     <thead>
@@ -1177,6 +1178,7 @@ const defaultAirTemplate = `
       {{/if}}
     </tbody>
   </table>
+  {{/if}}
 
   {{#if hasDestinationSection}}
   <div class="section-banner-sm">Destino</div>
@@ -2103,6 +2105,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
         const parsed = JSON.parse(quotationData.originServices);
         if (Array.isArray(parsed)) {
           parsed.forEach(f => {
+            if (f.showOnDocument === false) return;
             const val = parseFloat(f.totalValue ?? f.value) || 0;
             const curr = (f.currency || 'USD').toUpperCase();
             if (curr === 'USD') sumOrigemUsd += val;
@@ -2410,7 +2413,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       containerTypeRich,
       hasDetailedFees,
       hasDestinationSection: hasDetailedFees ? (detailedFees.filter((f: any) => f.showOnDocument !== false).length > 0) : (parseFloat(quotationData.destinationStorage) > 0 || parseFloat(quotationData.destinationServicesTotal) > 0 || parseFloat(quotationData.destinationTaxes) > 0 || (quotationData.iofVisibleOnDocument && parseFloat(quotationData.iofUsd) > 0)),
-      hasOriginSection: (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) || originServiceRows.length > 0,
+      hasOriginSection: (quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined) || originServiceRows.filter((f: any) => f.showOnDocument !== false).length > 0,
       hasOriginInland: quotationData.originInlandValue !== null && quotationData.originInlandValue !== undefined,
       originInlandValue: (parseFloat(quotationData.originInlandValue) || 0).toFixed(2),
       originInlandCurrency: quotationData.originInlandCurrency || 'USD',
