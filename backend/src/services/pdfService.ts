@@ -576,17 +576,17 @@ const defaultTemplate = `
 
   <div class="section-banner">{{loadTypeLabel}}</div>
   
-  <div class="section-banner-sm">Frete</div>
+  <div class="section-banner-sm">{{i18n.sectionFrete}}</div>
   <table class="fee-table">
     <thead>
       <tr>
-        <th>Taxas</th>
-        <th class="t-center">Qtde</th>
-        <th>Tipo de Cálculo</th>
-        <th class="t-right">Valor Unitário</th>
-        <th class="t-right">Min</th>
-        <th class="t-right">Max</th>
-        <th class="t-right">Total</th>
+        <th>{{i18n.thTaxas}}</th>
+        <th class="t-center">{{i18n.thQtde}}</th>
+        <th>{{i18n.thTipoCalculo}}</th>
+        <th class="t-right">{{i18n.thValorUnitario}}</th>
+        <th class="t-right">{{i18n.thMin}}</th>
+        <th class="t-right">{{i18n.thMax}}</th>
+        <th class="t-right">{{i18n.thTotal}}</th>
       </tr>
     </thead>
     <tbody>
@@ -1110,13 +1110,13 @@ const defaultAirTemplate = `
   <table class="fee-table">
     <thead>
       <tr>
-        <th>Taxas</th>
-        <th class="t-center">Qtde</th>
-        <th>Tipo de Cálculo</th>
-        <th class="t-right">Valor Unitário</th>
-        <th class="t-right">Min</th>
-        <th class="t-right">Max</th>
-        <th class="t-right">Total</th>
+        <th>{{i18n.thTaxas}}</th>
+        <th class="t-center">{{i18n.thQtde}}</th>
+        <th>{{i18n.thTipoCalculo}}</th>
+        <th class="t-right">{{i18n.thValorUnitario}}</th>
+        <th class="t-right">{{i18n.thMin}}</th>
+        <th class="t-right">{{i18n.thMax}}</th>
+        <th class="t-right">{{i18n.thTotal}}</th>
       </tr>
     </thead>
     <tbody>
@@ -1145,17 +1145,17 @@ const defaultAirTemplate = `
   </table>
 
   {{#if detailedFeesOrigem.length}}
-  <div class="section-banner-sm">Origem</div>
+  <div class="section-banner-sm">{{i18n.sectionOrigem}}</div>
   <table class="fee-table">
     <thead>
       <tr>
-        <th>Taxas</th>
-        <th class="t-center">Qtde</th>
-        <th>Tipo de Cálculo</th>
-        <th class="t-right">Valor Unitário</th>
-        <th class="t-right">Min</th>
-        <th class="t-right">Max</th>
-        <th class="t-right">Total</th>
+        <th>{{i18n.thTaxas}}</th>
+        <th class="t-center">{{i18n.thQtde}}</th>
+        <th>{{i18n.thTipoCalculo}}</th>
+        <th class="t-right">{{i18n.thValorUnitario}}</th>
+        <th class="t-right">{{i18n.thMin}}</th>
+        <th class="t-right">{{i18n.thMax}}</th>
+        <th class="t-right">{{i18n.thTotal}}</th>
       </tr>
     </thead>
     <tbody>
@@ -1181,17 +1181,17 @@ const defaultAirTemplate = `
   {{/if}}
 
   {{#if hasDestinationSection}}
-  <div class="section-banner-sm">Destino</div>
+  <div class="section-banner-sm">{{i18n.sectionDestino}}</div>
   <table class="fee-table">
     <thead>
       <tr>
-        <th>Taxas</th>
-        <th class="t-center">Qtde</th>
-        <th>Tipo de Cálculo</th>
-        <th class="t-right">Valor Unitário</th>
-        <th class="t-right">Min</th>
-        <th class="t-right">Max</th>
-        <th class="t-right">Total</th>
+        <th>{{i18n.thTaxas}}</th>
+        <th class="t-center">{{i18n.thQtde}}</th>
+        <th>{{i18n.thTipoCalculo}}</th>
+        <th class="t-right">{{i18n.thValorUnitario}}</th>
+        <th class="t-right">{{i18n.thMin}}</th>
+        <th class="t-right">{{i18n.thMax}}</th>
+        <th class="t-right">{{i18n.thTotal}}</th>
       </tr>
     </thead>
     <tbody>
@@ -1467,6 +1467,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     referenceRich = quotationData.reference || '—';
     incoterm = quotationData.incoterm || 'FCA';
     obs = quotationData.notes ? JSON.parse(quotationData.notes).join(' ') : '';
+  }
+
+  const isFobExportPdfAir = String(quotationData.direction).toUpperCase() === 'EXPORT' && ['FOB', 'FCA', 'FAS'].includes(String(quotationData.incoterm || 'FCA').toUpperCase());
+  if (isFobExportPdfAir) {
+    quotationData.originServices = "[]";
+    quotationData.originInlandValue = null;
   }
 
   // Verifica se a cotação de teste tem dados preenchidos no banco
@@ -2058,6 +2064,12 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     }
 
     // 4. Formatação de Totais e Subtotais Dinâmica por Moeda
+    const isFobExportPdf = String(quotationData.direction).toUpperCase() === 'EXPORT' && ['FOB', 'FCA', 'FAS'].includes(String(quotationData.incoterm || 'FCA').toUpperCase());
+    if (isFobExportPdf) {
+      quotationData.originServices = "[]";
+      quotationData.originInlandValue = null;
+    }
+    
     let fCurr = quotationData.freightCurrency || 'USD';
 
     // Fallback de frete: se não há valor real informado, usa o cadastrado na
