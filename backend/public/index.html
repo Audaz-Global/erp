@@ -1366,7 +1366,7 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div class="form-group">
             <label>Tipo <span id="conf-type"></span></label>
-            <select id="r-type" class="req" onchange="syncPartnerTypesForModal(); updateWizardVehicleIcon(); toggleStorageRequestVisibility(); restrictIncotermOptionsForModal('r-incoterm', this.value.includes('AIR'));">
+            <select id="r-type" class="req" onchange="syncPartnerTypesForModal(); updateWizardVehicleIcon(); toggleStorageRequestVisibility(); restrictIncotermOptionsForModal('r-incoterm', this.value.includes('AIR')); setRouteLabelsForModal('r-destination-port-label','r-connections-label', this.value.includes('AIR'));">
               <option value="LCL">LCL</option>
               <option value="FCL_20">FCL 20'</option>
               <option value="FCL_40">FCL 40'</option>
@@ -1494,7 +1494,7 @@
             <input type="text" id="r-origin-country" placeholder="Ex: China">
           </div>
           <div class="form-group" style="grid-column: 1 / -1;">
-            <label>Destino (Porto ou Aeroporto)</label>
+            <label id="r-destination-port-label">Destino (Porto ou Aeroporto)</label>
             <input type="text" id="r-destination-port" placeholder="Ex: GRU - Guarulhos, Santos">
           </div>
           <div class="form-group">
@@ -1506,7 +1506,7 @@
             <input type="text" id="r-destination-country" placeholder="Ex: Brazil">
           </div>
           <div class="form-group" id="r-connections-group" style="display:none; grid-column: 1 / -1;">
-            <label>Conexões do Voo ou do Porto</label>
+            <label id="r-connections-label">Conexões do Voo ou do Porto</label>
             <input type="text" id="r-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
           </div>
         </div>
@@ -2310,7 +2310,7 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label style="font-size:11px;">Modal</label>
-          <select id="rev-modal" onchange="scheduleGeoComparisonAlerts('rev'); restrictIncotermOptionsForModal('rev-incoterm', this.value === 'AIR');">
+          <select id="rev-modal" onchange="scheduleGeoComparisonAlerts('rev'); restrictIncotermOptionsForModal('rev-incoterm', this.value === 'AIR'); setRouteLabelsForModal('rev-dest-port-label','rev-connections-label', this.value === 'AIR');">
             <option value="AIR">✈️ Aéreo (AIR)</option>
             <option value="SEA">🚢 Marítimo (SEA)</option>
           </select>
@@ -2349,7 +2349,7 @@
           <input type="text" id="rev-origin-country" placeholder="Ex: China" onchange="scheduleGeoComparisonAlerts('rev')">
         </div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
-          <label style="font-size:11px;">Destino (Porto ou Aeroporto)</label>
+          <label style="font-size:11px;" id="rev-dest-port-label">Destino (Porto ou Aeroporto)</label>
           <input type="text" id="rev-dest-port" placeholder="Ex: GRU - Guarulhos" onchange="scheduleGeoComparisonAlerts('rev')">
         </div>
         <div class="form-group" style="margin:0;grid-column:span 2;">
@@ -2362,7 +2362,7 @@
         </div>
         <div id="rev-geo-alerts" style="grid-column:1/-1;"></div>
         <div class="form-group" style="margin:0;grid-column:1/-1;">
-          <label style="font-size:11px;">Conexões do Voo ou do Porto</label>
+          <label style="font-size:11px;" id="rev-connections-label">Conexões do Voo ou do Porto</label>
           <input type="text" id="rev-connections" placeholder="Ex: via MIA, transbordo em Algeciras">
         </div>
         <div class="form-group" style="margin:0;grid-column:span 2;">
@@ -5816,6 +5816,7 @@ function fillReviewForm(d, mode) {
       syncPartnerTypesForModal();
       updateWizardVehicleIcon();
       restrictIncotermOptionsForModal('r-incoterm', document.getElementById('r-type').value.includes('AIR'));
+      setRouteLabelsForModal('r-destination-port-label','r-connections-label', document.getElementById('r-type').value.includes('AIR'));
       document.getElementById('conf-type').innerHTML = renderConf(d.cargo.type, d.cargo.confidence);
 
       document.getElementById('r-cargo-description').value = d.cargo.description || '';
@@ -7433,6 +7434,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-modal').value = q.modal || 'AIR';
     document.getElementById('rev-load-type').value = q.loadType || 'AIR_GENERAL';
     restrictIncotermOptionsForModal('rev-incoterm', document.getElementById('rev-modal').value === 'AIR');
+    setRouteLabelsForModal('rev-dest-port-label','rev-connections-label', document.getElementById('rev-modal').value === 'AIR');
     document.getElementById('rev-direction').value = q.direction || 'IMPORT';
     document.getElementById('rev-origin-city').value = q.originCity || '';
     document.getElementById('rev-origin-country').value = q.originCountry || '';
@@ -8219,6 +8221,16 @@ function restrictIncotermOptionsForModal(selectId, isAir) {
   if (isAir && SEA_ONLY_INCOTERMS.has(select.value)) {
     select.value = select.value === 'FOB' ? 'FCA' : '';
   }
+}
+
+// "Porto" não faz sentido pra frete aéreo — troca o rótulo pra falar só de
+// aeroporto/voo quando o modal é aéreo, e volta ao texto genérico (porto ou
+// aeroporto) pra marítimo, já que aqui não existe ambiguidade a evitar.
+function setRouteLabelsForModal(destLabelId, connLabelId, isAir) {
+  const destLabel = document.getElementById(destLabelId);
+  if (destLabel) destLabel.textContent = isAir ? 'Destino (Aeroporto)' : 'Destino (Porto ou Aeroporto)';
+  const connLabel = document.getElementById(connLabelId);
+  if (connLabel) connLabel.textContent = isAir ? 'Conexões do Voo' : 'Conexões do Voo ou do Porto';
 }
 
 function stripReturnEstimateLabel(name) {

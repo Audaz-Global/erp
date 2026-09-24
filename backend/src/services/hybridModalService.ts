@@ -36,8 +36,11 @@ const SEA_SIGNAL_PATTERNS = [
   /\bembarque\s*mar[ií]timo\b/i,
   /\bcarga\s*mar[ií]tima\b/i,
   /\bsea\s*freight\b/i,
-  /\bcont[eê]iner(?:es)?\b/i,
-  /\bcontainer(?:s)?\b/i
+  // "container"/"contêiner" sozinho é ambíguo demais (aparece em descrição de
+  // embalagem, ULD aéreo, assinatura de agente que oferece os dois serviços,
+  // etc.) — só conta como sinal marítimo quando aparece na mesma linha junto
+  // de um termo que já indica transporte marítimo de verdade.
+  /(?=.*\b(?:cont[eê]iner(?:es)?|container(?:s)?)\b)(?=.*\b(?:mar[ií]timo|sea|navio|porto\s*de\s*embarque|ocean\s*freight)\b)/i
 ];
 
 function firstMatchingLine(sourceText: string, patterns: RegExp[]): string {
