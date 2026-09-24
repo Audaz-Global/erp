@@ -381,6 +381,9 @@ const defaultTemplate = `
       {{#if roadFreightRich}}
       <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
       {{/if}}
+      {{#if roadFreightPendingRich}}
+      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Solicitado — A confirmar ({{roadFreightPendingRich}})</span></div>
+      {{/if}}
       {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
     </div>
   </div>
@@ -899,6 +902,9 @@ const defaultAirTemplate = `
       <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
       {{#if roadFreightRich}}
       <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
+      {{/if}}
+      {{#if roadFreightPendingRich}}
+      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Solicitado — A confirmar ({{roadFreightPendingRich}})</span></div>
       {{/if}}
       {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
     </div>
@@ -1579,7 +1585,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   const roadLeg = (quotationData.groundServiceLegs || []).find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
   // Só mostra o aviso de Rodoviário quando o usuário marcou explicitamente a
   // caixa de transporte rodoviário — não inferir a partir de porto/cidade.
-  const roadFreightRich = roadLeg?.route || '';
+  // "Incluso" só quando o trecho já foi cotado/precificado (leg.value
+  // preenchido) — solicitado não é o mesmo que garantido no preço. Sem
+  // preço ainda, mostra um aviso de pendência em vez de prometer algo que
+  // não foi confirmado.
+  const roadFreightRich = roadLeg?.route && roadLeg.value != null ? roadLeg.route : '';
+  const roadFreightPendingRich = roadLeg?.route && roadLeg.value == null ? roadLeg.route : '';
 
   const templateData = {
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
@@ -1605,6 +1616,7 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     connectionsRich,
     carrierRich,
     roadFreightRich,
+    roadFreightPendingRich,
     dtaServiceRich:dtaLeg?.route || dtaLeg?.bondedTerminal || '',
     originCountryRich,
     destinationCountryRich,
@@ -1666,7 +1678,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     const dtaLeg = groundLegs.find((leg:any) => leg.serviceType === 'DTA' && leg.requested);
     const roadLeg = groundLegs.find((leg:any) => leg.serviceType === 'RODOVIARIO_NACIONAL' && leg.requested);
     quotationData.dtaServiceRich = dtaLeg?.route || dtaLeg?.bondedTerminal || '';
-    quotationData.roadFreightRich = roadLeg?.route || quotationData.roadFreightRich || '';
+    // "Incluso" só quando o trecho já foi cotado/precificado — solicitado
+    // não é garantido no preço (ver mesmo raciocínio em generateAirPdf).
+    quotationData.roadFreightRich = (roadLeg?.route && roadLeg.value != null) ? roadLeg.route : '';
+    quotationData.roadFreightPendingRich = (roadLeg?.route && roadLeg.value == null) ? roadLeg.route : '';
     const isAir = String(quotationData.modal).toUpperCase() === 'AIR' || String(quotationData.loadType).startsWith('AIR');
     if (isAir) {
       return generateAirPdf(quotationData, templateHtml);
