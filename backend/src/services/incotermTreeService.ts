@@ -124,7 +124,10 @@ export async function updateIncotermTree(payload: IncotermTreePayload) {
           feeType: feeData.feeType,
           feeName: String(feeData.feeName).trim(),
           chargeType: feeData.chargeType,
-          value: pricingStatus === 'ON_REQUEST' ? 0 : Number(feeData.value),
+          // Mesmo "A cotar" (ON_REQUEST) respeita o Venda digitado — serve de
+          // referência pro operador confirmar na cotação, igual já acontece
+          // com o Compra logo abaixo. Só cai pra 0 se o campo ficar vazio.
+          value: feeData.value !== undefined && feeData.value !== null && (feeData.value as any) !== '' ? Number(feeData.value) : 0,
           costValue: feeData.costValue !== undefined && feeData.costValue !== null && (feeData.costValue as any) !== '' ? Number(feeData.costValue) : null,
           pricingStatus,
           minValue: feeData.minValue !== undefined && feeData.minValue !== null && (feeData.minValue as any) !== '' ? Number(feeData.minValue) : null,

@@ -703,7 +703,11 @@ export const getPublicWebView = async (req: Request, res: Response) => {
     // Sem dimensões pra calcular peso cubado aéreo, mas com um CBM conhecido —
     // usa o fator padrão de conversão aéreo (1 m³ ≈ 167 kg) como substituto.
     if (isAir && cubado <= 0 && cbm > 0) cubado = cbm * 167;
-    const taxavel = quotation.chargeableWeightOverride || Math.max(bruto, cubado) || 1; // evitar divisão por zero
+    let taxavel = quotation.chargeableWeightOverride || Math.max(bruto, cubado) || 1; // evitar divisão por zero
+    // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
+    // (padrão IATA TACT) — senão Qtde × Valor Unitário exibidos não batem
+    // com o Total já calculado sobre o peso arredondado.
+    if (isAir && !quotation.chargeableWeightOverride) taxavel = Math.ceil(taxavel * 2) / 2;
 
     // Frete
     let fVal = quotation.freightValue || 0;

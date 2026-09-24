@@ -1407,7 +1407,12 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     // Chargeable Weight: max(bruto, cubado), sem a faixa tarifária do agente
     // (weightBreak) distorcer o valor — só informativa. Override manual do
     // operador, quando preenchido, vale sobre o cálculo automático.
-    chargableWeight = parseFloat(quotationData.chargeableWeightOverride) || Math.max(totalGrossWeightKg, pesoCubadoRich);
+    const overrideWeight = parseFloat(quotationData.chargeableWeightOverride);
+    chargableWeight = overrideWeight || Math.max(totalGrossWeightKg, pesoCubadoRich);
+    // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
+    // (padrão IATA TACT) — senão Qtde × Valor Unitário exibidos não batem
+    // com o Total já calculado sobre o peso arredondado.
+    if (!overrideWeight) chargableWeight = Math.ceil(chargableWeight * 2) / 2;
 
     if (quotationData.originPort) {
       originPortRich = String(quotationData.originPort).trim();
@@ -2335,7 +2340,12 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       // Sem dimensões pra calcular peso cubado, mas com um CBM conhecido —
       // usa o fator padrão de conversão aéreo (1 m³ ≈ 167 kg) como substituto.
       if (cubado <= 0 && totalCbm > 0) cubado = totalCbm * 167;
-      let taxavel = parseFloat(quotationData.chargeableWeightOverride) || Math.max(bruto, cubado);
+      const overrideTaxavel = parseFloat(quotationData.chargeableWeightOverride);
+      let taxavel = overrideTaxavel || Math.max(bruto, cubado);
+      // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
+      // (padrão IATA TACT) — senão Qtde × Valor Unitário exibidos não batem
+      // com o Total já calculado sobre o peso arredondado.
+      if (!overrideTaxavel) taxavel = Math.ceil(taxavel * 2) / 2;
       if (taxavel <= 0) taxavel = 1;
       
       freightQtyRich = safeToFixed(taxavel, 2).replace('.', ',') + ' kg';
