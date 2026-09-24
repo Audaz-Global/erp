@@ -3287,6 +3287,17 @@ function calculateCbmLocal(dimensionsStr, packagesCount = 1) {
   return parseFloat(totalCbm.toFixed(3));
 }
 
+// CBM "efetivo" de um bloco de campos: prioriza o volume calculável a partir
+// das dimensões por caixa e, se não houver dimensões, cai pro CBM total já
+// declarado no documento pela IA (ou já salvo na cotação) — window.extractedStatedCbm.
+function computeEffectiveCbm(dimensionsFieldId, packagesFieldId) {
+  const dims = document.getElementById(dimensionsFieldId)?.value || '';
+  const packages = parseInt(document.getElementById(packagesFieldId)?.value, 10) || 1;
+  const cbm = calculateCbmLocal(dims, packages);
+  if (cbm > 0) return cbm;
+  return Number(window.extractedStatedCbm) || 0;
+}
+
 function updateRequestCalculatedWeights() {
   const summary = document.getElementById('r-air-chargeable-summary');
   if (!summary) return;
@@ -3298,7 +3309,11 @@ function updateRequestCalculatedWeights() {
   const gross = parseFloat(document.getElementById('r-weight')?.value) || 0;
   const packages = parseInt(document.getElementById('r-packages')?.value, 10) || 1;
   const dimensions = document.getElementById('r-dimensions')?.value || '';
-  const cubed = calculateAirCubadoLocal(dimensions, packages);
+  let cubed = calculateAirCubadoLocal(dimensions, packages);
+  if (cubed <= 0) {
+    const cbmFallback = computeEffectiveCbm('r-dimensions', 'r-packages');
+    if (cbmFallback > 0) cubed = cbmFallback * 167;
+  }
   const chargeable = Math.max(gross, cubed);
   const formatKg = value => `${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
 
@@ -3323,10 +3338,13 @@ function updateModalCalculatedWeights() {
   const packagesStr = document.getElementById('rev-dimensions').value || '';
   const wBreakModal = document.getElementById('rev-weight-break').value;
 
-  // 1. Calcular CBM
-  const cbm = calculateCbmLocal(packagesStr, totalPackages);
+  // 1. Calcular CBM (com fallback pro total já declarado no documento quando
+  // não há dimensões por caixa pra calcular)
+  let cbm = calculateCbmLocal(packagesStr, totalPackages);
+  if (cbm <= 0) cbm = Number(window.extractedStatedCbm) || 0;
   // 2. Calcular Peso Cubado Aéreo
-  const airCubado = calculateAirCubadoLocal(packagesStr, totalPackages);
+  let airCubado = calculateAirCubadoLocal(packagesStr, totalPackages);
+  if (isAir && airCubado <= 0 && cbm > 0) airCubado = cbm * 167;
   // 3. Obter Peso Taxável
   const taxavel = getLocalTaxavel(packagesStr, totalPackages, bruto, loadType, cbm, wBreakModal);
 
@@ -5901,6 +5919,10 @@ function fillReviewForm(d, mode) {
       }
       document.getElementById('r-dimensions').value = dims;
       document.getElementById('conf-dimensions').innerHTML = renderConf(dims, d.cargo.confidence);
+      // CBM total já extraído (calculado a partir de dimensões ou declarado
+      // direto no documento) — usado como fallback quando não há dimensões
+      // por caixa pra recalcular o volume no navegador.
+      window.extractedStatedCbm = Number(d.cargo.total_cbm) || 0;
       updateRequestCalculatedWeights();
       
       // Chamar IA de recomendação de agentes
@@ -6446,6 +6468,7 @@ async function saveQuotationRecord() {
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       commercialCurrency: document.getElementById('r-commercial-value-currency')?.value || 'USD',
       packages: document.getElementById('r-dimensions').value || null,
+      totalCbm: computeEffectiveCbm('r-dimensions', 'r-packages') || null,
       status: 'CRIADA',
       partnerType: currentPartnerType,
       clientName: document.getElementById('r-client-name').value,
@@ -6815,6 +6838,7 @@ async function saveAsAwaitingAgent() {
       commercialValue: parseFloat(document.getElementById('r-commercial-value').value) || null,
       commercialCurrency: document.getElementById('r-commercial-value-currency')?.value || 'USD',
       packages: document.getElementById('r-dimensions').value || null,
+      totalCbm: computeEffectiveCbm('r-dimensions', 'r-packages') || null,
       status: 'AGUARDANDO_PARCEIRO',
       agentEmail: agentEmail,
       partnerType: currentPartnerType,
@@ -7476,6 +7500,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-dg-product-count').value = q.dangerousGoodsProductCount || '';
     document.getElementById('rev-insurance').value = q.requiresInsurance ? 'true' : 'false';
     document.getElementById('rev-dimensions').value = q.packages || '';
+    window.extractedStatedCbm = Number(q.totalCbm) || 0;
     document.getElementById('rev-cargo-description').value = q.cargoDescription || '';
     document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
     document.getElementById('rev-connections').value = q.connections || '';
@@ -8111,6 +8136,7 @@ async function confirmAndGeneratePDF() {
         stackableStatus: document.getElementById('rev-stackable').value,
         requiresInsurance: document.getElementById('rev-insurance').value === 'true',
         packages: document.getElementById('rev-dimensions').value,
+        totalCbm: computeEffectiveCbm('rev-dimensions', 'rev-packages') || null,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
         productSegment: document.getElementById('rev-product-segment').value || null,
         ncmCodes: document.getElementById('rev-ncm-codes').value || null,
