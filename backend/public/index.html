@@ -4030,6 +4030,7 @@ function renderRateOptionsPicker(options) {
       <div style="font-size:13px;font-weight:700;color:var(--gold);">${ifrEscape(normalizeCostCurrency(opt.freight_currency))} ${Number(opt.freight_value || 0).toFixed(2)}</div>
       ${opt.transit_time ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${ifrEscape(opt.transit_time)}</div>` : ''}
       ${opt.carrier ? `<div style="font-size:11px;color:var(--text-muted);">${ifrEscape(opt.carrier)}</div>` : ''}
+      ${opt.frequency ? `<div style="font-size:11px;color:var(--gold);margin-top:2px;">📅 ${ifrEscape(opt.frequency)}</div>` : ''}
       <button type="button" class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:11px;padding:7px;" onclick="selectAgentRateOption(${idx})">Usar esta opção</button>
     </div>`).join('');
 }
@@ -4048,6 +4049,7 @@ function selectAgentRateOption(idx) {
     if (!isNaN(days)) document.getElementById('r-transit-time').value = days;
   }
   if (opt.carrier) document.getElementById('r-agent-carrier').value = opt.carrier;
+  if (opt.frequency && document.getElementById('r-frequency')) document.getElementById('r-frequency').value = opt.frequency;
   document.querySelectorAll('#r-rate-options-cards > div').forEach((card, i) => {
     card.style.borderColor = i === idx ? 'var(--gold)' : 'var(--border)';
   });
