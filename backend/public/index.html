@@ -7955,13 +7955,13 @@ async function confirmAndGeneratePDF() {
     return;
   }
   const isps = ispsReview(reviewedFees);
-  const blockingIsps = isps.alerts.filter(alert => ['UNCLASSIFIED','INCLUDED','INCLUSION_PENDING'].includes(alert.code));
+  const blockingIsps = isps.alerts.filter(alert => ['INCLUDED'].includes(alert.code));
   if (blockingIsps.length) {
-    alert(`Revise as taxas ISPS antes de finalizar:\n${blockingIsps.map(item => '• '+item.message).join('\n')}\n\nEdite a linha usando ISPS_CARRIER ou ISPS_TERMINAL e FREIGHT NOT_INCLUDED quando a cobrança for realmente adicional.`);
+    alert(`Atenção às taxas ISPS:\n${blockingIsps.map(item => '• '+item.message).join('\n')}\n\nSe a cobrança for realmente adicional, edite a linha e adicione FREIGHT NOT_INCLUDED.`);
     return;
   }
-  const confirmIsps = isps.alerts.filter(alert => ['DUPLICATE','COEXISTENCE'].includes(alert.code));
-  if (confirmIsps.length && !window.confirm(`${confirmIsps.map(item=>item.message).join('\n')}\nConfirma que as cobranças são aplicáveis?`)) return;
+  const confirmIsps = isps.alerts.filter(alert => ['UNCLASSIFIED','INCLUSION_PENDING','DUPLICATE','COEXISTENCE'].includes(alert.code));
+  if (confirmIsps.length && !window.confirm(`${confirmIsps.map(item=>'• '+item.message).join('\n')}\n\nConfirma que essas cobranças são adicionais e aplicáveis?`)) return;
   const uncertainFees = reviewedFees.filter(fee => fee.needsReview);
   if (uncertainFees.length && !window.confirm(`Existem taxas com unidade não identificada ou cálculo divergente: ${uncertainFees.map(fee => fee.name).join(', ')}. Confirma os totais apresentados?`)) return;
 
