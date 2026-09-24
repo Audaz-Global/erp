@@ -9538,7 +9538,7 @@ function renderClientRoutingBadge() {
     const origem = profile.found
       ? `${ifrEscape(profile.name || '')}${profile.country ? ' &middot; ' + ifrEscape(profile.country) : ''}${profile.isAgent ? ' &middot; cadastrado como agente' : ''}`
       : ifrEscape(profile.reason || 'Definido manualmente');
-    html = isRO ? `<div style="margin:-4px 0 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid rgba(245,166,35,.4); border-radius: 6px; background: rgba(245,166,35,.1); color: var(--gold); font-size: 12px; font-weight: 600;">🏷️ Routing Order</div>` : '';
+    html = isRO ? `<div style="margin:-4px 0 12px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid rgba(245,166,35,.4); border-radius: 6px; background: rgba(245,166,35,.1); color: var(--gold); font-size: 12px; font-weight: 600;">🏷️ Routing Order</div>` : '';
   }
   boxes.forEach(box => { box.innerHTML = html; });
   if (window.reviewCostEditorReady) renderReviewCostEditor();
