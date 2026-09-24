@@ -9,6 +9,187 @@ import { storageEstimatePdfFee } from './storageEstimateService';
 import { shouldHydrateAutomaticCosts } from './costCompositionService';
 import { normalizeDangerousGoodsStatus, DG_STATUS } from './dangerousGoodsService';
 
+// ─── Internacionalização do PDF ────────────────────────────────────────────
+// Routing Order: o cliente é um agente estrangeiro → PDF sai em inglês.
+// Cotações normais continuam em português.
+const PDF_I18N: Record<string, Record<string, string>> = {
+  'pt-BR': {
+    docTitle: 'COTAÇÃO DE FRETE Nº:',
+    labelCliente: 'Cliente:',
+    labelTelefone: 'Telefone:',
+    labelContato: 'Contato:',
+    labelRefCliente: 'Ref. Cliente:',
+    labelModal: 'Modal:',
+    labelVencimento: 'Vencimento:',
+    labelPesoBruto: 'Peso Bruto:',
+    labelNatureza: 'Natureza:',
+    labelTT: 'T.T:',
+    labelPesoCubado: 'Peso Cubado:',
+    labelIncoterm: 'Incoterm:',
+    labelFreeTime: 'F.T Equip Dest:',
+    labelOrigem: 'Origem:',
+    labelDestino: 'Destino:',
+    labelLocalInicial: 'Local Inicial:',
+    labelDestinoFinal: 'Destino Final:',
+    labelArmador: 'Armador:',
+    labelNavioViagem: 'Navio / Viagem:',
+    labelPais: 'País:',
+    labelFrequencia: 'Frequencia:',
+    labelConexoes: 'Conexões:',
+    labelTransbordos: 'Transbordos:',
+    labelRodoviario: 'Rodoviário:',
+    labelRodoviarioIncluso: 'Incluso',
+    labelRodoviarioSolicitado: 'Solicitado — A confirmar',
+    labelDtaIncluso: 'Incluso',
+    labelDtaCargaNaoNacionalizada: '— carga não nacionalizada',
+    sectionFrete: 'Frete',
+    sectionOrigem: 'Origem',
+    sectionDestino: 'Destino',
+    sectionOutras: 'Outras classificações financeiras',
+    thTaxas: 'Taxas',
+    thQtde: 'Qtde',
+    thTipoCalculo: 'Tipo de Cálculo',
+    thValorUnitario: 'Valor Unitário',
+    thMin: 'Min',
+    thMax: 'Max',
+    thTotal: 'Total',
+    thClassificacao: 'Classificação',
+    thTaxa: 'Taxa',
+    labelSubtotalFrete: 'Subtotal Frete:',
+    labelSubtotalDestino: 'Subtotal Destino:',
+    labelSubtotal: 'Subtotal:',
+    labelTotaisConsolidados: 'Totais Consolidados por Moeda',
+    labelResumo: 'Resumo',
+    labelTotalGeral: 'Total Geral',
+    labelNotasCondicoes: 'Notas e Condições',
+    noteDisponibilidade: 'Sujeito a disponibilidade de espaço e equipamentos',
+    noteBafGri: 'Frete sujeito a BAF/GRI/CAF ou outras taxas adicionais aplicadas pelo armador',
+    notePesagem: 'Volumes sujeitos a pesagem e a OWS (Overweight Surcharge)',
+    noteCargasPerigosas: 'Cargas perigosas, perecíveis, dimensões extra-pallet, equipamentos especiais, embalagens com dimensões fora de padrões ou mais pesadas do que volumosas necessária aprovação prévia',
+    noteVencimento: 'Embarques realizados após o vencimento da cotação estarão sujeitos a fretes e taxas VATOS (valid at time of shipment)',
+    noteRotas: 'Rotas sujeitas a alterações sem prévio aviso do Armador',
+    noteTransitTime: 'Transit-Time estimado, sujeito a alterações sem aviso prévio do Armador',
+    noteFeiras: 'Embarques destinados a feiras, eventos e/ou exibições, devem possuir proposta especifica para esta finalidade',
+    noteDocumentos: 'Documentos originais sujeito a tarifação',
+    noteDgDisclaimer: 'Caso a mercadoria seja perigosa (DG/IMO), favor informar para revisão da cotação.',
+    labelPagina: 'Página',
+    labelDe: 'de',
+    labelEmitidoPor: 'Emitido por Audaz System',
+    labelVersaoInterativa: 'Versão Interativa BRL (R$):',
+    labelVersaoInterativaDesc: 'Para visualizar esta proposta convertida em reais (BRL) com a cotação do câmbio de hoje,',
+    labelVersaoInterativaLink: 'clique aqui para acessar a versão web online',
+    stackableWarning: '⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.',
+    stackableYes: '✅ Carga considerada empilhável, conforme informado.',
+    stackableNo: '📦 Carga considerada NÃO empilhável, conforme informado.',
+    naturezaImport: 'Importação',
+    naturezaExport: 'Exportação',
+    transitTimeApprox: 'Aprox.',
+    transitTimeDias: 'Dia(s)',
+    frequencyDefault: 'Semanal',
+    connectionsDefault: 'Direto (sem conexões)',
+    labelInlandOrigem: 'Inland de Origem / Coleta',
+    // Labels aéreos
+    labelPesoTaxavel: 'Peso Taxável:',
+    labelVolumes: 'Volumes:',
+    labelDimensoes: 'Dimensões:',
+    labelCiaAerea: 'Cia. Aérea:',
+    labelTTColeta: 'T.T Coleta:',
+    // Marítimo
+    labelContainerEquip: 'Container/Equip:',
+    labelFTEquipDest: 'F.T Equip Dest:',
+  },
+  'en': {
+    docTitle: 'FREIGHT QUOTATION NO:',
+    labelCliente: 'Client:',
+    labelTelefone: 'Phone:',
+    labelContato: 'Contact:',
+    labelRefCliente: 'Client Ref.:',
+    labelModal: 'Mode:',
+    labelVencimento: 'Validity:',
+    labelPesoBruto: 'Gross Weight:',
+    labelNatureza: 'Direction:',
+    labelTT: 'T.T:',
+    labelPesoCubado: 'Vol. Weight:',
+    labelIncoterm: 'Incoterm:',
+    labelFreeTime: 'F.T Equip Dest:',
+    labelOrigem: 'Origin:',
+    labelDestino: 'Destination:',
+    labelLocalInicial: 'Place of Receipt:',
+    labelDestinoFinal: 'Final Destination:',
+    labelArmador: 'Carrier:',
+    labelNavioViagem: 'Vessel / Voyage:',
+    labelPais: 'Country:',
+    labelFrequencia: 'Frequency:',
+    labelConexoes: 'Connections:',
+    labelTransbordos: 'Transshipments:',
+    labelRodoviario: 'Trucking:',
+    labelRodoviarioIncluso: 'Included',
+    labelRodoviarioSolicitado: 'Requested — To confirm',
+    labelDtaIncluso: 'Included',
+    labelDtaCargaNaoNacionalizada: '— non-nationalized cargo',
+    sectionFrete: 'Freight',
+    sectionOrigem: 'Origin',
+    sectionDestino: 'Destination',
+    sectionOutras: 'Additional financial classifications',
+    thTaxas: 'Charges',
+    thQtde: 'Qty',
+    thTipoCalculo: 'Calculation Basis',
+    thValorUnitario: 'Unit Value',
+    thMin: 'Min',
+    thMax: 'Max',
+    thTotal: 'Total',
+    thClassificacao: 'Classification',
+    thTaxa: 'Charge',
+    labelSubtotalFrete: 'Freight Subtotal:',
+    labelSubtotalDestino: 'Destination Subtotal:',
+    labelSubtotal: 'Subtotal:',
+    labelTotaisConsolidados: 'Consolidated Totals by Currency',
+    labelResumo: 'Summary',
+    labelTotalGeral: 'Grand Total',
+    labelNotasCondicoes: 'Terms and Conditions',
+    noteDisponibilidade: 'Subject to space and equipment availability',
+    noteBafGri: 'Freight subject to BAF/GRI/CAF or other surcharges applied by the carrier',
+    notePesagem: 'Packages subject to weighing and OWS (Overweight Surcharge)',
+    noteCargasPerigosas: 'Dangerous, perishable, oversized or overweight cargo, special equipment and non-standard packaging require prior approval',
+    noteVencimento: 'Shipments made after the quotation expiry date are subject to VATOS freight and charges (valid at time of shipment)',
+    noteRotas: 'Routes subject to change without prior notice by the Carrier',
+    noteTransitTime: 'Estimated transit time, subject to change without prior notice by the Carrier',
+    noteFeiras: 'Shipments for fairs, events and/or exhibitions require a specific proposal for this purpose',
+    noteDocumentos: 'Original documents subject to tariffing',
+    noteDgDisclaimer: 'If the goods are dangerous (DG/IMO), please inform for quotation review.',
+    labelPagina: 'Page',
+    labelDe: 'of',
+    labelEmitidoPor: 'Issued by Audaz System',
+    labelVersaoInterativa: 'Interactive BRL (R$) Version:',
+    labelVersaoInterativaDesc: 'To view this proposal converted to Brazilian Reais (BRL) at today\'s exchange rate,',
+    labelVersaoInterativaLink: 'click here to access the online web version',
+    stackableWarning: '⚠️ ATTENTION: We are considering this shipment as stackable. If not, values will be updated.',
+    stackableYes: '✅ Cargo considered stackable, as informed.',
+    stackableNo: '📦 Cargo considered NOT stackable, as informed.',
+    naturezaImport: 'Import',
+    naturezaExport: 'Export',
+    transitTimeApprox: 'Approx.',
+    transitTimeDias: 'Day(s)',
+    frequencyDefault: 'Weekly',
+    connectionsDefault: 'Direct (no connections)',
+    labelInlandOrigem: 'Origin Inland / Pickup',
+    // Labels aéreos
+    labelPesoTaxavel: 'Chargeable Weight:',
+    labelVolumes: 'Packages:',
+    labelDimensoes: 'Dimensions:',
+    labelCiaAerea: 'Airline:',
+    labelTTColeta: 'Pickup T.T:',
+    // Marítimo
+    labelContainerEquip: 'Container/Equip:',
+    labelFTEquipDest: 'F.T Equip Dest:',
+  }
+};
+
+function getPdfLabels(isRoutingOrder: boolean): Record<string, string> {
+  return (isRoutingOrder ? PDF_I18N['en'] : PDF_I18N['pt-BR']) || {};
+}
+
+
 // O tsconfig compila para CommonJS, o que transformaria import('puppeteer') em
 // require() — e o Puppeteer 25 é ESM, que não aceita require. Este import
 // dinâmico via Function escapa dessa conversão do compilador.
@@ -146,7 +327,6 @@ const defaultTemplate = `
       margin: 15px 0 5px 0;
       border-bottom: 1.5px solid #000;
       padding-bottom: 5px;
-      text-transform: uppercase;
     }
 
     .info-box {
@@ -314,23 +494,23 @@ const defaultTemplate = `
   </div>
 
   <div class="doc-title">
-    COTAÇÃO DE FRETE Nº: {{referenceNumber}}
+    {{i18n.docTitle}} {{referenceNumber}}
   </div>
 
   <div class="info-box">
     <div class="info-row">
       <div class="info-col">
-        <span class="label">Cliente:</span>
+        <span class="label">{{i18n.labelCliente}}</span>
         <span class="value">{{client.name}}</span>
       </div>
       <div class="info-col">
-        <span class="label">Telefone:</span>
+        <span class="label">{{i18n.labelTelefone}}</span>
         <span class="value">{{#if client.contactPhone}}{{client.contactPhone}}{{else}}{{/if}}</span>
       </div>
     </div>
     <div class="info-row">
       <div class="info-col">
-        <span class="label">Contato:</span>
+        <span class="label">{{i18n.labelContato}}</span>
         <span class="value">{{#if client.contactName}}{{client.contactName}}{{else}}{{/if}}</span>
       </div>
       <div class="info-col">
@@ -349,48 +529,48 @@ const defaultTemplate = `
   <div class="info-box" style="border: none; border-bottom: 1.5px solid #000; padding-bottom: 5px; margin-bottom: 5px;">
     <div style="display:flex; width: 100%;">
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Modal:</span><span class="value">{{modalLabel}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Vencimento:</span><span class="value">{{validityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Peso Bruto:</span><span class="value">{{totalGrossWeightKg}} Kgs</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelModal}}</span><span class="value">{{modalLabel}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelVencimento}}</span><span class="value">{{validityRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelPesoBruto}}</span><span class="value">{{totalGrossWeightKg}} Kgs</span></div>
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Natureza:</span><span class="value">{{naturezaLabel}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">T.T:</span><span class="value">{{transitTimeLabel}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Peso Cubado:</span><span class="value">{{totalCbmRich}} M³</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelNatureza}}</span><span class="value">{{naturezaLabel}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelTT}}</span><span class="value">{{transitTimeLabel}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelPesoCubado}}</span><span class="value">{{totalCbmRich}} M³</span></div>
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Incoterm:</span><span class="value">{{incoterm}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelIncoterm}}</span><span class="value">{{incoterm}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">F.T Equip Dest:</span><span class="value">{{freeTimeLabel}}</span></div>
       </div>
     </div>
     
     <div style="display:flex; width: 100%; margin-top: 15px;">
       <div style="flex:2;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Origem:</span><span class="value">{{originPortRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino:</span><span class="value">{{destinationPortRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Local Inicial:</span><span class="value">{{originCityRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">Destino Final:</span><span class="value">{{destinationCityRich}}</span></div>
-        {{#unless hideCarrierName}}<div style="display:flex; margin-bottom:4px;"><span class="label">Armador:</span><span class="value">{{carrierRich}}</span></div>{{/unless}}
-        {{#if vesselVoyageRich}}<div style="display:flex; margin-bottom:4px;"><span class="label">Navio / Viagem:</span><span class="value">{{vesselVoyageRich}}</span></div>{{/if}}
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelOrigem}}</span><span class="value">{{originPortRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelDestino}}</span><span class="value">{{destinationPortRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelLocalInicial}}</span><span class="value">{{originCityRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelDestinoFinal}}</span><span class="value">{{destinationCityRich}}</span></div>
+        {{#unless hideCarrierName}}<div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelArmador}}</span><span class="value">{{carrierRich}}</span></div>{{/unless}}
+        {{#if vesselVoyageRich}}<div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelNavioViagem}}</span><span class="value">{{vesselVoyageRich}}</span></div>{{/if}}
       </div>
       <div style="flex:1;">
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{originCountryRich}}</span></div>
-        <div style="display:flex; margin-bottom:4px;"><span class="label">País:</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{destinationCountryRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelPais}}</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{originCountryRich}}</span></div>
+        <div style="display:flex; margin-bottom:4px;"><span class="label">{{i18n.labelPais}}</span><span class="value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px; margin-top:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{destinationCountryRich}}</span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label"></span><span class="value"></span></div>
         <div style="display:flex; margin-bottom:4px;"><span class="label">Frequencia:</span><span class="value">{{frequencyRich}}</span></div>
       </div>
     </div>
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
-      <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
-      {{#if transshipmentsRich}}<div style="width: 50%; display:flex;"><span class="label">Transbordos:</span><span class="value">{{transshipmentsRich}}</span></div>{{/if}}
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelConexoes}}</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      {{#if transshipmentsRich}}<div style="width: 50%; display:flex;"><span class="label">{{i18n.labelTransbordos}}</span><span class="value">{{transshipmentsRich}}</span></div>{{/if}}
       {{#if roadFreightRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioIncluso}} ({{roadFreightRich}})</span></div>
       {{/if}}
       {{#if roadFreightPendingRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Solicitado — A confirmar ({{roadFreightPendingRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioSolicitado}} ({{roadFreightPendingRich}})</span></div>
       {{/if}}
-      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
+      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">{{i18n.labelDtaIncluso}} ({{dtaServiceRich}}) {{i18n.labelDtaCargaNaoNacionalizada}}</span></div>{{/if}}
     </div>
   </div>
 
@@ -440,9 +620,9 @@ const defaultTemplate = `
   </table>
 
   {{#if hasOriginSection}}
-  <div class="section-banner-sm">Origem</div>
+  <div class="section-banner-sm">{{i18n.sectionOrigem}}</div>
   <table class="fee-table">
-    <thead><tr><th>Taxas</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Min</th><th class="t-right">Max</th><th class="t-right">Total</th></tr></thead>
+    <thead><tr><th>{{i18n.thTaxas}}</th><th class="t-center">{{i18n.thQtde}}</th><th>{{i18n.thTipoCalculo}}</th><th class="t-right">{{i18n.thValorUnitario}}</th><th class="t-right">{{i18n.thMin}}</th><th class="t-right">{{i18n.thMax}}</th><th class="t-right">{{i18n.thTotal}}</th></tr></thead>
     <tbody>{{#if hasOriginInland}}<tr>
       <td>Inland de Origem / Coleta{{#if originInlandRoute}} ({{originInlandRoute}}){{/if}}</td>
       <td class="t-center">1</td><td>{{originInlandTransitTime}}</td>
@@ -460,17 +640,17 @@ const defaultTemplate = `
   {{/if}}
 
   {{#if hasDestinationSection}}
-  <div class="section-banner-sm">Destino</div>
+  <div class="section-banner-sm">{{i18n.sectionDestino}}</div>
   <table class="fee-table">
     <thead>
       <tr>
-        <th>Taxas</th>
-        <th class="t-center">Qtde</th>
-        <th>Tipo de Cálculo</th>
-        <th class="t-right">Valor Unitário</th>
-        <th class="t-right">Min</th>
-        <th class="t-right">Max</th>
-        <th class="t-right">Total</th>
+        <th>{{i18n.thTaxas}}</th>
+        <th class="t-center">{{i18n.thQtde}}</th>
+        <th>{{i18n.thTipoCalculo}}</th>
+        <th class="t-right">{{i18n.thValorUnitario}}</th>
+        <th class="t-right">{{i18n.thMin}}</th>
+        <th class="t-right">{{i18n.thMax}}</th>
+        <th class="t-right">{{i18n.thTotal}}</th>
       </tr>
     </thead>
     <tbody>
@@ -530,7 +710,7 @@ const defaultTemplate = `
       {{/if}}
       {{#if subtotalDestino}}
       <tr style="background-color: #f9f9f9; font-weight: bold; border-top: 1.5px solid #000;">
-        <td colspan="6" class="t-right">Subtotal Destino:</td>
+        <td colspan="6" class="t-right">{{i18n.labelSubtotalDestino}}</td>
         <td class="t-right">{{{subtotalDestino}}}</td>
       </tr>
       {{/if}}
@@ -539,14 +719,14 @@ const defaultTemplate = `
   {{/if}}
 
   {{#if detailedFeesAdditionalGroups.length}}
-  <div class="section-banner-sm">Outras classificações financeiras</div>
+  <div class="section-banner-sm">{{i18n.sectionOutras}}</div>
   <table>
-    <thead><tr><th>Classificação</th><th>Taxa</th><th class="t-center">Qtde</th><th>Tipo de Cálculo</th><th class="t-right">Valor Unitário</th><th class="t-right">Total</th></tr></thead>
+    <thead><tr><th>{{i18n.thClassificacao}}</th><th>{{i18n.thTaxa}}</th><th class="t-center">{{i18n.thQtde}}</th><th>{{i18n.thTipoCalculo}}</th><th class="t-right">{{i18n.thValorUnitario}}</th><th class="t-right">{{i18n.thTotal}}</th></tr></thead>
     <tbody>
       {{#each detailedFeesAdditionalGroups}}
       <tr><td>{{this.financialGroupLabel}}</td><td>{{this.name}}</td><td class="t-center">{{this.qty}}</td><td>{{this.unit}}</td><td class="t-right">{{this.currency}} {{this.valueUnit}}</td><td class="t-right">{{this.total}}</td></tr>
       {{/each}}
-      <tr style="background-color:#f9f9f9;font-weight:bold;border-top:1.5px solid #000"><td colspan="5" class="t-right">Subtotal:</td><td class="t-right">{{{subtotalAdditional}}}</td></tr>
+      <tr style="background-color:#f9f9f9;font-weight:bold;border-top:1.5px solid #000"><td colspan="5" class="t-right">{{i18n.labelSubtotal}}</td><td class="t-right">{{{subtotalAdditional}}}</td></tr>
     </tbody>
   </table>
   {{/if}}
@@ -555,14 +735,14 @@ const defaultTemplate = `
     <table class="totals-table">
       <tr>
         <th style="width:100px;"></th>
-        <th class="t-right">Totais Consolidados por Moeda</th>
+        <th class="t-right">{{i18n.labelTotaisConsolidados}}</th>
       </tr>
       <tr>
-        <td class="t-right" style="padding-right: 20px;">Resumo</td>
+        <td class="t-right" style="padding-right: 20px;">{{i18n.labelResumo}}</td>
         <td class="t-right">{{totalGeralLabel}}</td>
       </tr>
       <tr class="total-row total-geral">
-        <td class="t-right" style="padding-right: 20px;">Total Geral</td>
+        <td class="t-right" style="padding-right: 20px;">{{i18n.labelTotalGeral}}</td>
         <td class="t-right" style="font-size:12px; font-weight:800; color:#1B2B6B;">{{totalGeralLabel}}</td>
       </tr>
     </table>
@@ -570,39 +750,39 @@ const defaultTemplate = `
 
   {{#if stackableDisclaimer}}
     <div style="margin-top: 15px; padding: 12px; border: 2px solid #F5A623; background-color: #FFF7E6; border-radius: 4px; font-size: 10px; color: #7A4B00; text-align: center; font-weight: 700;">
-      ⚠️ ATENÇÃO: Estamos considerando o embarque como empilhável. Caso não seja, os valores serão atualizados.
+      {{i18n.stackableWarning}}
     </div>
   {{/if}}
   {{#if stackableConfirmedYes}}
     <div style="margin-top: 15px; padding: 10px; border: 1px solid #37c98b; background-color: #EAFBF3; border-radius: 4px; font-size: 10px; color: #14532d; text-align: center; font-weight: 600;">
-      ✅ Carga considerada empilhável, conforme informado.
+      {{i18n.stackableYes}}
     </div>
   {{/if}}
   {{#if stackableConfirmedNo}}
     <div style="margin-top: 15px; padding: 10px; border: 1px solid #94a3b8; background-color: #F1F5F9; border-radius: 4px; font-size: 10px; color: #334155; text-align: center; font-weight: 600;">
-      📦 Carga considerada NÃO empilhável, conforme informado.
+      {{i18n.stackableNo}}
     </div>
   {{/if}}
 
   {{#if publicWebViewUrl}}
     <div style="margin-top: 15px; padding: 10px; border: 1.5px solid #1B2B6B; background-color: #f7f9ff; border-radius: 4px; font-size: 9px; color: #1B2B6B; text-align: center;">
-      🌐 <strong>Versão Interativa BRL (R$):</strong> Para visualizar esta proposta convertida em reais (BRL) com a cotação do câmbio de hoje, <a href="{{publicWebViewUrl}}" style="color: #F5A623; font-weight: 700; text-decoration: underline;">clique aqui para acessar a versão web online</a>.
+      🌐 <strong>{{i18n.labelVersaoInterativa}}</strong> {{i18n.labelVersaoInterativaDesc}} <a href="{{publicWebViewUrl}}" style="color: #F5A623; font-weight: 700; text-decoration: underline;">{{i18n.labelVersaoInterativaLink}}</a>.
     </div>
   {{/if}}
 
-  <div class="notes-title">Notas e Condições</div>
+  <div class="notes-title">{{i18n.labelNotasCondicoes}}</div>
   <ul class="notes-list">
-    <li>Sujeito a disponibilidade de espaço e equipamentos</li>
-    <li>Frete sujeito a BAF/GRI/CAF ou outras taxas adicionais aplicadas pelo armador</li>
-    <li>Volumes sujeitos a pesagem e a OWS (Overweight Surcharge)</li>
-    <li>Cargas perigosas, perecíveis, dimensões extra-pallet, equipamentos especiais, embalagens com dimensões fora de padrões ou mais pesadas do que volumosas necessária aprovação prévia</li>
-    <li>Embarques realizados após o vencimento da cotação estarão sujeitos a fretes e taxas VATOS (valid at time of shipment)</li>
-    <li>Rotas sujeitas a alterações sem prévio aviso do Armador</li>
-    <li>Transit-Time estimado, sujeito a alterações sem aviso prévio do Armador</li>
-    <li>Embarques destinados a feiras, eventos e/ou exibições, devem possuir proposta especifica para esta finalidade</li>
-    <li>Documentos originais sujeito a tarifação</li>
+    <li>{{i18n.noteDisponibilidade}}</li>
+    <li>{{i18n.noteBafGri}}</li>
+    <li>{{i18n.notePesagem}}</li>
+    <li>{{i18n.noteCargasPerigosas}}</li>
+    <li>{{i18n.noteVencimento}}</li>
+    <li>{{i18n.noteRotas}}</li>
+    <li>{{i18n.noteTransitTime}}</li>
+    <li>{{i18n.noteFeiras}}</li>
+    <li>{{i18n.noteDocumentos}}</li>
     {{#if dgDisclaimer}}
-    <li><strong>Caso a mercadoria seja perigosa (DG/IMO), favor informar para revisão da cotação.</strong></li>
+    <li><strong>{{i18n.noteDgDisclaimer}}</strong></li>
     {{/if}}
   </ul>
 
@@ -612,10 +792,10 @@ const defaultTemplate = `
   </div>
 
   <div class="bottom-footer">
-    <div>Página 1 de 1</div>
+    <div>{{i18n.labelPagina}} 1 {{i18n.labelDe}} 1</div>
     <div style="text-align:center;">
       AUDAZ GLOBAL LOGISTICA LTDA - https://audazglobal.com<br>
-      Emitido por Audaz System
+      {{i18n.labelEmitidoPor}}
     </div>
     <div>{{currentDateTime}}</div>
   </div>
@@ -907,14 +1087,14 @@ const defaultAirTemplate = `
       </div>
     </div>
     <div style="display:flex; width: 100%; margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
-      <div style="width: 50%; display:flex;"><span class="label">Conexões:</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelConexoes}}</span><span class="value" style="color: #1B2B6B; font-weight: 600;">{{connectionsRich}}</span></div>
       {{#if roadFreightRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Incluso ({{roadFreightRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F5A623; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioIncluso}} ({{roadFreightRich}})</span></div>
       {{/if}}
       {{#if roadFreightPendingRich}}
-      <div style="width: 50%; display:flex;"><span class="label">Rodoviário:</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>Solicitado — A confirmar ({{roadFreightPendingRich}})</span></div>
+      <div style="width: 50%; display:flex;"><span class="label">{{i18n.labelRodoviario}}</span><span class="value" style="color: #F59E0B; font-weight: 700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 4px;"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>{{i18n.labelRodoviarioSolicitado}} ({{roadFreightPendingRich}})</span></div>
       {{/if}}
-      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">Incluso ({{dtaServiceRich}}) — carga não nacionalizada</span></div>{{/if}}
+      {{#if dtaServiceRich}}<div style="width:50%;display:flex"><span class="label">DTA:</span><span class="value" style="color:#60A5FA;font-weight:700">{{i18n.labelDtaIncluso}} ({{dtaServiceRich}}) {{i18n.labelDtaCargaNaoNacionalizada}}</span></div>{{/if}}
     </div>
   </div>
 
@@ -1110,10 +1290,10 @@ const defaultAirTemplate = `
   </div>
 
   <div class="bottom-footer">
-    <div>Página 1 de 2</div>
+    <div>{{i18n.labelPagina}} 1 {{i18n.labelDe}} 2</div>
     <div style="text-align:center;">
       AUDAZ GLOBAL LOGISTICA LTDA - https://audazglobal.com<br>
-      Emitido por Audaz System
+      {{i18n.labelEmitidoPor}}
     </div>
     <div>{{currentDateTime}}</div>
   </div>
@@ -1607,8 +1787,11 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
   const roadFreightRich = roadLeg?.route && roadLeg.value != null ? roadLeg.route : '';
   const roadFreightPendingRich = roadLeg?.route && roadLeg.value == null ? roadLeg.route : '';
 
+  const i18n = getPdfLabels(Boolean(quotationData.isRoutingOrder));
+
   const templateData = {
-    naturezaLabel: String(quotationData.direction).toUpperCase() === 'EXPORT' ? 'Exportação' : 'Importação',
+    i18n,
+    naturezaLabel: String(quotationData.direction).toUpperCase() === 'EXPORT' ? i18n.naturezaExport : i18n.naturezaImport,
     publicWebViewUrl: quotationData.publicWebViewUrl || (quotationData.id ? `http://localhost:3001/api/quotations/${quotationData.id}/view` : ''),
     hideCarrierName: Boolean(quotationData.hideCarrierName),
     dgDisclaimer: normalizeDangerousGoodsStatus(quotationData.dangerousGoodsStatus, quotationData.isImo) !== DG_STATUS.CONFIRMED,
@@ -1620,11 +1803,11 @@ const generateAirPdf = async (quotationData: any, templateHtml?: string): Promis
     referenceRich,
     expiryDate,
     totalGrossWeightKg: totalGrossWeightKg.toFixed(2),
-    transitTimeLabel,
+    transitTimeLabel: quotationData.isRoutingOrder ? transitTimeLabel.replace('Aprox.', 'Approx.').replace('Dia(s)', 'Day(s)') : transitTimeLabel,
     pesoCubadoRich: pesoCubadoRich.toFixed(2),
-    frequencyRich: quotationData.frequency || 'Semanal',
+    frequencyRich: quotationData.frequency || i18n.frequencyDefault,
     incoterm,
-    ttColetaLabel,
+    ttColetaLabel: quotationData.isRoutingOrder ? ttColetaLabel.replace('Aprox.', 'Approx.').replace('Dia(s)', 'Day(s)') : ttColetaLabel,
     originCityRich,
     destinationCityRich,
     originPortRich,
@@ -2191,10 +2374,17 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
     }
 
     const currentDateTime = new Date().toLocaleString('pt-BR');
+    const i18n = getPdfLabels(Boolean(quotationData.isRoutingOrder));
+
+    let localTransitTimeLabel = transitTimeLabel;
+    if (quotationData.isRoutingOrder) {
+      localTransitTimeLabel = localTransitTimeLabel.replace('Aprox.', 'Approx.').replace('Dia(s)', 'Day(s)').replace('A confirmar', 'To confirm');
+    }
 
     const templateData = {
+      i18n,
       ...quotationData,
-      naturezaLabel: String(quotationData.direction).toUpperCase() === 'EXPORT' ? 'Exportação' : 'Importação',
+      naturezaLabel: String(quotationData.direction).toUpperCase() === 'EXPORT' ? i18n.naturezaExport : i18n.naturezaImport,
       hideCarrierName: Boolean(quotationData.hideCarrierName),
       freightCurrency: fCurr,
       totalGeralLabel,
@@ -2225,7 +2415,7 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       originInlandValue: (parseFloat(quotationData.originInlandValue) || 0).toFixed(2),
       originInlandCurrency: quotationData.originInlandCurrency || 'USD',
       originInlandRoute: quotationData.originInlandRoute || '',
-      originInlandTransitTime: quotationData.originInlandTransitTime || 'Por coleta',
+      originInlandTransitTime: quotationData.originInlandTransitTime || (quotationData.isRoutingOrder ? 'Per pickup' : 'Por coleta'),
       // "Exibir no Documento" desmarcado: a linha some da proposta impressa
       // e os subtotais/totais também ignoram essas taxas.
       detailedFees: detailedFees.filter((f: any) => f.showOnDocument !== false),
@@ -2245,10 +2435,10 @@ export const generatePdf = async (quotationData: any, templateHtml?: string): Pr
       vesselVoyageRich,
       validityRich,
       transshipmentsRich,
-      transitTimeLabel,
+      transitTimeLabel: localTransitTimeLabel,
       totalCbmRich,
       referenceNumber,
-      frequencyRich,
+      frequencyRich: quotationData.frequency || i18n.frequencyDefault,
       currentDateTime
     };
 

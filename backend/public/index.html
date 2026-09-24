@@ -4374,6 +4374,20 @@ function initializeReviewCostEditor(quotation = {}) {
   if (taxes > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'DESTINATION_TAXES', fixedDefinition:true, name:'Impostos de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:taxes, currency:quotation.destinationTaxesCurrency || 'BRL', financialGroup:'CUSTOMS_CHARGE', chargeNature:'TAX', provenanceType:'CALCULATED', showOnDocument: window.destinationTaxesVisibleOnDocument !== false });
   if (document.getElementById('rev-customs-clearance')?.checked) window.reviewCostLines.destination.push({ id:reviewCostId(), special:'CUSTOMS', fixedDefinition:true, name:'Desembaraço Aduaneiro', quantity:1, billingUnit:'PER_DOCUMENT', unitValue:reviewCostNumber(document.getElementById('rev-customs-value')?.value, 900), currency:'BRL', applicationScope:'DESTINATION', financialGroup:'CUSTOMS_CHARGE', chargeNature:'CUSTOMS', provenanceType:'MANUAL' });
   if (!cleanDestination.length && reviewCostNumber(document.getElementById('rev-services')?.value) > 0) window.reviewCostLines.destination.push({ id:reviewCostId(), name:'Serviços de destino', quantity:1, billingUnit:'TOTAL_SHIPMENT', unitValue:reviewCostNumber(document.getElementById('rev-services').value), currency:'BRL', financialGroup:'DESTINATION_CHARGE', chargeNature:'LOCAL_SERVICE', applicationScope:'DESTINATION', provenanceType:'MANUAL' });
+  // FOB: taxas de origem não aparecem no PDF por padrão — o vendedor é
+  // responsável por elas. O operador pode marcar "Exibir" manualmente se
+  // precisar incluir alguma taxa específica.
+  const initIncoterm = String(document.getElementById('r-incoterm')?.value || '').toUpperCase().trim();
+  if (initIncoterm === 'FOB') {
+    window.reviewCostLines.origin.forEach(line => {
+      // Só altera se o campo não veio já explicitamente definido como false
+      // (evita sobrescrever preferência já salva)
+      if (line.showOnDocument === undefined || line.showOnDocument === true) {
+        line.showOnDocument = false;
+      }
+    });
+  }
+
   renderReviewCostEditor();
   window.reviewCostEditorReady = true;
 }
