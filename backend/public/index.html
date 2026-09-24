@@ -4388,6 +4388,19 @@ function applyChargeToSuggestions() {
   });
 }
 
+// Tipo de pagamento da taxa: PP (Prepaid, pago na origem) ou CC (Collect, pago
+// no destino). Vem preenchido da Árvore de Incoterms e pode ser ajustado nesta
+// cotação — é um campo, embaixo do valor a que se refere.
+function paymentTypeField(group, line, field) {
+  const venda = field === 'salePaymentType';
+  const valor = line[field] || '';
+  const rotulo = venda ? 'Venda' : 'Compra';
+  const titulo = `Tipo de ${rotulo.toLowerCase()} desta taxa — PP (Prepaid: pago na origem) ou CC (Collect: pago no destino). Vem da Árvore de Incoterms.`;
+  const opcoes = [['', 'Tipo —'], ['PP', 'PP · Prepaid'], ['CC', 'CC · Collect']]
+    .map(([v, texto]) => `<option value="${v}" ${v === valor ? 'selected' : ''}>${texto}</option>`).join('');
+  return `<select title="${titulo}" style="margin-top:4px;height:26px;padding:2px 4px;font-size:10px;${valor ? (venda ? 'color:#f5c36a;' : '') : 'color:#7f8ba1;'}" onchange="updateReviewCostLine('${group}','${line.id}','${field}',this.value)">${opcoes}</select>`;
+}
+
 function chargeToSelector(group, line) {
   if (!isRoutingOrderQuotation()) return '';
   const current = line.chargeTo || suggestChargeTo(group, line);
@@ -4466,12 +4479,12 @@ function renderReviewCostEditor() {
     const target = document.getElementById(`cost-lines-${group}`); if (!target) return;
     const lines = window.reviewCostLines[group] || [];
     target.innerHTML = lines.length ? lines.map(line => { const source=reviewCostProvenance(line); return `<div class="cost-line" data-cost-id="${line.id}">
-      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span>${line.purchasePaymentType ? `<span title="Tipo de Compra" style="font-size:9px; padding:2px 4px; border-radius:4px; background:rgba(0,0,0,0.05); border:1px solid var(--border); color:var(--text-muted); font-weight:600; margin-left:4px; line-height:1;">Compra: ${line.purchasePaymentType}</span>` : ''}${line.salePaymentType ? `<span title="Tipo de Venda" style="font-size:9px; padding:2px 4px; border-radius:4px; background:rgba(0,0,0,0.05); border:1px solid var(--border); color:var(--gold); font-weight:600; margin-left:4px; line-height:1;">Venda: ${line.salePaymentType}</span>` : ''}</div>${chargeToSelector(group, line)}</div>
+      <div class="cost-description-cell"><label>Descrição</label><input value="${escapeFeeHtml(line.name || '')}" ${(line.locked || line.fixedDefinition) ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','name',this.value)"><div class="cost-source-row"><span class="cost-source-badge ${source.css}" title="${escapeFeeHtml(source.evidence || source.label)}">${escapeFeeHtml(source.label)}</span></div>${chargeToSelector(group, line)}</div>
       <div><label>Base de cálculo${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','billingUnit',this.value)">${costUnitOptions(line.billingUnit || 'TOTAL_SHIPMENT')}</select></div>
       <div><label>Qtd.${line.special==='MAIN_FREIGHT'?' (Venda)':''}</label>${line.billingUnit==='PERCENTAGE'?'<div class="cost-line-static">—</div>':`<input type="number" min="0" step="0.001" value="${reviewCostNumber(line.quantity,1)}" ${line.fixedDefinition ? 'readonly' : ''} oninput="updateReviewCostLine('${group}','${line.id}','quantity',this.value)">`}</div>
       <div><label>Moeda</label><select ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','currency',this.value)">${costCurrencyOptions(line.currency || 'USD')}</select></div>
-      <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)"></div>
-      <div><label>Compra</label><div style="display:flex;gap:4px;align-items:center;"><select style="width:54px;flex-shrink:0;padding:5px 2px;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" style="flex:1;min-width:55px;" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div></div>
+      <div><label>Unitário (Venda)</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.unitValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','unitValue',this.value)">${paymentTypeField(group, line, 'salePaymentType')}</div>
+      <div><label>Compra</label><div style="display:flex;gap:4px;align-items:center;"><select style="width:54px;flex-shrink:0;padding:5px 2px;" ${line.fixedDefinition ? 'disabled' : ''} onchange="updateReviewCostLine('${group}','${line.id}','costCurrency',this.value)" title="Moeda da Compra (pode ser diferente da Venda)">${costCurrencyOptions(line.costCurrency || line.currency || 'USD')}</select><input type="number" min="0" step="0.01" style="flex:1;min-width:55px;" value="${reviewCostNumber(line.costUnitValue,reviewCostNumber(line.unitValue)).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','costUnitValue',this.value)"></div>${paymentTypeField(group, line, 'purchasePaymentType')}</div>
       <div><label>Mínimo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.minValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','minValue',this.value)"></div>
       <div><label>Máximo</label><input type="number" min="0" step="0.01" value="${reviewCostNumber(line.maxValue).toFixed(2)}" oninput="updateReviewCostLine('${group}','${line.id}','maxValue',this.value)"></div>
       <div><label>Total</label><div class="cost-line-total">${escapeFeeHtml(line.currency || 'USD')} ${reviewCostAmount(reviewCostTotal(line))}</div>${reviewCostProfitLabel(line)}</div>
@@ -8155,7 +8168,7 @@ function mergeReturnFees(existingFees, presetFees) {
 function formatReturnFees(fees) {
   return fees.map(f => {
     return f.pending
-      ? `${stripReturnEstimateLabel(f.name)}: A COTAR${f.billingUnit && f.billingUnit !== 'UNKNOWN' ? ` | ${f.billingUnit}` : ''}${f.quantity != null ? ` | QTY ${f.quantity}` : ''}${f.currency ? ` | CURR ${f.currency}` : ''}`
+      ? `${stripReturnEstimateLabel(f.name)}: A COTAR${f.billingUnit && f.billingUnit !== 'UNKNOWN' ? ` | ${f.billingUnit}` : ''}${f.quantity != null ? ` | QTY ${f.quantity}` : ''}${f.currency ? ` | CURR ${f.currency}` : ''}${f.purchasePaymentType ? ` | PURCHASEPAY ${f.purchasePaymentType}` : ''}${f.salePaymentType ? ` | SALEPAY ${f.salePaymentType}` : ''}`
       : formatFeeLine({ ...f, name: stripReturnEstimateLabel(f.name) });
   }).join('\n');
 }
