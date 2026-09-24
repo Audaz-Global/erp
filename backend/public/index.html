@@ -3242,7 +3242,14 @@ function getLocalTaxavel(packagesStr, totalPackages, totalGrossWeight, loadType,
   const bruto = parseFloat(totalGrossWeight) || 0;
   let taxavel = bruto;
   if (isAir) {
-    const cubado = calculateAirCubadoLocal(packagesStr || '', totalPackages || 1);
+    let cubado = calculateAirCubadoLocal(packagesStr || '', totalPackages || 1);
+    // Sem dimensões pra calcular peso cubado (C×L×A÷6.000), mas com um CBM
+    // conhecido — usa o fator padrão de conversão aéreo (1 m³ ≈ 167 kg) como
+    // substituto, em vez de cair só no peso bruto e ignorar o volume.
+    if (cubado <= 0) {
+      const cbmFallback = parseFloat(totalCbm) || 0;
+      if (cbmFallback > 0) cubado = cbmFallback * 167;
+    }
     taxavel = Math.max(bruto, cubado);
     // Chargeable weight aéreo: arredonda pra cima em múltiplos de 0,5 kg
     // (padrão IATA TACT) — aplicado aqui na fonte pra manter frete por kg,
