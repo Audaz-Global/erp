@@ -5917,6 +5917,13 @@ function fillReviewForm(d, mode) {
       } else if (d.cargo.dimensions) {
         dims = String(d.cargo.dimensions);
       }
+      // Sem dimensões por caixa, mas com um CBM total já extraído (calculado
+      // ou declarado direto no documento) — preenche o campo com o número
+      // puro, que tanto o cálculo local quanto o backend já sabem interpretar
+      // como CBM direto (calculateCbmLocal/calculateCbmFromDimensions).
+      if (!dims && Number(d.cargo.total_cbm) > 0) {
+        dims = Number(d.cargo.total_cbm).toFixed(2);
+      }
       document.getElementById('r-dimensions').value = dims;
       document.getElementById('conf-dimensions').innerHTML = renderConf(dims, d.cargo.confidence);
       // CBM total já extraído (calculado a partir de dimensões ou declarado
