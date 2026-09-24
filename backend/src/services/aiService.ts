@@ -301,6 +301,10 @@ export const extractClientData = async (text: string, contextRules: string = '',
                   items: { type: 'string' },
                   description: 'Lista de dimensões de cada lote de caixas/volumes. Cada item do array DEVE obrigatoriamente iniciar com a quantidade correspondente de caixas daquela dimensão no formato "QTDx CxLxA cm" (ex: "1x 50*50*28 cm", "2x 50*50*13 cm", "3x 37.5*31*37 cm" e "9x 63x41.5x38 cm").'
                 },
+                stated_total_cbm: {
+                  type: 'number',
+                  description: 'Volume TOTAL (CBM/m³) já informado diretamente no documento — ex: coluna "Volume (m³)"/"CBM" com uma linha de Total numa packing list, ou frase como "total volume: 3.6 CBM". Preencha SOMENTE quando "dimensions" estiver vazio (nenhuma dimensão individual de caixa foi extraída) — se já é possível calcular o volume a partir de dimensões por caixa, deixe este campo null, o sistema calcula sozinho. Não invente nem estime um volume que não esteja escrito no documento.'
+                },
                 commercial_value_usd: { type: 'number', description: 'Valor comercial numérico da carga. Se a moeda original for EUR, BRL ou GBP, ignore a sigla e retorne apenas o número puro (ex: 2610.00). Não faça conversão cambial.' },
                 commercial_currency: { type: 'string', enum: ['USD', 'EUR', 'BRL'], description: 'Moeda real do valor comercial da carga (commercial_value_usd), exatamente como está no documento — apesar do nome do campo anterior, o valor pode estar em qualquer moeda. USD se não houver indicação explícita de outra (o sistema só suporta USD/EUR/BRL; outra moeda deve ser aproximada pra uma dessas três, priorizando USD).' },
                 is_imo: { type: 'boolean', description: 'Compatibilidade: true somente quando a carga perigosa estiver explicitamente confirmada.' },
@@ -458,7 +462,11 @@ export const extractClientData = async (text: string, contextRules: string = '',
       const packagesCount = parseInt(parsed.cargo.packages_count, 10) || 1;
       const dims = parsed.cargo.dimensions || [];
       const computedCbm = calculateCbmFromDimensions(dims, packagesCount);
-      parsed.cargo.total_cbm = computedCbm || null;
+      // Sem dimensões por caixa pra calcular, usa o volume total que a IA
+      // encontrou já pronto no documento (ex: coluna "Volume (m³)" com Total
+      // de uma packing list) — nunca sobrepõe um volume calculado de verdade.
+      const statedCbm = Number(parsed.cargo.stated_total_cbm) || 0;
+      parsed.cargo.total_cbm = computedCbm || statedCbm || null;
     }
     return parsed;
   } catch (error: any) {
