@@ -13238,7 +13238,7 @@ function renderTreeFees(type, containerId) {
         <select style="width:180px;margin-top:4px;" onchange="updateTreeFee('${type}', ${index}, 'percentBase', this.value)">
           <option value="FREIGHT" ${(fee.percentBase || 'FREIGHT') === 'FREIGHT' ? 'selected' : ''}>Base: Total Frete Intl (Hawb)</option>
           <option value="FREIGHT_PLUS_ORIGIN" ${fee.percentBase === 'FREIGHT_PLUS_ORIGIN' ? 'selected' : ''}>Base: Frete + Origem</option>
-          <option value="CARGO_VALUE" ${fee.percentBase === 'CARGO_VALUE' ? 'selected' : ''}>Base: Valor da Mercadoria (moeda original do Hawb)</option>
+          <option value="CARGO_VALUE" ${fee.percentBase === 'CARGO_VALUE' ? 'selected' : ''}>Base: Valor da Mercadoria (Moeda original da Commercial Invoice)</option>
           <option value="FREIGHT_PLUS_CARGO_VALUE" ${fee.percentBase === 'FREIGHT_PLUS_CARGO_VALUE' ? 'selected' : ''}>Base: Frete Intl (Hawb) + Valor da Mercadoria</option>
         </select>
         <div style="display:flex;align-items:flex-end;gap:4px;margin-top:4px;">
