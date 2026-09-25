@@ -7,6 +7,8 @@ const root = path.join(__dirname, '..');
 const schema = fs.readFileSync(path.join(root, 'prisma', 'schema.prisma'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const draftPayload = fs.readFileSync(path.join(root, 'src', 'utils', 'draftPayload.ts'), 'utf8');
+const extractController = fs.readFileSync(path.join(root, 'src', 'controllers', 'extractController.ts'), 'utf8');
+const quotationReferenceService = fs.readFileSync(path.join(root, 'src', 'services', 'quotationReferenceService.ts'), 'utf8');
 
 const fields = [
   'commodityType',
@@ -64,4 +66,14 @@ test('commodity section appears after the CIP details preview', () => {
 
 test('deferred SPX, CRT, PER and SHC controls were not added', () => {
   assert.doesNotMatch(html, /id="(?:r|rev)-(?:spx|crt|per|shc)"/i);
+});
+
+test('commodity fields are available as partner email template tags', () => {
+  for (const field of ['cargoDescription', ...fields]) {
+    assert.match(html, new RegExp(`token:'\\{${field}\\}'`));
+    assert.match(draftPayload, new RegExp(`\\b${field}: readableValue\\(`));
+  }
+
+  assert.match(extractController, /\.\.\.buildCommodityEmailTokens\(payload\)/);
+  assert.match(quotationReferenceService, /\.\.\.buildCommodityEmailTokens\(payload\)/);
 });

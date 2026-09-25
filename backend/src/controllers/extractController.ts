@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { parseEml, parseEmlWithMedia, parsePdf, parseExcel, parseMsg } from '../services/parserService';
 import { extractClientData, extractAgentCosts, dropUnconfirmedZeroCosts, extractSignatureOcr, generateAgentDraft, generateDtaDraft, generateTruckerDraft } from '../services/aiService';
 import { prisma } from '../prisma';
-import { buildDraftPayload } from '../utils/draftPayload';
+import { buildCommodityEmailTokens, buildDraftPayload } from '../utils/draftPayload';
 import { renderDraftBody } from '../utils/emailTemplate';
 import { getDraftEmailFieldLabels } from '../services/draftEmailFieldRuleService';
 import { findAgentDraftEmailTemplate } from '../services/agentDraftEmailTemplateService';
@@ -413,7 +413,8 @@ export const generateDraft = async (req: Request, res: Response) => {
       origin: payload.originPort || payload.originCity || 'Não informado', destination: payload.destinationPort || payload.destinationCity || 'Não informado', equipment: payload.loadType || 'Não informado',
       grossWeight: payload.totalGrossWeightKg != null ? String(payload.totalGrossWeightKg) : 'Não informado', cargoValue: payload.commercialValue != null ? `${payload.commercialCurrency || ''} ${payload.commercialValue}`.trim() : 'Não informado',
       imoStatus: payload.dangerousGoodsStatus === 'CONFIRMED' ? 'Sim' : payload.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A confirmar' : 'Não', directService: payload.connections ? 'Conforme rota informada' : 'Quando aplicável', freeTime: 'Quando aplicável', client: payload.clientName || '', clientReference: payload.clientReferenceNumber || '',
-      contactName: contactName || 'Agente'
+      contactName: contactName || 'Agente',
+      ...buildCommodityEmailTokens(payload)
     };
     const generatedDraftText = selectedTemplate ? renderDraftBody(selectedTemplate.bodyTemplate, bodyTokens) : await generateAgentDraft(payload, contextRules, contactName, requiredFieldLabels);
     const draftText = ensureStorageEstimateRequest(generatedDraftText, payload.requiresStorageEstimate);
