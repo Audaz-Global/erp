@@ -138,6 +138,16 @@ model Quotation {
   // Cargo
   cargoDescription   String?
   productSegment     String? // snapshot do segmento do cliente no momento da cotação (Farmacêutico, Automotivo, etc.)
+  commodityType      String? // GENERAL_CARGO, PHARMACEUTICALS, PERISHABLE, DANGEROUS_GOODS, LIVE_ANIMALS, OTHER
+  commoditySubtype   String?
+  temperatureRequirement String? // NOT_REQUIRED, MINUS_10_TO_MINUS_20_C, PLUS_2_TO_PLUS_8_C, PLUS_2_TO_PLUS_25_C, PLUS_15_TO_PLUS_25_C, OTHER
+  coolingPackage     String? // NOT_APPLICABLE, ICE_WATER, DRY_ICE, OTHER
+  temperatureTrackingStatus String? // TO_CONFIRM, NO, YES
+  activeContainerStatus String? // TO_CONFIRM, NO, YES
+  screeningStatus    String? // TO_CONFIRM, NO, YES
+  diplomaticStatus   String? // TO_CONFIRM, NO, YES
+  expressStatus      String? // TO_CONFIRM, NO, YES
+  lithiumBatteryStatus String? // TO_CONFIRM, NO, YES
   ncmCodes           String? // Stored as comma separated string
   contractNumber     String?
   commercialValue    Float?

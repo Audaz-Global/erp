@@ -15,6 +15,16 @@ export interface DraftPayload {
   destinationPort: string | null;
   connections: string | null;
   cargoDescription: string | null;
+  commodityType: string | null;
+  commoditySubtype: string | null;
+  temperatureRequirement: string | null;
+  coolingPackage: string | null;
+  temperatureTrackingStatus: string | null;
+  activeContainerStatus: string | null;
+  screeningStatus: string | null;
+  diplomaticStatus: string | null;
+  expressStatus: string | null;
+  lithiumBatteryStatus: string | null;
   ncmCodes: string | null;
   totalGrossWeightKg: number | null;
   totalNetWeightKg: number | null;
@@ -61,6 +71,16 @@ export function buildDraftPayload(quotation: QuotationWithClient, originalEmailT
     destinationPort: quotation.destinationPort,
     connections: quotation.connections,
     cargoDescription: quotation.cargoDescription,
+    commodityType: quotation.commodityType,
+    commoditySubtype: quotation.commoditySubtype,
+    temperatureRequirement: quotation.temperatureRequirement,
+    coolingPackage: quotation.coolingPackage,
+    temperatureTrackingStatus: quotation.temperatureTrackingStatus,
+    activeContainerStatus: quotation.activeContainerStatus,
+    screeningStatus: quotation.screeningStatus,
+    diplomaticStatus: quotation.diplomaticStatus,
+    expressStatus: quotation.expressStatus,
+    lithiumBatteryStatus: quotation.lithiumBatteryStatus,
     ncmCodes: quotation.ncmCodes,
     totalGrossWeightKg: quotation.totalGrossWeightKg,
     totalNetWeightKg: quotation.totalNetWeightKg,

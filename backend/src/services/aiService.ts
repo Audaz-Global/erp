@@ -296,6 +296,24 @@ export const extractClientData = async (text: string, contextRules: string = '',
                 gross_weight_kg: { type: 'number' },
                 packages_count: { type: 'number' },
                 description: { type: 'string', description: 'Descrição detalhada da mercadoria/produto exatamente como o cliente escreveu (ex: "Peças sobressalentes de perfuratriz", "Resina plástica em pellets"). Copie o texto, não resuma nem traduza. String vazia se não houver descrição do produto.' },
+                commodity_type: {
+                  type: 'string',
+                  enum: ['GENERAL_CARGO', 'PHARMACEUTICALS', 'PERISHABLE', 'DANGEROUS_GOODS', 'LIVE_ANIMALS', 'OTHER'],
+                  description: 'Categoria operacional da mercadoria. Use PHARMACEUTICALS para medicamentos, vacinas e produtos farmacêuticos; PERISHABLE para perecíveis; DANGEROUS_GOODS somente com evidência explícita de DG; LIVE_ANIMALS para animais vivos; GENERAL_CARGO para carga geral; OTHER quando nenhuma categoria servir.'
+                },
+                commodity_subtype: { type: 'string', description: 'Subtipo específico informado, como vacinas, medicamentos, alimentos, flores ou frutos do mar. Não invente; string vazia quando ausente.' },
+                temperature_requirement: {
+                  type: 'string',
+                  enum: ['NOT_REQUIRED', 'MINUS_10_TO_MINUS_20_C', 'PLUS_2_TO_PLUS_8_C', 'PLUS_2_TO_PLUS_25_C', 'PLUS_15_TO_PLUS_25_C', 'OTHER'],
+                  description: 'Faixa de temperatura explicitamente solicitada. Use OTHER se houver outra faixa; NOT_REQUIRED somente quando o pedido disser que controle de temperatura não é necessário.'
+                },
+                cooling_package: { type: 'string', enum: ['NOT_APPLICABLE', 'ICE_WATER', 'DRY_ICE', 'OTHER'], description: 'Embalagem/meio de resfriamento explicitamente solicitado. NOT_APPLICABLE somente quando declarado; não presuma.' },
+                temperature_tracking_status: { type: 'string', enum: ['TO_CONFIRM', 'NO', 'YES'], description: 'YES somente se houver solicitação explícita de data logger/rastreador de temperatura; NO somente com negativa explícita; caso contrário TO_CONFIRM.' },
+                active_container_status: { type: 'string', enum: ['TO_CONFIRM', 'NO', 'YES'], description: 'YES somente quando contêiner ativo/active container for solicitado; NO somente com negativa explícita; caso contrário TO_CONFIRM.' },
+                screening_status: { type: 'string', enum: ['TO_CONFIRM', 'NO', 'YES'], description: 'Status de carga inspecionada/screened, somente conforme informação explícita.' },
+                diplomatic_status: { type: 'string', enum: ['TO_CONFIRM', 'NO', 'YES'], description: 'Status de carga diplomática, somente conforme informação explícita.' },
+                express_status: { type: 'string', enum: ['TO_CONFIRM', 'NO', 'YES'], description: 'Status de serviço expresso, somente conforme solicitação explícita.' },
+                lithium_battery_status: { type: 'string', enum: ['TO_CONFIRM', 'NO', 'YES'], description: 'YES quando baterias de lítio forem explicitamente declaradas; NO somente com negativa explícita; caso contrário TO_CONFIRM.' },
                 dimensions: {
                   type: 'array',
                   items: { type: 'string' },
@@ -411,6 +429,7 @@ export const extractClientData = async (text: string, contextRules: string = '',
     - Como o tipo do cargo ("type") é limitado no schema do JSON, certifique-se de registrar a especificação especial do contêiner (como "Container de 40' Open Top High Cube" ou similar) como um item de texto dentro da lista de "dimensions" para que essa informação essencial não se perca na extração.
     - **Modal/Tipo de Carga**: O campo "cargo.type" DEVE ser classificado estritamente como um dos seguintes: "AIR_GENERAL" (se aéreo), "LCL" (se marítimo consolidado), "FCL_20" (se container 20') ou "FCL_40" (se container 40'). Se a documentação não mencionar CLARAMENTE o modal (como "Air", "Ocean", "Sea", "LCL"), NÃO tente deduzir sozinho baseando-se apenas no Incoterm (ex: FCA não significa automaticamente Aéreo). Nesse caso, retorne OBRIGATORIAMENTE "UNKNOWN" para exigir a seleção manual. NUNCA preencha este campo com o nome da mercadoria.
     - **Descrição da Mercadoria (cargo.description)**: Copie a descrição do produto/mercadoria exatamente como o cliente escreveu (ex: "Peças sobressalentes de perfuratriz", "Autopeças", "Resina plástica em pellets"). Esse texto será colado literalmente no e-mail de cotação para o agente, então não resuma, não traduza e não invente — se não houver descrição do produto na solicitação, retorne string vazia.
+    - **Commodities e temperatura**: Extraia tipo/subtipo, faixa de temperatura, embalagem de resfriamento, rastreador, contêiner ativo, screening, carga diplomática, expresso e baterias de lítio somente a partir de informação explícita. Para campos YES/NO sem evidência, use TO_CONFIRM. Não transforme carga refrigerada em contêiner ativo, gelo seco ou rastreador sem o pedido dizer isso.
 
     - **Moeda do Valor Comercial (commercial_currency)**: sempre que extrair commercial_value_usd, informe também em commercial_currency a moeda real em que o valor está expresso no documento (USD, EUR ou BRL) — apesar do nome do campo, o valor NÃO precisa estar em dólar. Só use USD em commercial_currency se o documento não indicar outra moeda explicitamente.
 
@@ -498,6 +517,15 @@ export function buildAgentDraftDataContext(data: DraftPayload): string {
     - Dimensões: ${data.packages || 'Não informado'}
     - CBM Total: ${data.totalCbm || 'Não informado'}
     - Descrição da Carga: ${data.cargoDescription || 'Não informada'}
+    - Tipo/Subtipo de Commodity: ${data.commodityType || 'Não informado'} / ${data.commoditySubtype || 'Não informado'}
+    - Requisito de Temperatura: ${data.temperatureRequirement || 'Não informado'}
+    - Embalagem de Resfriamento: ${data.coolingPackage || 'Não informada'}
+    - Rastreador de Temperatura: ${data.temperatureTrackingStatus || 'A confirmar'}
+    - Contêiner Ativo: ${data.activeContainerStatus || 'A confirmar'}
+    - Carga Inspecionada (Screened): ${data.screeningStatus || 'A confirmar'}
+    - Carga Diplomática: ${data.diplomaticStatus || 'A confirmar'}
+    - Serviço Expresso: ${data.expressStatus || 'A confirmar'}
+    - Baterias de Lítio: ${data.lithiumBatteryStatus || 'A confirmar'}
     - NCM: ${data.ncmCodes || 'Não informado'}
     - Nome do Cliente: ${data.clientName || 'Não informado'}
     - CNPJ do Cliente: ${data.clientCnpj || 'Não informado'}
@@ -564,6 +592,7 @@ export const generateAgentDraft = async (data: DraftPayload, contextRules: strin
     7. **Omitir Taxas de Destino Silenciosamente**: Se houver regras sobre taxas de destino (como não pedi-las para agentes da origem), simplesmente **não as peça** no e-mail (solicite apenas o frete e taxas locais de origem, ex: THC, documentação, etc.). **NUNCA escreva frases negativas no e-mail dizendo que não precisa de taxas de destino** (ex: NÃO escreva "não precisamos das taxas de destino" ou "não enviar taxas de destino"). Apenas ignore as taxas de destino silenciosamente no e-mail.
     8. Redija o e-mail de forma direta e profissional. Sem saudações excessivas, apenas o necessário. Em português (Brasil) ou inglês simples.
     8.1. **Descrição da Mercadoria (OBRIGATÓRIO)**: Se "Descrição da Carga" nos DADOS EXTRAÍDOS DA CARGA não for "Não informada", inclua-a literalmente no corpo do e-mail (ex: "Mercadoria: [descrição]"), sem resumir, reescrever ou traduzir o texto original.
+    8.2. **Requisitos de commodity (OBRIGATÓRIO quando informados)**: Inclua no pedido ao parceiro todo requisito preenchido de temperatura, embalagem de resfriamento, rastreador, contêiner ativo, screening, carga diplomática, serviço expresso ou baterias de lítio. Não mencione campos "Não informado" ou "A confirmar" como se fossem exigências confirmadas.
     9. **Conexões**: Se houver conexões do voo ou do porto especificadas nos DADOS EXTRAÍDOS DA CARGA (diferente de "Sem conexões"), mencione-as de forma clara no e-mail (ex: "via MIA" ou "com transbordo em Algeciras") para que o coloader/agente faça a cotação exatamente na rota solicitada.
     10. **Remoção de Telefones e Contatos da Assinatura**: Ao assinar o e-mail (ou finalizar o corpo do e-mail), **NUNCA** inclua informações de contato pessoal extraídas do e-mail do cliente (como nomes de pessoas de contato, ex: "Magda", "Talitha", etc., endereços de e-mail específicos, números de telefone comercial, ramal ou telefones celulares). A assinatura do e-mail deve ser estritamente genérica e neutra (ex: apenas "Atenciosamente," ou "Best regards,"), sem listar quaisquer nomes, telefones ou e-mails adicionais.
     11. **Cotações Consolidadas LCL / Co-Loader com Múltiplos Shippers/Fornecedores**:

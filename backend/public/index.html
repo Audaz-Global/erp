@@ -1106,6 +1106,52 @@
   .partner-detail-kv strong { display:block; margin-top:4px; font-size:13px; overflow-wrap:anywhere; }
   .partner-profile-form { display:grid; grid-template-columns:repeat(4,minmax(130px,1fr)); gap:10px; align-items:end; margin-bottom:16px; }
 
+  .commodity-panel { margin:14px 0 22px; }
+  .commodity-card, .commodity-flags-bar { position:relative; border:1px solid #253754; background:#0b1424; box-shadow:0 10px 28px rgba(0,0,0,.2); }
+  .commodity-card { padding:27px 18px 17px; border-radius:12px; }
+  .commodity-card-title { position:absolute; top:-11px; left:18px; padding:5px 13px; border:1px solid rgba(147,197,253,.22); border-radius:6px; background:#31466f; color:#f8fafc; font-size:10px; font-weight:900; letter-spacing:.65px; text-transform:uppercase; box-shadow:0 4px 12px rgba(0,0,0,.28); }
+  .commodity-top-row { display:grid; grid-template-columns:minmax(280px,1.45fr) minmax(190px,.8fr) minmax(190px,.8fr); gap:12px; align-items:stretch; padding-bottom:14px; border-bottom:1px solid rgba(148,163,184,.16); }
+  .commodity-search { position:relative; min-width:0; }
+  .commodity-search input, .commodity-select-box select { display:block; width:100%; height:46px; border:1px solid #2a3b57; border-radius:9px; background:#080f1d; color:#e8eef8; outline:none; box-shadow:inset 0 1px 2px rgba(0,0,0,.2); transition:border-color .16s ease,box-shadow .16s ease; }
+  .commodity-search input { padding:0 42px 0 13px; }
+  .commodity-search input::placeholder { color:#65738a; }
+  .commodity-search input:focus, .commodity-select-box select:focus { border-color:#4f83cc; box-shadow:0 0 0 3px rgba(79,131,204,.13); }
+  .commodity-search::after { content:'\2315'; position:absolute; right:14px; top:10px; color:#6ea8f5; font-size:22px; line-height:22px; transform:rotate(-20deg); pointer-events:none; }
+  .commodity-select-box { position:relative; min-width:0; }
+  .commodity-select-box small { position:absolute; left:12px; top:6px; z-index:1; color:#77869d; font-size:8px; font-weight:700; letter-spacing:.45px; text-transform:uppercase; pointer-events:none; }
+  .commodity-select-box select { padding:14px 34px 2px 11px; font-size:13px; }
+  .commodity-line { padding-top:13px; }
+  .commodity-line-title { display:flex; align-items:center; gap:8px; margin-bottom:8px; color:#8fb9ef; font-size:10px; font-weight:800; letter-spacing:.45px; text-transform:uppercase; }
+  .commodity-line-title .commodity-hint { color:#d98686; font-size:10px; font-weight:600; letter-spacing:0; text-transform:none; }
+  .commodity-choice-row { display:flex; align-items:center; flex-wrap:wrap; gap:7px; }
+  .commodity-choice { position:relative; display:inline-flex; align-items:center; min-height:30px; padding:6px 10px; border:1px solid transparent; border-radius:7px; color:#8794a9; font-size:11px; line-height:1; cursor:pointer; user-select:none; transition:background .15s ease,border-color .15s ease,color .15s ease; }
+  .commodity-choice:hover { color:#cbd8ea; background:rgba(96,165,250,.06); }
+  .commodity-choice input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+  .commodity-choice::before { content:''; width:10px; height:10px; flex:0 0 10px; margin-right:7px; border:1px solid #65758c; border-radius:3px; background:#111c2d; box-shadow:inset 0 0 0 2px #111c2d; }
+  .commodity-choice:has(input[type="radio"])::before { border-radius:50%; }
+  .commodity-choice:has(input:checked) { border-color:rgba(96,165,250,.36); background:rgba(59,130,246,.12); color:#cfe2ff; font-weight:700; }
+  .commodity-choice:has(input:checked)::before { border-color:#6ea8f5; background:#60a5fa; }
+  .commodity-dual-row { display:flex; justify-content:space-between; gap:18px; align-items:center; padding-top:14px; margin-top:4px; border-top:1px solid rgba(148,163,184,.1); }
+  .commodity-dual-block { min-width:0; }
+  .commodity-toggle-label { display:flex; align-items:center; gap:10px; color:#9fb4d0; font-size:11px; font-weight:700; white-space:nowrap; }
+  .commodity-switch { position:relative; display:inline-flex; width:38px; height:21px; }
+  .commodity-switch input { width:0; height:0; opacity:0; }
+  .commodity-switch span { position:absolute; inset:0; border-radius:999px; background:#64748b; cursor:pointer; transition:.18s ease; }
+  .commodity-switch span::after { content:''; position:absolute; width:15px; height:15px; left:3px; top:3px; border-radius:50%; background:white; transition:.18s ease; box-shadow:0 1px 4px rgba(0,0,0,.35); }
+  .commodity-switch input:checked + span { background:#3b82f6; }
+  .commodity-switch input:checked + span::after { transform:translateX(17px); }
+  .commodity-flags-bar { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-top:9px; padding:9px 10px; border-radius:10px; }
+  .commodity-flags-left, .commodity-flags-right { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; }
+  .commodity-flags-right > span { color:#8794a9; font-size:11px; }
+  .commodity-flags-bar .commodity-choice { min-height:28px; padding:5px 8px; }
+  .commodity-review .commodity-card { padding-top:22px; }
+  .commodity-review .commodity-choice { font-size:11px; }
+
+  @media (max-width:900px) {
+    .commodity-top-row { grid-template-columns:1fr; }
+    .commodity-dual-row, .commodity-flags-bar { align-items:flex-start; flex-direction:column; }
+  }
+
   @media (max-width:900px) {
     .partners-workspace { grid-template-columns:1fr; }
     .partners-sidebar { position:static; display:flex; gap:5px; overflow-x:auto; }
@@ -1359,10 +1405,6 @@
         <h2><span class="emoji">📦</span> Detalhes da Carga</h2>
         <p class="desc">Revise as informações logísticas da mercadoria.</p>
 
-        <div class="form-group">
-          <label>Descrição da Mercadoria</label>
-          <input type="text" id="r-cargo-description" placeholder="Ex: Peças sobressalentes de perfuratriz">
-        </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div class="form-group">
             <label>Tipo <span id="conf-type"></span></label>
@@ -1466,6 +1508,55 @@
           </div>
         </div>
         <div id="incoterm-rules-preview" style="display:none; margin-top: 24px;"></div>
+        <div class="commodity-panel" id="r-commodity-panel">
+          <div class="commodity-card">
+            <span class="commodity-card-title">Commodities</span>
+            <div class="commodity-top-row">
+              <div class="commodity-search"><input type="text" id="r-cargo-description" placeholder="Buscar ou descrever a mercadoria..."></div>
+              <div class="commodity-select-box"><small>Tipo de mercadoria</small><select id="r-commodity-type"><option value="">Selecione...</option><option value="GENERAL_CARGO">Carga geral</option><option value="PHARMACEUTICALS">Farmacêutica</option><option value="PERISHABLE">Perecível</option><option value="DANGEROUS_GOODS">Carga perigosa</option><option value="LIVE_ANIMALS">Animais vivos</option><option value="OTHER">Outra</option></select></div>
+              <div class="commodity-select-box"><small>Subtipo</small><select id="r-commodity-subtype"><option value="">Selecione...</option><option value="PASSIVE">Passivo</option><option value="ACTIVE">Ativo</option><option value="VACCINES">Vacinas</option><option value="MEDICINES">Medicamentos</option><option value="FOOD">Alimentos</option><option value="FRESH_PRODUCE">Produtos frescos</option><option value="FLOWERS">Flores</option><option value="SEAFOOD">Frutos do mar</option><option value="OTHER">Outro</option></select></div>
+            </div>
+            <div class="commodity-line">
+              <div class="commodity-line-title">Requisitos de temperatura <span class="commodity-hint">ⓘ Selecione a faixa correta quando aplicável</span></div>
+              <input type="hidden" id="r-temperature-requirement" value="">
+              <div class="commodity-choice-row">
+                <label class="commodity-choice"><input type="radio" name="r-temperature-choice" value="NOT_REQUIRED" onchange="setCommodityValue('r','temperature-requirement',this.value)">Não requerido</label>
+                <label class="commodity-choice"><input type="radio" name="r-temperature-choice" value="MINUS_10_TO_MINUS_20_C" onchange="setCommodityValue('r','temperature-requirement',this.value)">-10°C a -20°C</label>
+                <label class="commodity-choice"><input type="radio" name="r-temperature-choice" value="PLUS_2_TO_PLUS_8_C" onchange="setCommodityValue('r','temperature-requirement',this.value)">2°C a 8°C</label>
+                <label class="commodity-choice"><input type="radio" name="r-temperature-choice" value="PLUS_2_TO_PLUS_25_C" onchange="setCommodityValue('r','temperature-requirement',this.value)">2°C a 25°C</label>
+                <label class="commodity-choice"><input type="radio" name="r-temperature-choice" value="PLUS_15_TO_PLUS_25_C" onchange="setCommodityValue('r','temperature-requirement',this.value)">15°C a 25°C</label>
+                <label class="commodity-choice"><input type="radio" name="r-temperature-choice" value="OTHER" onchange="setCommodityValue('r','temperature-requirement',this.value)">Outra</label>
+              </div>
+            </div>
+            <div class="commodity-line">
+              <div class="commodity-line-title">A carga requer embalagem de resfriamento?</div>
+              <input type="hidden" id="r-cooling-package" value="">
+              <div class="commodity-choice-row">
+                <label class="commodity-choice"><input type="radio" name="r-cooling-choice" value="NOT_APPLICABLE" onchange="setCommodityValue('r','cooling-package',this.value)">N/A</label>
+                <label class="commodity-choice"><input type="radio" name="r-cooling-choice" value="ICE_WATER" onchange="setCommodityValue('r','cooling-package',this.value)">Gelo/água</label>
+                <label class="commodity-choice"><input type="radio" name="r-cooling-choice" value="DRY_ICE" onchange="setCommodityValue('r','cooling-package',this.value)">Gelo seco</label>
+                <label class="commodity-choice"><input type="radio" name="r-cooling-choice" value="OTHER" onchange="setCommodityValue('r','cooling-package',this.value)">Outra</label>
+              </div>
+            </div>
+            <div class="commodity-dual-row">
+              <div class="commodity-dual-block">
+                <div class="commodity-line-title">Dispositivo de rastreamento de temperatura?</div>
+                <input type="hidden" id="r-temperature-tracking-status" value="TO_CONFIRM">
+                <div class="commodity-choice-row"><label class="commodity-choice"><input type="radio" name="r-tracking-choice" value="NO" onchange="setCommodityValue('r','temperature-tracking-status',this.value)">Não</label><label class="commodity-choice"><input type="radio" name="r-tracking-choice" value="YES" onchange="setCommodityValue('r','temperature-tracking-status',this.value)">Sim</label></div>
+              </div>
+              <label class="commodity-toggle-label">Necessita contêiner ativo? <span class="commodity-switch"><input type="checkbox" data-commodity-toggle="active-container-status" onchange="setCommodityValue('r','active-container-status',this.checked?'YES':'NO')"><span></span></span></label>
+              <input type="hidden" id="r-active-container-status" value="TO_CONFIRM">
+            </div>
+          </div>
+          <div class="commodity-flags-bar">
+            <div class="commodity-flags-left">
+              <input type="hidden" id="r-screening-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="checkbox" data-commodity-toggle="screening-status" onchange="setCommodityValue('r','screening-status',this.checked?'YES':'NO')">Screened</label>
+              <input type="hidden" id="r-diplomatic-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="checkbox" data-commodity-toggle="diplomatic-status" onchange="setCommodityValue('r','diplomatic-status',this.checked?'YES':'NO')">Diplomática</label>
+              <input type="hidden" id="r-express-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="checkbox" data-commodity-toggle="express-status" onchange="setCommodityValue('r','express-status',this.checked?'YES':'NO')">Expresso</label>
+            </div>
+            <div class="commodity-flags-right"><span>Contém baterias de lítio?</span><input type="hidden" id="r-lithium-battery-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="radio" name="r-lithium-choice" value="NO" onchange="setCommodityValue('r','lithium-battery-status',this.value)">Não</label><label class="commodity-choice"><input type="radio" name="r-lithium-choice" value="YES" onchange="setCommodityValue('r','lithium-battery-status',this.value)">Sim</label></div>
+          </div>
+        </div>
       </div>
 
       <!-- PASSO 4: ROTA -->
@@ -2482,13 +2573,25 @@
           <label style="font-size:11px;">Dimensões</label>
           <input type="text" id="rev-dimensions" placeholder="Ex: 120x80x130 cm, 114x134x68 cm">
         </div>
-        <div class="form-group" style="margin:0;grid-column:span 2;">
-          <label style="font-size:11px;">Descrição da Carga</label>
-          <input type="text" id="rev-cargo-description" placeholder="Ex: Peças sobressalentes de perfuratriz">
-        </div>
         <div class="form-group" style="margin:0;grid-column:span 1;">
           <label style="font-size:11px;">NCMs</label>
           <input type="text" id="rev-ncm-codes" placeholder="Ex: 8471.30.12, 8504.40.90">
+        </div>
+        <div class="commodity-panel commodity-review" id="rev-commodity-panel" style="grid-column:1/-1;">
+          <div class="commodity-card">
+            <span class="commodity-card-title">Commodities</span>
+            <div class="commodity-top-row">
+              <div class="commodity-search"><input type="text" id="rev-cargo-description" placeholder="Buscar ou descrever a mercadoria..."></div>
+              <div class="commodity-select-box"><small>Tipo de mercadoria</small><select id="rev-commodity-type"><option value="">Selecione...</option><option value="GENERAL_CARGO">Carga geral</option><option value="PHARMACEUTICALS">Farmacêutica</option><option value="PERISHABLE">Perecível</option><option value="DANGEROUS_GOODS">Carga perigosa</option><option value="LIVE_ANIMALS">Animais vivos</option><option value="OTHER">Outra</option></select></div>
+              <div class="commodity-select-box"><small>Subtipo</small><select id="rev-commodity-subtype"><option value="">Selecione...</option><option value="PASSIVE">Passivo</option><option value="ACTIVE">Ativo</option><option value="VACCINES">Vacinas</option><option value="MEDICINES">Medicamentos</option><option value="FOOD">Alimentos</option><option value="FRESH_PRODUCE">Produtos frescos</option><option value="FLOWERS">Flores</option><option value="SEAFOOD">Frutos do mar</option><option value="OTHER">Outro</option></select></div>
+            </div>
+            <div class="commodity-line"><div class="commodity-line-title">Requisitos de temperatura <span class="commodity-hint">ⓘ Selecione a faixa correta quando aplicável</span></div><input type="hidden" id="rev-temperature-requirement" value=""><div class="commodity-choice-row">
+              <label class="commodity-choice"><input type="radio" name="rev-temperature-choice" value="NOT_REQUIRED" onchange="setCommodityValue('rev','temperature-requirement',this.value)">Não requerido</label><label class="commodity-choice"><input type="radio" name="rev-temperature-choice" value="MINUS_10_TO_MINUS_20_C" onchange="setCommodityValue('rev','temperature-requirement',this.value)">-10°C a -20°C</label><label class="commodity-choice"><input type="radio" name="rev-temperature-choice" value="PLUS_2_TO_PLUS_8_C" onchange="setCommodityValue('rev','temperature-requirement',this.value)">2°C a 8°C</label><label class="commodity-choice"><input type="radio" name="rev-temperature-choice" value="PLUS_2_TO_PLUS_25_C" onchange="setCommodityValue('rev','temperature-requirement',this.value)">2°C a 25°C</label><label class="commodity-choice"><input type="radio" name="rev-temperature-choice" value="PLUS_15_TO_PLUS_25_C" onchange="setCommodityValue('rev','temperature-requirement',this.value)">15°C a 25°C</label><label class="commodity-choice"><input type="radio" name="rev-temperature-choice" value="OTHER" onchange="setCommodityValue('rev','temperature-requirement',this.value)">Outra</label>
+            </div></div>
+            <div class="commodity-line"><div class="commodity-line-title">A carga requer embalagem de resfriamento?</div><input type="hidden" id="rev-cooling-package" value=""><div class="commodity-choice-row"><label class="commodity-choice"><input type="radio" name="rev-cooling-choice" value="NOT_APPLICABLE" onchange="setCommodityValue('rev','cooling-package',this.value)">N/A</label><label class="commodity-choice"><input type="radio" name="rev-cooling-choice" value="ICE_WATER" onchange="setCommodityValue('rev','cooling-package',this.value)">Gelo/água</label><label class="commodity-choice"><input type="radio" name="rev-cooling-choice" value="DRY_ICE" onchange="setCommodityValue('rev','cooling-package',this.value)">Gelo seco</label><label class="commodity-choice"><input type="radio" name="rev-cooling-choice" value="OTHER" onchange="setCommodityValue('rev','cooling-package',this.value)">Outra</label></div></div>
+            <div class="commodity-dual-row"><div class="commodity-dual-block"><div class="commodity-line-title">Dispositivo de rastreamento de temperatura?</div><input type="hidden" id="rev-temperature-tracking-status" value="TO_CONFIRM"><div class="commodity-choice-row"><label class="commodity-choice"><input type="radio" name="rev-tracking-choice" value="NO" onchange="setCommodityValue('rev','temperature-tracking-status',this.value)">Não</label><label class="commodity-choice"><input type="radio" name="rev-tracking-choice" value="YES" onchange="setCommodityValue('rev','temperature-tracking-status',this.value)">Sim</label></div></div><label class="commodity-toggle-label">Necessita contêiner ativo? <span class="commodity-switch"><input type="checkbox" data-commodity-toggle="active-container-status" onchange="setCommodityValue('rev','active-container-status',this.checked?'YES':'NO')"><span></span></span></label><input type="hidden" id="rev-active-container-status" value="TO_CONFIRM"></div>
+          </div>
+          <div class="commodity-flags-bar"><div class="commodity-flags-left"><input type="hidden" id="rev-screening-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="checkbox" data-commodity-toggle="screening-status" onchange="setCommodityValue('rev','screening-status',this.checked?'YES':'NO')">Screened</label><input type="hidden" id="rev-diplomatic-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="checkbox" data-commodity-toggle="diplomatic-status" onchange="setCommodityValue('rev','diplomatic-status',this.checked?'YES':'NO')">Diplomática</label><input type="hidden" id="rev-express-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="checkbox" data-commodity-toggle="express-status" onchange="setCommodityValue('rev','express-status',this.checked?'YES':'NO')">Expresso</label></div><div class="commodity-flags-right"><span>Contém baterias de lítio?</span><input type="hidden" id="rev-lithium-battery-status" value="TO_CONFIRM"><label class="commodity-choice"><input type="radio" name="rev-lithium-choice" value="NO" onchange="setCommodityValue('rev','lithium-battery-status',this.value)">Não</label><label class="commodity-choice"><input type="radio" name="rev-lithium-choice" value="YES" onchange="setCommodityValue('rev','lithium-battery-status',this.value)">Sim</label></div></div>
         </div>
         <!-- Painel de Cubagem e Pesos Calculados -->
         <div style="grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr 1.2fr; gap:16px; background:rgba(245,166,35,0.04); border:1px solid rgba(245,166,35,0.15); border-radius:14px; padding:18px; margin-top:6px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.2);">
@@ -4009,6 +4112,76 @@ function renderConf(val, confStr) {
 }
 
 const PRODUCT_SEGMENT_LABELS = { FARMACEUTICO:'Farmacêutico', AUTOMOTIVO:'Automotivo', ELETRONICOS:'Eletrônicos', QUIMICO:'Químico', ALIMENTICIO:'Alimentício', BENS_DE_CONSUMO:'Bens de Consumo', MAQUINAS_E_EQUIPAMENTOS:'Máquinas e Equipamentos', OUTRO:'Outro' };
+
+function collectCommodityPayload(prefix) {
+  const value = id => document.getElementById(`${prefix}-${id}`)?.value || null;
+  return {
+    commodityType: value('commodity-type'),
+    commoditySubtype: value('commodity-subtype'),
+    temperatureRequirement: value('temperature-requirement'),
+    coolingPackage: value('cooling-package'),
+    temperatureTrackingStatus: value('temperature-tracking-status'),
+    activeContainerStatus: value('active-container-status'),
+    screeningStatus: value('screening-status'),
+    diplomaticStatus: value('diplomatic-status'),
+    expressStatus: value('express-status'),
+    lithiumBatteryStatus: value('lithium-battery-status')
+  };
+}
+
+function refreshCommodityControls(prefix) {
+  const radioMap = {
+    'temperature-requirement': 'temperature-choice',
+    'cooling-package': 'cooling-choice',
+    'temperature-tracking-status': 'tracking-choice',
+    'lithium-battery-status': 'lithium-choice'
+  };
+  Object.entries(radioMap).forEach(([field, group]) => {
+    const value = document.getElementById(`${prefix}-${field}`)?.value || '';
+    document.querySelectorAll(`input[name="${prefix}-${group}"]`).forEach(input => {
+      input.checked = input.value === value;
+    });
+  });
+  const panel = document.getElementById(`${prefix}-commodity-panel`);
+  panel?.querySelectorAll('[data-commodity-toggle]').forEach(input => {
+    const field = input.dataset.commodityToggle;
+    input.checked = document.getElementById(`${prefix}-${field}`)?.value === 'YES';
+  });
+}
+
+function setCommodityValue(prefix, field, value) {
+  const target = document.getElementById(`${prefix}-${field}`);
+  if (target) target.value = value;
+  refreshCommodityControls(prefix);
+}
+
+function populateCommodityFields(prefix, data = {}) {
+  const fieldMap = {
+    'commodity-type': ['commodityType', 'commodity_type'],
+    'commodity-subtype': ['commoditySubtype', 'commodity_subtype'],
+    'temperature-requirement': ['temperatureRequirement', 'temperature_requirement'],
+    'cooling-package': ['coolingPackage', 'cooling_package'],
+    'temperature-tracking-status': ['temperatureTrackingStatus', 'temperature_tracking_status'],
+    'active-container-status': ['activeContainerStatus', 'active_container_status'],
+    'screening-status': ['screeningStatus', 'screening_status'],
+    'diplomatic-status': ['diplomaticStatus', 'diplomatic_status'],
+    'express-status': ['expressStatus', 'express_status'],
+    'lithium-battery-status': ['lithiumBatteryStatus', 'lithium_battery_status']
+  };
+  Object.entries(fieldMap).forEach(([suffix, keys]) => {
+    const element = document.getElementById(`${prefix}-${suffix}`);
+    if (!element) return;
+    const resolved = keys.map(key => data?.[key]).find(value => value !== undefined && value !== null);
+    if (element.tagName === 'SELECT' && resolved !== undefined && !Array.from(element.options).some(option => option.value === String(resolved))) {
+      const option = document.createElement('option');
+      option.value = String(resolved);
+      option.textContent = String(resolved);
+      element.appendChild(option);
+    }
+    element.value = resolved !== undefined ? String(resolved) : (suffix.endsWith('-status') ? 'TO_CONFIRM' : '');
+  });
+  refreshCommodityControls(prefix);
+}
 
 function setSelectValueWithFallback(selectEl, val) {
   if (!selectEl) return;
@@ -5868,6 +6041,7 @@ function fillReviewForm(d, mode) {
       document.getElementById('conf-type').innerHTML = renderConf(d.cargo.type, d.cargo.confidence);
 
       document.getElementById('r-cargo-description').value = d.cargo.description || '';
+      populateCommodityFields('r', d.cargo);
 
       document.getElementById('r-weight').value = d.cargo.gross_weight_kg || '';
       document.getElementById('conf-weight').innerHTML = renderConf(d.cargo.gross_weight_kg, d.cargo.confidence);
@@ -6496,6 +6670,7 @@ async function saveQuotationRecord() {
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       productSegment: document.getElementById('r-product-segment').value || null,
       cargoDescription: document.getElementById('r-cargo-description').value || null,
+      ...collectCommodityPayload('r'),
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       sourceEmailRecords: window.lastEmailExtraction?.emails ? JSON.stringify(window.lastEmailExtraction.emails) : null,
       extractionAudit: window.lastEmailExtraction ? JSON.stringify(window.lastEmailExtraction) : null,
@@ -6867,6 +7042,7 @@ async function saveAsAwaitingAgent() {
       clientReferenceNumber: document.getElementById('r-client-reference').value || null,
       productSegment: document.getElementById('r-product-segment').value || null,
       cargoDescription: document.getElementById('r-cargo-description').value || null,
+      ...collectCommodityPayload('r'),
       sourceEmails: window.lastExtractedRawText ? JSON.stringify([window.lastExtractedRawText]) : null,
       sourceEmailRecords: window.lastEmailExtraction?.emails ? JSON.stringify(window.lastEmailExtraction.emails) : null,
       extractionAudit: window.lastEmailExtraction ? JSON.stringify(window.lastEmailExtraction) : null,
@@ -7518,6 +7694,7 @@ async function validateAndGeneratePDF(qIdParam = null) {
     document.getElementById('rev-dimensions').value = q.packages || '';
     window.extractedStatedCbm = Number(q.totalCbm) || 0;
     document.getElementById('rev-cargo-description').value = q.cargoDescription || '';
+    populateCommodityFields('rev', q);
     document.getElementById('rev-ncm-codes').value = q.ncmCodes || '';
     document.getElementById('rev-connections').value = q.connections || '';
     document.getElementById('rev-carrier').value = q.carrier || '';
@@ -8148,6 +8325,7 @@ async function confirmAndGeneratePDF() {
         totalCbm: computeEffectiveCbm('rev-dimensions', 'rev-packages') || null,
         cargoDescription: document.getElementById('rev-cargo-description').value || null,
         productSegment: document.getElementById('rev-product-segment').value || null,
+        ...collectCommodityPayload('rev'),
         ncmCodes: document.getElementById('rev-ncm-codes').value || null,
         frequency: frequencyValue,
         weightBreak: weightBreakValue,
@@ -12496,6 +12674,16 @@ async function loadQuotationIntoDraft(quotationId) {
           commercial_value_usd: quotation.commercialValue,
           commercial_currency: quotation.commercialCurrency,
           dimensions: quotation.packages,
+          commodity_type: quotation.commodityType,
+          commodity_subtype: quotation.commoditySubtype,
+          temperature_requirement: quotation.temperatureRequirement,
+          cooling_package: quotation.coolingPackage,
+          temperature_tracking_status: quotation.temperatureTrackingStatus,
+          active_container_status: quotation.activeContainerStatus,
+          screening_status: quotation.screeningStatus,
+          diplomatic_status: quotation.diplomaticStatus,
+          express_status: quotation.expressStatus,
+          lithium_battery_status: quotation.lithiumBatteryStatus,
           confidence: 1
         }
       };
