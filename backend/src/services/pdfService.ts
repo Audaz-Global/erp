@@ -600,8 +600,8 @@ const defaultTemplate = `
         <td class="t-right">{{freightCurrency}} {{freightTotalRich}}</td>
       </tr>
       {{#each freightAccessories}}
-      <tr style="background-color:#fcfcfc;">
-        <td style="padding-left:20px;">{{this.name}}</td>
+      <tr>
+        <td>{{this.name}}</td>
         <td class="t-center">{{this.qty}}</td>
         <td>{{this.unit}}</td>
         <td class="t-right">{{this.currency}} {{this.valueUnit}}</td>
