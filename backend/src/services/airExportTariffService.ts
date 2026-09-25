@@ -46,6 +46,7 @@ export interface AirTariffSearchResult {
   rate1000k?: number | null;
   rate3000k?: number | null;
   selectedWeightBreak: string;
+  isPharma?: boolean; // tarifa com commodity Pharmaceuticals
   unitRatePerKg: number;
   totalFreight: number;
   fromTariffExcel: boolean;
@@ -333,6 +334,24 @@ export async function importTariffFromBuffer(buffer: Buffer): Promise<{ totalRow
   return { totalRows: rawRows.length - 1, importedRows: recordsToCreate.length };
 }
 
+// Compara texto sem depender de acento ou maiúscula: o segmento foi gravado em
+// formatos diferentes ao longo do tempo (FARMACEUTICO e "Farmacêutico e Healthcare").
+function normalizePharmaText(value?: string): string {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
+// Guarda se a última busca foi de carga farmacêutica, para o controller informar
+// à tela (que decide entre filtrar as Pharma ou avisar que a rota não tem).
+let lastSearchWasPharma = false;
+export function wasLastSearchPharma(): boolean { return lastSearchWasPharma; }
+
+export function isPharmaSegment(segment?: string): boolean {
+  const s = normalizePharmaText(segment);
+  if (!s) return false;
+  return s.includes('FARMAC') || s.includes('PHARMA') || s.includes('HEALTHCARE')
+    || (s.includes('MEDIC') && s.includes('HOSPITAL'));
+}
+
 /**
  * Busca e calcula os fretes disponíveis no tarifário para a rota, peso e commodity fornecidos.
  */
@@ -340,7 +359,8 @@ export async function searchAirExportRates(
   origin: string,
   destination: string,
   chargableWeightKg: number,
-  commodity?: string
+  commodity?: string,
+  productSegment?: string
 ): Promise<AirTariffSearchResult[]> {
   const originClean = String(origin || '').trim().toUpperCase();
   const destClean = String(destination || '').trim().toUpperCase();
@@ -351,12 +371,20 @@ export async function searchAirExportRates(
     return d.includes('PHARMA') || d.includes('FARMA') || d.includes('VACINA') || d.includes('VACCIN') || d.includes('MEDICAMENT') || d.includes('MEDICINE') || d.includes('HEALTHCARE') || d.includes('REMEDIO');
   };
 
+  // A tarifa é de pharma pelo campo commodity do tarifário ("Pharmaceuticals").
+  // A busca por palavras solta de antes marcava como pharma qualquer tarifa com
+  // "AI" (que é tipo de acordo, não produto) — 66 das 395 tarifas cadastradas.
   const isPharmaRate = (rate: any) => {
-    const str = `${rate.commodity || ''} ${rate.prodCode || ''} ${rate.rateType || ''}`.toUpperCase();
-    return /\b(PHARMA|FARMA|PIL|VACCINES?|MEDICINES?|HEALTHCARE|AI|ACT|PASSIVE|CSAFE|ENVIROTAINER|TEMP)\b/.test(str);
+    const commodityRate = normalizePharmaText(rate.commodity || '');
+    if (commodityRate.includes('PHARMAC')) return true;
+    const str = normalizePharmaText(`${rate.commodity || ''} ${rate.prodCode || ''}`);
+    return /(PHARMA|FARMAC|VACCIN|MEDICIN|HEALTHCARE)/.test(str);
   };
 
-  const cargoIsPharma = isPharma(commodity || '');
+  // Segmento do cliente (ex.: "Farmacêutico e Healthcare", "FARMACEUTICO",
+  // "Equipamentos Médicos e Hospitalares") também define carga farmacêutica —
+  // é o que faz um cliente como a ACG cair sempre nas tarifas Pharma.
+  const cargoIsPharma = isPharma(commodity || '') || isPharmaSegment(productSegment);
 
   try {
     // Busca todas as taxas ativas (sem filtro de rota no DB para manter o fuzzy search matchesAirportOrCity)
@@ -364,12 +392,6 @@ export async function searchAirExportRates(
       where: { active: true }
     });
 
-    if (cargoIsPharma) {
-      const pharmaRates = allRates.filter(r => isPharmaRate(r));
-      if (pharmaRates.length > 0) {
-        allRates = pharmaRates;
-      }
-    }
 
     const results: AirTariffSearchResult[] = [];
 
@@ -455,10 +477,12 @@ export async function searchAirExportRates(
         selectedWeightBreak: selectedBreak,
         unitRatePerKg: parseFloat((unitRate || 0).toFixed(2)),
         totalFreight: parseFloat((calculatedFreight || 0).toFixed(2)),
-        fromTariffExcel: false
+        fromTariffExcel: false,
+        isPharma: isPharmaRate(rate)
       });
     }
 
+    lastSearchWasPharma = cargoIsPharma;
     return results.sort((a, b) => a.totalFreight - b.totalFreight);
   } catch (err) {
     console.error('Erro na consulta do tarifário:', err);

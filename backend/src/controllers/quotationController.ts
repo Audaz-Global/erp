@@ -20,7 +20,7 @@ import { shouldHydrateAutomaticCosts } from '../services/costCompositionService'
 import { legacyRoadFields, normalizeGroundServiceLegs, syncGroundServiceLegs } from '../services/groundServiceService';
 import { findClientByCnpjMatch, findClientByNameMatch } from '../services/clientMatchService';
 import { generateQuotationReference, isValidOperatorInitials, buildAgentEmailSubject } from '../services/quotationReferenceService';
-import { searchAirExportRates, importTariffFromBuffer } from '../services/airExportTariffService';
+import { searchAirExportRates, importTariffFromBuffer, wasLastSearchPharma } from '../services/airExportTariffService';
 
 export const uploadAirExportTariff = async (req: Request, res: Response) => {
   try {
@@ -1314,9 +1314,12 @@ export const getAirExportTariffs = async (req: Request, res: Response) => {
     const destination = String(req.query.destination || '');
     const weightKg = parseFloat(String(req.query.weightKg || '0')) || 0;
     const commodity = String(req.query.commodity || '');
+    const productSegment = String(req.query.productSegment || '');
 
-    const rates = await searchAirExportRates(origin, destination, weightKg, commodity);
-    res.json({ rates, total: rates.length });
+    const rates = await searchAirExportRates(origin, destination, weightKg, commodity, productSegment);
+    // pharmaRequested diz à tela que a carga é farmacêutica: ela marca sozinha o
+    // filtro Pharmaceuticals e, se a rota não tiver nenhuma, avisa o operador.
+    res.json({ rates, total: rates.length, pharmaRequested: wasLastSearchPharma() });
   } catch (error: any) {
     console.error('Erro ao buscar tarifário aéreo de exportação:', error);
     res.status(500).json({ error: error.message || 'Erro ao buscar tarifário aéreo de exportação' });
