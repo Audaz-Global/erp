@@ -13504,12 +13504,17 @@ async function checkAndRenderAirExportTariffs() {
   if (listEl) listEl.innerHTML = '';
 
   try {
-    const url = `/api/quotations/air-export-tariffs?origin=${encodeURIComponent(originPort)}&destination=${encodeURIComponent(destPort)}&weightKg=${encodeURIComponent(weightKg)}&commodity=${encodeURIComponent(commodity)}`;
+    const productSegment = document.getElementById('r-product-segment')?.value || document.getElementById('rev-product-segment')?.value || '';
+    const url = `/api/quotations/air-export-tariffs?origin=${encodeURIComponent(originPort)}&destination=${encodeURIComponent(destPort)}&weightKg=${encodeURIComponent(weightKg)}&commodity=${encodeURIComponent(commodity)}&productSegment=${encodeURIComponent(productSegment)}`;
     const res = await fetch(url);
     const data = await res.json();
     if (loadingEl) loadingEl.style.display = 'none';
 
     window.rawAirExportTariffRates = data.rates || [];
+    // Carga farmacêutica (pelo segmento do cliente ou pela descrição): o filtro
+    // de tarifas Pharma já vem ligado, e o operador pode desligar.
+    window.tariffPharmaRequested = Boolean(data.pharmaRequested);
+    window.tariffOnlyPharma = window.tariffPharmaRequested && (data.rates || []).some(r => r.isPharma);
     window.selectedAirlineNames.clear();
     
     // Popula o dropdown de Cias Aéreas com checkboxes de seleção múltipla
@@ -13641,12 +13646,61 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// Aviso do filtro farmacêutico, logo acima da lista de tarifas.
+window.tariffPharmaRequested = false;
+window.tariffOnlyPharma = false;
+
+function toggleTariffPharmaFilter(ligar) {
+  window.tariffOnlyPharma = Boolean(ligar);
+  applyTariffFiltersAndSort();
+}
+
+function renderPharmaTariffNotice() {
+  const ancora = document.getElementById('air-export-tariff-summary-badge');
+  if (!ancora) return;
+  const caixa = document.getElementById('tariff-pharma-notice') || (() => {
+    const div = document.createElement('div');
+    div.id = 'tariff-pharma-notice';
+    div.style.cssText = 'margin:10px 0 0;font-size:11px;';
+    const painel = ancora.closest('div');
+    (painel?.parentElement || ancora.parentElement).appendChild(div);
+    return div;
+  })();
+
+  if (!window.tariffPharmaRequested) { caixa.innerHTML = ''; return; }
+
+  const todas = window.rawAirExportTariffRates || [];
+  const pharma = todas.filter(r => r.isPharma);
+
+  if (!pharma.length) {
+    caixa.innerHTML = `<div style="padding:10px 12px;border:1px solid rgba(245,166,35,.45);border-radius:8px;background:rgba(245,166,35,.08);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <span style="color:#f5c36a;"><strong>Carga farmacêutica:</strong> esta rota não tem nenhuma tarifa <strong>Pharmaceuticals</strong> cadastrada.</span>
+      <span style="color:var(--text-muted);">Estão sendo exibidas as ${todas.length} tarifas gerais — confirme se atendem à carga.</span>
+    </div>`;
+    return;
+  }
+
+  caixa.innerHTML = window.tariffOnlyPharma
+    ? `<div style="padding:10px 12px;border:1px solid rgba(52,211,153,.4);border-radius:8px;background:rgba(52,211,153,.07);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span style="color:#34d399;"><strong>Carga farmacêutica:</strong> mostrando apenas as ${pharma.length} tarifas <strong>Pharmaceuticals</strong>.</span>
+        <button type="button" class="btn btn-secondary" style="padding:3px 10px;font-size:11px;" onclick="toggleTariffPharmaFilter(false)">Ver todas as ${todas.length} tarifas</button>
+      </div>`
+    : `<div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span style="color:var(--text-muted);">Mostrando <strong>todas</strong> as ${todas.length} tarifas da rota. A carga é farmacêutica.</span>
+        <button type="button" class="btn btn-secondary" style="padding:3px 10px;font-size:11px;" onclick="toggleTariffPharmaFilter(true)">Mostrar só as ${pharma.length} Pharmaceuticals</button>
+      </div>`;
+}
+
 function applyTariffFiltersAndSort() {
   const sortVal = document.getElementById('tariff-sort-select')?.value || 'ASC';
   const badgeEl = document.getElementById('air-export-tariff-summary-badge');
 
   let filtered = [...(window.rawAirExportTariffRates || [])];
   const totalAvailable = filtered.length;
+
+  // Filtro de produto farmacêutico (commodity "Pharmaceuticals" no tarifário)
+  if (window.tariffOnlyPharma) filtered = filtered.filter(r => r.isPharma);
+  renderPharmaTariffNotice();
 
   // Filtro Multi-Seleção de Cias Aéreas
   if (window.selectedAirlineNames.size > 0) {
