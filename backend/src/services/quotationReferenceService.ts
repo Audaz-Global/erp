@@ -1,5 +1,5 @@
 import { prisma } from '../prisma';
-import { buildDraftPayload } from '../utils/draftPayload';
+import { buildCommodityEmailTokens, buildDraftPayload } from '../utils/draftPayload';
 import { renderDraftSubject } from '../utils/emailTemplate';
 import { findAgentDraftEmailTemplate } from './agentDraftEmailTemplateService';
 
@@ -56,8 +56,16 @@ export async function buildAgentEmailSubject(
     incoterm: payload.incoterm || '',
     origin: payload.originPort || payload.originCity || '',
     destination: payload.destinationPort || payload.destinationCity || '',
+    equipment: payload.loadType || 'Não informado',
+    grossWeight: payload.totalGrossWeightKg != null ? String(payload.totalGrossWeightKg) : 'Não informado',
+    cargoValue: payload.commercialValue != null ? `${payload.commercialCurrency || ''} ${payload.commercialValue}`.trim() : 'Não informado',
+    imoStatus: payload.dangerousGoodsStatus === 'CONFIRMED' ? 'Sim' : payload.dangerousGoodsStatus === 'TO_CONFIRM' ? 'A confirmar' : 'Não',
+    directService: payload.connections ? 'Conforme rota informada' : 'Quando aplicável',
+    freeTime: 'Quando aplicável',
+    contactName: '',
     client: payload.clientName || '',
     clientCnpj: payload.clientCnpj || '',
-    clientReference: payload.clientReferenceNumber || ''
+    clientReference: payload.clientReferenceNumber || '',
+    ...buildCommodityEmailTokens(payload)
   });
 }

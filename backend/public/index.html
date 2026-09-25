@@ -9709,7 +9709,7 @@ function switchSettingsTab(tab) {
           <div class="form-group">
             <label>Template do Assunto</label>
             <input type="text" id="ades-subject" placeholder="{quotationCode} | {direction} {modal} - {incoterm} | {origin} x {destination} | {client} ({clientCnpj}) | {clientReference}">
-            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Tokens disponíveis: {quotationCode}, {direction}, {modal}, {incoterm}, {origin}, {destination}, {client}, {clientCnpj}, {clientReference}</p>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Tokens disponíveis: {quotationCode}, {direction}, {modal}, {incoterm}, {origin}, {destination}, {client}, {clientCnpj}, {clientReference}, {cargoDescription}, {commodityType}, {commoditySubtype}, {temperatureRequirement}, {coolingPackage}, {temperatureTrackingStatus}, {activeContainerStatus}, {screeningStatus}, {diplomaticStatus}, {expressStatus}, {lithiumBatteryStatus}</p>
           </div>
           <button class="btn btn-primary" onclick="saveAgentDraftEmailSettings()">💾 Salvar Assunto</button>
         </div>
@@ -12890,7 +12890,81 @@ async function applyStandardFees(type, targetId) {
 
 let agentDraftTemplatesCache=[];
 const DRAFT_TEMPLATE_SAMPLE=`Olá,\n\nFavor cotar o embarque abaixo:\n\nRota: {origin} para {destination}\nModal: Marítimo FCL\nIncoterm: {incoterm}\nEquipamento: {equipment}\nPeso bruto: {grossWeight} kg\nValor da carga: {cargoValue}\nCarga IMO: {imoStatus}\n\nRequisitos específicos:\n- Embarque direto: {directService}\n- Free time: {freeTime}\n\nFavor informar na cotação:\n- Shipping line name\n- Valor do frete (all-in)\n- Transit time\n- Validade da cotação\n- Free time demurrage\n- Route\n\nAtenciosamente,`;
-function ensureAgentDraftTemplatesPanel(){const subject=document.getElementById('ades-subject');if(!subject||document.getElementById('adet-name'))return;const section=subject.closest('.settings-section');section.insertAdjacentHTML('afterend',`<div class="settings-section" id="agentDraftTemplatesPanel"><h3>Modelos por Incoterm e Modal</h3><p style="font-size:12px;color:var(--text-muted)">O modelo mais específico é aplicado primeiro. Use equipamento somente quando o texto precisar ser diferente para Reefer, Open Top ou outro caso especial.</p><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div class="form-group"><label>Nome</label><input id="adet-name" placeholder="FOB FCL Importação"></div><div class="form-group"><label>Incoterm</label><select id="adet-incoterm"><option value="ALL">Todos</option><option>EXW</option><option>FCA</option><option selected>FOB</option><option>CFR</option><option>CIF</option><option>DAP</option><option>DDP</option></select></div><div class="form-group"><label>Modal</label><select id="adet-modal"><option value="ALL">Todos</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="AIR">Aéreo</option></select></div><div class="form-group"><label>Direção</label><select id="adet-direction"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div><div class="form-group"><label>Equipamento</label><select id="adet-equipment"><option value="ALL" selected>Todos</option><option value="20GP">20' Dry</option><option value="40GP">40' Dry</option><option value="40HC">40' High Cube</option><option value="20RH">20' Reefer</option><option value="40RH">40' Reefer</option><option value="20OT">20' Open Top</option><option value="40OT">40' Open Top</option></select></div><div class="form-group" style="grid-column:span 3"><label>Assunto do modelo (opcional)</label><input id="adet-subject" placeholder="{quotationCode} | {direction} SEA - {incoterm} | {origin} x {destination}"></div><div class="form-group" style="grid-column:1/-1"><label>Corpo do modelo</label><textarea id="adet-body" rows="15" placeholder="Use tokens: {contactName}, {origin}, {destination}, {incoterm}, {equipment}, {grossWeight}, {cargoValue}, {imoStatus}, {directService}, {freeTime}"></textarea></div></div><input type="hidden" id="adet-id"><button class="btn btn-secondary" onclick="fillFobFclDraftTemplate()">Usar exemplo FOB FCL</button><button class="btn btn-primary" onclick="saveAgentDraftTemplate()">Salvar modelo</button><button class="btn btn-secondary" onclick="clearAgentDraftTemplate()">Limpar</button><div id="agentDraftTemplatesTable" style="margin-top:16px;overflow:auto"></div></div>`);loadAgentDraftTemplates();}
+const AGENT_DRAFT_TEMPLATE_TAGS=[
+  {token:'{contactName}',label:'Nome do contato',group:'general'},
+  {token:'{quotationCode}',label:'Código da cotação',group:'general'},
+  {token:'{direction}',label:'Direção',group:'general'},
+  {token:'{modal}',label:'Modal',group:'general'},
+  {token:'{incoterm}',label:'Incoterm',group:'general'},
+  {token:'{origin}',label:'Origem',group:'general'},
+  {token:'{destination}',label:'Destino',group:'general'},
+  {token:'{equipment}',label:'Equipamento',group:'general'},
+  {token:'{grossWeight}',label:'Peso bruto',group:'general'},
+  {token:'{cargoValue}',label:'Valor da carga',group:'general'},
+  {token:'{imoStatus}',label:'Carga IMO',group:'general'},
+  {token:'{directService}',label:'Serviço direto',group:'general'},
+  {token:'{freeTime}',label:'Free time',group:'general'},
+  {token:'{client}',label:'Cliente',group:'general'},
+  {token:'{clientCnpj}',label:'CNPJ do cliente',group:'general'},
+  {token:'{clientReference}',label:'Referência do cliente',group:'general'},
+  {token:'{cargoDescription}',label:'Descrição da mercadoria',group:'commodity'},
+  {token:'{commodityType}',label:'Tipo de mercadoria',group:'commodity'},
+  {token:'{commoditySubtype}',label:'Subtipo',group:'commodity'},
+  {token:'{temperatureRequirement}',label:'Faixa de temperatura',group:'commodity'},
+  {token:'{coolingPackage}',label:'Embalagem de resfriamento',group:'commodity'},
+  {token:'{temperatureTrackingStatus}',label:'Rastreamento de temperatura',group:'commodity'},
+  {token:'{activeContainerStatus}',label:'Contêiner ativo',group:'commodity'},
+  {token:'{screeningStatus}',label:'Screened',group:'commodity'},
+  {token:'{diplomaticStatus}',label:'Carga diplomática',group:'commodity'},
+  {token:'{expressStatus}',label:'Serviço expresso',group:'commodity'},
+  {token:'{lithiumBatteryStatus}',label:'Baterias de lítio',group:'commodity'}
+];
+let activeAgentDraftTemplateField='adet-body';
+function renderAgentDraftTemplateTags(group){
+  return AGENT_DRAFT_TEMPLATE_TAGS.filter(tag=>tag.group===group).map(tag=>`<button type="button" class="btn btn-secondary" data-template-token="${tag.token}" onclick="insertAgentDraftTemplateTag('${tag.token}')" title="Inserir ${tag.token}" style="padding:7px 10px;font-size:11px;display:inline-flex;gap:6px;align-items:center"><span>${tag.label}</span><code style="color:var(--gold);font-size:10px">${tag.token}</code></button>`).join('');
+}
+function insertAgentDraftTemplateTag(token){
+  const field=document.getElementById(activeAgentDraftTemplateField)||document.getElementById('adet-body');
+  if(!field)return;
+  const start=Number.isInteger(field.selectionStart)?field.selectionStart:field.value.length;
+  const end=Number.isInteger(field.selectionEnd)?field.selectionEnd:start;
+  field.setRangeText(token,start,end,'end');
+  field.focus();
+  field.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function ensureAgentDraftTemplatesPanel(){
+  const subject=document.getElementById('ades-subject');
+  if(!subject||document.getElementById('adet-name'))return;
+  const section=subject.closest('.settings-section');
+  section.insertAdjacentHTML('afterend',`<div class="settings-section" id="agentDraftTemplatesPanel">
+    <h3>Modelos por Incoterm e Modal</h3>
+    <p style="font-size:12px;color:var(--text-muted)">O modelo mais específico é aplicado primeiro. Use equipamento somente quando o texto precisar ser diferente para Reefer, Open Top ou outro caso especial.</p>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div class="form-group"><label>Nome</label><input id="adet-name" placeholder="FOB FCL Importação"></div>
+      <div class="form-group"><label>Incoterm</label><select id="adet-incoterm"><option value="ALL">Todos</option><option>EXW</option><option>FCA</option><option selected>FOB</option><option>CFR</option><option>CIF</option><option>DAP</option><option>DDP</option></select></div>
+      <div class="form-group"><label>Modal</label><select id="adet-modal"><option value="ALL">Todos</option><option value="SEA_FCL" selected>Marítimo FCL</option><option value="SEA_LCL">Marítimo LCL</option><option value="AIR">Aéreo</option></select></div>
+      <div class="form-group"><label>Direção</label><select id="adet-direction"><option value="ALL">Todas</option><option value="IMPORT" selected>Importação</option><option value="EXPORT">Exportação</option></select></div>
+      <div class="form-group"><label>Equipamento</label><select id="adet-equipment"><option value="ALL" selected>Todos</option><option value="20GP">20' Dry</option><option value="40GP">40' Dry</option><option value="40HC">40' High Cube</option><option value="20RH">20' Reefer</option><option value="40RH">40' Reefer</option><option value="20OT">20' Open Top</option><option value="40OT">40' Open Top</option></select></div>
+      <div class="form-group" style="grid-column:span 3"><label>Assunto do modelo (opcional)</label><input id="adet-subject" placeholder="{quotationCode} | {direction} SEA - {incoterm} | {origin} x {destination}"></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Corpo do modelo</label><textarea id="adet-body" rows="15" placeholder="Monte o texto e insira as tags abaixo nos pontos desejados."></textarea></div>
+    </div>
+    <div style="margin:4px 0 18px;padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)">
+      <strong style="display:block;margin-bottom:4px">Tags disponíveis</strong>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Clique primeiro no Assunto ou no Corpo e depois na tag que deseja inserir.</p>
+      <small style="display:block;color:var(--text-muted);margin-bottom:7px">DADOS GERAIS</small>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">${renderAgentDraftTemplateTags('general')}</div>
+      <small style="display:block;color:var(--gold);margin-bottom:7px">CARGA E COMMODITIES</small>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">${renderAgentDraftTemplateTags('commodity')}</div>
+    </div>
+    <input type="hidden" id="adet-id">
+    <button class="btn btn-secondary" onclick="fillFobFclDraftTemplate()">Usar exemplo FOB FCL</button>
+    <button class="btn btn-primary" onclick="saveAgentDraftTemplate()">Salvar modelo</button>
+    <button class="btn btn-secondary" onclick="clearAgentDraftTemplate()">Limpar</button>
+    <div id="agentDraftTemplatesTable" style="margin-top:16px;overflow:auto"></div>
+  </div>`);
+  ['adet-subject','adet-body'].forEach(id=>document.getElementById(id)?.addEventListener('focus',()=>{activeAgentDraftTemplateField=id;}));
+  loadAgentDraftTemplates();
+}
 async function loadAgentDraftTemplates(){const res=await fetch(API+'/agent-draft-email-templates');if(!res.ok)return;agentDraftTemplatesCache=await res.json();const el=document.getElementById('agentDraftTemplatesTable');if(!el)return;el.innerHTML=agentDraftTemplatesCache.length?`<table class="k-table"><thead><tr><th>Nome</th><th>Aplicação</th><th>Equipamento</th><th>Ações</th></tr></thead><tbody>${agentDraftTemplatesCache.map(t=>`<tr><td><strong>${ifrEscape(t.name)}</strong></td><td>${t.incoterm} / ${t.modal} / ${t.direction}</td><td>${t.equipment}</td><td><button class="action-btn" onclick="editAgentDraftTemplate('${t.id}')">✏️</button><button class="action-btn danger" onclick="deleteAgentDraftTemplate('${t.id}')">✖</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--text-muted)">Nenhum modelo específico cadastrado. O modelo geral continuará sendo usado.</p>';}
 function fillFobFclDraftTemplate(){document.getElementById('adet-name').value='FOB FCL Importação';document.getElementById('adet-incoterm').value='FOB';document.getElementById('adet-modal').value='SEA_FCL';document.getElementById('adet-direction').value='IMPORT';document.getElementById('adet-equipment').value='ALL';document.getElementById('adet-body').value=DRAFT_TEMPLATE_SAMPLE;}
 function clearAgentDraftTemplate(){['adet-id','adet-name','adet-subject','adet-body'].forEach(id=>document.getElementById(id).value='');}

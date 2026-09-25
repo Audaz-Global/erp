@@ -53,6 +53,70 @@ export interface DraftPayload {
   agentEmailCode: string | null;
 }
 
+const COMMODITY_TYPE_LABELS: Record<string, string> = {
+  GENERAL_CARGO: 'Carga geral',
+  PHARMACEUTICALS: 'Farmacêutica',
+  PERISHABLE: 'Perecível',
+  DANGEROUS_GOODS: 'Carga perigosa',
+  LIVE_ANIMALS: 'Animais vivos',
+  OTHER: 'Outra'
+};
+
+const COMMODITY_SUBTYPE_LABELS: Record<string, string> = {
+  PASSIVE: 'Passivo',
+  ACTIVE: 'Ativo',
+  VACCINES: 'Vacinas',
+  MEDICINES: 'Medicamentos',
+  FOOD: 'Alimentos',
+  FRESH_PRODUCE: 'Produtos frescos',
+  FLOWERS: 'Flores',
+  SEAFOOD: 'Frutos do mar',
+  OTHER: 'Outro'
+};
+
+const TEMPERATURE_REQUIREMENT_LABELS: Record<string, string> = {
+  NOT_REQUIRED: 'Não requerido',
+  MINUS_10_TO_MINUS_20_C: '-10°C a -20°C',
+  PLUS_2_TO_PLUS_8_C: '2°C a 8°C',
+  PLUS_2_TO_PLUS_25_C: '2°C a 25°C',
+  PLUS_15_TO_PLUS_25_C: '15°C a 25°C',
+  OTHER: 'Outra'
+};
+
+const COOLING_PACKAGE_LABELS: Record<string, string> = {
+  NOT_APPLICABLE: 'N/A',
+  ICE_WATER: 'Gelo/água',
+  DRY_ICE: 'Gelo seco',
+  OTHER: 'Outra'
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  YES: 'Sim',
+  NO: 'Não',
+  TO_CONFIRM: 'A confirmar'
+};
+
+function readableValue(value: string | null, labels?: Record<string, string>): string {
+  if (!value) return 'Não informado';
+  return labels?.[value] || value;
+}
+
+export function buildCommodityEmailTokens(payload: DraftPayload): Record<string, string> {
+  return {
+    cargoDescription: readableValue(payload.cargoDescription),
+    commodityType: readableValue(payload.commodityType, COMMODITY_TYPE_LABELS),
+    commoditySubtype: readableValue(payload.commoditySubtype, COMMODITY_SUBTYPE_LABELS),
+    temperatureRequirement: readableValue(payload.temperatureRequirement, TEMPERATURE_REQUIREMENT_LABELS),
+    coolingPackage: readableValue(payload.coolingPackage, COOLING_PACKAGE_LABELS),
+    temperatureTrackingStatus: readableValue(payload.temperatureTrackingStatus, STATUS_LABELS),
+    activeContainerStatus: readableValue(payload.activeContainerStatus, STATUS_LABELS),
+    screeningStatus: readableValue(payload.screeningStatus, STATUS_LABELS),
+    diplomaticStatus: readableValue(payload.diplomaticStatus, STATUS_LABELS),
+    expressStatus: readableValue(payload.expressStatus, STATUS_LABELS),
+    lithiumBatteryStatus: readableValue(payload.lithiumBatteryStatus, STATUS_LABELS)
+  };
+}
+
 type QuotationWithClient = Quotation & { client?: { name?: string; cnpj?: string | null } | null };
 
 export function buildDraftPayload(quotation: QuotationWithClient, originalEmailText: string): DraftPayload {
